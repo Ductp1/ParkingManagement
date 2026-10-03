@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -26,8 +26,8 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     Action = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     EntityName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     EntityId = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    OldValuesJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
-                    NewValuesJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    OldValuesJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
+                    NewValuesJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     Reason = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: true),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
@@ -62,7 +62,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    PayloadJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     OccurredAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AttemptCount = table.Column<int>(type: "integer", nullable: false),
@@ -83,7 +83,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     ParkingLotId = table.Column<int>(type: "integer", nullable: true),
                     Level = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     Reason = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
-                    EvidenceJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    EvidenceJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     StartsAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     EndsAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     Status = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
@@ -128,7 +128,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     Severity = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     Status = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
-                    EvidenceJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    EvidenceJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     DueAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     AssignedToUserId = table.Column<int>(type: "integer", nullable: true),
                     ResolvedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),

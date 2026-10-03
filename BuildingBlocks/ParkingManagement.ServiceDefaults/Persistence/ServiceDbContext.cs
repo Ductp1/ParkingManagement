@@ -7,7 +7,7 @@ namespace ParkingManagement.ServiceDefaults.Persistence;
 /// <summary>
 /// DbContext gốc cho mọi service. Mỗi service kế thừa lớp này và có DATABASE RIÊNG (Database-per-Service).
 /// Gom các quy ước dùng chung để database của 9 service có cùng "luật chơi":
-///  - Enum lưu dạng chuỗi (dễ đọc khi query bằng SSMS), tiền decimal(18,2), chuỗi mặc định nvarchar(500).
+///  - Enum lưu dạng chuỗi (dễ đọc khi query bằng psql), tiền decimal(18,2), chuỗi mặc định varchar(500).
 ///  - Khóa ngoại BÊN TRONG service: RESTRICT (không cascade). Xóa nghiệp vụ dùng soft delete (ISoftDelete).
 ///  - Tham chiếu SANG SERVICE KHÁC chỉ lưu ID (không có khóa ngoại) – xem database/README.md.
 ///  - Bảng OutboxMessages để phát sự kiện tích hợp cho service khác.
@@ -33,7 +33,7 @@ public abstract class ServiceDbContext(DbContextOptions options) : DbContext(opt
             e.ToTable("OutboxMessages");
             e.HasKey(x => x.Id);
             e.Property(x => x.EventType).HasMaxLength(200);
-            e.Property(x => x.PayloadJson).HasColumnType("nvarchar(max)");
+            e.Property(x => x.PayloadJson).HasColumnType("jsonb");
             e.Property(x => x.LastError).HasMaxLength(2000);
             e.HasIndex(x => new { x.ProcessedAtUtc, x.OccurredAtUtc });
         });
@@ -48,7 +48,7 @@ public abstract class ServiceDbContext(DbContextOptions options) : DbContext(opt
             var clrType = entityType.ClrType;
             var entity = modelBuilder.Entity(clrType);
 
-            // Enum → nvarchar(40)
+            // Enum → varchar(40)
             foreach (var property in entityType.GetProperties())
             {
                 var type = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;

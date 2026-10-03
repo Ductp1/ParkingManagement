@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -79,7 +79,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    PayloadJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     OccurredAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AttemptCount = table.Column<int>(type: "integer", nullable: false),
@@ -102,7 +102,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                     TemplateKey = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     Body = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
-                    DataJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    DataJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     Status = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     RetryCount = table.Column<int>(type: "integer", nullable: false),
                     LastError = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),

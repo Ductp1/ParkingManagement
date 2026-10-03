@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -18,7 +18,7 @@ namespace UserService.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    PayloadJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     OccurredAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AttemptCount = table.Column<int>(type: "integer", nullable: false),

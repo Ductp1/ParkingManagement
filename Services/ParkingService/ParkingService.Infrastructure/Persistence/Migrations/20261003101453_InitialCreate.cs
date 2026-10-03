@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -43,7 +43,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    PayloadJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     OccurredAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AttemptCount = table.Column<int>(type: "integer", nullable: false),
@@ -132,7 +132,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     ParkingLotId = table.Column<int>(type: "integer", nullable: false),
                     Status = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     BusinessLicenseUrl = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
-                    SitePhotoUrlsJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    SitePhotoUrlsJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     PhotoLatitude = table.Column<double>(type: "double precision", nullable: true),
                     PhotoLongitude = table.Column<double>(type: "double precision", nullable: true),
                     FireSafetyCertificateUrl = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
@@ -355,7 +355,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     FloorId = table.Column<int>(type: "integer", nullable: false),
                     VersionNo = table.Column<int>(type: "integer", nullable: false),
-                    LayoutJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    LayoutJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     IsPublished = table.Column<bool>(type: "boolean", nullable: false),
                     PublishedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     CreatedByUserId = table.Column<int>(type: "integer", nullable: false),

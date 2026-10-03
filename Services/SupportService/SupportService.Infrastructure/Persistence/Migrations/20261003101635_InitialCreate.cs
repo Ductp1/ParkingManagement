@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -26,7 +26,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     OwnerProfileId = table.Column<int>(type: "integer", nullable: false),
                     Category = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     Description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
-                    EvidenceUrlsJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    EvidenceUrlsJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     RequestedAmount = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     Status = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     OwnerResponse = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
@@ -73,7 +73,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    PayloadJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     OccurredAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AttemptCount = table.Column<int>(type: "integer", nullable: false),
@@ -123,7 +123,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     SenderParty = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     SenderUserId = table.Column<int>(type: "integer", nullable: true),
                     Message = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
-                    AttachmentUrlsJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    AttachmentUrlsJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     IsInternal = table.Column<bool>(type: "boolean", nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)

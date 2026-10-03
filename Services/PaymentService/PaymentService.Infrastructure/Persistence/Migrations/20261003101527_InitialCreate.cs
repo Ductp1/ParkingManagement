@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -37,7 +37,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    PayloadJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     OccurredAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ProcessedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     AttemptCount = table.Column<int>(type: "integer", nullable: false),
@@ -70,7 +70,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     IdempotencyKey = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     ProviderTransactionId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     ProviderResponseCode = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
-                    RawCallbackJson = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: true),
+                    RawCallbackJson = table.Column<string>(type: "jsonb", maxLength: 500, nullable: true),
                     TransferContent = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     PaidAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     ExpiresAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -214,7 +214,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     PaymentId = table.Column<int>(type: "integer", nullable: true),
                     Provider = table.Column<string>(type: "character varying(40)", maxLength: 40, nullable: false),
                     ProviderTransactionId = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
-                    RawPayload = table.Column<string>(type: "nvarchar(max)", maxLength: 500, nullable: false),
+                    RawPayload = table.Column<string>(type: "jsonb", maxLength: 500, nullable: false),
                     SignatureValid = table.Column<bool>(type: "boolean", nullable: false),
                     IsDuplicate = table.Column<bool>(type: "boolean", nullable: false),
                     ResultCode = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
