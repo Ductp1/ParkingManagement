@@ -1,6 +1,6 @@
 # Database – Database-per-Service
 
-Mỗi service sở hữu **1 database riêng** trên SQL Server và là service DUY NHẤT được đọc/ghi database đó.
+Mỗi service sở hữu **1 database riêng** trên PostgreSQL và là service DUY NHẤT được đọc/ghi database đó.
 Thiết kế dựa trên: SRS v2, Đặc tả chức năng v3, Nghiệp vụ & Quản trị Marketplace v3, Kiến trúc v3, Kế hoạch kiểm thử v3,
 Answer_01 → 09, 61 Use Case và 115 User Story.
 
@@ -9,17 +9,17 @@ Mỗi database còn có `OutboxMessages` (sự kiện chờ gửi cho service kh
 
 | Database | Service | Bảng | FK |
 |---|---|---|---|
-| PM_UserDb | UserService | Users, UserRoles, OtpCodes, RefreshTokens, OwnerProfiles, StaffAssignments, SecurityEvents, DataSubjectRequests | 8 |
-| PM_VehicleDb | VehicleService | Vehicles, VehicleShares | 1 |
-| PM_ParkingDb | ParkingService | ParkingLots, Zones, Floors, Slots, LayoutVersions, KybApplications, LotCapacityConfigs, LotOperatingHours, ClosureSchedules, LotAmenities, LotPhotos, LotIntegrations, SlotStateLogs, ExternalParkingLots | 12 |
-| PM_BookingDb | BookingService | Bookings, PriceSnapshots, BookingStatusLogs, BookingModifications, MonthlyPasses | 3 |
-| PM_PaymentDb | PaymentService | RateCards, RateRules, Promotions, PromotionRedemptions, Holidays, Payments, PaymentCallbackLogs, Refunds, Invoices, CompensationVouchers, Settlements, SettlementLines, FinancialAdjustments | 12 |
-| PM_NotificationDb | NotificationService | Notifications, NotificationTemplates, NotificationPreferences, DeviceTokens | 1 |
-| PM_GateDb | GateService | ParkingSessions, GateEvents, Shifts, GateDevices | 2 |
-| PM_AdminDb | AdminService | SystemConfigs, FeatureFlags, Sanctions, AuditLogs, RiskFlags | 1 |
-| PM_SupportDb | SupportService | Complaints, ComplaintMessages, Reviews, FaqArticles | 1 |
+| pm_user | UserService | Users, UserRoles, OtpCodes, RefreshTokens, OwnerProfiles, StaffAssignments, SecurityEvents, DataSubjectRequests | 8 |
+| pm_vehicle | VehicleService | Vehicles, VehicleShares | 1 |
+| pm_parking | ParkingService | ParkingLots, Zones, Floors, Slots, LayoutVersions, KybApplications, LotCapacityConfigs, LotOperatingHours, ClosureSchedules, LotAmenities, LotPhotos, LotIntegrations, SlotStateLogs, ExternalParkingLots | 12 |
+| pm_booking | BookingService | Bookings, PriceSnapshots, BookingStatusLogs, BookingModifications, MonthlyPasses | 3 |
+| pm_payment | PaymentService | RateCards, RateRules, Promotions, PromotionRedemptions, Holidays, Payments, PaymentCallbackLogs, Refunds, Invoices, CompensationVouchers, Settlements, SettlementLines, FinancialAdjustments | 12 |
+| pm_notification | NotificationService | Notifications, NotificationTemplates, NotificationPreferences, DeviceTokens | 1 |
+| pm_gate | GateService | ParkingSessions, GateEvents, Shifts, GateDevices | 2 |
+| pm_admin | AdminService | SystemConfigs, FeatureFlags, Sanctions, AuditLogs, RiskFlags | 1 |
+| pm_support | SupportService | Complaints, ComplaintMessages, Reviews, FaqArticles | 1 |
 
-Migration của mỗi service: `InitialCreate` (37 bảng gốc) → `AddDocumentCoverage` (22 bảng bổ sung sau khi đối chiếu toàn bộ user story).
+Mỗi service hiện có **1 migration duy nhất** `InitialCreate` (đã tạo lại trên Npgsql, gộp toàn bộ sơ đồ 59 bảng + `AddDocumentCoverage`).
 
 ---
 
@@ -145,7 +145,7 @@ erDiagram
 
 ## 3. Tham chiếu giữa các service
 
-SQL Server không cho tạo khóa ngoại sang database khác, và theo nguyên lý microservice các service cũng không JOIN database
+PostgreSQL không cho tạo khóa ngoại sang database khác, và theo nguyên lý microservice các service cũng không JOIN database
 của nhau. Cột trỏ sang service khác **chỉ lưu ID** (comment `→ <Service> (không FK)` trong code), kèm cột **snapshot** để hiển thị.
 
 | Bảng | Cột | Trỏ tới | Snapshot |
@@ -171,7 +171,7 @@ booking sang `Confirmed`. `OwnerProfileId` là khóa tenant để chủ bãi A k
 
 ## 4. Quy ước chung (`ServiceDbContext` trong BuildingBlocks)
 
-- Enum lưu dạng chuỗi, tiền `decimal(18,2)`, chuỗi mặc định `nvarchar(500)`.
+- Enum lưu dạng chuỗi, tiền `decimal(18,2)`, chuỗi mặc định `varchar(500)`.
 - FK bên trong service là RESTRICT. `Users`, `Vehicles`, `ParkingLots`, `Reviews`, `ExternalParkingLots` dùng soft delete.
 - `Slots`, `Bookings` có `RowVersion` chống 2 request cùng sửa 1 bản ghi.
 - Index/ràng buộc chống sai dữ liệu tiêu biểu:
@@ -184,10 +184,10 @@ booking sang `Confirmed`. `OwnerProfileId` là khóa tenant để chủ bãi A k
 **Cách 1 – chạy service** (`..\run-all.ps1`): mỗi service tự áp migration còn thiếu và nạp dữ liệu demo.
 Database cũ (đã có `InitialCreate`) sẽ tự được nâng lên `AddDocumentCoverage`, giữ nguyên dữ liệu đang có.
 
-**Cách 2 – SSMS**: mở `01_PM_UserDb.sql` … `09_PM_SupportDb.sql`, bấm F5. Script tự tạo database, chỉ chạy phần migration còn
-thiếu nên chạy lại nhiều lần được. Cách này không có dữ liệu demo (chỉ tham số hệ thống, feature flag, mẫu thông báo, ngày lễ).
+**Cách 2 – psql / pgAdmin**: tạo database rỗng trước (`CREATE DATABASE pm_user;` …), rồi chạy `01_pm_user.sql` … `09_pm_support.sql`.
+Script idempotent – chỉ áp phần migration còn thiếu nên chạy lại nhiều lần được. Cách này không có dữ liệu demo (chỉ tham số hệ thống, feature flag, mẫu thông báo, ngày lễ).
 
-**Xem dữ liệu:** `00_XemNhanh.sql`.
+**Xem dữ liệu:** `00_XemNhanh.sql` (lưu ý: file này vẫn là T-SQL cũ, chưa chuyển sang psql).
 
 ## 6. Dữ liệu demo
 
