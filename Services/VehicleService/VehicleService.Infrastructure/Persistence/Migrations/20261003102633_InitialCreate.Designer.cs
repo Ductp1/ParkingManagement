@@ -12,7 +12,7 @@ using VehicleService.Infrastructure.Persistence;
 namespace VehicleService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(VehicleDbContext))]
-    [Migration("20261003092118_InitialCreate")]
+    [Migration("20261003102633_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -137,11 +137,11 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId", "PlateNumber")
                         .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
+                        .HasFilter("\"IsDeleted\" = FALSE");
 
                     b.ToTable("Vehicles", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Vehicles_Height", "[HeightCm] > 0");
+                            t.HasCheckConstraint("CK_Vehicles_Height", "\"HeightCm\" > 0");
                         });
                 });
 
@@ -185,11 +185,11 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("VehicleId", "SharedWithUserId")
                         .IsUnique()
-                        .HasFilter("[Status] <> N'Revoked'");
+                        .HasFilter("\"Status\" <> 'Revoked'");
 
                     b.ToTable("VehicleShares", null, t =>
                         {
-                            t.HasCheckConstraint("CK_VehicleShares_NotSelf", "[OwnerUserId] <> [SharedWithUserId]");
+                            t.HasCheckConstraint("CK_VehicleShares_NotSelf", "\"OwnerUserId\" <> \"SharedWithUserId\"");
                         });
                 });
 

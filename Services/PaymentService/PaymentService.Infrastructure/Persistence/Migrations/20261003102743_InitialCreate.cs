@@ -82,8 +82,8 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Payments", x => x.Id);
-                    table.CheckConstraint("CK_Payments_Amount", "[Amount] >= 0 AND [RefundedAmount] >= 0 AND [RefundedAmount] <= [Amount]");
-                    table.CheckConstraint("CK_Payments_Target", "[BookingId] IS NOT NULL OR [ParkingSessionId] IS NOT NULL");
+                    table.CheckConstraint("CK_Payments_Amount", "\"Amount\" >= 0 AND \"RefundedAmount\" >= 0 AND \"RefundedAmount\" <= \"Amount\"");
+                    table.CheckConstraint("CK_Payments_Target", "\"BookingId\" IS NOT NULL OR \"ParkingSessionId\" IS NOT NULL");
                 });
 
             migrationBuilder.CreateTable(
@@ -112,7 +112,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Promotions", x => x.Id);
-                    table.CheckConstraint("CK_Promotions_Period", "[EndsAtUtc] > [StartsAtUtc]");
+                    table.CheckConstraint("CK_Promotions_Period", "\"EndsAtUtc\" > \"StartsAtUtc\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -139,7 +139,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_RateCards", x => x.Id);
-                    table.CheckConstraint("CK_RateCards_Multipliers", "[WeekendMultiplier] > 0 AND [HolidayMultiplier] > 0 AND [OversizedMultiplier] >= 1 AND [OverstayMultiplier] >= 1");
+                    table.CheckConstraint("CK_RateCards_Multipliers", "\"WeekendMultiplier\" > 0 AND \"HolidayMultiplier\" > 0 AND \"OversizedMultiplier\" >= 1 AND \"OverstayMultiplier\" >= 1");
                 });
 
             migrationBuilder.CreateTable(
@@ -169,7 +169,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Settlements", x => x.Id);
-                    table.CheckConstraint("CK_Settlements_Period", "[PeriodEnd] >= [PeriodStart]");
+                    table.CheckConstraint("CK_Settlements_Period", "\"PeriodEnd\" >= \"PeriodStart\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -196,7 +196,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_CompensationVouchers", x => x.Id);
-                    table.CheckConstraint("CK_CompensationVouchers_Amount", "[Amount] > 0");
+                    table.CheckConstraint("CK_CompensationVouchers_Amount", "\"Amount\" > 0");
                     table.ForeignKey(
                         name: "FK_CompensationVouchers_Payments_RedeemedPaymentId",
                         column: x => x.RedeemedPaymentId,
@@ -256,7 +256,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Refunds", x => x.Id);
-                    table.CheckConstraint("CK_Refunds_Amount", "[Amount] > 0");
+                    table.CheckConstraint("CK_Refunds_Amount", "\"Amount\" > 0");
                     table.ForeignKey(
                         name: "FK_Refunds_Payments_PaymentId",
                         column: x => x.PaymentId,
@@ -283,7 +283,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_PromotionRedemptions", x => x.Id);
-                    table.CheckConstraint("CK_PromotionRedemptions_Amount", "[DiscountAmount] >= 0");
+                    table.CheckConstraint("CK_PromotionRedemptions_Amount", "\"DiscountAmount\" >= 0");
                     table.ForeignKey(
                         name: "FK_PromotionRedemptions_Payments_PaymentId",
                         column: x => x.PaymentId,
@@ -317,8 +317,8 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_RateRules", x => x.Id);
-                    table.CheckConstraint("CK_RateRules_Block", "[BlockMinutes] > 0 AND [PricePerBlock] >= 0");
-                    table.CheckConstraint("CK_RateRules_Range", "[ToMinute] IS NULL OR [ToMinute] > [FromMinute]");
+                    table.CheckConstraint("CK_RateRules_Block", "\"BlockMinutes\" > 0 AND \"PricePerBlock\" >= 0");
+                    table.CheckConstraint("CK_RateRules_Range", "\"ToMinute\" IS NULL OR \"ToMinute\" > \"FromMinute\"");
                     table.ForeignKey(
                         name: "FK_RateRules_RateCards_RateCardId",
                         column: x => x.RateCardId,
@@ -376,7 +376,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Invoices", x => x.Id);
-                    table.CheckConstraint("CK_Invoices_Source", "([Type] = N'ParkingFee' AND [PaymentId] IS NOT NULL) OR ([Type] = N'PlatformCommission' AND [SettlementId] IS NOT NULL)");
+                    table.CheckConstraint("CK_Invoices_Source", "(\"Type\" = 'ParkingFee' AND \"PaymentId\" IS NOT NULL) OR (\"Type\" = 'PlatformCommission' AND \"SettlementId\" IS NOT NULL)");
                     table.ForeignKey(
                         name: "FK_Invoices_Payments_PaymentId",
                         column: x => x.PaymentId,
@@ -453,7 +453,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 name: "IX_CompensationVouchers_ChargedToOwnerProfileId",
                 table: "CompensationVouchers",
                 column: "ChargedToOwnerProfileId",
-                filter: "[ChargedToOwnerProfileId] IS NOT NULL");
+                filter: "\"ChargedToOwnerProfileId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CompensationVouchers_Code",
@@ -498,14 +498,14 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 table: "Invoices",
                 column: "PaymentId",
                 unique: true,
-                filter: "[PaymentId] IS NOT NULL");
+                filter: "\"PaymentId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Invoices_SettlementId",
                 table: "Invoices",
                 column: "SettlementId",
                 unique: true,
-                filter: "[SettlementId] IS NOT NULL");
+                filter: "\"SettlementId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_OutboxMessages_ProcessedAtUtc_OccurredAtUtc",
@@ -544,7 +544,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 table: "Payments",
                 columns: new[] { "Method", "ProviderTransactionId" },
                 unique: true,
-                filter: "[ProviderTransactionId] IS NOT NULL");
+                filter: "\"ProviderTransactionId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Payments_OwnerProfileId_Status_PaidAtUtc",
@@ -561,7 +561,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 table: "PromotionRedemptions",
                 column: "BookingId",
                 unique: true,
-                filter: "[IsReverted] = 0");
+                filter: "\"IsReverted\" = FALSE");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PromotionRedemptions_PaymentId",
@@ -604,7 +604,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 name: "IX_Refunds_ComplaintId",
                 table: "Refunds",
                 column: "ComplaintId",
-                filter: "[ComplaintId] IS NOT NULL");
+                filter: "\"ComplaintId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Refunds_PaymentId_Status",
@@ -615,7 +615,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                 name: "IX_SettlementLines_PaymentId",
                 table: "SettlementLines",
                 column: "PaymentId",
-                filter: "[PaymentId] IS NOT NULL");
+                filter: "\"PaymentId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SettlementLines_RefundId",

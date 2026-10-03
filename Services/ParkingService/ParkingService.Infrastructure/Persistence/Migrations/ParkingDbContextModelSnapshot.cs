@@ -114,7 +114,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ClosureSchedules", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ClosureSchedules_Period", "[EndsAtUtc] IS NULL OR [EndsAtUtc] > [StartsAtUtc]");
+                            t.HasCheckConstraint("CK_ClosureSchedules_Period", "\"EndsAtUtc\" IS NULL OR \"EndsAtUtc\" > \"StartsAtUtc\"");
                         });
                 });
 
@@ -227,7 +227,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Floors", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Floors_Grid", "[GridColumns] > 0 AND [GridRows] > 0");
+                            t.HasCheckConstraint("CK_Floors_Grid", "\"GridColumns\" > 0 AND \"GridRows\" > 0");
                         });
                 });
 
@@ -442,7 +442,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("LotCapacityConfigs", null, t =>
                         {
-                            t.HasCheckConstraint("CK_LotCapacity_Buffer", "[WalkInBufferPercent] BETWEEN 0 AND 100");
+                            t.HasCheckConstraint("CK_LotCapacity_Buffer", "\"WalkInBufferPercent\" BETWEEN 0 AND 100");
                         });
                 });
 
@@ -585,7 +585,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.HasIndex("ParkingLotId")
                         .IsUnique()
                         .HasDatabaseName("UX_LotPhotos_OneCover")
-                        .HasFilter("[IsCover] = 1");
+                        .HasFilter("\"IsCover\" = TRUE");
 
                     b.HasIndex("ParkingLotId", "SortOrder");
 
@@ -696,11 +696,11 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("ParkingLots", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ParkingLots_Latitude", "[Latitude] BETWEEN -90 AND 90");
+                            t.HasCheckConstraint("CK_ParkingLots_Latitude", "\"Latitude\" BETWEEN -90 AND 90");
 
-                            t.HasCheckConstraint("CK_ParkingLots_Longitude", "[Longitude] BETWEEN -180 AND 180");
+                            t.HasCheckConstraint("CK_ParkingLots_Longitude", "\"Longitude\" BETWEEN -180 AND 180");
 
-                            t.HasCheckConstraint("CK_ParkingLots_Slots", "[AvailableSlots] >= 0 AND [AvailableSlots] <= [TotalSlots]");
+                            t.HasCheckConstraint("CK_ParkingLots_Slots", "\"AvailableSlots\" >= 0 AND \"AvailableSlots\" <= \"TotalSlots\"");
                         });
                 });
 
@@ -743,11 +743,11 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
-                    b.Property<byte[]>("RowVersion")
+                    b.Property<uint>("RowVersion")
                         .IsConcurrencyToken()
-                        .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<string>("SlotType")
                         .IsRequired()
@@ -771,7 +771,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("DedicatedVehicleId")
-                        .HasFilter("[DedicatedVehicleId] IS NOT NULL");
+                        .HasFilter("\"DedicatedVehicleId\" IS NOT NULL");
 
                     b.HasIndex("FloorId", "Code")
                         .IsUnique();

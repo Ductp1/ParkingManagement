@@ -56,7 +56,7 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Vehicles", x => x.Id);
-                    table.CheckConstraint("CK_Vehicles_Height", "[HeightCm] > 0");
+                    table.CheckConstraint("CK_Vehicles_Height", "\"HeightCm\" > 0");
                 });
 
             migrationBuilder.CreateTable(
@@ -77,7 +77,7 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_VehicleShares", x => x.Id);
-                    table.CheckConstraint("CK_VehicleShares_NotSelf", "[OwnerUserId] <> [SharedWithUserId]");
+                    table.CheckConstraint("CK_VehicleShares_NotSelf", "\"OwnerUserId\" <> \"SharedWithUserId\"");
                     table.ForeignKey(
                         name: "FK_VehicleShares_Vehicles_VehicleId",
                         column: x => x.VehicleId,
@@ -101,7 +101,7 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
                 table: "Vehicles",
                 columns: new[] { "UserId", "PlateNumber" },
                 unique: true,
-                filter: "[IsDeleted] = 0");
+                filter: "\"IsDeleted\" = FALSE");
 
             migrationBuilder.CreateIndex(
                 name: "IX_VehicleShares_SharedWithUserId",
@@ -113,7 +113,7 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
                 table: "VehicleShares",
                 columns: new[] { "VehicleId", "SharedWithUserId" },
                 unique: true,
-                filter: "[Status] <> N'Revoked'");
+                filter: "\"Status\" <> 'Revoked'");
         }
 
         /// <inheritdoc />

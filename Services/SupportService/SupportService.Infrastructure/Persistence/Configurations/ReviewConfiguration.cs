@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Enums;
@@ -10,7 +10,7 @@ internal sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
 {
     public void Configure(EntityTypeBuilder<Review> e)
     {
-        e.ToTable("Reviews", t => t.HasCheckConstraint("CK_Reviews_Rating", "[Rating] BETWEEN 1 AND 5"));
+        e.ToTable("Reviews", t => t.HasCheckConstraint("CK_Reviews_Rating", "\"Rating\" BETWEEN 1 AND 5"));
         e.Property(x => x.ReviewerName).HasMaxLength(150).IsRequired();
         e.Property(x => x.Comment).HasMaxLength(2000);
         e.Property(x => x.OwnerReply).HasMaxLength(2000);

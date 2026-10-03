@@ -1,4 +1,4 @@
-using BookingService.Domain.Entities;
+﻿using BookingService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -18,14 +18,14 @@ internal sealed class MonthlyPassConfiguration : IEntityTypeConfiguration<Monthl
 {
     public void Configure(EntityTypeBuilder<MonthlyPass> e)
     {
-        e.ToTable("MonthlyPasses", t => t.HasCheckConstraint("CK_MonthlyPasses_Period", "[ValidTo] >= [ValidFrom]"));
+        e.ToTable("MonthlyPasses", t => t.HasCheckConstraint("CK_MonthlyPasses_Period", "\"ValidTo\" >= \"ValidFrom\""));
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.PlateNumber).HasMaxLength(15).IsRequired();
         e.Property(x => x.SlotCode).HasMaxLength(20);
         e.HasIndex(x => x.Code).IsUnique();
         e.HasIndex(x => new { x.ParkingLotId, x.PlateNumber, x.Status });     // cổng nhận diện xe vé tháng
         // 1 Dedicated Slot chỉ thuộc 1 vé đang hiệu lực.
-        e.HasIndex(x => x.SlotId).IsUnique().HasFilter("[SlotId] IS NOT NULL AND [Status] = N'Active'");
+        e.HasIndex(x => x.SlotId).IsUnique().HasFilter("\"SlotId\" IS NOT NULL AND \"Status\" = 'Active'");
         e.HasIndex(x => x.UserId);
     }
 }

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Enums;
@@ -15,7 +15,7 @@ internal sealed class StaffAssignmentConfiguration : IEntityTypeConfiguration<St
         e.HasOne(x => x.OwnerProfile).WithMany(o => o.StaffAssignments).HasForeignKey(x => x.OwnerProfileId);
 
         // 1 Staff chỉ có 1 phân công đang hiệu lực cho mỗi bãi.
-        e.HasIndex(x => new { x.StaffUserId, x.ParkingLotId }).IsUnique().HasFilter("[IsActive] = 1");
+        e.HasIndex(x => new { x.StaffUserId, x.ParkingLotId }).IsUnique().HasFilter("\"IsActive\" = TRUE");
         e.HasIndex(x => x.ParkingLotId);
     }
 }

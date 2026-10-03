@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Enums;
@@ -21,9 +21,9 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         e.Property(x => x.AvatarUrl).HasMaxLength(512);
 
         // Đăng ký bằng SĐT hoặc Email → mỗi giá trị là duy nhất nếu có.
-        e.HasIndex(x => x.Email).IsUnique().HasFilter("[Email] IS NOT NULL");
-        e.HasIndex(x => x.PhoneNumber).IsUnique().HasFilter("[PhoneNumber] IS NOT NULL");
+        e.HasIndex(x => x.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");
+        e.HasIndex(x => x.PhoneNumber).IsUnique().HasFilter("\"PhoneNumber\" IS NOT NULL");
         e.HasIndex(x => x.Status);
-        e.ToTable(t => t.HasCheckConstraint("CK_Users_EmailOrPhone", "[Email] IS NOT NULL OR [PhoneNumber] IS NOT NULL"));
+        e.ToTable(t => t.HasCheckConstraint("CK_Users_EmailOrPhone", "\"Email\" IS NOT NULL OR \"PhoneNumber\" IS NOT NULL"));
     }
 }

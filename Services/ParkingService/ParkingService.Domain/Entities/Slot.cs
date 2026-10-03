@@ -26,7 +26,7 @@ public class Slot : BaseEntity
     public int? DedicatedVehicleId { get; set; }
     public bool IsActive { get; set; } = true;
 
-    public byte[] RowVersion { get; set; } = [];
+    public uint RowVersion { get; set; }   // Postgres: ánh xạ sang cột hệ thống xmin (xem SlotConfiguration)
 
     public Floor Floor { get; set; } = null!;
     public ICollection<SlotStateLog> StateLogs { get; set; } = new List<SlotStateLog>();

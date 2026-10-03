@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Enums;
@@ -12,8 +12,8 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
     {
         e.ToTable("Bookings", t =>
         {
-            t.HasCheckConstraint("CK_Bookings_Time", "[EndAtUtc] > [StartAtUtc]");
-            t.HasCheckConstraint("CK_Bookings_Amount", "[TotalAmount] >= 0 AND [DiscountAmount] >= 0 AND [PaidAmount] >= 0");
+            t.HasCheckConstraint("CK_Bookings_Time", "\"EndAtUtc\" > \"StartAtUtc\"");
+            t.HasCheckConstraint("CK_Bookings_Amount", "\"TotalAmount\" >= 0 AND \"DiscountAmount\" >= 0 AND \"PaidAmount\" >= 0");
         });
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.PlateNumber).HasMaxLength(15).IsRequired();
@@ -21,7 +21,7 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
         e.Property(x => x.SlotCode).HasMaxLength(20);
         e.Property(x => x.PromotionCode).HasMaxLength(30);
         e.Property(x => x.QrToken).HasMaxLength(1000);
-        e.Property(x => x.RowVersion).IsRowVersion();
+        e.Property(x => x.RowVersion).HasColumnName("xmin").IsRowVersion();
 
         // ----- Quan hệ -----
         e.HasOne(x => x.PriceSnapshot).WithOne(p => p.Booking).HasForeignKey<PriceSnapshot>(p => p.BookingId);

@@ -48,15 +48,15 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                     PromotionId = table.Column<int>(type: "integer", nullable: true),
                     PromotionCode = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
                     QrToken = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Bookings", x => x.Id);
-                    table.CheckConstraint("CK_Bookings_Amount", "[TotalAmount] >= 0 AND [DiscountAmount] >= 0 AND [PaidAmount] >= 0");
-                    table.CheckConstraint("CK_Bookings_Time", "[EndAtUtc] > [StartAtUtc]");
+                    table.CheckConstraint("CK_Bookings_Amount", "\"TotalAmount\" >= 0 AND \"DiscountAmount\" >= 0 AND \"PaidAmount\" >= 0");
+                    table.CheckConstraint("CK_Bookings_Time", "\"EndAtUtc\" > \"StartAtUtc\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -86,7 +86,7 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_MonthlyPasses", x => x.Id);
-                    table.CheckConstraint("CK_MonthlyPasses_Period", "[ValidTo] >= [ValidFrom]");
+                    table.CheckConstraint("CK_MonthlyPasses_Period", "\"ValidTo\" >= \"ValidFrom\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -250,7 +250,7 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                 table: "MonthlyPasses",
                 column: "SlotId",
                 unique: true,
-                filter: "[SlotId] IS NOT NULL AND [Status] = N'Active'");
+                filter: "\"SlotId\" IS NOT NULL AND \"Status\" = 'Active'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MonthlyPasses_UserId",

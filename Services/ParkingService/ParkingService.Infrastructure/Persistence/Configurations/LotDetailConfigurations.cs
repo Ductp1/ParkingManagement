@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingService.Domain.Entities;
 
@@ -19,7 +19,7 @@ internal sealed class ClosureScheduleConfiguration : IEntityTypeConfiguration<Cl
 {
     public void Configure(EntityTypeBuilder<ClosureSchedule> e)
     {
-        e.ToTable("ClosureSchedules", t => t.HasCheckConstraint("CK_ClosureSchedules_Period", "[EndsAtUtc] IS NULL OR [EndsAtUtc] > [StartsAtUtc]"));
+        e.ToTable("ClosureSchedules", t => t.HasCheckConstraint("CK_ClosureSchedules_Period", "\"EndsAtUtc\" IS NULL OR \"EndsAtUtc\" > \"StartsAtUtc\""));
         e.Property(x => x.Reason).HasMaxLength(500).IsRequired();
         e.HasOne(x => x.ParkingLot).WithMany().HasForeignKey(x => x.ParkingLotId);
         e.HasIndex(x => new { x.ParkingLotId, x.StartsAtUtc, x.EndsAtUtc });   // bãi/khu có đang đóng khi đặt chỗ không
@@ -51,7 +51,7 @@ internal sealed class LotPhotoConfiguration : IEntityTypeConfiguration<LotPhoto>
         e.HasOne(x => x.ParkingLot).WithMany(l => l.Photos).HasForeignKey(x => x.ParkingLotId);
         e.HasIndex(x => new { x.ParkingLotId, x.SortOrder });
         // Mỗi bãi chỉ có 1 ảnh bìa.
-        e.HasIndex(x => x.ParkingLotId).IsUnique().HasFilter("[IsCover] = 1").HasDatabaseName("UX_LotPhotos_OneCover");
+        e.HasIndex(x => x.ParkingLotId).IsUnique().HasFilter("\"IsCover\" = TRUE").HasDatabaseName("UX_LotPhotos_OneCover");
     }
 }
 

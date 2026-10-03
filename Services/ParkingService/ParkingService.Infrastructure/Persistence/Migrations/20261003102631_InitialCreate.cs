@@ -87,9 +87,9 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ParkingLots", x => x.Id);
-                    table.CheckConstraint("CK_ParkingLots_Latitude", "[Latitude] BETWEEN -90 AND 90");
-                    table.CheckConstraint("CK_ParkingLots_Longitude", "[Longitude] BETWEEN -180 AND 180");
-                    table.CheckConstraint("CK_ParkingLots_Slots", "[AvailableSlots] >= 0 AND [AvailableSlots] <= [TotalSlots]");
+                    table.CheckConstraint("CK_ParkingLots_Latitude", "\"Latitude\" BETWEEN -90 AND 90");
+                    table.CheckConstraint("CK_ParkingLots_Longitude", "\"Longitude\" BETWEEN -180 AND 180");
+                    table.CheckConstraint("CK_ParkingLots_Slots", "\"AvailableSlots\" >= 0 AND \"AvailableSlots\" <= \"TotalSlots\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -114,7 +114,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ClosureSchedules", x => x.Id);
-                    table.CheckConstraint("CK_ClosureSchedules_Period", "[EndsAtUtc] IS NULL OR [EndsAtUtc] > [StartsAtUtc]");
+                    table.CheckConstraint("CK_ClosureSchedules_Period", "\"EndsAtUtc\" IS NULL OR \"EndsAtUtc\" > \"StartsAtUtc\"");
                     table.ForeignKey(
                         name: "FK_ClosureSchedules_ParkingLots_ParkingLotId",
                         column: x => x.ParkingLotId,
@@ -203,7 +203,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LotCapacityConfigs", x => x.Id);
-                    table.CheckConstraint("CK_LotCapacity_Buffer", "[WalkInBufferPercent] BETWEEN 0 AND 100");
+                    table.CheckConstraint("CK_LotCapacity_Buffer", "\"WalkInBufferPercent\" BETWEEN 0 AND 100");
                     table.ForeignKey(
                         name: "FK_LotCapacityConfigs_ParkingLots_ParkingLotId",
                         column: x => x.ParkingLotId,
@@ -338,7 +338,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Floors", x => x.Id);
-                    table.CheckConstraint("CK_Floors_Grid", "[GridColumns] > 0 AND [GridRows] > 0");
+                    table.CheckConstraint("CK_Floors_Grid", "\"GridColumns\" > 0 AND \"GridRows\" > 0");
                     table.ForeignKey(
                         name: "FK_Floors_Zones_ZoneId",
                         column: x => x.ZoneId,
@@ -392,7 +392,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     StateChangedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     DedicatedVehicleId = table.Column<int>(type: "integer", nullable: true),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false),
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
@@ -517,7 +517,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 table: "LotPhotos",
                 column: "ParkingLotId",
                 unique: true,
-                filter: "[IsCover] = 1");
+                filter: "\"IsCover\" = TRUE");
 
             migrationBuilder.CreateIndex(
                 name: "IX_OutboxMessages_ProcessedAtUtc_OccurredAtUtc",
@@ -548,7 +548,7 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 name: "IX_Slots_DedicatedVehicleId",
                 table: "Slots",
                 column: "DedicatedVehicleId",
-                filter: "[DedicatedVehicleId] IS NOT NULL");
+                filter: "\"DedicatedVehicleId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Slots_FloorId_Code",

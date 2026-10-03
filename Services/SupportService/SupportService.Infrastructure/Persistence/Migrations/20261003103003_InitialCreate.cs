@@ -110,7 +110,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Reviews", x => x.Id);
-                    table.CheckConstraint("CK_Reviews_Rating", "[Rating] BETWEEN 1 AND 5");
+                    table.CheckConstraint("CK_Reviews_Rating", "\"Rating\" BETWEEN 1 AND 5");
                 });
 
             migrationBuilder.CreateTable(
@@ -148,7 +148,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                 name: "IX_Complaints_BookingId",
                 table: "Complaints",
                 column: "BookingId",
-                filter: "[BookingId] IS NOT NULL");
+                filter: "\"BookingId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Complaints_Code",

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Enums;
@@ -12,9 +12,9 @@ internal sealed class ParkingLotConfiguration : IEntityTypeConfiguration<Parking
     {
         e.ToTable("ParkingLots", t =>
         {
-            t.HasCheckConstraint("CK_ParkingLots_Slots", "[AvailableSlots] >= 0 AND [AvailableSlots] <= [TotalSlots]");
-            t.HasCheckConstraint("CK_ParkingLots_Latitude", "[Latitude] BETWEEN -90 AND 90");
-            t.HasCheckConstraint("CK_ParkingLots_Longitude", "[Longitude] BETWEEN -180 AND 180");
+            t.HasCheckConstraint("CK_ParkingLots_Slots", "\"AvailableSlots\" >= 0 AND \"AvailableSlots\" <= \"TotalSlots\"");
+            t.HasCheckConstraint("CK_ParkingLots_Latitude", "\"Latitude\" BETWEEN -90 AND 90");
+            t.HasCheckConstraint("CK_ParkingLots_Longitude", "\"Longitude\" BETWEEN -180 AND 180");
         });
         e.Property(x => x.Name).HasMaxLength(200).IsRequired();
         e.Property(x => x.Address).HasMaxLength(500).IsRequired();

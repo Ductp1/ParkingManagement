@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Enums;
@@ -21,6 +21,6 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
         e.HasIndex(x => new { x.OwnerProfileId, x.Status });               // hộp tranh chấp của chủ bãi
         e.HasIndex(x => new { x.Status, x.OwnerResponseDueAtUtc });        // job escalate khi quá 48h
         e.HasIndex(x => x.UserId);
-        e.HasIndex(x => x.BookingId).HasFilter("[BookingId] IS NOT NULL");
+        e.HasIndex(x => x.BookingId).HasFilter("\"BookingId\" IS NOT NULL");
     }
 }

@@ -12,7 +12,7 @@ using UserService.Infrastructure.Persistence;
 namespace UserService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(UserDbContext))]
-    [Migration("20261003092121_InitialCreate")]
+    [Migration("20261003102527_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -374,7 +374,7 @@ namespace UserService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StaffUserId", "ParkingLotId")
                         .IsUnique()
-                        .HasFilter("[IsActive] = 1");
+                        .HasFilter("\"IsActive\" = TRUE");
 
                     b.ToTable("StaffAssignments", (string)null);
                 });
@@ -473,17 +473,17 @@ namespace UserService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .HasFilter("\"Email\" IS NOT NULL");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
-                        .HasFilter("[PhoneNumber] IS NOT NULL");
+                        .HasFilter("\"PhoneNumber\" IS NOT NULL");
 
                     b.HasIndex("Status");
 
                     b.ToTable("Users", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Users_EmailOrPhone", "[Email] IS NOT NULL OR [PhoneNumber] IS NOT NULL");
+                            t.HasCheckConstraint("CK_Users_EmailOrPhone", "\"Email\" IS NOT NULL OR \"PhoneNumber\" IS NOT NULL");
                         });
                 });
 

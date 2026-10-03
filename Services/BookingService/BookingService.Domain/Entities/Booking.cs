@@ -58,7 +58,7 @@ public class Booking : BaseEntity
     /// <summary>Token có chữ ký để sinh mã QR check-in (hỗ trợ cả Offline Fallback).</summary>
     public string? QrToken { get; set; }
 
-    public byte[] RowVersion { get; set; } = [];
+    public uint RowVersion { get; set; }   // Postgres: ánh xạ sang cột hệ thống xmin (xem BookingConfiguration)
 
 
     public PriceSnapshot? PriceSnapshot { get; set; }

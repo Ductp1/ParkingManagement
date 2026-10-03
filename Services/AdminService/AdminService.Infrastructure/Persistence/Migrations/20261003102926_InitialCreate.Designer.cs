@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AdminService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AdminDbContext))]
-    [Migration("20261003092506_InitialCreate")]
+    [Migration("20261003102926_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -322,7 +322,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ParkingLotId")
-                        .HasFilter("[ParkingLotId] IS NOT NULL");
+                        .HasFilter("\"ParkingLotId\" IS NOT NULL");
 
                     b.HasIndex("OwnerProfileId", "Status");
 
