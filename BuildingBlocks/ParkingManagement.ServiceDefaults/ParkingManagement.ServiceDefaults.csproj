@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Háº¡ táº§ng dÃ¹ng chung cho má»i service: DbContext gá»‘c, middleware lá»—i, khá»Ÿi táº¡o DB, cáº¥u hÃ¬nh API máº·c Ä‘á»‹nh. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ParkingManagement.SharedKernel\ParkingManagement.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

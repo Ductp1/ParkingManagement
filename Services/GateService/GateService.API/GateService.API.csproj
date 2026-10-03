@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- PRESENTATION: Controller + Program.cs (composition root). Cháº¡y táº¡i http://localhost:5107 -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\GateService.Application\GateService.Application.csproj" />
+    <ProjectReference Include="..\GateService.Infrastructure\GateService.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

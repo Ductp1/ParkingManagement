@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- PRESENTATION: Controller + Program.cs (composition root). Cháº¡y táº¡i http://localhost:5103 -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ParkingService.Application\ParkingService.Application.csproj" />
+    <ProjectReference Include="..\ParkingService.Infrastructure\ParkingService.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- INFRASTRUCTURE: DbContext riÃªng cá»§a service, migration, repository (EF Core + LINQ), seed dá»¯ liá»‡u. -->
+  <ItemGroup>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BookingService.Application\BookingService.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\ParkingManagement.ServiceDefaults\ParkingManagement.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>

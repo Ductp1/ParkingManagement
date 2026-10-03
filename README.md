@@ -1,93 +1,122 @@
-# ParkingManagement
+# ParkingManagement – Smart Parking Marketplace (Microservice + Clean Architecture)
 
+.NET 10 · ASP.NET Core Web API · EF Core + LINQ · PostgreSQL (Npgsql) · YARP Gateway · xUnit
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+## 1. Cấu trúc
 
 ```
-cd existing_repo
-git remote add origin https://git.fsoft-academy.edu.vn/hcm26_cpl_net_06/team-03/parkingmanagement.git
-git branch -M main
-git push -uf origin main
+ParkingManagement/
+├── ParkingManagement.slnx
+├── Directory.Build.props              ← net10.0, Nullable, ImplicitUsings cho mọi project
+├── run-all.ps1                        ← chạy 9 service + Gateway
+│
+├── BuildingBlocks/                    ← code dùng chung, KHÔNG chứa nghiệp vụ của service nào
+│   ├── ParkingManagement.SharedKernel     BaseEntity, enum, exception, PlateNormalizer, hợp đồng sự kiện, DemoIds
+│   └── ParkingManagement.ServiceDefaults  DbContext gốc, middleware lỗi, khởi tạo DB, OpenAPI, /health, CORS
+│
+├── Gateway/
+│   └── ParkingManagement.Gateway      ← YARP, cổng vào duy nhất http://localhost:5000
+│
+├── Services/
+│   └── <Tên>Service/
+│       ├── <Tên>Service.API              Presentation: Controller, Program.cs, appsettings.json
+│       ├── <Tên>Service.Application      Use case, DTO, interface (port)
+│       ├── <Tên>Service.Domain           Entity, quy tắc nghiệp vụ thuần
+│       ├── <Tên>Service.Infrastructure   DbContext RIÊNG, migration, repository/query (LINQ), seed
+│       └── <Tên>Service.Test             Unit test Domain + Application (không cần DB)
+│
+├── Tests/
+│   └── ParkingManagement.IntegrationTests  ← chạy service thật trong bộ nhớ + PostgreSQL
+├── database/                          ← script SQL từng database + tài liệu bảng
+└── Frontend/                          ← chỗ đặt app React (chưa tạo)
 ```
 
-## Integrate with your tools
+**Quy tắc phụ thuộc trong mỗi service:**
 
-- [ ] [Set up project integrations](https://git.fsoft-academy.edu.vn/hcm26_cpl_net_06/team-03/parkingmanagement/-/settings/integrations)
+```
+API ──► Application ──► Domain ──► SharedKernel
+ │           ▲
+ └──► Infrastructure (cài đặt interface của Application) ──► ServiceDefaults
+```
 
-## Collaborate with your team
+- Domain không biết EF Core, HTTP hay service khác.
+- Controller chỉ gọi Use Case, không gọi DbContext.
+- **Service không tham chiếu project của service khác.** Muốn dữ liệu service khác thì gọi API của nó (qua Gateway) hoặc nghe sự kiện trong `SharedKernel/Contracts/IntegrationEvents.cs`.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## 2. 9 service
 
-## Test and Deploy
+| Service | Phụ trách | Port | Database | API mẫu (gọi qua Gateway :5000) |
+|---|---|---|---|---|
+| UserService | TV1 | 5101 | pm_user | `GET /api/v1/users/5`, `GET /api/v1/users?role=Driver` |
+| VehicleService | TV2 | 5102 | pm_vehicle | `GET /api/v1/vehicles?userId=5`, `GET /api/v1/vehicles/by-plate/51F-123.45` |
+| ParkingService | TV5 | 5103 | pm_parking | `GET /api/v1/parking-lots/1`, `GET /api/v1/parking-lots/search?lat=10.777&lng=106.701&radiusKm=5` |
+| BookingService | TV3 | 5104 | pm_booking | `GET /api/v1/bookings/BK-0002`, `GET /api/v1/bookings/BK-0002/cancellation-preview` |
+| PaymentService | TV4 | 5105 | pm_payment | `GET /api/v1/pricing/quote?parkingLotId=1&vehicleType=Sedan&startAtUtc=...&endAtUtc=...`, `GET /api/v1/payments?bookingId=2` |
+| NotificationService | TV6 | 5106 | pm_notification | `GET /api/v1/notifications?userId=5` |
+| GateService | TV7 | 5107 | pm_gate | `GET /api/v1/parking-sessions?parkingLotId=2`, `GET /api/v1/parking-sessions/lookup?parkingLotId=2&plate=51A-999.99` |
+| AdminService | TV8 | 5108 | pm_admin | `GET /api/v1/admin/settings` |
+| SupportService | TV9 | 5109 | pm_support | `GET /api/v1/complaints?ownerProfileId=1`, `GET /api/v1/reviews?parkingLotId=1` |
 
-Use the built-in continuous integration in GitLab.
+Mỗi service còn có `/health` và `/openapi/v1.json`. Gateway có `GET /health/services` để xem service nào đang chạy.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+## 3. Chạy
 
-***
+Yêu cầu: .NET SDK 10, PostgreSQL 14+ đang chạy ở `localhost:5432` (user `postgres` / mật khẩu trong
+`appsettings.json` của 9 service). Nếu database chưa có, chạy 1 lần để tạo 9 database rỗng:
 
-# Editing this README
+```powershell
+$names = 'pm_user','pm_vehicle','pm_parking','pm_booking','pm_payment','pm_notification','pm_gate','pm_admin','pm_support'
+foreach ($n in $names) { psql -U postgres -c "CREATE DATABASE $n;" }
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+```powershell
+cd ParkingManagement
+.\run-all.ps1
+```
 
-## Suggestions for a good README
+Script mở 10 cửa sổ (9 service + Gateway). Lần chạy đầu mỗi service tự tạo database của mình và nạp dữ liệu demo
+(mật khẩu chung `Demo@123`, danh sách tài khoản trong `database/README.md`). Sau khoảng 20 giây, mở
+http://localhost:5000/health/services – cả 9 service phải là `Healthy`.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Chỉ cần làm 1 service: chạy riêng project đó (`dotnet run --project Services/BookingService/BookingService.API`)
+hoặc chọn nó làm Startup Project trong Visual Studio. Service khác không chạy cũng không sao vì không có phụ thuộc lúc khởi động.
 
-## Name
-Choose a self-explaining name for your project.
+## 4. Test
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```powershell
+dotnet test ParkingManagement.slnx
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+- 49 unit test trong 9 project `*.Test`, bám theo Test Plan v3: TC-BOOK-07/08 (mốc hủy 59/60/61 phút), TC-PARK-07 (ân hạn 15 phút),
+  TC-SEARCH-02 (chặn xe cao), TC-REG-04/05 (biển số)...
+- 5 integration test (ParkingService, BookingService) cần PostgreSQL đang chạy.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## 5. Quy ước làm việc
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- Mỗi người chỉ sửa trong `Services/<service của mình>`. Sửa `BuildingBlocks` phải báo cả nhóm vì ảnh hưởng 9 service.
+- Thêm bảng / cột: sửa Entity (Domain) + Configuration (Infrastructure), rồi tạo migration cho đúng service:
+  ```powershell
+  dotnet ef migrations add <TenMigration> --project Services/BookingService/BookingService.Infrastructure --startup-project Services/BookingService/BookingService.API --output-dir Persistence/Migrations
+  ```
+- Truy vấn dữ liệu bằng LINQ (EF Core), `AsNoTracking()` + `Select` sang DTO, phân trang bằng `Skip/Take`.
+- Mẫu cho 1 use case mới: xem `Services/BookingService` (Domain rule → Use case → Query LINQ → Controller → Unit test).
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## 6. CI/CD (GitHub Actions)
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- **`.github/workflows/ci.yml`** – chạy trên PR và push vào `main`/`develop`:
+  1. `build` – build toàn bộ `ParkingManagement.slnx` (Release).
+  2. `unit-tests` – 9 job song song (matrix theo service), mỗi job chạy `Services/<S>/<S>.Test`, xuất kết quả TRX + coverage.
+  3. `integration-tests` – PostgreSQL 17 chạy làm service container; test ghi đè connection string bằng biến môi trường
+     `ConnectionStrings__ServiceDb`, mỗi service host dùng DB riêng (`pm_parking_ci`, `pm_booking_ci`).
+- **`.github/workflows/cd.yml`** – chạy khi push tag `v*.*.*` (hoặc chạy tay bằng `workflow_dispatch`):
+  1. Build & push 10 image Docker (9 service + Gateway) lên **GHCR**, tag `{version}` + `{major}.{minor}`, có cache GHA.
+  2. Tạo GitHub Release kèm ghi chú và hướng dẫn pull image.
+- **Dockerfile** của mỗi service nằm tại `<service>.API/Dockerfile`, **context build là thư mục gốc repo**
+  (vì phải copy `BuildingBlocks`). Containers nghe ở cổng 8080, cấu hình DB qua `ConnectionStrings__ServiceDb`.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Quy trình phát hành:
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+```powershell
+git tag v1.0.0
+git push origin v1.0.0        # CI phải xanh trước khi tag
+```

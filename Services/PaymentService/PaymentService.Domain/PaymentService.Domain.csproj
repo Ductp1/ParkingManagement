@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- DOMAIN: Entity, quy táº¯c nghiá»‡p vá»¥ thuáº§n. Chá»‰ phá»¥ thuá»™c SharedKernel. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\BuildingBlocks\ParkingManagement.SharedKernel\ParkingManagement.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>
