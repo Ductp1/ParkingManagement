@@ -1,0 +1,14 @@
+# Context build = thư mục gốc repo → loại trừ mọi thứ không cần cho `dotnet publish`
+.git
+.github
+.clinerules
+.vs
+**/bin
+**/obj
+**/test-results
+Tests
+database
+Frontend
+*.md
+*.ps1
+ParkingManagement.slnx

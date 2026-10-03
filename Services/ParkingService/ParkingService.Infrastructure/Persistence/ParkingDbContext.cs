@@ -4,7 +4,7 @@ using ParkingService.Domain.Entities;
 
 namespace ParkingService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của ParkingService: PM_ParkingDb. Bãi, cây Zone → Floor → Slot, layout, KYB, sức chứa.</summary>
+/// <summary>Database riêng của ParkingService: pm_parking. Bãi, cây Zone → Floor → Slot, layout, KYB, sức chứa.</summary>
 public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<ParkingLot> ParkingLots => Set<ParkingLot>();

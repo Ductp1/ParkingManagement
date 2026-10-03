@@ -4,7 +4,7 @@ using UserService.Domain.Entities;
 
 namespace UserService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của UserService: PM_UserDb. Tài khoản, vai trò, OTP, token, hồ sơ chủ bãi, phân công Staff.</summary>
+/// <summary>Database riêng của UserService: pm_user. Tài khoản, vai trò, OTP, token, hồ sơ chủ bãi, phân công Staff.</summary>
 public sealed class UserDbContext(DbContextOptions<UserDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<User> Users => Set<User>();

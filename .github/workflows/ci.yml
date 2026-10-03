@@ -1,0 +1,133 @@
+name: CI
+
+# CI cho toàn hệ thống microservice:
+#   build           → solution compile được (gồm cả project API không có test riêng)
+#   unit-tests      → 9 job song song, mỗi service 1 job (mỗi người theo dõi service của mình)
+#   integration     → WebApplicationFactory + SQL Server 2022 (service container), DB riêng cho từng service host
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  build:
+    name: Build solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore ParkingManagement.slnx
+
+      - name: Build
+        run: dotnet build ParkingManagement.slnx -c Release --no-restore --nologo
+
+  unit-tests:
+    name: Unit tests – ${{ matrix.service }}
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false                       # 1 service đỏ không hủy service khác
+      matrix:
+        service: [UserService, VehicleService, ParkingService, BookingService, PaymentService,
+                  NotificationService, GateService, AdminService, SupportService]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Unit test (Domain + Application) – không cần database
+      - name: Test
+        run: >
+          dotnet test Services/${{ matrix.service }}/${{ matrix.service }}.Test/${{ matrix.service }}.Test.csproj
+          -c Release --nologo
+          --logger "trx;LogFileName=${{ matrix.service }}.trx"
+          --results-directory ./test-results
+          --collect "XPlat Code Coverage"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results-${{ matrix.service }}
+          path: ./test-results
+          retention-days: 14
+
+  integration-tests:
+    name: Integration tests
+    needs: build
+    runs-on: ubuntu-latest
+
+    # PostgreSQL thật cho integration test (WebApplicationFactory → PostgreSQL qua localhost:5432)
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Tạo sẵn DB riêng cho từng service host (mỗi DbContext có bảng __EFMigrationsHistory riêng,
+      # dùng chung 1 DB sẽ xung đột migration). Provider Npgsql không tự tạo database khi Migrate.
+      - name: Prepare databases
+        run: |
+          cid=$(docker ps -q --filter "ancestor=postgres:17-alpine" | head -n1)
+          docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_parking_ci;"
+          docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_booking_ci;"
+
+      # Ghi đè ConnectionStrings:ServiceDb bằng biến môi trường (ưu tiên cao hơn appsettings.json)
+      - name: Test – ParkingService (pm_parking_ci)
+        env:
+          ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_parking_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~ParkingServiceApiTests"
+          --logger "trx;LogFileName=Integration_Parking.trx"
+          --results-directory ./test-results
+
+      - name: Test – BookingService (pm_booking_ci)
+        env:
+          ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~BookingServiceApiTests"
+          --logger "trx;LogFileName=Integration_Booking.trx"
+          --results-directory ./test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: ./test-results
+          retention-days: 14

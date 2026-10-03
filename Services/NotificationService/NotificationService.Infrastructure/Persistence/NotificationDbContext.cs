@@ -4,7 +4,7 @@ using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace NotificationService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của NotificationService: PM_NotificationDb. Thông báo in-app/email/SMS và mẫu nội dung.</summary>
+/// <summary>Database riêng của NotificationService: pm_notification. Thông báo in-app/email/SMS và mẫu nội dung.</summary>
 public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<Notification> Notifications => Set<Notification>();

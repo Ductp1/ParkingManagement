@@ -4,7 +4,7 @@ using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace AdminService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của AdminService: PM_AdminDb. Tham số hệ thống, feature flag, chế tài SLA, audit log tập trung.</summary>
+/// <summary>Database riêng của AdminService: pm_admin. Tham số hệ thống, feature flag, chế tài SLA, audit log tập trung.</summary>
 public sealed class AdminDbContext(DbContextOptions<AdminDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();

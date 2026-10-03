@@ -4,7 +4,7 @@ using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace BookingService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của BookingService: PM_BookingDb. Booking 7 trạng thái, Price Lock snapshot, lịch sử trạng thái.</summary>
+/// <summary>Database riêng của BookingService: pm_booking. Booking 7 trạng thái, Price Lock snapshot, lịch sử trạng thái.</summary>
 public sealed class BookingDbContext(DbContextOptions<BookingDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<Booking> Bookings => Set<Booking>();

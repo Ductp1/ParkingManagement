@@ -37,4 +37,4 @@ Write-Host ("  {0,-20} http://localhost:5000" -f 'Gateway') -ForegroundColor Gre
 
 Write-Host "`nĐợi ~20 giây cho các service tạo database lần đầu, sau đó mở:" -ForegroundColor Cyan
 Write-Host "  http://localhost:5000/health/services"
-Write-Host "  http://localhost:5000/api/parking-lots/1"
+Write-Host "  http://localhost:5000/api/v1/parking-lots/1"

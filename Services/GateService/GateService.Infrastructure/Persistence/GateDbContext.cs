@@ -4,7 +4,7 @@ using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace GateService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của GateService: PM_GateDb. Lượt xe vào/ra, nhật ký sự kiện cổng (OCR, mở barie), ca trực.</summary>
+/// <summary>Database riêng của GateService: pm_gate. Lượt xe vào/ra, nhật ký sự kiện cổng (OCR, mở barie), ca trực.</summary>
 public sealed class GateDbContext(DbContextOptions<GateDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<ParkingSession> ParkingSessions => Set<ParkingSession>();

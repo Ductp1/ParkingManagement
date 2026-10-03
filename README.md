@@ -1,6 +1,6 @@
 # ParkingManagement – Smart Parking Marketplace (Microservice + Clean Architecture)
 
-.NET 10 · ASP.NET Core Web API · EF Core + LINQ · SQL Server · YARP Gateway · xUnit
+.NET 10 · ASP.NET Core Web API · EF Core + LINQ · PostgreSQL (Npgsql) · YARP Gateway · xUnit
 
 ## 1. Cấu trúc
 
@@ -26,7 +26,7 @@ ParkingManagement/
 │       └── <Tên>Service.Test             Unit test Domain + Application (không cần DB)
 │
 ├── Tests/
-│   └── ParkingManagement.IntegrationTests  ← chạy service thật trong bộ nhớ + SQL Server
+│   └── ParkingManagement.IntegrationTests  ← chạy service thật trong bộ nhớ + PostgreSQL
 ├── database/                          ← script SQL từng database + tài liệu bảng
 └── Frontend/                          ← chỗ đặt app React (chưa tạo)
 ```
@@ -47,22 +47,27 @@ API ──► Application ──► Domain ──► SharedKernel
 
 | Service | Phụ trách | Port | Database | API mẫu (gọi qua Gateway :5000) |
 |---|---|---|---|---|
-| UserService | TV1 | 5101 | PM_UserDb | `GET /api/v1/users/5`, `GET /api/v1/users?role=Driver` |
-| VehicleService | TV2 | 5102 | PM_VehicleDb | `GET /api/v1/vehicles?userId=5`, `GET /api/v1/vehicles/by-plate/51F-123.45` |
-| ParkingService | TV5 | 5103 | PM_ParkingDb | `GET /api/v1/parking-lots/1`, `GET /api/v1/parking-lots/search?lat=10.777&lng=106.701&radiusKm=5` |
-| BookingService | TV3 | 5104 | PM_BookingDb | `GET /api/v1/bookings/BK-0002`, `GET /api/v1/bookings/BK-0002/cancellation-preview` |
-| PaymentService | TV4 | 5105 | PM_PaymentDb | `GET /api/v1/pricing/quote?parkingLotId=1&vehicleType=Sedan&startAtUtc=...&endAtUtc=...`, `GET /api/v1/payments?bookingId=2` |
-| NotificationService | TV6 | 5106 | PM_NotificationDb | `GET /api/v1/notifications?userId=5` |
-| GateService | TV7 | 5107 | PM_GateDb | `GET /api/v1/parking-sessions?parkingLotId=2`, `GET /api/v1/parking-sessions/lookup?parkingLotId=2&plate=51A-999.99` |
-| AdminService | TV8 | 5108 | PM_AdminDb | `GET /api/v1/admin/settings` |
-| SupportService | TV9 | 5109 | PM_SupportDb | `GET /api/v1/complaints?ownerProfileId=1`, `GET /api/v1/reviews?parkingLotId=1` |
+| UserService | TV1 | 5101 | pm_user | `GET /api/v1/users/5`, `GET /api/v1/users?role=Driver` |
+| VehicleService | TV2 | 5102 | pm_vehicle | `GET /api/v1/vehicles?userId=5`, `GET /api/v1/vehicles/by-plate/51F-123.45` |
+| ParkingService | TV5 | 5103 | pm_parking | `GET /api/v1/parking-lots/1`, `GET /api/v1/parking-lots/search?lat=10.777&lng=106.701&radiusKm=5` |
+| BookingService | TV3 | 5104 | pm_booking | `GET /api/v1/bookings/BK-0002`, `GET /api/v1/bookings/BK-0002/cancellation-preview` |
+| PaymentService | TV4 | 5105 | pm_payment | `GET /api/v1/pricing/quote?parkingLotId=1&vehicleType=Sedan&startAtUtc=...&endAtUtc=...`, `GET /api/v1/payments?bookingId=2` |
+| NotificationService | TV6 | 5106 | pm_notification | `GET /api/v1/notifications?userId=5` |
+| GateService | TV7 | 5107 | pm_gate | `GET /api/v1/parking-sessions?parkingLotId=2`, `GET /api/v1/parking-sessions/lookup?parkingLotId=2&plate=51A-999.99` |
+| AdminService | TV8 | 5108 | pm_admin | `GET /api/v1/admin/settings` |
+| SupportService | TV9 | 5109 | pm_support | `GET /api/v1/complaints?ownerProfileId=1`, `GET /api/v1/reviews?parkingLotId=1` |
 
 Mỗi service còn có `/health` và `/openapi/v1.json`. Gateway có `GET /health/services` để xem service nào đang chạy.
 
 ## 3. Chạy
 
-Yêu cầu: .NET SDK 10, SQL Server (instance mặc định `.`). Máy dùng SQL Express thì đổi `Server=.` thành
-`Server=.\\SQLEXPRESS` trong `appsettings.json` của 9 service.
+Yêu cầu: .NET SDK 10, PostgreSQL 14+ đang chạy ở `localhost:5432` (user `postgres` / mật khẩu trong
+`appsettings.json` của 9 service). Nếu database chưa có, chạy 1 lần để tạo 9 database rỗng:
+
+```powershell
+$names = 'pm_user','pm_vehicle','pm_parking','pm_booking','pm_payment','pm_notification','pm_gate','pm_admin','pm_support'
+foreach ($n in $names) { psql -U postgres -c "CREATE DATABASE $n;" }
+```
 
 ```powershell
 cd ParkingManagement
@@ -84,7 +89,7 @@ dotnet test ParkingManagement.slnx
 
 - 49 unit test trong 9 project `*.Test`, bám theo Test Plan v3: TC-BOOK-07/08 (mốc hủy 59/60/61 phút), TC-PARK-07 (ân hạn 15 phút),
   TC-SEARCH-02 (chặn xe cao), TC-REG-04/05 (biển số)...
-- 5 integration test (ParkingService, BookingService) cần SQL Server đang chạy.
+- 5 integration test (ParkingService, BookingService) cần PostgreSQL đang chạy.
 
 ## 5. Quy ước làm việc
 
@@ -95,3 +100,23 @@ dotnet test ParkingManagement.slnx
   ```
 - Truy vấn dữ liệu bằng LINQ (EF Core), `AsNoTracking()` + `Select` sang DTO, phân trang bằng `Skip/Take`.
 - Mẫu cho 1 use case mới: xem `Services/BookingService` (Domain rule → Use case → Query LINQ → Controller → Unit test).
+
+## 6. CI/CD (GitHub Actions)
+
+- **`.github/workflows/ci.yml`** – chạy trên PR và push vào `main`/`develop`:
+  1. `build` – build toàn bộ `ParkingManagement.slnx` (Release).
+  2. `unit-tests` – 9 job song song (matrix theo service), mỗi job chạy `Services/<S>/<S>.Test`, xuất kết quả TRX + coverage.
+  3. `integration-tests` – PostgreSQL 17 chạy làm service container; test ghi đè connection string bằng biến môi trường
+     `ConnectionStrings__ServiceDb`, mỗi service host dùng DB riêng (`pm_parking_ci`, `pm_booking_ci`).
+- **`.github/workflows/cd.yml`** – chạy khi push tag `v*.*.*` (hoặc chạy tay bằng `workflow_dispatch`):
+  1. Build & push 10 image Docker (9 service + Gateway) lên **GHCR**, tag `{version}` + `{major}.{minor}`, có cache GHA.
+  2. Tạo GitHub Release kèm ghi chú và hướng dẫn pull image.
+- **Dockerfile** của mỗi service nằm tại `<service>.API/Dockerfile`, **context build là thư mục gốc repo**
+  (vì phải copy `BuildingBlocks`). Containers nghe ở cổng 8080, cấu hình DB qua `ConnectionStrings__ServiceDb`.
+
+Quy trình phát hành:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0        # CI phải xanh trước khi tag
+```

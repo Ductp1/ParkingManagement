@@ -55,7 +55,7 @@ public static class ServiceDefaultsExtensions
         // Không bật EnableRetryOnFailure: nó chặn transaction tự mở (BeginTransaction),
         // trong khi Booking/Gate cần transaction để chống đặt trùng slot.
         services.AddDbContext<TContext>(o => o
-            .UseSqlServer(connectionString)
+            .UseNpgsql(connectionString)
             // Bảng soft delete (Users, ParkingLots...) là đầu "bắt buộc" của quan hệ trong service – thiết kế có chủ đích.
             .ConfigureWarnings(w => w.Ignore(CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
         return services;

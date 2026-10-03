@@ -4,7 +4,7 @@ using PaymentService.Domain.Entities;
 
 namespace PaymentService.Infrastructure.Persistence;
 
-/// <summary>Database riêng của PaymentService: PM_PaymentDb. Biểu giá, khuyến mãi, thanh toán, hoàn tiền, hóa đơn, quyết toán.</summary>
+/// <summary>Database riêng của PaymentService: pm_payment. Biểu giá, khuyến mãi, thanh toán, hoàn tiền, hóa đơn, quyết toán.</summary>
 public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<RateCard> RateCards => Set<RateCard>();
