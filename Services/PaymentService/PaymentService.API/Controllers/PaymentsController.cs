@@ -5,7 +5,7 @@ using PaymentService.Application.Features;
 namespace PaymentService.API.Controllers;
 
 [ApiController]
-[Route("api/pricing")]
+[Route("api/v1/pricing")]
 public sealed class PricingController(IQuotePriceUseCase quotePrice) : ControllerBase
 {
     /// <summary>
@@ -22,7 +22,7 @@ public sealed class PricingController(IQuotePriceUseCase quotePrice) : Controlle
 }
 
 [ApiController]
-[Route("api/payments")]
+[Route("api/v1/payments")]
 public sealed class PaymentsController(IGetPaymentsByBookingUseCase getByBooking) : ControllerBase
 {
     /// <summary>GET /api/payments?bookingId=2 – Các lần thanh toán của 1 booking (UC-19).</summary>

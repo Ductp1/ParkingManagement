@@ -5,7 +5,7 @@ using ParkingManagement.SharedKernel.Enums;
 namespace BookingService.API.Controllers;
 
 [ApiController]
-[Route("api/bookings")]
+[Route("api/v1/bookings")]
 public sealed class BookingsController(
     IGetBookingByCodeUseCase getByCode,
     IListMyBookingsUseCase listMine,

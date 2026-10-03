@@ -1,14 +1,14 @@
 // API Gateway – cổng vào duy nhất cho Frontend: http://localhost:5000
 // Định tuyến theo đường dẫn (YARP Reverse Proxy), cấu hình trong appsettings.json → "ReverseProxy".
-//   /api/users/**            → UserService         :5101
-//   /api/vehicles/**         → VehicleService      :5102
-//   /api/parking-lots/**     → ParkingService      :5103
-//   /api/bookings/**         → BookingService      :5104
-//   /api/pricing/**, /api/payments/** → PaymentService :5105
-//   /api/notifications/**    → NotificationService :5106
-//   /api/parking-sessions/** → GateService         :5107
-//   /api/admin/**            → AdminService        :5108
-//   /api/complaints/**, /api/reviews/** → SupportService :5109
+//   /api/v1/users/**            → UserService         :5101
+//   /api/v1/vehicles/**         → VehicleService      :5102
+//   /api/v1/parking-lots/**     → ParkingService      :5103
+//   /api/v1/bookings/**         → BookingService      :5104
+//   /api/v1/pricing/**, /api/v1/payments/** → PaymentService :5105
+//   /api/v1/notifications/**    → NotificationService :5106
+//   /api/v1/parking-sessions/** → GateService         :5107
+//   /api/v1/admin/**            → AdminService        :5108
+//   /api/v1/complaints/**, /api/v1/reviews/** → SupportService :5109
 
 var builder = WebApplication.CreateBuilder(args);
 

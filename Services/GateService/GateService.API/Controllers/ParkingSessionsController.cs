@@ -5,7 +5,7 @@ using ParkingManagement.SharedKernel.Enums;
 namespace GateService.API.Controllers;
 
 [ApiController]
-[Route("api/parking-sessions")]
+[Route("api/v1/parking-sessions")]
 public sealed class ParkingSessionsController(IListLotSessionsUseCase listSessions, ILookupVehicleAtGateUseCase lookup) : ControllerBase
 {
     /// <summary>GET /api/parking-sessions?parkingLotId=2&amp;status=Active – Xe đang trong bãi (UC-20).</summary>

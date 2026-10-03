@@ -4,7 +4,7 @@ using VehicleService.Application.Features.Vehicles;
 namespace VehicleService.API.Controllers;
 
 [ApiController]
-[Route("api/vehicles")]
+[Route("api/v1/vehicles")]
 public sealed class VehiclesController(IGetVehiclesByUserUseCase getByUser, IFindVehicleByPlateUseCase findByPlate) : ControllerBase
 {
     /// <summary>GET /api/vehicles?userId=5 – Garage xe của tài xế (UC-07).</summary>

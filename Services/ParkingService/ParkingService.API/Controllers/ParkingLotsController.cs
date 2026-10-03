@@ -8,7 +8,7 @@ namespace ParkingService.API.Controllers;
 /// Không chứa business logic, không truy cập dữ liệu trực tiếp.
 /// </summary>
 [ApiController]
-[Route("api/parking-lots")]
+[Route("api/v1/parking-lots")]
 public sealed class ParkingLotsController(
     IGetParkingLotByIdUseCase getParkingLotById,
     ISearchParkingLotsUseCase searchParkingLots) : ControllerBase

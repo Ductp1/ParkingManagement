@@ -5,7 +5,7 @@ using SupportService.Application.Features;
 namespace SupportService.API.Controllers;
 
 [ApiController]
-[Route("api/complaints")]
+[Route("api/v1/complaints")]
 public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwner) : ControllerBase
 {
     /// <summary>GET /api/complaints?ownerProfileId=1&amp;status=AwaitingOwner – Hộp tranh chấp của chủ bãi (UC-38).</summary>
@@ -16,7 +16,7 @@ public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwne
 }
 
 [ApiController]
-[Route("api/reviews")]
+[Route("api/v1/reviews")]
 public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews) : ControllerBase
 {
     /// <summary>GET /api/reviews?parkingLotId=1 – Điểm trung bình và đánh giá mới nhất của bãi (UC-18).</summary>

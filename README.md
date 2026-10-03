@@ -47,15 +47,15 @@ API ──► Application ──► Domain ──► SharedKernel
 
 | Service | Phụ trách | Port | Database | API mẫu (gọi qua Gateway :5000) |
 |---|---|---|---|---|
-| UserService | TV1 | 5101 | PM_UserDb | `GET /api/users/5`, `GET /api/users?role=Driver` |
-| VehicleService | TV2 | 5102 | PM_VehicleDb | `GET /api/vehicles?userId=5`, `GET /api/vehicles/by-plate/51F-123.45` |
-| ParkingService | TV5 | 5103 | PM_ParkingDb | `GET /api/parking-lots/1`, `GET /api/parking-lots/search?lat=10.777&lng=106.701&radiusKm=5` |
-| BookingService | TV3 | 5104 | PM_BookingDb | `GET /api/bookings/BK-0002`, `GET /api/bookings/BK-0002/cancellation-preview` |
-| PaymentService | TV4 | 5105 | PM_PaymentDb | `GET /api/pricing/quote?parkingLotId=1&vehicleType=Sedan&startAtUtc=...&endAtUtc=...`, `GET /api/payments?bookingId=2` |
-| NotificationService | TV6 | 5106 | PM_NotificationDb | `GET /api/notifications?userId=5` |
-| GateService | TV7 | 5107 | PM_GateDb | `GET /api/parking-sessions?parkingLotId=2`, `GET /api/parking-sessions/lookup?parkingLotId=2&plate=51A-999.99` |
-| AdminService | TV8 | 5108 | PM_AdminDb | `GET /api/admin/settings` |
-| SupportService | TV9 | 5109 | PM_SupportDb | `GET /api/complaints?ownerProfileId=1`, `GET /api/reviews?parkingLotId=1` |
+| UserService | TV1 | 5101 | PM_UserDb | `GET /api/v1/users/5`, `GET /api/v1/users?role=Driver` |
+| VehicleService | TV2 | 5102 | PM_VehicleDb | `GET /api/v1/vehicles?userId=5`, `GET /api/v1/vehicles/by-plate/51F-123.45` |
+| ParkingService | TV5 | 5103 | PM_ParkingDb | `GET /api/v1/parking-lots/1`, `GET /api/v1/parking-lots/search?lat=10.777&lng=106.701&radiusKm=5` |
+| BookingService | TV3 | 5104 | PM_BookingDb | `GET /api/v1/bookings/BK-0002`, `GET /api/v1/bookings/BK-0002/cancellation-preview` |
+| PaymentService | TV4 | 5105 | PM_PaymentDb | `GET /api/v1/pricing/quote?parkingLotId=1&vehicleType=Sedan&startAtUtc=...&endAtUtc=...`, `GET /api/v1/payments?bookingId=2` |
+| NotificationService | TV6 | 5106 | PM_NotificationDb | `GET /api/v1/notifications?userId=5` |
+| GateService | TV7 | 5107 | PM_GateDb | `GET /api/v1/parking-sessions?parkingLotId=2`, `GET /api/v1/parking-sessions/lookup?parkingLotId=2&plate=51A-999.99` |
+| AdminService | TV8 | 5108 | PM_AdminDb | `GET /api/v1/admin/settings` |
+| SupportService | TV9 | 5109 | PM_SupportDb | `GET /api/v1/complaints?ownerProfileId=1`, `GET /api/v1/reviews?parkingLotId=1` |
 
 Mỗi service còn có `/health` và `/openapi/v1.json`. Gateway có `GET /health/services` để xem service nào đang chạy.
 

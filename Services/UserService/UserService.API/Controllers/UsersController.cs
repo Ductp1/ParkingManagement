@@ -6,7 +6,7 @@ using UserService.Application.Features.Users;
 namespace UserService.API.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route("api/v1/users")]
 public sealed class UsersController(IGetUserByIdUseCase getUserById, IListUsersUseCase listUsers) : ControllerBase
 {
     /// <summary>GET /api/users/{id} – Hồ sơ người dùng kèm vai trò và hồ sơ chủ bãi (nếu có).</summary>
