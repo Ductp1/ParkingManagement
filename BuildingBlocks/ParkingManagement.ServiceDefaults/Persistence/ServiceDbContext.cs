@@ -96,6 +96,12 @@ public abstract class ServiceDbContext(DbContextOptions options) : DbContext(opt
 
             if (entry.State == EntityState.Modified && entry.Entity is BaseEntity)
                 entry.Property(nameof(BaseEntity.UpdatedAtUtc)).CurrentValue = now;
+
+            // PostgreSQL không có rowversion tự sinh như SQL Server -> tự đóng dấu phiên bản (client-side)
+            // cho mọi entity có cột RowVersion, dùng làm optimistic concurrency token.
+            if (entry.State is EntityState.Added or EntityState.Modified &&
+                entry.Metadata.FindProperty("RowVersion") is not null)
+                entry.Property("RowVersion").CurrentValue = Guid.NewGuid().ToByteArray();
         }
     }
 }

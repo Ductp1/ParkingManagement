@@ -21,7 +21,7 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
         e.Property(x => x.SlotCode).HasMaxLength(20);
         e.Property(x => x.PromotionCode).HasMaxLength(30);
         e.Property(x => x.QrToken).HasMaxLength(1000);
-        e.Property(x => x.RowVersion).IsRowVersion();
+        e.Property(x => x.RowVersion).IsConcurrencyToken(); // PostgreSQL: tự đóng dấu ở SaveChanges, không có rowversion tự sinh
 
         // ----- Quan hệ -----
         e.HasOne(x => x.PriceSnapshot).WithOne(p => p.Booking).HasForeignKey<PriceSnapshot>(p => p.BookingId);

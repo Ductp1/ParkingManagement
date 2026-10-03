@@ -12,7 +12,7 @@ internal sealed class SlotConfiguration : IEntityTypeConfiguration<Slot>
     {
         e.ToTable("Slots");
         e.Property(x => x.Code).HasMaxLength(20).IsRequired();
-        e.Property(x => x.RowVersion).IsRowVersion();   // optimistic concurrency cho Slot State Machine
+        e.Property(x => x.RowVersion).IsConcurrencyToken();   // optimistic concurrency cho Slot State Machine (PostgreSQL: tự đóng dấu ở SaveChanges, không có rowversion tự sinh)
 
         e.HasIndex(x => new { x.FloorId, x.Code }).IsUnique();
         e.HasIndex(x => new { x.FloorId, x.GridX, x.GridY }).IsUnique();
