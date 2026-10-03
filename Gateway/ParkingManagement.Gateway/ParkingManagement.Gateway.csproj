@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- API Gateway (YARP): 1 cá»•ng vÃ o duy nháº¥t http://localhost:5000, Ä‘á»‹nh tuyáº¿n tá»›i 9 service. -->
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+</Project>

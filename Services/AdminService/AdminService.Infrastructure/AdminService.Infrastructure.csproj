@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- INFRASTRUCTURE: DbContext riÃªng cá»§a service, migration, repository (EF Core + LINQ), seed dá»¯ liá»‡u. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AdminService.Application\AdminService.Application.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\ParkingManagement.ServiceDefaults\ParkingManagement.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>
