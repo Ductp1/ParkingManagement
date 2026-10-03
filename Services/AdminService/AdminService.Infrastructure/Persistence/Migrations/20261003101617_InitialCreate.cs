@@ -244,7 +244,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                 name: "IX_Sanctions_ParkingLotId",
                 table: "Sanctions",
                 column: "ParkingLotId",
-                filter: "[ParkingLotId] IS NOT NULL");
+                filter: "\"ParkingLotId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_SystemConfigs_Key",

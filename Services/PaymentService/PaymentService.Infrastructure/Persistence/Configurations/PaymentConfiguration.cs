@@ -12,8 +12,8 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
     {
         e.ToTable("Payments", t =>
         {
-            t.HasCheckConstraint("CK_Payments_Amount", "[Amount] >= 0 AND [RefundedAmount] >= 0 AND [RefundedAmount] <= [Amount]");
-            t.HasCheckConstraint("CK_Payments_Target", "[BookingId] IS NOT NULL OR [ParkingSessionId] IS NOT NULL");
+            t.HasCheckConstraint("CK_Payments_Amount", "\"Amount\" >= 0 AND \"RefundedAmount\" >= 0 AND \"RefundedAmount\" <= \"Amount\"");
+            t.HasCheckConstraint("CK_Payments_Target", "\"BookingId\" IS NOT NULL OR \"ParkingSessionId\" IS NOT NULL");
         });
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.BookingCode).HasMaxLength(30);
@@ -30,7 +30,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 
         e.HasIndex(x => x.Code).IsUnique();
         e.HasIndex(x => x.IdempotencyKey).IsUnique();   // callback lặp không trừ tiền 2 lần
-        e.HasIndex(x => new { x.Method, x.ProviderTransactionId }).IsUnique().HasFilter("[ProviderTransactionId] IS NOT NULL");
+        e.HasIndex(x => new { x.Method, x.ProviderTransactionId }).IsUnique().HasFilter("\"ProviderTransactionId\" IS NOT NULL");
         e.HasIndex(x => x.BookingId);
         e.HasIndex(x => x.ParkingSessionId);
         e.HasIndex(x => new { x.OwnerProfileId, x.Status, x.PaidAtUtc }); // báo cáo doanh thu & quyết toán

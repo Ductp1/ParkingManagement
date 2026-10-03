@@ -12,8 +12,8 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
     {
         e.ToTable("Bookings", t =>
         {
-            t.HasCheckConstraint("CK_Bookings_Time", "[EndAtUtc] > [StartAtUtc]");
-            t.HasCheckConstraint("CK_Bookings_Amount", "[TotalAmount] >= 0 AND [DiscountAmount] >= 0 AND [PaidAmount] >= 0");
+            t.HasCheckConstraint("CK_Bookings_Time", "\"EndAtUtc\" > \"StartAtUtc\"");
+            t.HasCheckConstraint("CK_Bookings_Amount", "\"TotalAmount\" >= 0 AND \"DiscountAmount\" >= 0 AND \"PaidAmount\" >= 0");
         });
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.PlateNumber).HasMaxLength(15).IsRequired();

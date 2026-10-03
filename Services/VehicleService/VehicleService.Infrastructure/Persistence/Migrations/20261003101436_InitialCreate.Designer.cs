@@ -137,11 +137,11 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId", "PlateNumber")
                         .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("Vehicles", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Vehicles_Height", "[HeightCm] > 0");
+                            t.HasCheckConstraint("CK_Vehicles_Height", "\"HeightCm\" > 0");
                         });
                 });
 
@@ -185,11 +185,11 @@ namespace VehicleService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("VehicleId", "SharedWithUserId")
                         .IsUnique()
-                        .HasFilter("[Status] <> N'Revoked'");
+                        .HasFilter("\"Status\" <> 'Revoked'");
 
                     b.ToTable("VehicleShares", null, t =>
                         {
-                            t.HasCheckConstraint("CK_VehicleShares_NotSelf", "[OwnerUserId] <> [SharedWithUserId]");
+                            t.HasCheckConstraint("CK_VehicleShares_NotSelf", "\"OwnerUserId\" <> \"SharedWithUserId\"");
                         });
                 });
 

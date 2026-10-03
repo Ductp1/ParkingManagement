@@ -121,7 +121,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ChargedToOwnerProfileId")
-                        .HasFilter("[ChargedToOwnerProfileId] IS NOT NULL");
+                        .HasFilter("\"ChargedToOwnerProfileId\" IS NOT NULL");
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -132,7 +132,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CompensationVouchers", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CompensationVouchers_Amount", "[Amount] > 0");
+                            t.HasCheckConstraint("CK_CompensationVouchers_Amount", "\"Amount\" > 0");
                         });
                 });
 
@@ -359,15 +359,15 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PaymentId")
                         .IsUnique()
-                        .HasFilter("[PaymentId] IS NOT NULL");
+                        .HasFilter("\"PaymentId\" IS NOT NULL");
 
                     b.HasIndex("SettlementId")
                         .IsUnique()
-                        .HasFilter("[SettlementId] IS NOT NULL");
+                        .HasFilter("\"SettlementId\" IS NOT NULL");
 
                     b.ToTable("Invoices", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Invoices_Source", "([Type] = N'ParkingFee' AND [PaymentId] IS NOT NULL) OR ([Type] = N'PlatformCommission' AND [SettlementId] IS NOT NULL)");
+                            t.HasCheckConstraint("CK_Invoices_Source", "(\"Type\" = 'ParkingFee' AND \"PaymentId\" IS NOT NULL) OR (\"Type\" = 'PlatformCommission' AND \"SettlementId\" IS NOT NULL)");
                         });
                 });
 
@@ -484,15 +484,15 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Method", "ProviderTransactionId")
                         .IsUnique()
-                        .HasFilter("[ProviderTransactionId] IS NOT NULL");
+                        .HasFilter("\"ProviderTransactionId\" IS NOT NULL");
 
                     b.HasIndex("OwnerProfileId", "Status", "PaidAtUtc");
 
                     b.ToTable("Payments", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Payments_Amount", "[Amount] >= 0 AND [RefundedAmount] >= 0 AND [RefundedAmount] <= [Amount]");
+                            t.HasCheckConstraint("CK_Payments_Amount", "\"Amount\" >= 0 AND \"RefundedAmount\" >= 0 AND \"RefundedAmount\" <= \"Amount\"");
 
-                            t.HasCheckConstraint("CK_Payments_Target", "[BookingId] IS NOT NULL OR [ParkingSessionId] IS NOT NULL");
+                            t.HasCheckConstraint("CK_Payments_Target", "\"BookingId\" IS NOT NULL OR \"ParkingSessionId\" IS NOT NULL");
                         });
                 });
 
@@ -630,7 +630,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Promotions", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Promotions_Period", "[EndsAtUtc] > [StartsAtUtc]");
+                            t.HasCheckConstraint("CK_Promotions_Period", "\"EndsAtUtc\" > \"StartsAtUtc\"");
                         });
                 });
 
@@ -671,7 +671,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BookingId")
                         .IsUnique()
-                        .HasFilter("[IsReverted] = 0");
+                        .HasFilter("\"IsReverted\" = false");
 
                     b.HasIndex("PaymentId");
 
@@ -679,7 +679,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("PromotionRedemptions", null, t =>
                         {
-                            t.HasCheckConstraint("CK_PromotionRedemptions_Amount", "[DiscountAmount] >= 0");
+                            t.HasCheckConstraint("CK_PromotionRedemptions_Amount", "\"DiscountAmount\" >= 0");
                         });
                 });
 
@@ -749,7 +749,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("RateCards", null, t =>
                         {
-                            t.HasCheckConstraint("CK_RateCards_Multipliers", "[WeekendMultiplier] > 0 AND [HolidayMultiplier] > 0 AND [OversizedMultiplier] >= 1 AND [OverstayMultiplier] >= 1");
+                            t.HasCheckConstraint("CK_RateCards_Multipliers", "\"WeekendMultiplier\" > 0 AND \"HolidayMultiplier\" > 0 AND \"OversizedMultiplier\" >= 1 AND \"OverstayMultiplier\" >= 1");
                         });
                 });
 
@@ -798,9 +798,9 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("RateRules", null, t =>
                         {
-                            t.HasCheckConstraint("CK_RateRules_Block", "[BlockMinutes] > 0 AND [PricePerBlock] >= 0");
+                            t.HasCheckConstraint("CK_RateRules_Block", "\"BlockMinutes\" > 0 AND \"PricePerBlock\" >= 0");
 
-                            t.HasCheckConstraint("CK_RateRules_Range", "[ToMinute] IS NULL OR [ToMinute] > [FromMinute]");
+                            t.HasCheckConstraint("CK_RateRules_Range", "\"ToMinute\" IS NULL OR \"ToMinute\" > \"FromMinute\"");
                         });
                 });
 
@@ -858,13 +858,13 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ComplaintId")
-                        .HasFilter("[ComplaintId] IS NOT NULL");
+                        .HasFilter("\"ComplaintId\" IS NOT NULL");
 
                     b.HasIndex("PaymentId", "Status");
 
                     b.ToTable("Refunds", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Refunds_Amount", "[Amount] > 0");
+                            t.HasCheckConstraint("CK_Refunds_Amount", "\"Amount\" > 0");
                         });
                 });
 
@@ -944,7 +944,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Settlements", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Settlements_Period", "[PeriodEnd] >= [PeriodStart]");
+                            t.HasCheckConstraint("CK_Settlements_Period", "\"PeriodEnd\" >= \"PeriodStart\"");
                         });
                 });
 
@@ -994,7 +994,7 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("PaymentId")
-                        .HasFilter("[PaymentId] IS NOT NULL");
+                        .HasFilter("\"PaymentId\" IS NOT NULL");
 
                     b.HasIndex("RefundId");
 

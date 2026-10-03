@@ -268,20 +268,20 @@ namespace GateService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("BookingId")
                         .IsUnique()
-                        .HasFilter("[BookingId] IS NOT NULL");
+                        .HasFilter("\"BookingId\" IS NOT NULL");
 
                     b.HasIndex("Code")
                         .IsUnique();
 
                     b.HasIndex("ParkingLotId", "PlateNumber")
                         .IsUnique()
-                        .HasFilter("[Status] = N'Active'");
+                        .HasFilter("\"Status\" = 'Active'");
 
                     b.HasIndex("OwnerProfileId", "ParkingLotId", "EntryAtUtc");
 
                     b.ToTable("ParkingSessions", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ParkingSessions_Exit", "[ExitAtUtc] IS NULL OR [ExitAtUtc] >= [EntryAtUtc]");
+                            t.HasCheckConstraint("CK_ParkingSessions_Exit", "\"ExitAtUtc\" IS NULL OR \"ExitAtUtc\" >= \"EntryAtUtc\"");
                         });
                 });
 
@@ -343,7 +343,7 @@ namespace GateService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StaffUserId")
                         .IsUnique()
-                        .HasFilter("[Status] = N'Open'");
+                        .HasFilter("\"Status\" = 'Open'");
 
                     b.HasIndex("ParkingLotId", "StartedAtUtc");
 

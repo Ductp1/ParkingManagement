@@ -32,11 +32,11 @@ internal sealed class PromotionRedemptionConfiguration : IEntityTypeConfiguratio
 {
     public void Configure(EntityTypeBuilder<PromotionRedemption> e)
     {
-        e.ToTable("PromotionRedemptions", t => t.HasCheckConstraint("CK_PromotionRedemptions_Amount", "[DiscountAmount] >= 0"));
+        e.ToTable("PromotionRedemptions", t => t.HasCheckConstraint("CK_PromotionRedemptions_Amount", "\"DiscountAmount\" >= 0"));
         e.HasOne(x => x.Promotion).WithMany(p => p.Redemptions).HasForeignKey(x => x.PromotionId);
         e.HasOne(x => x.Payment).WithMany().HasForeignKey(x => x.PaymentId);
         // 1 booking chỉ dùng 1 mã; đếm lượt dùng theo user cho mã "lần đầu".
-        e.HasIndex(x => x.BookingId).IsUnique().HasFilter("[IsReverted] = 0");
+        e.HasIndex(x => x.BookingId).IsUnique().HasFilter("\"IsReverted\" = false");
         e.HasIndex(x => new { x.PromotionId, x.UserId });
     }
 }
@@ -61,12 +61,12 @@ internal sealed class CompensationVoucherConfiguration : IEntityTypeConfiguratio
 {
     public void Configure(EntityTypeBuilder<CompensationVoucher> e)
     {
-        e.ToTable("CompensationVouchers", t => t.HasCheckConstraint("CK_CompensationVouchers_Amount", "[Amount] > 0"));
+        e.ToTable("CompensationVouchers", t => t.HasCheckConstraint("CK_CompensationVouchers_Amount", "\"Amount\" > 0"));
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.Reason).HasMaxLength(500).IsRequired();
         e.HasOne(x => x.RedeemedPayment).WithMany().HasForeignKey(x => x.RedeemedPaymentId);
         e.HasIndex(x => x.Code).IsUnique();
         e.HasIndex(x => new { x.UserId, x.Status, x.ExpiresAtUtc });          // voucher còn dùng được của tài xế
-        e.HasIndex(x => x.ChargedToOwnerProfileId).HasFilter("[ChargedToOwnerProfileId] IS NOT NULL");
+        e.HasIndex(x => x.ChargedToOwnerProfileId).HasFilter("\"ChargedToOwnerProfileId\" IS NOT NULL");
     }
 }

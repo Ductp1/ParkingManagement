@@ -152,7 +152,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BookingId")
-                        .HasFilter("[BookingId] IS NOT NULL");
+                        .HasFilter("\"BookingId\" IS NOT NULL");
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -330,7 +330,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Reviews", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Reviews_Rating", "[Rating] BETWEEN 1 AND 5");
+                            t.HasCheckConstraint("CK_Reviews_Rating", "\"Rating\" BETWEEN 1 AND 5");
                         });
                 });
 

@@ -14,6 +14,6 @@ internal sealed class SanctionConfiguration : IEntityTypeConfiguration<Sanction>
         e.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
         e.Property(x => x.EvidenceJson).IsMaxText();
         e.HasIndex(x => new { x.OwnerProfileId, x.Status });
-        e.HasIndex(x => x.ParkingLotId).HasFilter("[ParkingLotId] IS NOT NULL");
+        e.HasIndex(x => x.ParkingLotId).HasFilter("\"ParkingLotId\" IS NOT NULL");
     }
 }

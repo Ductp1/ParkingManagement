@@ -11,7 +11,7 @@ internal sealed class ParkingSessionConfiguration : IEntityTypeConfiguration<Par
     public void Configure(EntityTypeBuilder<ParkingSession> e)
     {
         e.ToTable("ParkingSessions", t =>
-            t.HasCheckConstraint("CK_ParkingSessions_Exit", "[ExitAtUtc] IS NULL OR [ExitAtUtc] >= [EntryAtUtc]"));
+            t.HasCheckConstraint("CK_ParkingSessions_Exit", "\"ExitAtUtc\" IS NULL OR \"ExitAtUtc\" >= \"EntryAtUtc\""));
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.PlateNumber).HasMaxLength(15).IsRequired();
         e.Property(x => x.BookingCode).HasMaxLength(30);
@@ -26,9 +26,9 @@ internal sealed class ParkingSessionConfiguration : IEntityTypeConfiguration<Par
 
         e.HasIndex(x => x.Code).IsUnique();
         // Một biển số chỉ có tối đa 1 lượt đang trong bãi (giữ quy tắc của project Smart_Parking_System).
-        e.HasIndex(x => new { x.ParkingLotId, x.PlateNumber }).IsUnique().HasFilter("[Status] = N'Active'");
+        e.HasIndex(x => new { x.ParkingLotId, x.PlateNumber }).IsUnique().HasFilter("\"Status\" = 'Active'");
         // Một booking chỉ sinh ra 1 lượt gửi xe.
-        e.HasIndex(x => x.BookingId).IsUnique().HasFilter("[BookingId] IS NOT NULL");
+        e.HasIndex(x => x.BookingId).IsUnique().HasFilter("\"BookingId\" IS NOT NULL");
         e.HasIndex(x => new { x.OwnerProfileId, x.ParkingLotId, x.EntryAtUtc });
     }
 }

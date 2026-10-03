@@ -171,9 +171,9 @@ namespace BookingService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Bookings", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Bookings_Amount", "[TotalAmount] >= 0 AND [DiscountAmount] >= 0 AND [PaidAmount] >= 0");
+                            t.HasCheckConstraint("CK_Bookings_Amount", "\"TotalAmount\" >= 0 AND \"DiscountAmount\" >= 0 AND \"PaidAmount\" >= 0");
 
-                            t.HasCheckConstraint("CK_Bookings_Time", "[EndAtUtc] > [StartAtUtc]");
+                            t.HasCheckConstraint("CK_Bookings_Time", "\"EndAtUtc\" > \"StartAtUtc\"");
                         });
                 });
 
@@ -354,7 +354,7 @@ namespace BookingService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SlotId")
                         .IsUnique()
-                        .HasFilter("[SlotId] IS NOT NULL AND [Status] = N'Active'");
+                        .HasFilter("\"SlotId\" IS NOT NULL AND \"Status\" = 'Active'");
 
                     b.HasIndex("UserId");
 
@@ -362,7 +362,7 @@ namespace BookingService.Infrastructure.Persistence.Migrations
 
                     b.ToTable("MonthlyPasses", null, t =>
                         {
-                            t.HasCheckConstraint("CK_MonthlyPasses_Period", "[ValidTo] >= [ValidFrom]");
+                            t.HasCheckConstraint("CK_MonthlyPasses_Period", "\"ValidTo\" >= \"ValidFrom\"");
                         });
                 });
 

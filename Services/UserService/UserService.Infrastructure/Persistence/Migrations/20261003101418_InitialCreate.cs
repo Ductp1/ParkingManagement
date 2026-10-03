@@ -61,7 +61,7 @@ namespace UserService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
-                    table.CheckConstraint("CK_Users_EmailOrPhone", "[Email] IS NOT NULL OR [PhoneNumber] IS NOT NULL");
+                    table.CheckConstraint("CK_Users_EmailOrPhone", "\"Email\" IS NOT NULL OR \"PhoneNumber\" IS NOT NULL");
                 });
 
             migrationBuilder.CreateTable(
@@ -322,21 +322,21 @@ namespace UserService.Infrastructure.Persistence.Migrations
                 table: "StaffAssignments",
                 columns: new[] { "StaffUserId", "ParkingLotId" },
                 unique: true,
-                filter: "[IsActive] = 1");
+                filter: "\"IsActive\" = true");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Email",
                 table: "Users",
                 column: "Email",
                 unique: true,
-                filter: "[Email] IS NOT NULL");
+                filter: "\"Email\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_PhoneNumber",
                 table: "Users",
                 column: "PhoneNumber",
                 unique: true,
-                filter: "[PhoneNumber] IS NOT NULL");
+                filter: "\"PhoneNumber\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Status",

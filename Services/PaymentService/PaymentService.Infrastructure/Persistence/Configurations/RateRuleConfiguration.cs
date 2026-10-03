@@ -12,8 +12,8 @@ internal sealed class RateRuleConfiguration : IEntityTypeConfiguration<RateRule>
     {
         e.ToTable("RateRules", t =>
         {
-            t.HasCheckConstraint("CK_RateRules_Range", "[ToMinute] IS NULL OR [ToMinute] > [FromMinute]");
-            t.HasCheckConstraint("CK_RateRules_Block", "[BlockMinutes] > 0 AND [PricePerBlock] >= 0");
+            t.HasCheckConstraint("CK_RateRules_Range", "\"ToMinute\" IS NULL OR \"ToMinute\" > \"FromMinute\"");
+            t.HasCheckConstraint("CK_RateRules_Block", "\"BlockMinutes\" > 0 AND \"PricePerBlock\" >= 0");
         });
         e.HasIndex(x => new { x.RateCardId, x.VehicleType, x.FromMinute }).IsUnique();
     }

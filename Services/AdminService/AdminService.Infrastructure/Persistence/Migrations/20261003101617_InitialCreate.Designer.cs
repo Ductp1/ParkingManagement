@@ -322,7 +322,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ParkingLotId")
-                        .HasFilter("[ParkingLotId] IS NOT NULL");
+                        .HasFilter("\"ParkingLotId\" IS NOT NULL");
 
                     b.HasIndex("OwnerProfileId", "Status");
 

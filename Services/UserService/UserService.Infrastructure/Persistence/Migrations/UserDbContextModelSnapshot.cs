@@ -371,7 +371,7 @@ namespace UserService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StaffUserId", "ParkingLotId")
                         .IsUnique()
-                        .HasFilter("[IsActive] = 1");
+                        .HasFilter("\"IsActive\" = true");
 
                     b.ToTable("StaffAssignments", (string)null);
                 });
@@ -470,17 +470,17 @@ namespace UserService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Email")
                         .IsUnique()
-                        .HasFilter("[Email] IS NOT NULL");
+                        .HasFilter("\"Email\" IS NOT NULL");
 
                     b.HasIndex("PhoneNumber")
                         .IsUnique()
-                        .HasFilter("[PhoneNumber] IS NOT NULL");
+                        .HasFilter("\"PhoneNumber\" IS NOT NULL");
 
                     b.HasIndex("Status");
 
                     b.ToTable("Users", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Users_EmailOrPhone", "[Email] IS NOT NULL OR [PhoneNumber] IS NOT NULL");
+                            t.HasCheckConstraint("CK_Users_EmailOrPhone", "\"Email\" IS NOT NULL OR \"PhoneNumber\" IS NOT NULL");
                         });
                 });
 

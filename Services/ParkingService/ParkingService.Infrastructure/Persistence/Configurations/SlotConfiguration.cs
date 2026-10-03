@@ -17,6 +17,6 @@ internal sealed class SlotConfiguration : IEntityTypeConfiguration<Slot>
         e.HasIndex(x => new { x.FloorId, x.Code }).IsUnique();
         e.HasIndex(x => new { x.FloorId, x.GridX, x.GridY }).IsUnique();
         e.HasIndex(x => new { x.FloorId, x.State });
-        e.HasIndex(x => x.DedicatedVehicleId).HasFilter("[DedicatedVehicleId] IS NOT NULL");
+        e.HasIndex(x => x.DedicatedVehicleId).HasFilter("\"DedicatedVehicleId\" IS NOT NULL");
     }
 }

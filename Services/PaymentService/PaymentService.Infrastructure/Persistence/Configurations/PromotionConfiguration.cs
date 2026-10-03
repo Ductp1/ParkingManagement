@@ -10,7 +10,7 @@ internal sealed class PromotionConfiguration : IEntityTypeConfiguration<Promotio
 {
     public void Configure(EntityTypeBuilder<Promotion> e)
     {
-        e.ToTable("Promotions", t => t.HasCheckConstraint("CK_Promotions_Period", "[EndsAtUtc] > [StartsAtUtc]"));
+        e.ToTable("Promotions", t => t.HasCheckConstraint("CK_Promotions_Period", "\"EndsAtUtc\" > \"StartsAtUtc\""));
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.Name).HasMaxLength(150).IsRequired();
         e.HasIndex(x => x.Code).IsUnique();

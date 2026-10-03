@@ -92,7 +92,7 @@ namespace GateService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ParkingSessions", x => x.Id);
-                    table.CheckConstraint("CK_ParkingSessions_Exit", "[ExitAtUtc] IS NULL OR [ExitAtUtc] >= [EntryAtUtc]");
+                    table.CheckConstraint("CK_ParkingSessions_Exit", "\"ExitAtUtc\" IS NULL OR \"ExitAtUtc\" >= \"EntryAtUtc\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -198,7 +198,7 @@ namespace GateService.Infrastructure.Persistence.Migrations
                 table: "ParkingSessions",
                 column: "BookingId",
                 unique: true,
-                filter: "[BookingId] IS NOT NULL");
+                filter: "\"BookingId\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ParkingSessions_Code",
@@ -216,7 +216,7 @@ namespace GateService.Infrastructure.Persistence.Migrations
                 table: "ParkingSessions",
                 columns: new[] { "ParkingLotId", "PlateNumber" },
                 unique: true,
-                filter: "[Status] = N'Active'");
+                filter: "\"Status\" = 'Active'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Shifts_ParkingLotId_StartedAtUtc",
@@ -228,7 +228,7 @@ namespace GateService.Infrastructure.Persistence.Migrations
                 table: "Shifts",
                 column: "StaffUserId",
                 unique: true,
-                filter: "[Status] = N'Open'");
+                filter: "\"Status\" = 'Open'");
         }
 
         /// <inheritdoc />

@@ -10,7 +10,7 @@ internal sealed class SettlementConfiguration : IEntityTypeConfiguration<Settlem
 {
     public void Configure(EntityTypeBuilder<Settlement> e)
     {
-        e.ToTable("Settlements", t => t.HasCheckConstraint("CK_Settlements_Period", "[PeriodEnd] >= [PeriodStart]"));
+        e.ToTable("Settlements", t => t.HasCheckConstraint("CK_Settlements_Period", "\"PeriodEnd\" >= \"PeriodStart\""));
         e.Property(x => x.CommissionRate).HasPrecision(5, 4);
         e.Property(x => x.PayoutReference).HasMaxLength(100);
         e.HasMany(x => x.Lines).WithOne(l => l.Settlement).HasForeignKey(l => l.SettlementId);

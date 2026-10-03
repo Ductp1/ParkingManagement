@@ -55,8 +55,8 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Bookings", x => x.Id);
-                    table.CheckConstraint("CK_Bookings_Amount", "[TotalAmount] >= 0 AND [DiscountAmount] >= 0 AND [PaidAmount] >= 0");
-                    table.CheckConstraint("CK_Bookings_Time", "[EndAtUtc] > [StartAtUtc]");
+                    table.CheckConstraint("CK_Bookings_Amount", "\"TotalAmount\" >= 0 AND \"DiscountAmount\" >= 0 AND \"PaidAmount\" >= 0");
+                    table.CheckConstraint("CK_Bookings_Time", "\"EndAtUtc\" > \"StartAtUtc\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -86,7 +86,7 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_MonthlyPasses", x => x.Id);
-                    table.CheckConstraint("CK_MonthlyPasses_Period", "[ValidTo] >= [ValidFrom]");
+                    table.CheckConstraint("CK_MonthlyPasses_Period", "\"ValidTo\" >= \"ValidFrom\"");
                 });
 
             migrationBuilder.CreateTable(
@@ -250,7 +250,7 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                 table: "MonthlyPasses",
                 column: "SlotId",
                 unique: true,
-                filter: "[SlotId] IS NOT NULL AND [Status] = N'Active'");
+                filter: "\"SlotId\" IS NOT NULL AND \"Status\" = 'Active'");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MonthlyPasses_UserId",
