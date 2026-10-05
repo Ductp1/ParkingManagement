@@ -1,6 +1,10 @@
+using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using ParkingManagement.SharedKernel.Rules;
-using VehicleService.Application.Features.Vehicles;
+using VehicleService.Application.DTOs;
+using VehicleService.Application.Interfaces;
+using VehicleService.Application.Services;
+using VehicleService.Domain.Entities;
 
 namespace VehicleService.Test;
 
@@ -23,17 +27,114 @@ public class VehicleTests
     public async Task Lookup_normalizes_plate_before_querying()
     {
         var queries = new FakeQueries();
-        await new FindVehicleByPlateUseCase(queries).ExecuteAsync("51f-123.45");
+        var service = new VehicleAppService(queries);
+        await service.FindVehicleByPlateAsync("51f-123.45");
         Assert.Equal("51F12345", queries.LastPlate);
     }
 
     [Fact]
     public async Task Invalid_plate_is_rejected()
-        => await Assert.ThrowsAsync<ValidationException>(() => new FindVehicleByPlateUseCase(new FakeQueries()).ExecuteAsync("999-ABCXYZ"));
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        await Assert.ThrowsAsync<ValidationException>(() => service.FindVehicleByPlateAsync("999-ABCXYZ"));
+    }
+
+    [Fact]
+    public async Task CreateVehicle_InvalidPlate_ThrowsValidationException()
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        var request = new CreateVehicleRequestDto(5, "999-INVALID");
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateVehicleAsync(request));
+    }
+
+    [Fact]
+    public async Task CreateVehicle_Exceeds10Vehicles_ThrowsValidationException()
+    {
+        var queries = new FakeQueries { VehicleCount = 10 };
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51H-999.99");
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateVehicleAsync(request));
+    }
+
+    [Fact]
+    public async Task CreateVehicle_DuplicatePlateInGarage_ThrowsValidationException()
+    {
+        var queries = new FakeQueries { IsDuplicate = true };
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51H-123.45");
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateVehicleAsync(request));
+    }
+
+    [Fact]
+    public async Task CreateVehicle_ValidRequest_CreatesSuccessfully()
+    {
+        var queries = new FakeQueries();
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51H-123.45", VehicleType.Suv, FuelType.Electric, "VinFast", "VF 8", "Đen", 168, 475, 193, true);
+
+        var result = await service.CreateVehicleAsync(request);
+
+        Assert.Equal("51H12345", result.PlateNumber);
+        Assert.Equal("51H-123.45", result.PlateDisplay);
+        Assert.Equal(VehicleType.Suv, result.VehicleType);
+        Assert.Equal(FuelType.Electric, result.FuelType);
+        Assert.True(result.IsDefault);
+        Assert.True(queries.ClearDefaultCalled);
+    }
+
+    [Fact]
+    public async Task CreateVehicle_InvalidUserId_ThrowsValidationException()
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        var request = new CreateVehicleRequestDto(0, "51H-123.45");
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateVehicleAsync(request));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-10)]
+    public async Task CreateVehicle_InvalidHeight_ThrowsValidationException(int invalidHeight)
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        var request = new CreateVehicleRequestDto(5, "51H-123.45", HeightCm: invalidHeight);
+        await Assert.ThrowsAsync<ValidationException>(() => service.CreateVehicleAsync(request));
+    }
+
+    [Fact]
+    public async Task CreateVehicle_DefaultHeightCalculatedCorrectly()
+    {
+        var queries = new FakeQueries();
+        var service = new VehicleAppService(queries);
+
+        // Sedan default height: 145cm
+        var sedanReq = new CreateVehicleRequestDto(5, "51H-111.11", VehicleType: VehicleType.Sedan, HeightCm: null);
+        var sedanResult = await service.CreateVehicleAsync(sedanReq);
+        Assert.Equal(145, sedanResult.HeightCm);
+
+        // Suv default height: 170cm
+        var suvReq = new CreateVehicleRequestDto(5, "51H-222.22", VehicleType: VehicleType.Suv, HeightCm: null);
+        var suvResult = await service.CreateVehicleAsync(suvReq);
+        Assert.Equal(170, suvResult.HeightCm);
+    }
+
+    [Fact]
+    public async Task CreateVehicle_FirstVehicle_AutomaticallySetAsDefault()
+    {
+        var queries = new FakeQueries { VehicleCount = 0 };
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51H-123.45", IsDefault: false);
+
+        var result = await service.CreateVehicleAsync(request);
+
+        Assert.True(result.IsDefault);
+    }
 
     private sealed class FakeQueries : IVehicleQueries
     {
         public string? LastPlate { get; private set; }
+        public int VehicleCount { get; set; } = 0;
+        public bool IsDuplicate { get; set; } = false;
+        public bool ClearDefaultCalled { get; private set; } = false;
 
         public Task<IReadOnlyList<VehicleDto>> ListByUserAsync(int userId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<VehicleDto>>([]);
@@ -41,7 +142,36 @@ public class VehicleTests
         public Task<VehicleDto?> FindByPlateAsync(string normalizedPlate, CancellationToken cancellationToken)
         {
             LastPlate = normalizedPlate;
-            return Task.FromResult<VehicleDto?>(new VehicleDto(1, 5, normalizedPlate, "51F-123.45", "Sedan", "Gasoline", null, null, null, 147, true));
+            return Task.FromResult<VehicleDto?>(new VehicleDto(1, 5, normalizedPlate, "51F-123.45", VehicleType.Sedan, FuelType.Gasoline, null, null, null, 147, true));
+        }
+
+        public Task<int> CountByUserAsync(int userId, CancellationToken cancellationToken)
+            => Task.FromResult(VehicleCount);
+
+        public Task<bool> ExistsPlateInGarageAsync(int userId, string normalizedPlate, CancellationToken cancellationToken)
+            => Task.FromResult(IsDuplicate);
+
+        public Task ClearDefaultForUserAsync(int userId, CancellationToken cancellationToken)
+        {
+            ClearDefaultCalled = true;
+            return Task.CompletedTask;
+        }
+
+        public Task<VehicleDto> CreateAsync(Vehicle vehicle, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new VehicleDto(
+                10,
+                vehicle.UserId,
+                vehicle.PlateNumber,
+                vehicle.PlateDisplay,
+                vehicle.VehicleType,
+                vehicle.FuelType,
+                vehicle.Brand,
+                vehicle.Model,
+                vehicle.Color,
+                vehicle.HeightCm,
+                vehicle.IsDefault
+            ));
         }
     }
 }

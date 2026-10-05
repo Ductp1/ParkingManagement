@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
-using VehicleService.Application.Features.Vehicles;
+using VehicleService.Application.Interfaces;
 using VehicleService.Infrastructure.Persistence;
 using VehicleService.Infrastructure.Persistence.Queries;
 using VehicleService.Infrastructure.Persistence.Seeding;
