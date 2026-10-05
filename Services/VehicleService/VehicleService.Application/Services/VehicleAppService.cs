@@ -10,7 +10,9 @@ namespace VehicleService.Application.Services;
 /// <summary>
 /// Service triển khai toàn bộ nghiệp vụ của xe.
 /// </summary>
-public sealed class VehicleAppService(IVehicleQueries queries) : IVehicleService
+public sealed class VehicleAppService(
+    IVehicleQueries queries,
+    IBookingIntegrationService? bookingIntegration = null) : IVehicleService
 {
     /// <summary>
     /// Lấy danh sách xe trong Garage của tài xế (UC-07).
@@ -138,5 +140,31 @@ public sealed class VehicleAppService(IVehicleQueries queries) : IVehicleService
 
         var updated = await queries.UpdateAsync(id, request, cancellationToken);
         return updated ?? throw new NotFoundException("Xe", id);
+    }
+
+    /// <summary>
+    /// Xóa mềm xe có ràng buộc (Task P0.4, US-011).
+    /// Chặn xóa nếu xe đang có booking hoạt động (Confirmed hoặc Check-in).
+    /// </summary>
+    public async Task DeleteVehicleAsync(int id, int userId, CancellationToken cancellationToken = default)
+    {
+        if (id <= 0)
+            throw new ValidationException("id phải là số nguyên dương.");
+
+        if (userId <= 0)
+            throw new ValidationException("userId phải là số nguyên dương.");
+
+        var exists = await queries.ExistsByIdAndUserAsync(id, userId, cancellationToken);
+        if (!exists)
+            throw new NotFoundException("Xe", id);
+
+        if (bookingIntegration is not null)
+        {
+            var hasActiveBooking = await bookingIntegration.HasActiveBookingAsync(id, cancellationToken);
+            if (hasActiveBooking)
+                throw new ConflictException("Không thể xóa xe đang trong phiên gửi hoặc có lịch đặt chỗ chưa hoàn tất.");
+        }
+
+        await queries.SoftDeleteAsync(id, userId, cancellationToken);
     }
 }

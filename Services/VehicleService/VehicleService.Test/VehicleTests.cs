@@ -216,6 +216,55 @@ public class VehicleTests
         Assert.Equal("51F12345", result.PlateNumber); // Biển số bất biến, giữ nguyên!
     }
 
+    [Theory]
+    [InlineData(0, 5)]
+    [InlineData(-1, 5)]
+    [InlineData(1, 0)]
+    [InlineData(1, -5)]
+    public async Task DeleteVehicle_InvalidIds_ThrowsValidationException(int vehicleId, int userId)
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        await Assert.ThrowsAsync<ValidationException>(() => service.DeleteVehicleAsync(vehicleId, userId));
+    }
+
+    [Fact]
+    public async Task DeleteVehicle_NotFound_ThrowsNotFoundException()
+    {
+        var queries = new FakeQueries { VehicleExists = false };
+        var service = new VehicleAppService(queries);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.DeleteVehicleAsync(999, 5));
+    }
+
+    [Fact]
+    public async Task DeleteVehicle_HasActiveBooking_ThrowsConflictException()
+    {
+        var queries = new FakeQueries { VehicleExists = true };
+        var bookingIntegration = new FakeBookingIntegrationService(hasActiveBooking: true);
+        var service = new VehicleAppService(queries, bookingIntegration);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => service.DeleteVehicleAsync(10, 5));
+        Assert.Contains("lịch đặt chỗ", ex.Message);
+        Assert.False(queries.SoftDeleteCalled);
+    }
+
+    [Fact]
+    public async Task DeleteVehicle_NoActiveBooking_SoftDeletesSuccessfully()
+    {
+        var queries = new FakeQueries { VehicleExists = true };
+        var bookingIntegration = new FakeBookingIntegrationService(hasActiveBooking: false);
+        var service = new VehicleAppService(queries, bookingIntegration);
+
+        await service.DeleteVehicleAsync(10, 5);
+
+        Assert.True(queries.SoftDeleteCalled);
+    }
+
+    private sealed class FakeBookingIntegrationService(bool hasActiveBooking) : IBookingIntegrationService
+    {
+        public Task<bool> HasActiveBookingAsync(int vehicleId, CancellationToken cancellationToken = default)
+            => Task.FromResult(hasActiveBooking);
+    }
+
     private sealed class FakeQueries : IVehicleQueries
     {
         public string? LastPlate { get; private set; }
@@ -223,6 +272,7 @@ public class VehicleTests
         public bool IsDuplicate { get; set; } = false;
         public bool ClearDefaultCalled { get; private set; } = false;
         public bool VehicleExists { get; set; } = true;
+        public bool SoftDeleteCalled { get; private set; } = false;
 
         public Task<IReadOnlyList<VehicleDto>> ListByUserAsync(int userId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<VehicleDto>>([]);
@@ -302,6 +352,15 @@ public class VehicleTests
                 request.LengthCm,
                 request.WidthCm
             ));
+        }
+
+        public Task<bool> ExistsByIdAndUserAsync(int vehicleId, int userId, CancellationToken cancellationToken)
+            => Task.FromResult(VehicleExists);
+
+        public Task<bool> SoftDeleteAsync(int vehicleId, int userId, CancellationToken cancellationToken)
+        {
+            SoftDeleteCalled = true;
+            return Task.FromResult(true);
         }
     }
 }

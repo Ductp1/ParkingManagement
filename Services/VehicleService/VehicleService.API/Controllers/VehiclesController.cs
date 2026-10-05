@@ -35,4 +35,12 @@ public sealed class VehiclesController(IVehicleService vehicleService) : Control
     [HttpPut("{id:int}")]
     public async Task<ActionResult<VehicleDto>> Update([FromRoute] int id, [FromBody] UpdateVehicleRequestDto request, CancellationToken cancellationToken)
         => Ok(await vehicleService.UpdateVehicleAsync(id, request, cancellationToken));
+
+    /// <summary>DELETE /api/v1/vehicles/{id}?userId=5 – Xóa mềm xe có ràng buộc (Task P0.4, US-011).</summary>
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete([FromRoute] int id, [FromQuery] int userId, CancellationToken cancellationToken)
+    {
+        await vehicleService.DeleteVehicleAsync(id, userId, cancellationToken);
+        return NoContent();
+    }
 }

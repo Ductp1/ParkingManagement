@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using VehicleService.Application.Interfaces;
+using VehicleService.Infrastructure.Integration;
 using VehicleService.Infrastructure.Persistence;
 using VehicleService.Infrastructure.Persistence.Queries;
 using VehicleService.Infrastructure.Persistence.Seeding;
@@ -15,6 +16,7 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<VehicleDbContext>(configuration);
         services.AddScoped<IVehicleQueries, VehicleQueries>();
+        services.AddScoped<IBookingIntegrationService, BookingIntegrationService>();
         services.AddScoped<IDataSeeder<VehicleDbContext>, VehicleDataSeeder>();
         return services;
     }

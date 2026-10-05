@@ -140,4 +140,35 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
             vehicle.WidthCm
         );
     }
+
+    public Task<bool> ExistsByIdAndUserAsync(int vehicleId, int userId, CancellationToken cancellationToken)
+        => db.Vehicles.AnyAsync(v => v.Id == vehicleId && v.UserId == userId, cancellationToken);
+
+    public async Task<bool> SoftDeleteAsync(int vehicleId, int userId, CancellationToken cancellationToken)
+    {
+        var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == vehicleId && v.UserId == userId, cancellationToken);
+        if (vehicle is null)
+            return false;
+
+        var wasDefault = vehicle.IsDefault;
+        vehicle.IsDeleted = true;
+        vehicle.DeletedAtUtc = DateTime.UtcNow;
+        vehicle.IsDefault = false;
+
+        if (wasDefault)
+        {
+            var nextDefaultVehicle = await db.Vehicles
+                .Where(v => v.UserId == userId && v.Id != vehicleId)
+                .OrderBy(v => v.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (nextDefaultVehicle is not null)
+            {
+                nextDefaultVehicle.IsDefault = true;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
 }
