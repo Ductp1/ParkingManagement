@@ -129,12 +129,45 @@ public class VehicleTests
         Assert.True(result.IsDefault);
     }
 
+    [Theory]
+    [InlineData(0, 5)]
+    [InlineData(-1, 5)]
+    [InlineData(1, 0)]
+    [InlineData(1, -5)]
+    public async Task SetDefaultVehicle_InvalidIds_ThrowsValidationException(int vehicleId, int userId)
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        await Assert.ThrowsAsync<ValidationException>(() => service.SetDefaultVehicleAsync(vehicleId, userId));
+    }
+
+    [Fact]
+    public async Task SetDefaultVehicle_VehicleNotFound_ThrowsNotFoundException()
+    {
+        var queries = new FakeQueries { VehicleExists = false };
+        var service = new VehicleAppService(queries);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.SetDefaultVehicleAsync(999, 5));
+    }
+
+    [Fact]
+    public async Task SetDefaultVehicle_ValidVehicle_UpdatesSuccessfully()
+    {
+        var queries = new FakeQueries { VehicleExists = true };
+        var service = new VehicleAppService(queries);
+
+        var result = await service.SetDefaultVehicleAsync(10, 5);
+
+        Assert.Equal(10, result.Id);
+        Assert.Equal(5, result.UserId);
+        Assert.True(result.IsDefault);
+    }
+
     private sealed class FakeQueries : IVehicleQueries
     {
         public string? LastPlate { get; private set; }
         public int VehicleCount { get; set; } = 0;
         public bool IsDuplicate { get; set; } = false;
         public bool ClearDefaultCalled { get; private set; } = false;
+        public bool VehicleExists { get; set; } = true;
 
         public Task<IReadOnlyList<VehicleDto>> ListByUserAsync(int userId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<VehicleDto>>([]);
@@ -171,6 +204,26 @@ public class VehicleTests
                 vehicle.Color,
                 vehicle.HeightCm,
                 vehicle.IsDefault
+            ));
+        }
+
+        public Task<VehicleDto?> SetDefaultAsync(int vehicleId, int userId, CancellationToken cancellationToken)
+        {
+            if (!VehicleExists)
+                return Task.FromResult<VehicleDto?>(null);
+
+            return Task.FromResult<VehicleDto?>(new VehicleDto(
+                vehicleId,
+                userId,
+                "51F12345",
+                "51F-123.45",
+                VehicleType.Sedan,
+                FuelType.Gasoline,
+                "Toyota",
+                "Vios",
+                "Trắng",
+                147,
+                true
             ));
         }
     }

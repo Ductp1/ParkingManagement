@@ -66,4 +66,39 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
             vehicle.WidthCm
         );
     }
+
+    public async Task<VehicleDto?> SetDefaultAsync(int vehicleId, int userId, CancellationToken cancellationToken)
+    {
+        var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == vehicleId && v.UserId == userId, cancellationToken);
+        if (vehicle is null)
+            return null;
+
+        var currentDefaults = await db.Vehicles
+            .Where(v => v.UserId == userId && v.IsDefault && v.Id != vehicleId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var v in currentDefaults)
+        {
+            v.IsDefault = false;
+        }
+
+        vehicle.IsDefault = true;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return new VehicleDto(
+            vehicle.Id,
+            vehicle.UserId,
+            vehicle.PlateNumber,
+            vehicle.PlateDisplay,
+            vehicle.VehicleType,
+            vehicle.FuelType,
+            vehicle.Brand,
+            vehicle.Model,
+            vehicle.Color,
+            vehicle.HeightCm,
+            vehicle.IsDefault,
+            vehicle.LengthCm,
+            vehicle.WidthCm
+        );
+    }
 }

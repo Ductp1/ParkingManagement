@@ -99,4 +99,19 @@ public sealed class VehicleAppService(IVehicleQueries queries) : IVehicleService
 
         return await queries.CreateAsync(vehicle, cancellationToken);
     }
+
+    /// <summary>
+    /// Đặt xe làm mặc định cho tài xế (Task P0.3, US-010).
+    /// </summary>
+    public async Task<VehicleDto> SetDefaultVehicleAsync(int vehicleId, int userId, CancellationToken cancellationToken = default)
+    {
+        if (vehicleId <= 0)
+            throw new ValidationException("vehicleId phải là số nguyên dương.");
+
+        if (userId <= 0)
+            throw new ValidationException("userId phải là số nguyên dương.");
+
+        var updated = await queries.SetDefaultAsync(vehicleId, userId, cancellationToken);
+        return updated ?? throw new NotFoundException("Xe", vehicleId);
+    }
 }

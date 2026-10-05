@@ -14,4 +14,6 @@ public interface IVehicleQueries
     Task<bool> ExistsPlateInGarageAsync(int userId, string normalizedPlate, CancellationToken cancellationToken);
     Task<VehicleDto> CreateAsync(Vehicle vehicle, CancellationToken cancellationToken);
     Task ClearDefaultForUserAsync(int userId, CancellationToken cancellationToken);
+    Task<VehicleDto?> SetDefaultAsync(int vehicleId, int userId, CancellationToken cancellationToken);
 }
+

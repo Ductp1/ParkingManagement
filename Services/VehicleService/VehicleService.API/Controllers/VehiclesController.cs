@@ -25,4 +25,9 @@ public sealed class VehiclesController(IVehicleService vehicleService) : Control
         var result = await vehicleService.CreateVehicleAsync(request, cancellationToken);
         return CreatedAtAction(nameof(ListByUser), new { userId = result.UserId }, result);
     }
+
+    /// <summary>PATCH /api/v1/vehicles/{id}/default?userId=5 – Đặt xe làm mặc định (Task P0.3, US-010).</summary>
+    [HttpPatch("{id:int}/default")]
+    public async Task<ActionResult<VehicleDto>> SetDefault([FromRoute] int id, [FromQuery] int userId, CancellationToken cancellationToken)
+        => Ok(await vehicleService.SetDefaultVehicleAsync(id, userId, cancellationToken));
 }
