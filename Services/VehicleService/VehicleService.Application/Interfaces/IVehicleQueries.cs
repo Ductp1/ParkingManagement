@@ -15,5 +15,6 @@ public interface IVehicleQueries
     Task<VehicleDto> CreateAsync(Vehicle vehicle, CancellationToken cancellationToken);
     Task ClearDefaultForUserAsync(int userId, CancellationToken cancellationToken);
     Task<VehicleDto?> SetDefaultAsync(int vehicleId, int userId, CancellationToken cancellationToken);
+    Task<VehicleDto?> UpdateAsync(int vehicleId, UpdateVehicleRequestDto request, CancellationToken cancellationToken);
 }
 

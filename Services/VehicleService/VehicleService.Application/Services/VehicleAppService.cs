@@ -114,4 +114,29 @@ public sealed class VehicleAppService(IVehicleQueries queries) : IVehicleService
         var updated = await queries.SetDefaultAsync(vehicleId, userId, cancellationToken);
         return updated ?? throw new NotFoundException("Xe", vehicleId);
     }
+
+    /// <summary>
+    /// Chỉnh sửa thông tin xe trong Garage (Task P0.4, US-011).
+    /// Biển số xe không được phép sửa (bất biến).
+    /// </summary>
+    public async Task<VehicleDto> UpdateVehicleAsync(int id, UpdateVehicleRequestDto request, CancellationToken cancellationToken = default)
+    {
+        if (id <= 0)
+            throw new ValidationException("id phải là số nguyên dương.");
+
+        if (request.UserId <= 0)
+            throw new ValidationException("UserId phải là số nguyên dương.");
+
+        if (request.HeightCm.HasValue && request.HeightCm.Value <= 0)
+            throw new ValidationException("Chiều cao xe phải lớn hơn 0 cm.");
+
+        if (request.LengthCm.HasValue && request.LengthCm.Value <= 0)
+            throw new ValidationException("Chiều dài xe phải lớn hơn 0 cm.");
+
+        if (request.WidthCm.HasValue && request.WidthCm.Value <= 0)
+            throw new ValidationException("Chiều rộng xe phải lớn hơn 0 cm.");
+
+        var updated = await queries.UpdateAsync(id, request, cancellationToken);
+        return updated ?? throw new NotFoundException("Xe", id);
+    }
 }

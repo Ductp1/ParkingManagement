@@ -30,4 +30,9 @@ public sealed class VehiclesController(IVehicleService vehicleService) : Control
     [HttpPatch("{id:int}/default")]
     public async Task<ActionResult<VehicleDto>> SetDefault([FromRoute] int id, [FromQuery] int userId, CancellationToken cancellationToken)
         => Ok(await vehicleService.SetDefaultVehicleAsync(id, userId, cancellationToken));
+
+    /// <summary>PUT /api/v1/vehicles/{id} – Cập nhật thông tin xe trong Garage (Task P0.4, US-011).</summary>
+    [HttpPut("{id:int}")]
+    public async Task<ActionResult<VehicleDto>> Update([FromRoute] int id, [FromBody] UpdateVehicleRequestDto request, CancellationToken cancellationToken)
+        => Ok(await vehicleService.UpdateVehicleAsync(id, request, cancellationToken));
 }

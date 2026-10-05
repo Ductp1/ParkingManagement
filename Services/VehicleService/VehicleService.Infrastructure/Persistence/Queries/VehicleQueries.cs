@@ -101,4 +101,43 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
             vehicle.WidthCm
         );
     }
+
+    public async Task<VehicleDto?> UpdateAsync(int vehicleId, UpdateVehicleRequestDto request, CancellationToken cancellationToken)
+    {
+        var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == vehicleId && v.UserId == request.UserId, cancellationToken);
+        if (vehicle is null)
+            return null;
+
+        vehicle.VehicleType = request.VehicleType;
+        vehicle.FuelType = request.FuelType;
+        vehicle.Brand = request.Brand?.Trim();
+        vehicle.Model = request.Model?.Trim();
+        vehicle.Color = request.Color?.Trim();
+
+        if (request.HeightCm.HasValue)
+        {
+            vehicle.HeightCm = request.HeightCm.Value;
+        }
+
+        vehicle.LengthCm = request.LengthCm;
+        vehicle.WidthCm = request.WidthCm;
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        return new VehicleDto(
+            vehicle.Id,
+            vehicle.UserId,
+            vehicle.PlateNumber,
+            vehicle.PlateDisplay,
+            vehicle.VehicleType,
+            vehicle.FuelType,
+            vehicle.Brand,
+            vehicle.Model,
+            vehicle.Color,
+            vehicle.HeightCm,
+            vehicle.IsDefault,
+            vehicle.LengthCm,
+            vehicle.WidthCm
+        );
+    }
 }

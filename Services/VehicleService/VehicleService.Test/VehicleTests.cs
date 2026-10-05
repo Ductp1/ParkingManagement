@@ -161,6 +161,61 @@ public class VehicleTests
         Assert.True(result.IsDefault);
     }
 
+    [Theory]
+    [InlineData(0, 5)]
+    [InlineData(-1, 5)]
+    [InlineData(1, 0)]
+    [InlineData(1, -5)]
+    public async Task UpdateVehicle_InvalidIds_ThrowsValidationException(int vehicleId, int userId)
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        var request = new UpdateVehicleRequestDto(userId, VehicleType.Sedan, FuelType.Gasoline);
+        await Assert.ThrowsAsync<ValidationException>(() => service.UpdateVehicleAsync(vehicleId, request));
+    }
+
+    [Theory]
+    [InlineData(0, null, null)]
+    [InlineData(-5, null, null)]
+    [InlineData(null, 0, null)]
+    [InlineData(null, -10, null)]
+    [InlineData(null, null, 0)]
+    [InlineData(null, null, -1)]
+    public async Task UpdateVehicle_InvalidDimensions_ThrowsValidationException(int? height, int? length, int? width)
+    {
+        var service = new VehicleAppService(new FakeQueries());
+        var request = new UpdateVehicleRequestDto(5, VehicleType.Sedan, FuelType.Gasoline, HeightCm: height, LengthCm: length, WidthCm: width);
+        await Assert.ThrowsAsync<ValidationException>(() => service.UpdateVehicleAsync(1, request));
+    }
+
+    [Fact]
+    public async Task UpdateVehicle_VehicleNotFound_ThrowsNotFoundException()
+    {
+        var queries = new FakeQueries { VehicleExists = false };
+        var service = new VehicleAppService(queries);
+        var request = new UpdateVehicleRequestDto(5, VehicleType.Sedan, FuelType.Gasoline);
+        await Assert.ThrowsAsync<NotFoundException>(() => service.UpdateVehicleAsync(999, request));
+    }
+
+    [Fact]
+    public async Task UpdateVehicle_ValidRequest_UpdatesSuccessfully()
+    {
+        var queries = new FakeQueries { VehicleExists = true };
+        var service = new VehicleAppService(queries);
+        var request = new UpdateVehicleRequestDto(5, VehicleType.Suv, FuelType.Electric, "VinFast", "VF 8", "Đỏ", 168, 475, 193);
+
+        var result = await service.UpdateVehicleAsync(10, request);
+
+        Assert.Equal(10, result.Id);
+        Assert.Equal(5, result.UserId);
+        Assert.Equal(VehicleType.Suv, result.VehicleType);
+        Assert.Equal(FuelType.Electric, result.FuelType);
+        Assert.Equal("VinFast", result.Brand);
+        Assert.Equal("VF 8", result.Model);
+        Assert.Equal("Đỏ", result.Color);
+        Assert.Equal(168, result.HeightCm);
+        Assert.Equal("51F12345", result.PlateNumber); // Biển số bất biến, giữ nguyên!
+    }
+
     private sealed class FakeQueries : IVehicleQueries
     {
         public string? LastPlate { get; private set; }
@@ -224,6 +279,28 @@ public class VehicleTests
                 "Trắng",
                 147,
                 true
+            ));
+        }
+
+        public Task<VehicleDto?> UpdateAsync(int vehicleId, UpdateVehicleRequestDto request, CancellationToken cancellationToken)
+        {
+            if (!VehicleExists)
+                return Task.FromResult<VehicleDto?>(null);
+
+            return Task.FromResult<VehicleDto?>(new VehicleDto(
+                vehicleId,
+                request.UserId,
+                "51F12345", // Giữ nguyên biển số cũ
+                "51F-123.45",
+                request.VehicleType,
+                request.FuelType,
+                request.Brand,
+                request.Model,
+                request.Color,
+                request.HeightCm ?? 150,
+                false,
+                request.LengthCm,
+                request.WidthCm
             ));
         }
     }
