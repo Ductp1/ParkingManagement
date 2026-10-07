@@ -11,7 +11,7 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
             .Where(b => b.Code == code)
             .Select(b => new BookingDetailDto(
                 b.Id, b.Code, b.Status.ToString(), b.UserId, b.VehicleId, b.PlateNumber, b.VehicleType.ToString(),
-                b.ParkingLotId, b.ParkingLotName, b.SlotId, b.SlotCode, b.StartAtUtc, b.EndAtUtc,
+                b.ParkingLotId, b.ParkingLotName, b.ZoneId, b.SlotId, b.SlotCode, b.StartAtUtc, b.EndAtUtc,
                 b.HoldExpiresAtUtc, b.TotalAmount, b.DiscountAmount, b.PaidAmount, b.PromotionCode,
                 b.PriceSnapshot == null ? null : new PriceSnapshotDto(
                     b.PriceSnapshot.RateCardId, b.PriceSnapshot.BaseAmount, b.PriceSnapshot.SurchargeAmount,
@@ -19,7 +19,8 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
                     b.PriceSnapshot.RateCardJson),
                 b.StatusLogs.OrderBy(l => l.CreatedAtUtc)
                     .Select(l => new StatusLogDto(l.FromStatus.ToString(), l.ToStatus.ToString(), l.ChangedByUserId, l.Reason, l.CreatedAtUtc))
-                    .ToList()))
+                    .ToList(),
+                b.QrToken))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)

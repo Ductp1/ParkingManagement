@@ -1,6 +1,7 @@
 using BookingService.Application.Features.Bookings;
 using BookingService.Infrastructure.Persistence;
 using BookingService.Infrastructure.Persistence.Queries;
+using BookingService.Infrastructure.Persistence.Repositories;
 using BookingService.Infrastructure.Persistence.Seeding;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,6 +16,7 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<BookingDbContext>(configuration);
         services.AddScoped<IBookingQueries, BookingQueries>();
+        services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
         return services;
     }
