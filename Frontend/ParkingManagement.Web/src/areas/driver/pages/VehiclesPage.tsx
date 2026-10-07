@@ -13,6 +13,7 @@ export const VehiclesPage: React.FC = () => {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<VehicleDto | null>(null);
+  const [isRfidModalOpen, setIsRfidModalOpen] = useState(false);
 
   const userId = user?.id || 5;
 
@@ -51,16 +52,24 @@ export const VehiclesPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
+            onClick={() => setIsRfidModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center gap-2 shadow-xs cursor-pointer"
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[18px] text-slate-500">contactless</span>
+            <span>Quản lý thẻ RFID & Barie</span>
+          </button>
+          <button
             onClick={() => dispatch(fetchVehicles(userId))}
             title="Tải lại danh sách"
-            className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-xs"
+            className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[20px]">refresh</span>
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
             disabled={vehicles.length >= 10}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
             <span>Thêm xe mới</span>
@@ -223,6 +232,64 @@ export const VehiclesPage: React.FC = () => {
         isOpen={!!editingVehicle}
         onClose={() => setEditingVehicle(null)}
       />
+
+      {/* RFID & Barie Card Modal */}
+      {isRfidModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-7 w-full max-w-lg border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[24px]">contactless</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900">Quản lý thẻ RFID & Barie</h3>
+                  <p className="text-xs text-slate-500">Đồng bộ thẻ từ vật lý và mã NFC cho bãi xe không có camera ANPR</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRfidModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1"
+              >
+                <span className="material-symbols-outlined text-[22px]">close</span>
+              </button>
+            </div>
+
+            <div className="my-5 flex flex-col gap-3 text-xs">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                    NFC
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-900">Thẻ ParkMaster Virtual Tag</span>
+                    <p className="text-slate-500 text-[11px]">Mã ID: PKM-RFID-88932 (Hoạt động tốt)</p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold text-[10px]">
+                  Đã liên kết
+                </span>
+              </div>
+
+              <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-200 text-slate-700 leading-relaxed text-xs">
+                <span className="font-bold text-blue-700 block mb-1">Cơ chế hoạt động kép:</span>
+                Khi xe đến bãi, hệ thống ANPR tự động đọc biển số xe trước. Trong trường hợp thời tiết xấu hoặc biển số mờ, bạn có thể chạm điện thoại hoặc thẻ từ RFID vào đầu đọc tại barie để mở cổng trong 0.2 giây.
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsRfidModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

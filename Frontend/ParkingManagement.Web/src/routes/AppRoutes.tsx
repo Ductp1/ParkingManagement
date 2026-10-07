@@ -9,6 +9,9 @@ import { OwnerHomePage } from '@/areas/owner/pages/OwnerHomePage';
 import { GateConsolePage } from '@/areas/gate/pages/GateConsolePage';
 import { AdminDashboardPage } from '@/areas/admin/pages/AdminDashboardPage';
 
+import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
+import { SupportPage } from '@/areas/driver/pages/SupportPage';
+
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
@@ -22,26 +25,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="vehicles" element={<VehiclesPage />} />
           <Route path="parking-lots" element={<LotDetailPage />} />
           <Route path="parking-lots/:id" element={<LotDetailPage />} />
-          <Route
-            path="history"
-            element={
-              <div className="max-w-4xl mx-auto py-16 text-center text-slate-500">
-                <span className="material-symbols-outlined text-[48px] text-slate-400 mb-2">history</span>
-                <h2 className="text-xl font-bold text-slate-800">Lịch sử đặt chỗ</h2>
-                <p className="text-sm mt-1">Danh sách vé xe và phiên gửi xe trước đây.</p>
-              </div>
-            }
-          />
-          <Route
-            path="support"
-            element={
-              <div className="max-w-4xl mx-auto py-16 text-center text-slate-500">
-                <span className="material-symbols-outlined text-[48px] text-slate-400 mb-2">support_agent</span>
-                <h2 className="text-xl font-bold text-slate-800">Trung tâm hỗ trợ CSKH 24/7</h2>
-                <p className="text-sm mt-1">Hotline: 1900 6868 hoặc gửi ticket khiếu nại (US-088).</p>
-              </div>
-            }
-          />
+          <Route path="history" element={<BookingHistoryPage />} />
+          <Route path="support" element={<SupportPage />} />
         </Route>
 
         {/* 🏢 2. Owner Portal (/owner/*) */}
