@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #004ac6;
+  --color-primary-container: #2563eb;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #eeefff;
+
+  --color-secondary: #565e74;
+  --color-secondary-container: #dae2fd;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #5c647a;
+
+  --color-tertiary: #006242;
+  --color-tertiary-container: #007d55;
+  --color-tertiary-fixed: #6ffbbe;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #bdffdb;
+
+  --color-error: #ba1a1a;
+  --color-error-container: #ffdad6;
+  --color-on-error: #ffffff;
+
+  --color-background: #f8f9ff;
+  --color-on-background: #0d1c2f;
+  --color-surface: #f8f9ff;
+  --color-on-surface: #0d1c2f;
+  --color-on-surface-variant: #434655;
+  --color-surface-variant: #d5e3fd;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eff4ff;
+  --color-surface-container: #e6eeff;
+  --color-surface-container-high: #dde9ff;
+  --color-surface-container-highest: #d5e3fd;
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    background-color: var(--color-background);
+    color: var(--color-on-surface);
+  }
+}
+
+/* Material Symbols alignment helper */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  vertical-align: middle;
+}
