@@ -39,6 +39,9 @@ jobs:
     name: Unit tests – ${{ matrix.service }}
     needs: build
     runs-on: ubuntu-latest
+    environment: environment
+    env:
+      Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
     strategy:
       fail-fast: false                       # 1 service đỏ không hủy service khác
       matrix:
