@@ -1,0 +1,34 @@
+# Gọi API SupportService ngay trong Visual Studio: bấm "Send request" phía trên mỗi request.
+# @gateway: đi qua API Gateway (cần chạy cả Gateway). @direct: gọi thẳng SupportService.
+@gateway = http://localhost:5000
+@direct = http://localhost:5109
+
+### US-092 · FAQ cho tài xế → 200, nhóm theo chủ đề + kênh liên hệ
+GET {{gateway}}/api/v1/faqs?audience=Driver
+
+### US-092 · Lọc theo chủ đề, không phân biệt hoa/thường → 200, chỉ chủ đề Refund
+GET {{gateway}}/api/v1/faqs?audience=driver&category=refund
+
+### US-092 · FAQ cho chủ bãi → 200, không có FAQ của tài xế
+GET {{gateway}}/api/v1/faqs?audience=LotOwner
+
+### US-092 · Không truyền audience → 200, chỉ FAQ chung ("All")
+GET {{gateway}}/api/v1/faqs
+
+### US-092 · audience sai → 400
+GET {{gateway}}/api/v1/faqs?audience=abc
+
+### US-092 · Xem chi tiết → 200, viewCount tăng 1 mỗi lần gửi
+GET {{gateway}}/api/v1/faqs/1
+
+### US-092 · Id không tồn tại → 404
+GET {{gateway}}/api/v1/faqs/999
+
+### US-092 · Id không hợp lệ → 400
+GET {{gateway}}/api/v1/faqs/0
+
+### Gọi thẳng service (bỏ qua Gateway) – dùng khi nghi Gateway route sai
+GET {{direct}}/api/v1/faqs?audience=Driver
+
+### Tài liệu OpenAPI của service (JSON)
+GET {{direct}}/openapi/v1.json

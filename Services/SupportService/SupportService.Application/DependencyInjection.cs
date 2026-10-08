@@ -1,5 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using SupportService.Application.Features;
+using SupportService.Application.Interfaces;
+using SupportService.Application.Services;
 
 namespace SupportService.Application;
 
@@ -9,6 +11,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IListOwnerComplaintsUseCase, ListOwnerComplaintsUseCase>();
         services.AddScoped<IGetLotReviewsUseCase, GetLotReviewsUseCase>();
+        services.AddScoped<IFaqService, FaqAppService>();
         return services;
     }
 }
