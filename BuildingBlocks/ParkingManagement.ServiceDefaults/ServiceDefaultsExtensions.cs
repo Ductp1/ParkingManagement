@@ -42,6 +42,12 @@ public static class ServiceDefaultsExtensions
             .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
         builder.Services.AddSingleton(new ServiceInfo(serviceName));
+        // TV1 nền tảng tích hợp: service khác bật qua cấu hình, không đổi API nghiệp vụ của họ.
+        if (serviceName != "UserService" && builder.Configuration["Jwt:PublicKeyPath"] is { Length: > 0 } keyPath)
+        {
+            builder.Services.AddJwtAuth(Path.GetFullPath(keyPath, builder.Environment.ContentRootPath));
+            builder.Services.AddRemoteSessionValidation();
+        }
         return builder;
     }
 
@@ -67,6 +73,11 @@ public static class ServiceDefaultsExtensions
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseCors(FrontendCorsPolicy);
+        // Các service chưa tích hợp JWT vẫn dùng được cấu hình nền tảng.
+        if (app.Services.GetService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>() is not null)
+            app.UseAuthentication();
+        if (app.Services.GetService<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider>() is not null)
+            app.UseAuthorization();
         app.MapOpenApi();
         app.MapHealthChecks("/health");
         app.MapControllers();

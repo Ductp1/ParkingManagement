@@ -11,6 +11,14 @@
 //   /api/v1/complaints/**, /api/v1/reviews/** → SupportService :5109
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddEnvironmentVariables();
+var jwtEnabled = builder.Configuration["Jwt:PublicKeyPath"] is { Length: > 0 };
+if (jwtEnabled)
+{
+    ParkingManagement.ServiceDefaults.AuthExtensions.AddJwtAuth(builder.Services,
+        Path.GetFullPath(builder.Configuration["Jwt:PublicKeyPath"]!, builder.Environment.ContentRootPath));
+    ParkingManagement.ServiceDefaults.RemoteSessionValidationExtensions.AddRemoteSessionValidation(builder.Services);
+}
 
 builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 builder.Services.AddHttpClient();
@@ -21,6 +29,7 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
 var app = builder.Build();
 
 app.UseCors();
+if (jwtEnabled) { app.UseAuthentication(); app.UseAuthorization(); }
 app.MapReverseProxy();
 
 app.MapGet("/", () => Results.Ok(new { service = "ParkingManagement.Gateway", status = "running", health = "/health/services" }));

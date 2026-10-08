@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- INFRASTRUCTURE: DbContext riÃªng cá»§a service, migration, repository (EF Core + LINQ), seed dá»¯ liá»‡u. -->
   <ItemGroup>
+    <PackageReference Include="MailKit" Version="4.18.1" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\UserService.Application\UserService.Application.csproj" />
