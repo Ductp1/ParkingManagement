@@ -22,6 +22,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onEdit }) => 
     (vehicle.heightCm && vehicle.heightCm > 200) ||
     (vehicle.lengthCm && vehicle.lengthCm > 520) ||
     (vehicle.widthCm && vehicle.widthCm > 205) ||
+    vehicle.vehicleType === 'Oversized' ||
+    vehicle.vehicleType === 5 ||
     vehicle.vehicleType === 'Van' ||
     vehicle.vehicleType === 3 ||
     vehicle.vehicleType === 'Pickup' ||
@@ -34,6 +36,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onEdit }) => 
     if (t === 'hatchback' || t === '2') return 'Hatchback';
     if (t === 'van' || t === '3') return 'Xe Van / 16 chỗ';
     if (t === 'pickup' || t === '4') return 'Bán tải (Pickup)';
+    if (t === 'oversized' || t === '5') return 'Xe quá khổ (Limousine)';
     if (t === 'motorbike' || t === '5') return 'Xe máy';
     return 'Ô tô';
   };

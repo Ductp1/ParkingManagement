@@ -129,6 +129,48 @@ public class VehicleTests
         Assert.True(result.IsDefault);
     }
 
+    [Fact] // US-012: Khai báo xe điện EV/PHEV
+    public async Task CreateVehicle_ElectricVehicle_Success()
+    {
+        var queries = new FakeQueries();
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51H-888.88", VehicleType.Suv, FuelType.Electric, "VinFast", "VF 9", "Xanh", 172, 511, 200, false);
+
+        var result = await service.CreateVehicleAsync(request);
+
+        Assert.Equal(FuelType.Electric, result.FuelType);
+        Assert.Equal(VehicleType.Suv, result.VehicleType);
+        Assert.Equal("VF 9", result.Model);
+        Assert.False(result.IsEmergencyVehicle);
+    }
+
+    [Fact] // US-012: Khai báo xe quá khổ kèm kích thước Dài/Rộng/Cao
+    public async Task CreateVehicle_OversizedVehicle_WithDimensions_Success()
+    {
+        var queries = new FakeQueries();
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51D-123.45", VehicleType.Oversized, FuelType.Diesel, "Ford", "Transit Limousine", "Đen", 230, 598, 206, false);
+
+        var result = await service.CreateVehicleAsync(request);
+
+        Assert.Equal(VehicleType.Oversized, result.VehicleType);
+        Assert.Equal(230, result.HeightCm);
+        Assert.Equal(598, result.LengthCm);
+        Assert.Equal(206, result.WidthCm);
+    }
+
+    [Fact] // US-012 & Security: Xe tạo qua garage cá nhân luôn mặc định IsEmergencyVehicle = false
+    public async Task CreateVehicle_EmergencyVehicle_DefaultsToFalse()
+    {
+        var queries = new FakeQueries();
+        var service = new VehicleAppService(queries);
+        var request = new CreateVehicleRequestDto(5, "51A-999.99", VehicleType.Sedan, FuelType.Gasoline, "Toyota", "Camry", "Trắng", 145, 488, 184, false);
+
+        var result = await service.CreateVehicleAsync(request);
+
+        Assert.False(result.IsEmergencyVehicle);
+    }
+
     [Theory]
     [InlineData(0, 5)]
     [InlineData(-1, 5)]
@@ -308,7 +350,10 @@ public class VehicleTests
                 vehicle.Model,
                 vehicle.Color,
                 vehicle.HeightCm,
-                vehicle.IsDefault
+                vehicle.IsDefault,
+                vehicle.LengthCm,
+                vehicle.WidthCm,
+                vehicle.IsEmergencyVehicle
             ));
         }
 

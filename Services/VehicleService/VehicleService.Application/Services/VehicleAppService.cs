@@ -96,7 +96,8 @@ public sealed class VehicleAppService(
             HeightCm = height,
             LengthCm = request.LengthCm,
             WidthCm = request.WidthCm,
-            IsDefault = isDefault
+            IsDefault = isDefault,
+            IsEmergencyVehicle = false // Xe cá nhân trong Garage không được tự khai báo xe ưu tiên
         };
 
         return await queries.CreateAsync(vehicle, cancellationToken);

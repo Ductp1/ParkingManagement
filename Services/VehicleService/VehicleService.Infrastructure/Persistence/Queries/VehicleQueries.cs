@@ -10,7 +10,7 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
 {
     private static readonly Expression<Func<Vehicle, VehicleDto>> ToDto = v => new VehicleDto(
         v.Id, v.UserId, v.PlateNumber, v.PlateDisplay, v.VehicleType, v.FuelType,
-        v.Brand, v.Model, v.Color, v.HeightCm, v.IsDefault, v.LengthCm, v.WidthCm);
+        v.Brand, v.Model, v.Color, v.HeightCm, v.IsDefault, v.LengthCm, v.WidthCm, v.IsEmergencyVehicle);
 
     public async Task<IReadOnlyList<VehicleDto>> ListByUserAsync(int userId, CancellationToken cancellationToken)
         => await db.Vehicles.AsNoTracking()
@@ -63,7 +63,8 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
             vehicle.HeightCm,
             vehicle.IsDefault,
             vehicle.LengthCm,
-            vehicle.WidthCm
+            vehicle.WidthCm,
+            vehicle.IsEmergencyVehicle
         );
     }
 
@@ -98,7 +99,8 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
             vehicle.HeightCm,
             vehicle.IsDefault,
             vehicle.LengthCm,
-            vehicle.WidthCm
+            vehicle.WidthCm,
+            vehicle.IsEmergencyVehicle
         );
     }
 
@@ -137,7 +139,8 @@ public sealed class VehicleQueries(VehicleDbContext db) : IVehicleQueries
             vehicle.HeightCm,
             vehicle.IsDefault,
             vehicle.LengthCm,
-            vehicle.WidthCm
+            vehicle.WidthCm,
+            vehicle.IsEmergencyVehicle
         );
     }
 
