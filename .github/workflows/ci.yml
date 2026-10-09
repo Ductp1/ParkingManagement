@@ -39,6 +39,9 @@ jobs:
     name: Unit tests – ${{ matrix.service }}
     needs: build
     runs-on: ubuntu-latest
+    environment: environment
+    env:
+      Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
     strategy:
       fail-fast: false                       # 1 service đỏ không hủy service khác
       matrix:
@@ -102,8 +105,19 @@ jobs:
           cid=$(docker ps -q --filter "ancestor=postgres:17-alpine" | head -n1)
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_parking_ci;"
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_booking_ci;"
+          docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_user_ci;"
 
       # Ghi đè ConnectionStrings:ServiceDb bằng biến môi trường (ưu tiên cao hơn appsettings.json)
+      - name: Test – UserService (pm_user_ci)
+        env:
+          TV1_TEST_DB: "Host=localhost;Port=5432;Database=pm_user_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~UserServiceApiTests"
+          --logger "trx;LogFileName=Integration_User.trx"
+          --results-directory ./test-results
+
       - name: Test – ParkingService (pm_parking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_parking_ci;Username=postgres;Password=postgres"

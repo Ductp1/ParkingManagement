@@ -22,8 +22,13 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
             var (status, title) = ex switch
             {
                 ValidationException => (StatusCodes.Status400BadRequest, "Dữ liệu không hợp lệ"),
+                AuthenticationException => (StatusCodes.Status401Unauthorized, "Xác thực không hợp lệ"),
+                ForbiddenException => (StatusCodes.Status403Forbidden, "Không có quyền"),
+                DependencyUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Dịch vụ chưa sẵn sàng"),
                 NotFoundException   => (StatusCodes.Status404NotFound, "Không tìm thấy"),
                 ConflictException   => (StatusCodes.Status409Conflict, "Xung đột nghiệp vụ"),
+                Microsoft.EntityFrameworkCore.DbUpdateException { InnerException: Npgsql.PostgresException { SqlState: "23505" } }
+                                    => (StatusCodes.Status409Conflict, "Dữ liệu đã tồn tại"),
                 _                   => (StatusCodes.Status500InternalServerError, "Lỗi hệ thống")
             };
 
@@ -36,7 +41,8 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
             {
                 Status = status,
                 Title = title,
-                Detail = status == 500 ? "Đã có lỗi xảy ra, vui lòng thử lại." : ex.Message,
+                Detail = status == 500 ? "Đã có lỗi xảy ra, vui lòng thử lại."
+                    : ex is Microsoft.EntityFrameworkCore.DbUpdateException ? "Định danh hoặc dữ liệu đã được sử dụng." : ex.Message,
                 Instance = context.Request.Path
             };
             context.Response.StatusCode = status;

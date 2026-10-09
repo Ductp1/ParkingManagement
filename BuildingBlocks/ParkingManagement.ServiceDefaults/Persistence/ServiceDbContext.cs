@@ -36,6 +36,8 @@ public abstract class ServiceDbContext(DbContextOptions options) : DbContext(opt
             e.Property(x => x.PayloadJson).HasColumnType("jsonb");
             e.Property(x => x.LastError).HasMaxLength(2000);
             e.HasIndex(x => new { x.ProcessedAtUtc, x.OccurredAtUtc });
+            // Opt-in cho dispatcher mới: không thay schema 8 service chưa tích hợp worker.
+            e.Ignore(x => x.NextAttemptAtUtc);
         });
 
         ApplySharedConventions(modelBuilder);

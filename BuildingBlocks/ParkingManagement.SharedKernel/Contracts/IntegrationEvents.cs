@@ -15,6 +15,7 @@ public abstract record IntegrationEvent
 public sealed record UserRegistered(int UserId, string FullName, string? Email, string? PhoneNumber) : IntegrationEvent;
 public sealed record UserLocked(int UserId, string Reason) : IntegrationEvent;
 public sealed record OwnerProfileCreated(int OwnerProfileId, int UserId, string BusinessName) : IntegrationEvent;
+public sealed record UserPersonalDataErased(int UserId) : IntegrationEvent;
 
 // ===== VehicleService =====
 public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNumber, string VehicleType, int HeightCm) : IntegrationEvent;
