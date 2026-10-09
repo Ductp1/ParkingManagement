@@ -15,6 +15,10 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<ParkingDbContext>(configuration);
         services.AddScoped<IParkingLotRepository, ParkingLotRepository>();
+        services.AddScoped<IParkingLotManagementRepository, ParkingLotManagementRepository>();
+        services.AddScoped<IZoneRepository, ZoneRepository>();
+        services.AddScoped<IFloorRepository, FloorRepository>();
+        services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
         return services;
     }

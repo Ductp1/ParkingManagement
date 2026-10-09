@@ -4,6 +4,7 @@
     <Project Path="BuildingBlocks/ParkingManagement.ServiceDefaults/ParkingManagement.ServiceDefaults.csproj" />
   </Folder>
   <Folder Name="/Gateway/">
+    <Project Path="Gateway/ParkingManagement.Gateway.Test/ParkingManagement.Gateway.Test.csproj" />
     <Project Path="Gateway/ParkingManagement.Gateway/ParkingManagement.Gateway.csproj" />
   </Folder>
   <Folder Name="/Services/" />
