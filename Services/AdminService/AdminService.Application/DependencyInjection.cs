@@ -10,6 +10,8 @@ public static class DependencyInjection
     public static IServiceCollection AddAdminApplication(this IServiceCollection services)
     {
         services.AddScoped<IGetPlatformSettingsUseCase, GetPlatformSettingsUseCase>();
+        // US-098: đọc tham số theo khóa (giá trị hiệu lực theo thời điểm)
+        services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
