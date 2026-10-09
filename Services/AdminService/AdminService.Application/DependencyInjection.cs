@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.Owners;
+using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,8 @@ public static class DependencyInjection
         services.AddScoped<IGetPlatformSettingsUseCase, GetPlatformSettingsUseCase>();
         // US-098: đọc tham số theo khóa (giá trị hiệu lực theo thời điểm)
         services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
+        // US-098: đổi giá trị tham số có Effective Date
+        services.AddScoped<IUpdateSystemConfigUseCase, UpdateSystemConfigUseCase>();
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();

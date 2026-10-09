@@ -113,8 +113,35 @@ public class SettingsTests
 
         var dto = await ByKeyUseCase(queries).ExecuteAsync(HoldKey);
 
-        Assert.Equal(new SystemConfigDetailDto(HoldKey, "20", "int", "Mô tả", "15", NowUtc.AddDays(-2)), dto);
+        Assert.Equal(HoldKey, dto.Key);
+        Assert.Equal("20", dto.Value);
+        Assert.Equal("int", dto.DataType);
+        Assert.Equal("Mô tả", dto.Description);
+        Assert.Equal("15", dto.DefaultValue);
+        Assert.Equal(NowUtc.AddDays(-2), dto.EffectiveFromUtc);
         Assert.Equal(NowUtc, queries.ChangesUpToUtc);
+    }
+
+    [Fact]
+    public async Task Config_by_key_exposes_the_rule_used_when_changing_its_value()
+    {
+        var queries = new FakeQueries(
+            Config(1, HoldKey, "15"),
+            new SystemConfigRecord(2, "SETTLEMENT_CYCLE", "WEEKLY", "string", null, []),
+            new SystemConfigRecord(3, "KEY_WITHOUT_RULE", "abc", "string", null, []));
+
+        var hold = await ByKeyUseCase(queries).ExecuteAsync(HoldKey);
+        var cycle = await ByKeyUseCase(queries).ExecuteAsync("SETTLEMENT_CYCLE");
+        var free = await ByKeyUseCase(queries).ExecuteAsync("KEY_WITHOUT_RULE");
+
+        Assert.Equal(("1", "120"), (hold.MinValue, hold.MaxValue));
+        Assert.Null(hold.AllowedValues);
+        Assert.Equal(["WEEKLY", "BIWEEKLY", "MONTHLY"], cycle.AllowedValues);
+        Assert.Null(cycle.MinValue);
+        Assert.Null(cycle.MaxValue);
+        Assert.Null(free.MinValue);
+        Assert.Null(free.MaxValue);
+        Assert.Null(free.AllowedValues);
     }
 
     [Fact]

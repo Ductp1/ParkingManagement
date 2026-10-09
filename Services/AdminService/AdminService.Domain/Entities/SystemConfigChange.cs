@@ -22,4 +22,15 @@ public class SystemConfigChange : BaseEntity
     public DateTime? CancelledAtUtc { get; set; }
     public int? CancelledByUserId { get; set; }
     public string? CancelReason { get; set; }
+
+    /// <summary>US-098: Admin đặt giá trị mới cho một tham số, hiệu lực từ effectiveFromUtc (bằng hiện tại = hiệu lực ngay).</summary>
+    public static SystemConfigChange Schedule(int systemConfigId, string value, DateTime effectiveFromUtc, string reason, int createdByUserId)
+        => new()
+        {
+            SystemConfigId = systemConfigId,
+            Value = value,
+            EffectiveFromUtc = effectiveFromUtc,
+            Reason = reason,
+            CreatedByUserId = createdByUserId,
+        };
 }

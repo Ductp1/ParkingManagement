@@ -9,9 +9,12 @@ public sealed record SystemConfigDto(string Key, string Value, string DataType, 
 public sealed record FeatureFlagDto(string Key, bool IsEnabled, string? Description);
 public sealed record PlatformSettingsDto(IReadOnlyList<SystemConfigDto> Configs, IReadOnlyList<FeatureFlagDto> FeatureFlags);
 
-/// <summary>Chi tiết một tham số (US-098). EffectiveFromUtc = null khi Value vẫn là DefaultValue.</summary>
+/// <summary>
+/// Chi tiết một tham số (US-098). EffectiveFromUtc = null khi Value vẫn là DefaultValue.
+/// MinValue / MaxValue / AllowedValues = luật kiểm tra khi đổi giá trị (null = không giới hạn) để Admin portal hiển thị ô nhập.
+/// </summary>
 public sealed record SystemConfigDetailDto(string Key, string Value, string DataType, string? Description, string DefaultValue,
-    DateTime? EffectiveFromUtc);
+    DateTime? EffectiveFromUtc, string? MinValue, string? MaxValue, IReadOnlyList<string>? AllowedValues);
 
 // ===== PORT (đọc) =====
 /// <summary>Tham số đúng như lưu trong pm_admin: giá trị gốc + các dòng lịch sử thay đổi (chưa tính giá trị hiệu lực).</summary>
@@ -82,6 +85,8 @@ public static class SystemConfigMapper
     public static SystemConfigDetailDto ToDetailDto(SystemConfigRecord config, DateTime atUtc)
     {
         var effective = SystemConfigValueResolver.Resolve(config.DefaultValue, config.Changes, atUtc);
-        return new(config.Key, effective.Value, config.DataType, config.Description, config.DefaultValue, effective.EffectiveFromUtc);
+        var rule = SystemConfigRules.For(config.Key);
+        return new(config.Key, effective.Value, config.DataType, config.Description, config.DefaultValue, effective.EffectiveFromUtc,
+            SystemConfigRules.Format(rule.Min), SystemConfigRules.Format(rule.Max), rule.AllowedValues);
     }
 }

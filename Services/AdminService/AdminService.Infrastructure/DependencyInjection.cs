@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.Owners;
+using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using AdminService.Infrastructure.Integrations;
 using AdminService.Infrastructure.Persistence;
@@ -23,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<ISettingsQueries, SettingsQueries>();
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
+        services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 
         // US-096: dữ liệu người dùng lấy từ UserService qua Gateway (không truy cập pm_user).
