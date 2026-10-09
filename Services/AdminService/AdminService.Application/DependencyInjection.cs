@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.Users;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -12,6 +13,8 @@ public static class DependencyInjection
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
+        // US-096: lịch sử vi phạm của chủ bãi
+        services.AddScoped<IGetOwnerSanctionsUseCase, GetOwnerSanctionsUseCase>();
         return services;
     }
 }
