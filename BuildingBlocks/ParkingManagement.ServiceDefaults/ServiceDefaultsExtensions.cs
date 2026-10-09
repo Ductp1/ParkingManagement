@@ -42,12 +42,6 @@ public static class ServiceDefaultsExtensions
             .AllowAnyHeader().AllowAnyMethod().AllowCredentials()));
 
         builder.Services.AddSingleton(new ServiceInfo(serviceName));
-        // TV1 nền tảng tích hợp: service khác bật qua cấu hình, không đổi API nghiệp vụ của họ.
-        if (serviceName != "UserService" && builder.Configuration["Jwt:PublicKeyPath"] is { Length: > 0 } keyPath)
-        {
-            builder.Services.AddJwtAuth(Path.GetFullPath(keyPath, builder.Environment.ContentRootPath));
-            builder.Services.AddRemoteSessionValidation();
-        }
         return builder;
     }
 

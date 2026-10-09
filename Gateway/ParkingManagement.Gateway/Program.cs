@@ -17,7 +17,7 @@ if (jwtEnabled)
 {
     ParkingManagement.ServiceDefaults.AuthExtensions.AddJwtAuth(builder.Services,
         Path.GetFullPath(builder.Configuration["Jwt:PublicKeyPath"]!, builder.Environment.ContentRootPath));
-    ParkingManagement.ServiceDefaults.RemoteSessionValidationExtensions.AddRemoteSessionValidation(builder.Services);
+    ParkingManagement.Gateway.Authentication.RemoteSessionValidationExtensions.AddRemoteSessionValidation(builder.Services);
 }
 
 builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));

@@ -3,10 +3,11 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using ParkingManagement.ServiceDefaults;
 
-namespace ParkingManagement.ServiceDefaults;
+namespace ParkingManagement.Gateway.Authentication;
 
-// Adapter cho Gateway/service khác: chữ ký kiểm tra cục bộ, trạng thái phiên lấy từ UserService.
+// Gateway kiểm tra trạng thái phiên ở UserService sau khi JWT đã được kiểm tra chữ ký.
 public sealed class RemoteSessionValidator(IHttpClientFactory clients, IConfiguration config, IHttpContextAccessor accessor) : ITokenPrincipalValidator
 {
     public async Task<bool> ValidateAsync(ClaimsPrincipal principal, CancellationToken ct)
