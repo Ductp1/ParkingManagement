@@ -1,13 +1,15 @@
 using AdminService.Application.Features.Users;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 
 namespace AdminService.API.Controllers;
 
-/// <summary>US-096: Admin tra cứu người dùng. Controller chỉ điều hướng HTTP → Use case.</summary>
+/// <summary>US-096: Admin tra cứu người dùng. Controller chỉ điều hướng HTTP → Use case. Chỉ role Admin được gọi.</summary>
 [ApiController]
 [Route("api/v1/admin/users")]
+[Authorize(Policy = "RequireAdmin")]
 public sealed class AdminUsersController(IListAdminUsersUseCase listUsers, IGetAdminUserByIdUseCase getUser) : ControllerBase
 {
     /// <summary>GET /api/v1/admin/users?role=LotOwner&amp;page=1&amp;pageSize=20 – Danh sách người dùng.</summary>

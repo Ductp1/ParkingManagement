@@ -1,12 +1,14 @@
 using AdminService.Application.Features.Owners;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingManagement.SharedKernel.Contracts;
 
 namespace AdminService.API.Controllers;
 
-/// <summary>US-096: Admin quản lý chủ bãi. Controller chỉ điều hướng HTTP → Use case.</summary>
+/// <summary>US-096: Admin quản lý chủ bãi. Controller chỉ điều hướng HTTP → Use case. Chỉ role Admin được gọi.</summary>
 [ApiController]
 [Route("api/v1/admin/owners")]
+[Authorize(Policy = "RequireAdmin")]
 public sealed class AdminOwnersController(IGetOwnerSanctionsUseCase getSanctions, ILockOwnerUseCase lockOwner,
     IUnlockOwnerUseCase unlockOwner) : ControllerBase
 {
