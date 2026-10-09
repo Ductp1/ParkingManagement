@@ -13,6 +13,10 @@ public sealed record AdminUserOwnerProfileDto(int Id, string BusinessName);
 public sealed record AdminUserDto(int Id, string FullName, string? Email, string? PhoneNumber, string Status, string KycStatus,
     IReadOnlyList<string> Roles, AdminUserOwnerProfileDto? OwnerProfile);
 
+/// <summary>Tài khoản chủ bãi theo UserService: hồ sơ chủ bãi + user sở hữu + trạng thái khóa hiện tại.</summary>
+public sealed record OwnerAccountDto(int OwnerProfileId, int UserId, string BusinessName, string FullName, string? Email,
+    string? PhoneNumber, bool IsLocked, string OwnerStatus, string UserStatus);
+
 // ===== PORT (gọi UserService) =====
 /// <summary>
 /// US-096: Cổng duy nhất để AdminService lấy dữ liệu người dùng. Infrastructure cài bằng HttpClient gọi qua Gateway;
@@ -23,6 +27,16 @@ public interface IUserServiceClient
     Task<PagedResult<AdminUserSummaryDto>> ListUsersAsync(UserRoleType? role, int page, int pageSize, CancellationToken cancellationToken);
     /// <summary>Trả null khi UserService báo 404 (người dùng không tồn tại).</summary>
     Task<AdminUserDto?> FindUserByIdAsync(int userId, CancellationToken cancellationToken);
+
+    /// <summary>Trả null khi UserService báo chủ bãi không tồn tại.</summary>
+    Task<OwnerAccountDto?> FindOwnerAccountAsync(int ownerProfileId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Khóa chủ bãi bên UserService (idempotent: đã khóa rồi gọi lại vẫn thành công). lockedUntilUtc = null là vô thời hạn.
+    /// Trả trạng thái sau khi khóa; null khi UserService báo chủ bãi không tồn tại.
+    /// </summary>
+    Task<OwnerAccountDto?> LockOwnerAsync(int ownerProfileId, string reason, DateTime? lockedUntilUtc, int performedByUserId, CancellationToken cancellationToken);
+    /// <summary>Mở khóa chủ bãi bên UserService (idempotent). Trả null khi UserService báo chủ bãi không tồn tại.</summary>
+    Task<OwnerAccountDto?> UnlockOwnerAsync(int ownerProfileId, string reason, int performedByUserId, CancellationToken cancellationToken);
 }
 
 /// <summary>

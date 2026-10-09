@@ -167,5 +167,15 @@ public class AdminUserTests
             if (Failure is not null) throw Failure;
             return Task.FromResult(users.FirstOrDefault(u => u.Id == userId));
         }
+
+        // Tra cứu người dùng không đụng tới các lời gọi khóa / mở khóa chủ bãi.
+        public Task<OwnerAccountDto?> FindOwnerAccountAsync(int ownerProfileId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<OwnerAccountDto?> LockOwnerAsync(int ownerProfileId, string reason, DateTime? lockedUntilUtc, int performedByUserId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<OwnerAccountDto?> UnlockOwnerAsync(int ownerProfileId, string reason, int performedByUserId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 }
