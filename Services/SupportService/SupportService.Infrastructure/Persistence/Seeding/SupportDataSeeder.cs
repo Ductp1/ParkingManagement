@@ -66,6 +66,8 @@ public sealed class SupportDataSeeder(ILogger<SupportDataSeeder> logger) : IData
                 ("Refund", "Driver", "Hủy booking có được hoàn tiền không?", "Hủy trước giờ bắt đầu từ 60 phút trở lên được hoàn 100%. Hủy trong vòng 60 phút không được hoàn tiền."),
                 ("Payment", "Driver", "Đỗ dưới 15 phút có mất phí không?", "Không. Mỗi lượt đỗ có 15 phút miễn phí; vượt quá mới bắt đầu tính tiền."),
                 ("Payment", "Driver", "Bãi hết chỗ dù tôi đã đặt thì sao?", "Báo sự cố trong app. Nền tảng gợi ý bãi thay thế trong 1 km hoặc hoàn 100% kèm voucher đền bù."),
+                ("CheckIn", "Driver", "Vào cổng bãi như thế nào?", "Mở booking trong app và đưa mã QR cho nhân viên hoặc máy quét tại cổng. Biển số xe phải khớp với xe đã đặt."),
+                ("CheckIn", "All", "Mã QR không quét được thì làm sao?", "Đọc mã booking cho nhân viên cổng để nhập tay, hoặc gọi hotline để được hỗ trợ."),
                 ("ParkingLotOwner", "LotOwner", "Bao lâu tôi nhận được tiền?", "Doanh thu được quyết toán hằng tuần, sau khi trừ hoa hồng 10% và các khoản hoàn tiền."),
             ];
             var order = 0;

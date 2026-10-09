@@ -423,6 +423,11 @@ autom4te.cache/
 *.tar.gz
 tarballs/
 test-results/
+/.tools/
+**/App_Data/
+**/Keys/private.key
+**/Keys/*.pem
+**/appsettings.Local.json
 
 # content below from: https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
 # General

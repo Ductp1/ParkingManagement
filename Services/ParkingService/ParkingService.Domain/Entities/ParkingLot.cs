@@ -120,6 +120,25 @@ public class ParkingLot : BaseEntity, ISoftDelete
         District = district;
     }
 
+    /// <summary>Cập nhật thông tin cơ bản của bãi đỗ xe.</summary>
+    public void UpdateDetails(string name, string address, string? description, string? hotlinePhone,
+                              int maxHeightCm, TimeOnly openTime, TimeOnly closeTime, string? city = null, string? district = null)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Tên bãi không được rỗng.", nameof(name));
+        if (string.IsNullOrWhiteSpace(address)) throw new ArgumentException("Địa chỉ không được rỗng.", nameof(address));
+        if (maxHeightCm <= 0) throw new ArgumentOutOfRangeException(nameof(maxHeightCm), "Chiều cao tối đa phải > 0.");
+
+        Name = name;
+        Address = address;
+        Description = description;
+        HotlinePhone = hotlinePhone;
+        MaxHeightCm = maxHeightCm;
+        OpenTime = openTime;
+        CloseTime = closeTime;
+        if (!string.IsNullOrWhiteSpace(city)) City = city;
+        if (district != null) District = district;
+    }
+
     /// <summary>Chế tài SLA cấp 3 hoặc Emergency Stop.</summary>
     public void Suspend() => Status = ParkingLotStatus.Suspended;
 }
