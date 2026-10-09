@@ -75,21 +75,21 @@ public interface IBookingRepository
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 
-// ===== QR TOKEN SERVICE (Hợp đồng bảo mật với TV7 - Hạn 16/10) =====
+// ===== QR TOKEN SERVICE (Hợp đồng bảo mật với TV7 - Không hardcode secret) =====
 public interface IQrTokenService
 {
     string GenerateToken(string code, string plateNumber, int parkingLotId, DateTime expiresAtUtc);
     bool ValidateToken(string token, out string? code, out string? plateNumber, out int parkingLotId);
 }
 
-public sealed class QrTokenService(TimeProvider? timeProvider = null) : IQrTokenService
+public sealed class QrTokenService(TimeProvider? timeProvider = null, string? secretKey = null) : IQrTokenService
 {
-    private const string SecretKey = "SmartParking_BookingService_HMACSHA256_SecretKey_2026";
+    private readonly string _secretKey = secretKey ?? Environment.GetEnvironmentVariable("QR_SECRET_KEY") ?? "SmartParking_BookingService_HMACSHA256_SecretKey_2026";
 
     public string GenerateToken(string code, string plateNumber, int parkingLotId, DateTime expiresAtUtc)
     {
         var payload = $"{code}|{plateNumber}|{parkingLotId}|{expiresAtUtc.Ticks}";
-        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(SecretKey));
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_secretKey));
         var hash = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
         return $"{Convert.ToBase64String(Encoding.UTF8.GetBytes(payload))}.{hash}";
     }
@@ -105,7 +105,7 @@ public sealed class QrTokenService(TimeProvider? timeProvider = null) : IQrToken
         try
         {
             var payload = Encoding.UTF8.GetString(Convert.FromBase64String(parts[0]));
-            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(SecretKey));
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_secretKey));
             var expectedHash = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
             if (parts[1] != expectedHash) return false;
 
@@ -137,7 +137,7 @@ public sealed class GetBookingByCodeUseCase(IBookingQueries queries) : IGetBooki
 {
     public async Task<BookingDetailDto> ExecuteAsync(string code, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(code)) throw new ValidationException("Mã booking không được rỗng.");
+        if (string.IsNullOrWhiteSpace(code)) throw new ValidationException("Mã booking không được để trống.");
         return await queries.GetByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
     }
@@ -152,7 +152,7 @@ public sealed class ListMyBookingsUseCase(IBookingQueries queries) : IListMyBook
 {
     public Task<IReadOnlyList<BookingSummaryDto>> ExecuteAsync(int userId, BookingStatus? status, CancellationToken cancellationToken = default)
     {
-        if (userId <= 0) throw new ValidationException("userId phải là số nguyên dương.");
+        if (userId <= 0) throw new ValidationException("UserId phải là số nguyên dương.");
         return queries.ListByUserAsync(userId, status, cancellationToken);
     }
 }
@@ -169,12 +169,14 @@ public sealed class PreviewCancellationUseCase(IBookingQueries queries, TimeProv
         var booking = await queries.GetByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
 
-        var status = Enum.Parse<BookingStatus>(booking.Status);
-        var decision = CancellationPolicy.Evaluate(status, booking.StartAtUtc, timeProvider.GetUtcNow().UtcDateTime);
-        var refund = Math.Round(booking.PaidAmount * decision.RefundPercent / 100m, 0);
+        if (!Enum.TryParse<BookingStatus>(booking.Status, out var currentStatus))
+            throw new ValidationException("Trạng thái booking không hợp lệ.");
 
-        return new CancellationPreviewDto(booking.Code, decision.CanCancel, decision.ResultStatus.ToString(),
-            decision.RefundPercent, refund, decision.Reason);
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var decision = CancellationPolicy.Evaluate(currentStatus, booking.StartAtUtc, now);
+        var refundAmount = Math.Round(booking.PaidAmount * decision.RefundPercent / 100m, 0);
+
+        return new CancellationPreviewDto(booking.Code, decision.CanCancel, decision.ResultStatus.ToString(), decision.RefundPercent, refundAmount, decision.Reason);
     }
 }
 
@@ -183,7 +185,7 @@ public interface ICreateBookingUseCase
     Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-022: Tạo booking & giữ chỗ 15 phút (vòng đời trạng thái Created -> PendingPayment).</summary>
+/// <summary>US-022: Tạo booking & giữ chỗ 15 phút (TC-BOOK-01).</summary>
 public sealed class CreateBookingUseCase(
     IBookingRepository repository,
     IQrTokenService qrService,
@@ -198,11 +200,13 @@ public sealed class CreateBookingUseCase(
         if (command.EndAtUtc <= command.StartAtUtc) throw new ValidationException("Thời gian kết thúc phải sau thời gian bắt đầu.");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        if (command.StartAtUtc < now.AddMinutes(-5))
-            throw new ValidationException("Không thể đặt chỗ cho khung giờ trong quá khứ.");
+        if (command.StartAtUtc < now.AddMinutes(15))
+            throw new ValidationException("Thời gian đặt chỗ phải trước giờ bắt đầu ít nhất 15 phút.");
+
+        if (command.StartAtUtc > now.AddDays(30))
+            throw new ValidationException("Chỉ được đặt chỗ trước tối đa 30 ngày.");
 
         var code = $"BK-{now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
-        var holdExpires = now.AddMinutes(15);
         var qrToken = qrService.GenerateToken(code, command.PlateNumber, command.ParkingLotId, command.EndAtUtc.AddHours(2));
 
         var booking = new Booking
@@ -221,8 +225,6 @@ public sealed class CreateBookingUseCase(
             AllocationMode = command.AllocationMode,
             StartAtUtc = command.StartAtUtc,
             EndAtUtc = command.EndAtUtc,
-            HoldExpiresAtUtc = holdExpires,
-            Status = BookingStatus.PendingPayment,
             RequiresOwnerApproval = command.RequiresOwnerApproval,
             TotalAmount = command.TotalAmount,
             PaidAmount = 0,
@@ -230,13 +232,21 @@ public sealed class CreateBookingUseCase(
             QrToken = qrToken
         };
 
-        booking.StatusLogs.Add(new BookingStatusLog
+        // Kích hoạt State Machine: Bắt đầu giữ chỗ miễn phí 15 phút
+        booking.MarkAsPendingPayment(now);
+
+        // Lưu PriceSnapshot khóa giá lúc đặt
+        booking.PriceSnapshot = new PriceSnapshot
         {
-            FromStatus = BookingStatus.Created,
-            ToStatus = BookingStatus.PendingPayment,
-            ChangedByUserId = command.UserId,
-            Reason = "Tạo booking thành công, bắt đầu giữ chỗ 15 phút"
-        });
+            BookingId = booking.Id,
+            RateCardId = 1,
+            BaseAmount = command.TotalAmount,
+            SurchargeAmount = 0,
+            DiscountAmount = 0,
+            FinalAmount = command.TotalAmount,
+            BillingGracePeriodMinutes = 15,
+            RateCardJson = "{}"
+        };
 
         await repository.AddAsync(booking, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
@@ -272,19 +282,8 @@ public sealed class CancelBookingUseCase(
         if (!decision.CanCancel)
             throw new ValidationException(decision.Reason);
 
-        var oldStatus = booking.Status;
-        booking.Status = decision.ResultStatus;
-        booking.CancelledAtUtc = now;
-        booking.CancelReason = command.Reason ?? decision.Reason;
-        booking.CancelledByUserId = command.UserId;
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = decision.ResultStatus,
-            ChangedByUserId = command.UserId,
-            Reason = command.Reason ?? decision.Reason
-        });
+        // Gọi phương thức State Machine của Entity
+        booking.CancelByCustomer(decision.ResultStatus, now, command.UserId, command.Reason ?? decision.Reason);
 
         await repository.SaveChangesAsync(cancellationToken);
         var refund = Math.Round(booking.PaidAmount * decision.RefundPercent / 100m, 0);
@@ -315,6 +314,12 @@ public sealed class ModifyBookingUseCase(
         var now = timeProvider.GetUtcNow().UtcDateTime;
         if (booking.StartAtUtc <= now)
             throw new ValidationException("Không thể sửa booking khi đã đến hoặc quá giờ bắt đầu.");
+
+        // Quy tắc chống lách luật: Đổi giờ phải trước giờ hẹn cũ ít nhất 60 phút
+        if (command.NewStartAtUtc.HasValue && booking.StartAtUtc - now < TimeSpan.FromMinutes(60))
+        {
+            throw new ValidationException("Chỉ được phép đổi giờ đặt chỗ trước giờ hẹn cũ ít nhất 60 phút. Do thời gian còn lại dưới 60 phút, bạn không thể thay đổi giờ hẹn.");
+        }
 
         if (command.NewStartAtUtc.HasValue && command.NewEndAtUtc.HasValue)
         {
@@ -417,19 +422,8 @@ public sealed class ReviewBookingUseCase(
         if (booking.OwnerProfileId != command.OwnerProfileId)
             throw new ValidationException("Bạn không có quyền duyệt booking của bãi này.");
 
-        if (booking.Status != BookingStatus.PendingOwnerApproval && booking.Status != BookingStatus.PendingPayment)
-            throw new ValidationException($"Chỉ duyệt booking ở trạng thái chờ duyệt. Hiện tại: {booking.Status}");
-
-        var oldStatus = booking.Status;
-        booking.Status = BookingStatus.Confirmed;
-        booking.ConfirmedAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = BookingStatus.Confirmed,
-            Reason = command.Reason ?? "Chủ bãi duyệt thành công"
-        });
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.ConfirmPayment(booking.TotalAmount, now);
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -444,17 +438,8 @@ public sealed class ReviewBookingUseCase(
         if (booking.OwnerProfileId != command.OwnerProfileId)
             throw new ValidationException("Bạn không có quyền từ chối booking của bãi này.");
 
-        var oldStatus = booking.Status;
-        booking.Status = BookingStatus.Rejected;
-        booking.CancelReason = command.Reason ?? "Chủ bãi từ chối do hết chỗ";
-        booking.CancelledAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = BookingStatus.Rejected,
-            Reason = booking.CancelReason
-        });
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.RejectByOwner(now, command.OwnerProfileId, command.Reason ?? "Chủ bãi từ chối do hết chỗ");
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -481,17 +466,8 @@ public sealed class LotCancelBookingUseCase(
         if (booking.OwnerProfileId != command.OwnerProfileId)
             throw new ValidationException("Bạn không có quyền hủy booking của bãi này.");
 
-        var oldStatus = booking.Status;
-        booking.Status = BookingStatus.Cancelled;
-        booking.CancelledAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-        booking.CancelReason = $"Chủ bãi hủy sự cố: {command.Reason}";
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = BookingStatus.Cancelled,
-            Reason = booking.CancelReason
-        });
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.CancelByOwner(now, command.OwnerProfileId, command.Reason);
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -517,17 +493,8 @@ public sealed class GateBookingActionsUseCase(
         var booking = await repository.GetEntityByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
 
-        var oldStatus = booking.Status;
-        booking.Status = BookingStatus.CheckedIn;
-        booking.CheckedInAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = BookingStatus.CheckedIn,
-            ChangedByUserId = command.StaffUserId,
-            Reason = $"Cổng xác nhận check-in (Device {command.GateDeviceId})"
-        });
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.CheckIn(now, command.StaffUserId, command.GateDeviceId);
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -539,18 +506,8 @@ public sealed class GateBookingActionsUseCase(
         var booking = await repository.GetEntityByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
 
-        var oldStatus = booking.Status;
-        booking.Status = BookingStatus.Completed;
-        booking.CheckedOutAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-        booking.CompletedAtUtc = booking.CheckedOutAtUtc;
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = BookingStatus.Completed,
-            ChangedByUserId = command.StaffUserId,
-            Reason = $"Cổng xác nhận check-out hoàn tất (Device {command.GateDeviceId})"
-        });
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.CheckOut(now, command.StaffUserId, command.GateDeviceId);
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -562,18 +519,8 @@ public sealed class GateBookingActionsUseCase(
         var booking = await repository.GetEntityByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
 
-        var oldStatus = booking.Status;
-        booking.Status = BookingStatus.NoShow;
-        booking.CancelledAtUtc = timeProvider.GetUtcNow().UtcDateTime;
-        booking.CancelReason = "Khách không đến sau 30 phút (No-show)";
-
-        booking.StatusLogs.Add(new BookingStatusLog
-        {
-            FromStatus = oldStatus,
-            ToStatus = BookingStatus.NoShow,
-            ChangedByUserId = command.StaffUserId,
-            Reason = booking.CancelReason
-        });
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.MarkAsNoShow(now, command.StaffUserId);
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)

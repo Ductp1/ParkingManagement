@@ -3,6 +3,7 @@ using BookingService.Infrastructure.Persistence;
 using BookingService.Infrastructure.Persistence.Queries;
 using BookingService.Infrastructure.Persistence.Repositories;
 using BookingService.Infrastructure.Persistence.Seeding;
+using BookingService.Infrastructure.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
@@ -18,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IBookingQueries, BookingQueries>();
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
+        services.AddHostedService<HoldExpiryWorker>();
         return services;
     }
 }

@@ -61,7 +61,6 @@ public class CancellationPolicyTests
         => await Assert.ThrowsAsync<NotFoundException>(() =>
             new GetBookingByCodeUseCase(new FakeQueries(null)).ExecuteAsync("BK-9999"));
 
-    // ---------- test doubles ----------
     private static BookingDetailDto SampleBooking(string status, decimal paid, DateTime start) => new(
         2, "BK-0002", status, 5, 1, "51F12345", "Sedan", 1, "Bãi xe Vincom Đồng Khởi", 1, 2, "B1-A02",
         start, start.AddHours(3), null, 70000, 7000, paid, "WELCOME10", null, [], "mock-qr");
@@ -76,6 +75,125 @@ public class CancellationPolicyTests
     private sealed class FixedClock(DateTime utc) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(utc, TimeSpan.Zero);
+    }
+}
+
+/// <summary>
+/// Kiểm tra quy tắc chuyển trạng thái trong Domain Entity Booking (Task T-301).
+/// </summary>
+public class BookingStateMachineTests
+{
+    private static readonly DateTime BaseTime = new(2026, 10, 5, 8, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void MarkAsPendingPayment_sets_hold_time_and_adds_log()
+    {
+        var booking = new Booking { Code = "BK-001", UserId = 10, Status = BookingStatus.Created };
+        booking.MarkAsPendingPayment(BaseTime);
+
+        Assert.Equal(BookingStatus.PendingPayment, booking.Status);
+        Assert.Equal(BaseTime.AddMinutes(15), booking.HoldExpiresAtUtc);
+        Assert.Single(booking.StatusLogs);
+        Assert.Equal(BookingStatus.PendingPayment, booking.StatusLogs.First().ToStatus);
+    }
+
+    [Fact]
+    public void MarkAsPendingPayment_from_invalid_status_throws_exception()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.Confirmed };
+        Assert.Throws<InvalidOperationException>(() => booking.MarkAsPendingPayment(BaseTime));
+    }
+
+    [Fact]
+    public void ConfirmPayment_transitions_to_confirmed_and_records_paid_amount()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.PendingPayment };
+        booking.ConfirmPayment(50000, BaseTime);
+
+        Assert.Equal(BookingStatus.Confirmed, booking.Status);
+        Assert.Equal(50000, booking.PaidAmount);
+        Assert.Equal(BaseTime, booking.ConfirmedAtUtc);
+    }
+
+    [Fact]
+    public void CheckIn_and_CheckOut_transitions_work_correctly()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.Confirmed };
+        var inTime = BaseTime.AddHours(1);
+        booking.CheckIn(inTime, staffUserId: 99, gateDeviceId: 1);
+
+        Assert.Equal(BookingStatus.CheckedIn, booking.Status);
+        Assert.Equal(inTime, booking.CheckedInAtUtc);
+
+        var outTime = inTime.AddHours(2);
+        booking.CheckOut(outTime, staffUserId: 99, gateDeviceId: 2);
+
+        Assert.Equal(BookingStatus.Completed, booking.Status);
+        Assert.Equal(outTime, booking.CheckedOutAtUtc);
+    }
+
+    [Fact]
+    public void CheckIn_when_not_confirmed_throws_exception()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.PendingPayment };
+        Assert.Throws<InvalidOperationException>(() => booking.CheckIn(BaseTime));
+    }
+
+    [Fact]
+    public void Expire_transitions_to_expired_when_hold_time_has_passed()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-001",
+            Status = BookingStatus.PendingPayment,
+            HoldExpiresAtUtc = BaseTime.AddMinutes(15)
+        };
+
+        // Vẫn còn trong 15 phút -> ném lỗi
+        Assert.Throws<InvalidOperationException>(() => booking.Expire(BaseTime.AddMinutes(10)));
+
+        // Đã qua 15 phút -> thành công
+        booking.Expire(BaseTime.AddMinutes(16));
+        Assert.Equal(BookingStatus.Expired, booking.Status);
+    }
+
+    [Fact]
+    public void CancelByCustomer_when_already_checked_in_throws_exception()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.CheckedIn };
+        Assert.Throws<InvalidOperationException>(() =>
+            booking.CancelByCustomer(BookingStatus.Cancelled, BaseTime, cancelledByUserId: 10, reason: "Khách bận"));
+    }
+
+    [Fact]
+    public void MarkAsNoShow_throws_when_under_30_minutes_and_succeeds_when_over_30_minutes()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-001",
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = BaseTime
+        };
+
+        // Chưa tới 30 phút sau giờ hẹn -> ném lỗi
+        Assert.Throws<InvalidOperationException>(() => booking.MarkAsNoShow(BaseTime.AddMinutes(20)));
+
+        // Sau 30 phút -> chuyển NoShow
+        booking.MarkAsNoShow(BaseTime.AddMinutes(31), staffUserId: 1);
+        Assert.Equal(BookingStatus.NoShow, booking.Status);
+    }
+
+    [Fact]
+    public void RequireOwnerApproval_and_RejectByOwner_work_correctly()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.PendingPayment };
+        booking.RequireOwnerApproval();
+
+        Assert.Equal(BookingStatus.PendingOwnerApproval, booking.Status);
+        Assert.True(booking.RequiresOwnerApproval);
+
+        booking.RejectByOwner(BaseTime, ownerUserId: 88, reason: "Bãi đầy xe đột xuất");
+        Assert.Equal(BookingStatus.Cancelled, booking.Status);
     }
 }
 
@@ -173,6 +291,110 @@ public class BookingFeaturesTests
             PromotionCode: null);
 
         await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
+    }
+
+    [Fact]
+    public async Task CreateBooking_with_lead_time_under_15_minutes_throws_validation_exception()
+    {
+        var repo = new FakeBookingRepo();
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        var cmd = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 1,
+            PlateNumber: "51F-123.45",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: 1,
+            SlotId: 2,
+            SlotCode: "B1-A02",
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddMinutes(10), // < 15 phút
+            EndAtUtc: FixedNow.AddHours(2),
+            TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("15 phút", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateBooking_with_lead_time_over_30_days_throws_validation_exception()
+    {
+        var repo = new FakeBookingRepo();
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        var cmd = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 1,
+            PlateNumber: "51F-123.45",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: 1,
+            SlotId: 2,
+            SlotCode: "B1-A02",
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddDays(31), // > 30 ngày
+            EndAtUtc: FixedNow.AddDays(31).AddHours(2),
+            TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("30 ngày", ex.Message);
+    }
+
+    [Fact]
+    public async Task ModifyBooking_under_60_minutes_before_start_throws_validation_exception()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-0001",
+            UserId = 5,
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddMinutes(45), // Chỉ còn 45 phút tới giờ bắt đầu
+            EndAtUtc = FixedNow.AddHours(2)
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking);
+        var queries = new FakeQueries(booking);
+        var clock = new FixedClock(FixedNow);
+        var useCase = new ModifyBookingUseCase(repo, queries, clock);
+
+        var cmd = new ModifyBookingCommand(
+            UserId: 5,
+            NewVehicleId: null,
+            NewPlateNumber: null,
+            NewStartAtUtc: FixedNow.AddMinutes(50),
+            NewEndAtUtc: FixedNow.AddHours(3));
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync("BK-0001", cmd));
+        Assert.Contains("60 phút", ex.Message);
+    }
+
+    private sealed class FakeQueries(Booking? entity) : IBookingQueries
+    {
+        public Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken)
+        {
+            if (entity == null || entity.Code != code) return Task.FromResult<BookingDetailDto?>(null);
+            return Task.FromResult<BookingDetailDto?>(new BookingDetailDto(
+                entity.Id, entity.Code, entity.Status.ToString(), entity.UserId, entity.VehicleId,
+                entity.PlateNumber, entity.VehicleType.ToString(), entity.ParkingLotId, entity.ParkingLotName,
+                entity.ZoneId, entity.SlotId, entity.SlotCode, entity.StartAtUtc, entity.EndAtUtc,
+                entity.HoldExpiresAtUtc, entity.TotalAmount, entity.DiscountAmount, entity.PaidAmount,
+                entity.PromotionCode, null, [], entity.QrToken));
+        }
+
+        public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository
