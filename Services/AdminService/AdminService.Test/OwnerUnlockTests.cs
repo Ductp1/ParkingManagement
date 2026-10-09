@@ -111,7 +111,7 @@ public class OwnerUnlockTests
     {
         var sanction = SyncedLock(null);
         var repo = new FakeRepo(sanction);
-        var userService = new FakeUserService { UnlockFailure = new UserServiceUnavailableException("down") };
+        var userService = new FakeUserService { UnlockFailure = new DependencyUnavailableException("down") };
 
         var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);   // không ném lỗi ra ngoài
 
@@ -120,6 +120,24 @@ public class OwnerUnlockTests
         Assert.Null(sanction.UserServiceSyncedAtUtc);
         Assert.Single(repo.AuditLogs);
         Assert.Equal(1, repo.SaveCount);
+        Assert.Equal("Failed", dto.UserServiceSyncStatus);
+    }
+
+    [Theory]
+    [InlineData(typeof(AuthenticationException))]
+    [InlineData(typeof(ForbiddenException))]
+    public async Task Token_rejected_at_unlock_time_keeps_sanction_revoked_and_marks_sync_failed(Type rejection)
+    {
+        var sanction = SyncedLock(null);
+        var repo = new FakeRepo(sanction);
+        var userService = new FakeUserService { UnlockFailure = (Exception)Activator.CreateInstance(rejection, "rejected")! };
+
+        // Chế tài đã gỡ rồi: không ném lỗi, chỉ đánh dấu chưa đồng bộ để gọi lại sau.
+        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
+
+        Assert.Equal(SanctionStatus.Revoked, sanction.Status);
+        Assert.Equal(SanctionSyncStatus.Failed, sanction.UserServiceSyncStatus);
+        Assert.Single(repo.AuditLogs);
         Assert.Equal("Failed", dto.UserServiceSyncStatus);
     }
 

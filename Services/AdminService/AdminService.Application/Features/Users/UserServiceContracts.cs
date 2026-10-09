@@ -20,7 +20,9 @@ public sealed record OwnerAccountDto(int OwnerProfileId, int UserId, string Busi
 // ===== PORT (gọi UserService) =====
 /// <summary>
 /// US-096: Cổng duy nhất để AdminService lấy dữ liệu người dùng. Infrastructure cài bằng HttpClient gọi qua Gateway;
-/// unit test dùng fake. Mọi lỗi kết nối / phản hồi không hợp lệ được báo bằng <see cref="UserServiceUnavailableException"/>.
+/// unit test dùng fake. Lỗi được báo bằng exception chung của SharedKernel: UserService từ chối token →
+/// AuthenticationException (401) / ForbiddenException (403); không gọi được hoặc phản hồi không hợp lệ →
+/// DependencyUnavailableException (503).
 /// </summary>
 public interface IUserServiceClient
 {
@@ -36,10 +38,3 @@ public interface IUserServiceClient
     /// <summary>Mở khóa chủ bãi bên UserService (idempotent). Trả null khi UserService báo chủ bãi không tồn tại.</summary>
     Task<OwnerAccountDto?> UnlockOwnerAsync(int ownerProfileId, string reason, int performedByUserId, CancellationToken cancellationToken);
 }
-
-/// <summary>
-/// Không gọi được UserService (mất kết nối, timeout, mã lỗi ngoài dự kiến, nội dung trả về sai định dạng).
-/// Middleware chung hiện chưa có mã 503 nên lỗi này ra ngoài thành 500.
-/// </summary>
-public sealed class UserServiceUnavailableException(string message, Exception? innerException = null)
-    : Exception(message, innerException);

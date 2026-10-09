@@ -130,7 +130,7 @@ public class OwnerLockTests
     public async Task User_service_failure_keeps_sanction_and_marks_sync_failed()
     {
         var repo = new FakeRepo();
-        var userService = new FakeUserService(TsnOwner) { LockFailure = new UserServiceUnavailableException("down") };
+        var userService = new FakeUserService(TsnOwner) { LockFailure = new DependencyUnavailableException("down") };
 
         var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, AdminUser);   // không ném lỗi ra ngoài
 
@@ -294,11 +294,42 @@ public class OwnerLockTests
     public async Task User_service_down_before_saving_fails_without_writing_anything()
     {
         var repo = new FakeRepo();
-        var userService = new FakeUserService(TsnOwner) { FindFailure = new UserServiceUnavailableException("down") };
+        var userService = new FakeUserService(TsnOwner) { FindFailure = new DependencyUnavailableException("down") };
 
-        await Assert.ThrowsAsync<UserServiceUnavailableException>(() => CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, AdminUser));
+        await Assert.ThrowsAsync<DependencyUnavailableException>(() => CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, AdminUser));
 
         AssertNothingHappened(userService, repo, findCalls: 1);
+    }
+
+    [Theory]
+    [InlineData(typeof(AuthenticationException))]
+    [InlineData(typeof(ForbiddenException))]
+    public async Task Token_rejected_while_verifying_owner_fails_without_writing_anything(Type rejection)
+    {
+        var repo = new FakeRepo();
+        var userService = new FakeUserService(TsnOwner) { FindFailure = (Exception)Activator.CreateInstance(rejection, "rejected")! };
+
+        // Chưa ghi gì nên trả thẳng 401 / 403 cho client.
+        await Assert.ThrowsAsync(rejection, () => CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, AdminUser));
+
+        AssertNothingHappened(userService, repo, findCalls: 1);
+    }
+
+    [Theory]
+    [InlineData(typeof(AuthenticationException))]
+    [InlineData(typeof(ForbiddenException))]
+    public async Task Token_rejected_at_lock_time_keeps_sanction_and_marks_sync_failed(Type rejection)
+    {
+        var repo = new FakeRepo();
+        var userService = new FakeUserService(TsnOwner) { LockFailure = (Exception)Activator.CreateInstance(rejection, "rejected")! };
+
+        // Chế tài đã lưu rồi: không ném lỗi, chỉ đánh dấu chưa đồng bộ để gọi lại sau.
+        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, AdminUser);
+
+        Assert.Equal(SanctionSyncStatus.Failed, Assert.Single(repo.Sanctions).UserServiceSyncStatus);
+        Assert.Single(repo.AuditLogs);
+        Assert.Equal(1, repo.SaveCount);
+        Assert.Equal("Failed", dto.UserServiceSyncStatus);
     }
 
     [Fact]

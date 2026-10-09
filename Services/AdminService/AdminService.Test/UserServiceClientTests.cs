@@ -7,13 +7,17 @@ using AdminService.Infrastructure.Integrations;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace AdminService.Test;
 
 // US-096: adapter HttpClient gọi UserService qua Gateway (unit test với fake HttpMessageHandler, không cần UserService chạy).
 public class UserServiceClientTests
 {
+    private const string UnavailableMessage = "UserService hiện không phản hồi, vui lòng thử lại sau.";
+
     private const string UsersPageJson = """
         {
           "items": [
@@ -82,7 +86,7 @@ public class UserServiceClientTests
         // 404 ở đường dẫn danh sách nghĩa là Gateway/UserService chưa có route, không phải "không có dữ liệu".
         var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CreateClient(handler).ListUsersAsync(null, 1, 20, CancellationToken.None));
     }
 
@@ -113,18 +117,39 @@ public class UserServiceClientTests
 
     [Theory]
     [InlineData(HttpStatusCode.BadRequest)]
-    [InlineData(HttpStatusCode.Unauthorized)]
-    [InlineData(HttpStatusCode.Forbidden)]
     [InlineData(HttpStatusCode.InternalServerError)]
     [InlineData(HttpStatusCode.BadGateway)]
     public async Task Unexpected_status_code_is_reported_as_user_service_unavailable(HttpStatusCode statusCode)
     {
         var handler = new FakeHandler(_ => new HttpResponseMessage(statusCode));
 
-        var ex = await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        var ex = await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CreateClient(handler).FindUserByIdAsync(2, CancellationToken.None));
 
-        Assert.Contains(((int)statusCode).ToString(), ex.Message);
+        // Client chỉ thấy thông điệp cố định; mã HTTP và đường dẫn nội bộ nằm ở log.
+        Assert.Equal(UnavailableMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task Token_rejected_by_user_service_is_reported_as_unauthenticated()
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+
+        var ex = await Assert.ThrowsAsync<AuthenticationException>(
+            () => CreateClient(handler).ListUsersAsync(null, 1, 20, CancellationToken.None));
+
+        Assert.Equal("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.", ex.Message);
+    }
+
+    [Fact]
+    public async Task Missing_permission_in_user_service_is_reported_as_forbidden()
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.Forbidden));
+
+        var ex = await Assert.ThrowsAsync<ForbiddenException>(
+            () => CreateClient(handler).FindUserByIdAsync(2, CancellationToken.None));
+
+        Assert.Equal("Tài khoản không có quyền thực hiện thao tác này.", ex.Message);
     }
 
     [Fact]
@@ -132,10 +157,10 @@ public class UserServiceClientTests
     {
         var handler = new FakeHandler(_ => throw new HttpRequestException("Connection refused"));
 
-        var ex = await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        var ex = await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CreateClient(handler).FindUserByIdAsync(2, CancellationToken.None));
 
-        Assert.IsType<HttpRequestException>(ex.InnerException);
+        Assert.Equal(UnavailableMessage, ex.Message);
     }
 
     [Fact]
@@ -144,7 +169,7 @@ public class UserServiceClientTests
         // HttpClient báo hết thời gian chờ bằng TaskCanceledException trong khi request của người gọi chưa bị hủy.
         var handler = new FakeHandler(_ => throw new TaskCanceledException("Timeout", new TimeoutException()));
 
-        await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CreateClient(handler).FindUserByIdAsync(2, CancellationToken.None));
     }
 
@@ -153,7 +178,7 @@ public class UserServiceClientTests
     {
         var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, "<html>Bad Gateway</html>"));
 
-        await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CreateClient(handler).FindUserByIdAsync(2, CancellationToken.None));
     }
 
@@ -280,15 +305,14 @@ public class UserServiceClientTests
         // 404 không có body = UserService chưa có endpoint này; không được hiểu là "chủ bãi không tồn tại".
         var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        var ex = await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        var ex = await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CallOwnerEndpoint(CreateClient(handler), operation));
 
-        Assert.Contains("404", ex.Message);
+        Assert.Equal(UnavailableMessage, ex.Message);
     }
 
     [Theory]
     [InlineData("lock", HttpStatusCode.BadRequest)]
-    [InlineData("lock", HttpStatusCode.Forbidden)]
     [InlineData("lock", HttpStatusCode.InternalServerError)]
     [InlineData("unlock", HttpStatusCode.BadRequest)]
     [InlineData("unlock", HttpStatusCode.BadGateway)]
@@ -296,10 +320,30 @@ public class UserServiceClientTests
     {
         var handler = new FakeHandler(_ => Json(statusCode, """{ "status": 0, "title": "Lỗi" }"""));
 
-        var ex = await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        var ex = await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CallOwnerEndpoint(CreateClient(handler), operation));
 
-        Assert.Contains(((int)statusCode).ToString(), ex.Message);
+        Assert.Equal(UnavailableMessage, ex.Message);
+    }
+
+    [Theory]
+    [InlineData("lock")]
+    [InlineData("unlock")]
+    public async Task Owner_write_rejected_token_is_reported_as_unauthenticated(string operation)
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+
+        await Assert.ThrowsAsync<AuthenticationException>(() => CallOwnerEndpoint(CreateClient(handler), operation));
+    }
+
+    [Theory]
+    [InlineData("lock")]
+    [InlineData("unlock")]
+    public async Task Owner_write_without_permission_is_reported_as_forbidden(string operation)
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.Forbidden, """{ "status": 403, "title": "Không có quyền" }"""));
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => CallOwnerEndpoint(CreateClient(handler), operation));
     }
 
     [Theory]
@@ -309,7 +353,7 @@ public class UserServiceClientTests
     {
         var handler = new FakeHandler(_ => throw new HttpRequestException("Connection refused"));
 
-        await Assert.ThrowsAsync<UserServiceUnavailableException>(
+        await Assert.ThrowsAsync<DependencyUnavailableException>(
             () => CallOwnerEndpoint(CreateClient(handler), operation));
     }
 
@@ -349,7 +393,7 @@ public class UserServiceClientTests
             () => new ServiceCollection().AddAdminInfrastructure(Configuration(gatewayBaseUrl)));
 
     private static UserServiceClient CreateClient(HttpMessageHandler handler)
-        => new(new HttpClient(handler) { BaseAddress = new Uri("http://gateway.test/") });
+        => new(new HttpClient(handler) { BaseAddress = new Uri("http://gateway.test/") }, NullLogger<UserServiceClient>.Instance);
 
     private static Task<OwnerAccountDto?> CallOwnerEndpoint(UserServiceClient client, string operation) => operation switch
     {

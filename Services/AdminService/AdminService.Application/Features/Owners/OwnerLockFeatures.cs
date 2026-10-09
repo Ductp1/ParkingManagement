@@ -105,7 +105,8 @@ public sealed class LockOwnerUseCase(IUserServiceClient userService, IOwnerLockR
 
             sanction.MarkSynced(timeProvider.GetUtcNow().UtcDateTime);
         }
-        catch (UserServiceUnavailableException ex)
+        // Thay đổi đã lưu trong pm_admin: UserService không gọi được hay từ chối token đều chỉ làm lần đồng bộ này thất bại.
+        catch (Exception ex) when (ex is DependencyUnavailableException or AuthenticationException or ForbiddenException)
         {
             logger.LogWarning(ex, "Chưa đồng bộ được lệnh khóa chủ bãi {OwnerProfileId} sang UserService.", sanction.OwnerProfileId);
             sanction.MarkSyncFailed();
@@ -182,7 +183,8 @@ public sealed class UnlockOwnerUseCase(IUserServiceClient userService, IOwnerLoc
 
             sanction.MarkSynced(timeProvider.GetUtcNow().UtcDateTime);
         }
-        catch (UserServiceUnavailableException ex)
+        // Thay đổi đã lưu trong pm_admin: UserService không gọi được hay từ chối token đều chỉ làm lần đồng bộ này thất bại.
+        catch (Exception ex) when (ex is DependencyUnavailableException or AuthenticationException or ForbiddenException)
         {
             logger.LogWarning(ex, "Chưa đồng bộ được lệnh mở khóa chủ bãi {OwnerProfileId} sang UserService.", sanction.OwnerProfileId);
             sanction.MarkSyncFailed();

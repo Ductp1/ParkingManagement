@@ -90,8 +90,8 @@ public class AdminUserTests
 
     [Fact]
     public async Task List_users_does_not_hide_user_service_failure()
-        => await Assert.ThrowsAsync<UserServiceUnavailableException>(
-            () => new ListAdminUsersUseCase(new FakeUserService { Failure = new UserServiceUnavailableException("down") })
+        => await Assert.ThrowsAsync<DependencyUnavailableException>(
+            () => new ListAdminUsersUseCase(new FakeUserService { Failure = new DependencyUnavailableException("down") })
                 .ExecuteAsync(null, 1, 20));
 
     [Fact]
@@ -139,8 +139,8 @@ public class AdminUserTests
 
     [Fact]
     public async Task Get_user_does_not_hide_user_service_failure()
-        => await Assert.ThrowsAsync<UserServiceUnavailableException>(
-            () => new GetAdminUserByIdUseCase(new FakeUserService { Failure = new UserServiceUnavailableException("down") })
+        => await Assert.ThrowsAsync<DependencyUnavailableException>(
+            () => new GetAdminUserByIdUseCase(new FakeUserService { Failure = new DependencyUnavailableException("down") })
                 .ExecuteAsync(2));
 
     private sealed class FakeUserService(params AdminUserDto[] users) : IUserServiceClient
