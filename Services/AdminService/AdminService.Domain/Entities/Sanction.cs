@@ -26,4 +26,35 @@ public class Sanction : BaseEntity
     /// <summary>Lần gần nhất UserService xác nhận đã áp dụng; null = chưa từng.</summary>
     public DateTime? UserServiceSyncedAtUtc { get; set; }
 
+    /// <summary>
+    /// US-096: Chế tài khóa toàn bộ chủ bãi. Có hạn → cấp 3 (tạm khóa tới lockedUntilUtc); không hạn → cấp 4 (vĩnh viễn).
+    /// Mới tạo luôn ở trạng thái chờ đồng bộ, vì UserService chỉ được gọi sau khi chế tài đã lưu.
+    /// </summary>
+    public static Sanction CreateOwnerLock(int ownerProfileId, string reason, int issuedByUserId, DateTime startsAtUtc, DateTime? lockedUntilUtc)
+        => new()
+        {
+            OwnerProfileId = ownerProfileId,
+            ParkingLotId = null,
+            Level = lockedUntilUtc is null ? SanctionLevel.PermanentBan : SanctionLevel.TemporarySuspension,
+            Reason = reason,
+            StartsAtUtc = startsAtUtc,
+            EndsAtUtc = lockedUntilUtc,
+            Status = SanctionStatus.Active,
+            IssuedByUserId = issuedByUserId,
+            UserServiceSyncStatus = SanctionSyncStatus.Pending,
+        };
+
+    /// <summary>Còn hiệu lực = đang Active và chưa tới hạn kết thúc (không hạn thì luôn còn).</summary>
+    public bool IsInEffect(DateTime nowUtc) => Status == SanctionStatus.Active && (EndsAtUtc is null || EndsAtUtc > nowUtc);
+
+    /// <summary>Đóng chế tài đã quá hạn mà chưa được gỡ.</summary>
+    public void Expire() => Status = SanctionStatus.Expired;
+
+    public void MarkSynced(DateTime syncedAtUtc)
+    {
+        UserServiceSyncStatus = SanctionSyncStatus.Synced;
+        UserServiceSyncedAtUtc = syncedAtUtc;
+    }
+
+    public void MarkSyncFailed() => UserServiceSyncStatus = SanctionSyncStatus.Failed;
 }

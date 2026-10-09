@@ -7,8 +7,13 @@ namespace AdminService.API.Controllers;
 /// <summary>US-096: Admin quản lý chủ bãi. Controller chỉ điều hướng HTTP → Use case.</summary>
 [ApiController]
 [Route("api/v1/admin/owners")]
-public sealed class AdminOwnersController(IGetOwnerSanctionsUseCase getSanctions) : ControllerBase
+public sealed class AdminOwnersController(IGetOwnerSanctionsUseCase getSanctions, ILockOwnerUseCase lockOwner) : ControllerBase
 {
+    /// <summary>POST /api/v1/admin/owners/2/lock – Khóa tài khoản chủ bãi (gọi lại khi chưa đồng bộ được = thử lại).</summary>
+    [HttpPost("{ownerProfileId:int}/lock")]
+    public async Task<ActionResult<SanctionDto>> Lock(int ownerProfileId, [FromBody] LockOwnerRequest request, CancellationToken cancellationToken)
+        => Ok(await lockOwner.ExecuteAsync(ownerProfileId, request, cancellationToken));
+
     /// <summary>GET /api/v1/admin/owners/2/sanctions?page=1&amp;pageSize=20 – Lịch sử vi phạm (chế tài) của một chủ bãi.</summary>
     [HttpGet("{ownerProfileId:int}/sanctions")]
     public async Task<ActionResult<PagedResult<SanctionDto>>> ListSanctions(

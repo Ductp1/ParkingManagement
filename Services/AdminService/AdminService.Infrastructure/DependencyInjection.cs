@@ -4,6 +4,7 @@ using AdminService.Application.Features.Users;
 using AdminService.Infrastructure.Integrations;
 using AdminService.Infrastructure.Persistence;
 using AdminService.Infrastructure.Persistence.Queries;
+using AdminService.Infrastructure.Persistence.Repositories;
 using AdminService.Infrastructure.Persistence.Seeding;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddServiceDbContext<AdminDbContext>(configuration);
         services.AddScoped<ISettingsQueries, SettingsQueries>();
         services.AddScoped<ISanctionQueries, SanctionQueries>();
+        services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 
         // US-096: dữ liệu người dùng lấy từ UserService qua Gateway (không truy cập pm_user).

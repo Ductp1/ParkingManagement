@@ -1,3 +1,4 @@
+using AdminService.Domain.Entities;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -7,6 +8,14 @@ namespace AdminService.Application.Features.Owners;
 public sealed record SanctionDto(int Id, int OwnerProfileId, int? ParkingLotId, string Level, string Reason, DateTime StartsAtUtc,
     DateTime? EndsAtUtc, string Status, string UserServiceSyncStatus, DateTime? UserServiceSyncedAtUtc, decimal? PenaltyAmount,
     int IssuedByUserId, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc);
+
+/// <summary>Map entity → DTO dùng chung cho các use case ghi chế tài.</summary>
+public static class SanctionMapper
+{
+    public static SanctionDto ToDto(Sanction s) => new(
+        s.Id, s.OwnerProfileId, s.ParkingLotId, s.Level.ToString(), s.Reason, s.StartsAtUtc, s.EndsAtUtc, s.Status.ToString(),
+        s.UserServiceSyncStatus.ToString(), s.UserServiceSyncedAtUtc, s.PenaltyAmount, s.IssuedByUserId, s.CreatedAtUtc, s.UpdatedAtUtc);
+}
 
 // ===== PORT (đọc) =====
 public interface ISanctionQueries

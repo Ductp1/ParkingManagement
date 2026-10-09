@@ -15,6 +15,8 @@ public static class DependencyInjection
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
         // US-096: lịch sử vi phạm của chủ bãi
         services.AddScoped<IGetOwnerSanctionsUseCase, GetOwnerSanctionsUseCase>();
+        // US-096: khóa chủ bãi
+        services.AddScoped<ILockOwnerUseCase, LockOwnerUseCase>();
         return services;
     }
 }
