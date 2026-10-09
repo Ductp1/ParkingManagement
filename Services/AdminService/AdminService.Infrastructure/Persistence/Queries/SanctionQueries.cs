@@ -16,7 +16,8 @@ public sealed class SanctionQueries(AdminDbContext db) : ISanctionQueries
             .OrderByDescending(s => s.StartsAtUtc).ThenByDescending(s => s.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(s => new SanctionDto(s.Id, s.OwnerProfileId, s.ParkingLotId, s.Level.ToString(), s.Reason, s.StartsAtUtc,
-                s.EndsAtUtc, s.Status.ToString(), s.PenaltyAmount, s.IssuedByUserId, s.CreatedAtUtc, s.UpdatedAtUtc))
+                s.EndsAtUtc, s.Status.ToString(), s.UserServiceSyncStatus.ToString(), s.UserServiceSyncedAtUtc, s.PenaltyAmount,
+                s.IssuedByUserId, s.CreatedAtUtc, s.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<SanctionDto>(items, page, pageSize, total);

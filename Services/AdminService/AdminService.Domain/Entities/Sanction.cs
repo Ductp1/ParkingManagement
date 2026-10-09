@@ -1,3 +1,4 @@
+using AdminService.Domain.Enums;
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
 
@@ -20,5 +21,9 @@ public class Sanction : BaseEntity
     /// <summary>Tiền phạt trừ vào quyết toán / ký quỹ của chủ bãi (nếu có) – dùng để đền bù khách (Answer_2 §10).</summary>
     public decimal? PenaltyAmount { get; set; }
     public int IssuedByUserId { get; set; }
+    /// <summary>Kết quả báo UserService khi chế tài này khóa / mở khóa chủ bãi (US-096).</summary>
+    public SanctionSyncStatus UserServiceSyncStatus { get; set; } = SanctionSyncStatus.NotRequired;
+    /// <summary>Lần gần nhất UserService xác nhận đã áp dụng; null = chưa từng.</summary>
+    public DateTime? UserServiceSyncedAtUtc { get; set; }
 
 }

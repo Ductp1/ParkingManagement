@@ -5,7 +5,8 @@ namespace AdminService.Application.Features.Owners;
 
 // ===== DTO =====
 public sealed record SanctionDto(int Id, int OwnerProfileId, int? ParkingLotId, string Level, string Reason, DateTime StartsAtUtc,
-    DateTime? EndsAtUtc, string Status, decimal? PenaltyAmount, int IssuedByUserId, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc);
+    DateTime? EndsAtUtc, string Status, string UserServiceSyncStatus, DateTime? UserServiceSyncedAtUtc, decimal? PenaltyAmount,
+    int IssuedByUserId, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc);
 
 // ===== PORT (đọc) =====
 public interface ISanctionQueries

@@ -13,11 +13,11 @@ public class OwnerSanctionTests
     private static readonly DateTime Now = new(2026, 10, 9, 8, 0, 0, DateTimeKind.Utc);
 
     private static readonly SanctionDto TsnLotSuspension =
-        new(1, OwnerTsn, 4, "TemporarySuspension", "Để xảy ra overbooking 3 lần trong tuần.", Now.AddDays(-7), Now.AddDays(7), "Active", null, 1, Now.AddDays(-7), null);
+        new(1, OwnerTsn, 4, "TemporarySuspension", "Để xảy ra overbooking 3 lần trong tuần.", Now.AddDays(-7), Now.AddDays(7), "Active", "NotRequired", null, null, 1, Now.AddDays(-7), null);
     private static readonly SanctionDto TsnOwnerWarning =
-        new(2, OwnerTsn, null, "Warning", "Phản hồi khiếu nại trễ hạn.", Now.AddDays(-30), null, "Expired", null, 1, Now.AddDays(-30), Now.AddDays(-20));
+        new(2, OwnerTsn, null, "Warning", "Phản hồi khiếu nại trễ hạn.", Now.AddDays(-30), null, "Expired", "NotRequired", null, null, 1, Now.AddDays(-30), Now.AddDays(-20));
     private static readonly SanctionDto VincomWarning =
-        new(3, OwnerVincom, null, "Warning", "Cập nhật giá chậm.", Now.AddDays(-3), null, "Active", null, 1, Now.AddDays(-3), null);
+        new(3, OwnerVincom, null, "Warning", "Cập nhật giá chậm.", Now.AddDays(-3), null, "Active", "NotRequired", null, null, 1, Now.AddDays(-3), null);
 
     [Fact]
     public async Task Get_owner_sanctions_returns_only_that_owner_newest_first()
