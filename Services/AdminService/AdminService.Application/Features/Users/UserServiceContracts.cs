@@ -28,8 +28,6 @@ public interface IUserServiceClient
     /// <summary>Trả null khi UserService báo 404 (người dùng không tồn tại).</summary>
     Task<AdminUserDto?> FindUserByIdAsync(int userId, CancellationToken cancellationToken);
 
-    /// <summary>Trả null khi UserService báo chủ bãi không tồn tại.</summary>
-    Task<OwnerAccountDto?> FindOwnerAccountAsync(int ownerProfileId, CancellationToken cancellationToken);
     /// <summary>
     /// Khóa chủ bãi bên UserService (idempotent: đã khóa rồi gọi lại vẫn thành công). lockedUntilUtc = null là vô thời hạn.
     /// Trả trạng thái sau khi khóa; null khi UserService báo chủ bãi không tồn tại.

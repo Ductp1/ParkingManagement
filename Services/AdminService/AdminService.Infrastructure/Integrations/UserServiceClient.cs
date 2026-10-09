@@ -27,9 +27,6 @@ public sealed class UserServiceClient(HttpClient http) : IUserServiceClient
     public Task<AdminUserDto?> FindUserByIdAsync(int userId, CancellationToken cancellationToken)
         => SendAsync<AdminUserDto>(HttpMethod.Get, $"api/v1/users/{userId}", body: null, NotFoundMeans.ResourceMissing, cancellationToken);
 
-    public Task<OwnerAccountDto?> FindOwnerAccountAsync(int ownerProfileId, CancellationToken cancellationToken)
-        => SendAsync<OwnerAccountDto>(HttpMethod.Get, OwnerPath(ownerProfileId), body: null, NotFoundMeans.ResourceMissingOnlyWithProblemBody, cancellationToken);
-
     public Task<OwnerAccountDto?> LockOwnerAsync(int ownerProfileId, string reason, DateTime? lockedUntilUtc, int performedByUserId, CancellationToken cancellationToken)
         => SendAsync<OwnerAccountDto>(HttpMethod.Post, $"{OwnerPath(ownerProfileId)}/lock",
             new { reason, lockedUntilUtc, performedByUserId }, NotFoundMeans.ResourceMissingOnlyWithProblemBody, cancellationToken);

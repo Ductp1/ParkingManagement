@@ -169,9 +169,6 @@ public class AdminUserTests
         }
 
         // Tra cứu người dùng không đụng tới các lời gọi khóa / mở khóa chủ bãi.
-        public Task<OwnerAccountDto?> FindOwnerAccountAsync(int ownerProfileId, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
         public Task<OwnerAccountDto?> LockOwnerAsync(int ownerProfileId, string reason, DateTime? lockedUntilUtc, int performedByUserId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 

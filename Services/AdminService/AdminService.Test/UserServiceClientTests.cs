@@ -210,21 +210,6 @@ public class UserServiceClientTests
     }
 
     [Fact]
-    public async Task Find_owner_account_maps_owner_profile_and_lock_state()
-    {
-        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: false, ownerStatus: "Active")));
-
-        var account = await CreateClient(handler).FindOwnerAccountAsync(2, CancellationToken.None);
-
-        var request = handler.Requests.Single();
-        Assert.Equal(HttpMethod.Get, request.Method);
-        Assert.Equal("http://gateway.test/api/v1/users/owner-profiles/2", request.RequestUri!.ToString());
-        Assert.Null(handler.Bodies.Single());
-        Assert.Equal(new OwnerAccountDto(2, 3, "Công ty CP Bãi xe Tân Sơn Nhất", "Công ty Bãi xe Tân Sơn Nhất",
-            "owner.tsn@smartparking.vn", "0900000003", false, "Active", "Active"), account);
-    }
-
-    [Fact]
     public async Task Lock_owner_posts_reason_lock_window_and_admin_then_maps_locked_account()
     {
         var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: true, ownerStatus: "Suspended")));
@@ -277,7 +262,6 @@ public class UserServiceClientTests
     }
 
     [Theory]
-    [InlineData("find")]
     [InlineData("lock")]
     [InlineData("unlock")]
     public async Task Owner_call_returns_null_when_user_service_reports_owner_not_found(string operation)
@@ -289,7 +273,6 @@ public class UserServiceClientTests
     }
 
     [Theory]
-    [InlineData("find")]
     [InlineData("lock")]
     [InlineData("unlock")]
     public async Task Owner_call_treats_bodyless_not_found_as_user_service_unavailable(string operation)
@@ -370,7 +353,6 @@ public class UserServiceClientTests
 
     private static Task<OwnerAccountDto?> CallOwnerEndpoint(UserServiceClient client, string operation) => operation switch
     {
-        "find" => client.FindOwnerAccountAsync(2, CancellationToken.None),
         "lock" => client.LockOwnerAsync(2, "Gian lận doanh thu", null, 1, CancellationToken.None),
         "unlock" => client.UnlockOwnerAsync(2, "Đã khắc phục vi phạm", 1, CancellationToken.None),
         _ => throw new ArgumentOutOfRangeException(nameof(operation))
