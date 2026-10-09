@@ -402,6 +402,13 @@ public class OwnerLockTests
             SaveCount++;
             return Task.CompletedTask;
         }
+
+        // Khóa chủ bãi không dùng các thao tác của luồng mở khóa.
+        public Task<Sanction?> FindLatestOwnerLockTrackedAsync(int ownerProfileId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

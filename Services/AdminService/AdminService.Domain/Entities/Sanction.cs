@@ -23,7 +23,7 @@ public class Sanction : BaseEntity
     public int IssuedByUserId { get; set; }
     /// <summary>Kết quả báo UserService khi chế tài này khóa / mở khóa chủ bãi (US-096).</summary>
     public SanctionSyncStatus UserServiceSyncStatus { get; set; } = SanctionSyncStatus.NotRequired;
-    /// <summary>Lần gần nhất UserService xác nhận đã áp dụng; null = chưa từng.</summary>
+    /// <summary>Lúc UserService xác nhận thao tác hiện tại (khóa khi Active, mở khóa khi Revoked); null = chưa xác nhận.</summary>
     public DateTime? UserServiceSyncedAtUtc { get; set; }
 
     /// <summary>
@@ -49,6 +49,14 @@ public class Sanction : BaseEntity
 
     /// <summary>Đóng chế tài đã quá hạn mà chưa được gỡ.</summary>
     public void Expire() => Status = SanctionStatus.Expired;
+
+    /// <summary>US-096: Admin gỡ chế tài khóa. Lệnh mở khóa chưa tới UserService nên quay về trạng thái chờ đồng bộ.</summary>
+    public void Revoke()
+    {
+        Status = SanctionStatus.Revoked;
+        UserServiceSyncStatus = SanctionSyncStatus.Pending;
+        UserServiceSyncedAtUtc = null;      // mốc cũ là của lệnh khóa, không còn đúng cho lệnh mở khóa
+    }
 
     public void MarkSynced(DateTime syncedAtUtc)
     {

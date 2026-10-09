@@ -39,5 +39,19 @@ public sealed class OwnerLockRepository(AdminDbContext db) : IOwnerLockRepositor
         }
     }
 
+    public Task<Sanction?> FindLatestOwnerLockTrackedAsync(int ownerProfileId, CancellationToken cancellationToken)
+        => db.Sanctions
+            .Where(s => s.OwnerProfileId == ownerProfileId
+                && s.ParkingLotId == null
+                && (s.Level == SanctionLevel.TemporarySuspension || s.Level == SanctionLevel.PermanentBan))
+            .OrderByDescending(s => s.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
+    {
+        db.AuditLogs.Add(auditLog);
+        await db.SaveChangesAsync(cancellationToken);       // đổi trạng thái chế tài + audit log: cùng 1 lần SaveChanges
+    }
+
     public Task SaveAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
 }
