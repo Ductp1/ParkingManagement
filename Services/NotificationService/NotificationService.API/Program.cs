@@ -1,3 +1,4 @@
+using NotificationService.API.Hubs;
 using NotificationService.Application;
 using NotificationService.Infrastructure;
 using NotificationService.Infrastructure.Persistence;
@@ -9,6 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults("NotificationService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
 builder.Services.AddNotificationApplication();                                  // Application: Use Case
 builder.Services.AddNotificationInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
+builder.Services.AddSignalR();                                                  // SignalR for real-time notifications & parking lot updates
 
 var app = builder.Build();
 
@@ -16,6 +18,13 @@ var app = builder.Build();
 await app.InitializeDatabaseAsync<NotificationDbContext>();
 
 app.UseServiceDefaults();
+
+// Map SignalR hubs (S1-T601)
+// /hubs/notify: In-app notification push
+// /hubs/parking: Real-time slot state & capacity updates
+app.MapHub<NotificationHub>("/hubs/notify");
+app.MapHub<ParkingHub>("/hubs/parking");
+
 app.Run();
 
 /// <summary>Dùng cho WebApplicationFactory trong integration test.</summary>
