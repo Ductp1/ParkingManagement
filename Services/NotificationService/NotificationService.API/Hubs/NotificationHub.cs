@@ -5,39 +5,33 @@ using ParkingManagement.SharedKernel.Enums;
 namespace NotificationService.API.Hubs;
 
 /// <summary>
-/// SignalR Hub cho notification real-time push.
-/// Route: /hubs/notify
-/// Module: TV6 (S1-T601).
+/// SignalR Hub cho notification real-time push. Route: /hubs/notify. Module: TV6 (S1-T601).
+/// Dùng SignalR Groups ("user-{userId}") thay cho dictionary tĩnh:
+///  - Multiple connection cùng user → cùng 1 group, không cần track thủ công.
+///  - Disconnect → SignalR tự rời group, không còn stale mapping.
+///  - Nhiều server instance (scale-out) vẫn đúng nhờ SignalR backplane.
+/// Mọi SendAsync đều được await (không fire-and-forget).
 /// </summary>
 public sealed class NotificationHub : Hub
 {
     private readonly ILogger<NotificationHub> _logger;
-
-    // Lưu mapping: userId -> connectionId (hỗ trợ multiple devices)
-    private static readonly Dictionary<int, HashSet<string>> UserConnections = new();
 
     public NotificationHub(ILogger<NotificationHub> logger)
     {
         _logger = logger;
     }
 
-    /// <summary>
-    /// Called when client connects. 
-    /// Client gửi kèm userId (có thể từ JWT hoặc query string).
-    /// </summary>
+    /// <summary>Tên group SignalR cho 1 user – dùng bởi IHubContext broadcaster.</summary>
+    public static string UserGroup(int userId) => $"user-{userId}";
+
     public override async Task OnConnectedAsync()
     {
         var userId = GetUserIdFromContext();
         if (userId > 0)
         {
-            lock (UserConnections)
-            {
-                if (!UserConnections.ContainsKey(userId))
-                    UserConnections[userId] = new HashSet<string>();
-                UserConnections[userId].Add(Context.ConnectionId);
-            }
-
-            _logger.LogInformation("✅ USER CONNECTED: userId={UserId}, connectionId={ConnectionId}", userId, Context.ConnectionId);
+            await Groups.AddToGroupAsync(Context.ConnectionId, UserGroup(userId));
+            _logger.LogInformation("✅ USER CONNECTED: userId={UserId}, connectionId={ConnectionId}",
+                userId, Context.ConnectionId);
         }
         else
         {
@@ -47,25 +41,15 @@ public sealed class NotificationHub : Hub
         await base.OnConnectedAsync();
     }
 
-    /// <summary>
-    /// Called when client disconnects.
-    /// </summary>
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var userId = GetUserIdFromContext();
         if (userId > 0)
         {
-            lock (UserConnections)
-            {
-                if (UserConnections.TryGetValue(userId, out var connections))
-                {
-                    connections.Remove(Context.ConnectionId);
-                    if (connections.Count == 0)
-                        UserConnections.Remove(userId);
-                }
-            }
-
-            _logger.LogInformation("❌ USER DISCONNECTED: userId={UserId}, connectionId={ConnectionId}", userId, Context.ConnectionId);
+            // Await để group được dọn trước khi kết thúc lifecycle disconnect.
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, UserGroup(userId));
+            _logger.LogInformation("❌ USER DISCONNECTED: userId={UserId}, connectionId={ConnectionId}",
+                userId, Context.ConnectionId);
         }
 
         if (exception != null)
@@ -74,37 +58,21 @@ public sealed class NotificationHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    /// <summary>
-    /// Gửi notification đến 1 user cụ thể (all devices).
-    /// </summary>
+    /// <summary>Gửi notification đến mọi device của 1 user (đã await từng send).</summary>
     public async Task SendNotificationToUserAsync(int userId, NotificationMessage message)
     {
-        lock (UserConnections)
-        {
-            if (UserConnections.TryGetValue(userId, out var connections))
-            {
-                foreach (var connectionId in connections)
-                {
-                    Clients.Client(connectionId).SendAsync("ReceiveNotification", message);
-                }
-                _logger.LogInformation("📨 NOTIFY USER: userId={UserId}, channel={Channel}, devices={Count}",
-                    userId, message.Channel, connections.Count);
-            }
-        }
+        await Clients.Group(UserGroup(userId)).SendAsync("ReceiveNotification", message);
+        _logger.LogInformation("📨 NOTIFY USER: userId={UserId}, channel={Channel}", userId, message.Channel);
     }
 
-    /// <summary>
-    /// Broadcast notification đến tất cả users.
-    /// </summary>
+    /// <summary>Broadcast notification đến tất cả clients đang kết nối.</summary>
     public async Task BroadcastNotificationAsync(NotificationMessage message)
     {
         await Clients.All.SendAsync("ReceiveNotification", message);
         _logger.LogInformation("📢 BROADCAST NOTIFICATION: channel={Channel}", message.Channel);
     }
 
-    /// <summary>
-    /// Client heartbeat (ping/pong) để keep-alive connection.
-    /// </summary>
+    /// <summary>Client heartbeat (ping/pong) để keep-alive connection.</summary>
     public async Task HeartbeatAsync()
     {
         var userId = GetUserIdFromContext();
@@ -112,12 +80,9 @@ public sealed class NotificationHub : Hub
         await Clients.Client(Context.ConnectionId).SendAsync("HeartbeatAck", DateTime.UtcNow);
     }
 
-    /// <summary>
-    /// Trích xuất userId từ Claims (JWT) hoặc query string.
-    /// </summary>
+    /// <summary>Trích xuất userId từ Claims (JWT) hoặc query string.</summary>
     private int GetUserIdFromContext()
     {
-        // Cách 1: Từ JWT claim "sub" hoặc "nameid"
         var userClaim = Context.User?.FindFirst("sub")?.Value
                      ?? Context.User?.FindFirst("nameid")?.Value
                      ?? Context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
@@ -125,7 +90,6 @@ public sealed class NotificationHub : Hub
         if (int.TryParse(userClaim, out var userId))
             return userId;
 
-        // Cách 2: Từ query string ?userId=123
         if (Context.GetHttpContext()?.Request.Query.TryGetValue("userId", out var userIdQuery) ?? false)
         {
             if (int.TryParse(userIdQuery.ToString(), out var userIdFromQuery))
@@ -136,9 +100,7 @@ public sealed class NotificationHub : Hub
     }
 }
 
-/// <summary>
-/// DTO cho notification message qua SignalR. Module: TV6 (S1-T601).
-/// </summary>
+/// <summary>DTO cho notification message qua SignalR. Module: TV6 (S1-T601).</summary>
 public sealed record NotificationMessage(
     int NotificationId,
     int UserId,

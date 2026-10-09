@@ -17,5 +17,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\NotificationService.Application\NotificationService.Application.csproj" />
+    <!-- Reference thêm Infrastructure để unit test NotificationDispatcher thật (retry transient /
+         permanent failure – yêu cầu của feedback PR) với NSubstitute + FakeTimeProvider.
+         Vẫn KHÔNG cần database: INotificationRepository và các sender đều được substitute. -->
+    <ProjectReference Include="..\NotificationService.Infrastructure\NotificationService.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

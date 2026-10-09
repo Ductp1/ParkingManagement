@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Logging;
 using NotificationService.Application.Features.Dispatcher;
-using NotificationService.Domain.Constants;
+using NotificationService.Domain.Entities;
 using ParkingManagement.SharedKernel.Enums;
 
 namespace NotificationService.Infrastructure.Services.FcmSender;
 
 /// <summary>
-/// Firebase Cloud Messaging (FCM) notification sender.
+/// Firebase Cloud Messaging (FCM) push sender - mock mode (mặc định) hoặc FCM thật.
+/// FCM thật cần package FirebaseAdmin (chưa tham chiếu trong solution) và ServiceAccountKey
+/// từ env FcmConfiguration__ServiceAccountKey (KHÔNG commit secret). Khi UseMock=false mà thiếu
+/// cấu hình → lỗi VĨNH VIỄN kèm hướng dẫn (không retry, không giả success).
 /// Module: TV6 (S1-T602).
 /// </summary>
 public sealed class FcmNotificationSender : IFcmNotificationSender
@@ -22,110 +25,36 @@ public sealed class FcmNotificationSender : IFcmNotificationSender
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<(bool Success, string? ErrorMessage)> SendAsync(
-        int userId,
-        string title,
-        string body,
-        string? templateKey = null,
-        string? dataJson = null,
+    public async Task<ChannelSendResult> SendAsync(
+        Notification notification,
         CancellationToken cancellationToken = default
     )
     {
-        try
+        if (_config.UseMock)
         {
-            if (_config.UseMock)
-            {
-                // Mock mode: log và trả về success
-                _logger.LogInformation(
-                    "🔔 FCM MOCK: userId={UserId}, title={Title}, templateKey={TemplateKey}",
-                    userId, title, templateKey
-                );
-                return (true, null);
-            }
-
-            // Real FCM mode - TODO: implement with Firebase Admin SDK
-            _logger.LogWarning("⚠️ FCM Real mode not yet implemented - using mock");
-            return (true, null);
-
-            // TODO: Implement using Firebase Admin SDK
-            // var messaging = FirebaseMessaging.DefaultInstance;
-            // var message = new Message()
-            // {
-            //     Topic = $"{_config.TopicPrefix}_{userId}",
-            //     Notification = new Notification() { Title = title, Body = body },
-            //     Data = dataJson != null ? JsonSerializer.Deserialize<Dictionary<string, string>>(dataJson) : null
-            // };
-            // var result = await messaging.SendAsync(message, cancellationToken);
-            // _logger.LogInformation("✅ FCM sent, messageId={MessageId}", result);
-            // return (true, null);
+            _logger.LogInformation(
+                "🔔 FCM MOCK: userId={UserId}, title={Title}, templateKey={TemplateKey}",
+                notification.UserId, notification.Title, notification.TemplateKey
+            );
+            return ChannelSendResult.Ok();
         }
-        catch (Exception ex)
+
+        // UseMock=false: kiểm tra cấu hình trước.
+        if (string.IsNullOrWhiteSpace(_config.ProjectId) || string.IsNullOrWhiteSpace(_config.ServiceAccountKey))
         {
-            _logger.LogError(ex, "❌ FCM SEND FAILED: userId={UserId}", userId);
-            return (false, ex.Message);
+            return ChannelSendResult.PermanentFailure(
+                "FCM chưa được cấu hình. Cần: 1) FcmConfiguration__ProjectId, " +
+                "2) FcmConfiguration__ServiceAccountKey (path file service-account JSON hoặc JSON base64, đặt qua env), " +
+                "3) cài package FirebaseAdmin và hoàn tất FcmIntegration (đang để mở – xem FcmNotificationSender). " +
+                "Để chạy dev/test, đặt FcmConfiguration__UseMock=true.");
         }
-    }
 
-    /// <summary>
-    /// Subscribe user to FCM topic (device token based).
-    /// Gọi khi user register device token.
-    /// </summary>
-    public async Task<(bool Success, string? ErrorMessage)> SubscribeToTopicAsync(
-        string deviceToken,
-        int userId,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            if (_config.UseMock)
-            {
-                _logger.LogInformation(
-                    "🔔 FCM TOPIC SUBSCRIBE MOCK: userId={UserId}, topic={Topic}",
-                    userId, $"{_config.TopicPrefix}_{userId}"
-                );
-                return (true, null);
-            }
-
-            // TODO: Implement real subscription
-            _logger.LogWarning("⚠️ FCM Topic subscription not yet implemented");
-            return (true, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ FCM SUBSCRIBE FAILED: userId={UserId}", userId);
-            return (false, ex.Message);
-        }
-    }
-
-    /// <summary>
-    /// Unsubscribe user from FCM topic.
-    /// Gọi khi user logout.
-    /// </summary>
-    public async Task<(bool Success, string? ErrorMessage)> UnsubscribeFromTopicAsync(
-        string deviceToken,
-        int userId,
-        CancellationToken cancellationToken = default
-    )
-    {
-        try
-        {
-            if (_config.UseMock)
-            {
-                _logger.LogInformation(
-                    "🔔 FCM TOPIC UNSUBSCRIBE MOCK: userId={UserId}",
-                    userId
-                );
-                return (true, null);
-            }
-
-            // TODO: Implement real unsubscription
-            return (true, null);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "❌ FCM UNSUBSCRIBE FAILED: userId={UserId}", userId);
-            return (false, ex.Message);
-        }
+        // FCM thật sẽ cần: FirebaseApp.Create + FirebaseMessaging.DefaultInstance.SendAsync(message)
+        // với device tokens lấy từ bảng DeviceTokens (IsRevoked=false). Trả lỗi vĩnh viễn rõ ràng
+        // thay vì im lặng "thành công" như bản cũ.
+        await Task.Yield();
+        return ChannelSendResult.PermanentFailure(
+            "FCM send thật chưa được tích hợp trọn vẹn (cần package FirebaseAdmin). " +
+            "Cấu hình đã có – hãy bật lại mock (FcmConfiguration__UseMock=true) cho tới khi tích hợp xong SDK.");
     }
 }

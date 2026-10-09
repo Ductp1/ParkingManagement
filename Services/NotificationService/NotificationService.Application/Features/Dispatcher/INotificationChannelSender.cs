@@ -1,9 +1,11 @@
+using NotificationService.Domain.Entities;
 using ParkingManagement.SharedKernel.Enums;
 
 namespace NotificationService.Application.Features.Dispatcher;
 
 /// <summary>
 /// Channel-specific sender interface. Mỗi implementation xử lý 1 loại kênh.
+/// Trả về <see cref="ChannelSendResult"/> để dispatcher phân biệt lỗi tạm thời (retry) và lỗi vĩnh viễn (Failed ngay).
 /// Module: TV6 (S1-T602).
 /// </summary>
 public interface INotificationChannelSender
@@ -14,16 +16,11 @@ public interface INotificationChannelSender
     NotificationChannel SupportedChannel { get; }
 
     /// <summary>
-    /// Thực hiện gửi thông báo qua kênh.
-    /// Trả về (success, errorMessage). 
-    /// Nếu success=false, dispatcher sẽ retry hoặc lưu lỗi.
+    /// Thực hiện gửi thông báo qua kênh. Receiver đã được dispatcher lưu DB – sender KHÔNG tạo row mới
+    /// (tránh trùng lặp in-app khi retry), chỉ thực hiện hành động của kênh và trả kết quả phân loại lỗi.
     /// </summary>
-    Task<(bool Success, string? ErrorMessage)> SendAsync(
-        int userId,
-        string title,
-        string body,
-        string? templateKey = null,
-        string? dataJson = null,
+    Task<ChannelSendResult> SendAsync(
+        Notification notification,
         CancellationToken cancellationToken = default
     );
 }
@@ -53,9 +50,21 @@ public interface IFcmNotificationSender : INotificationChannelSender
 }
 
 /// <summary>
-/// Xử lý in-app notification (lưu DB + push qua SignalR). Module: TV6 (S1-T602).
+/// Xử lý in-app notification (push real-time qua SignalR). Module: TV6 (S1-T602).
 /// </summary>
 public interface IInAppNotificationSender : INotificationChannelSender
 {
     // Marker interface
 }
+
+/// <summary>
+/// Port broadcast notification qua SignalR. Implementation đăng ký ở API layer
+/// (SignalRInAppNotificationBroadcaster) vì cần IHubContext – Infrastructure không tham chiếu API được.
+/// Đăng ký DI là BẮT BUỘC, nếu thiếu resolve IInAppNotificationSender sẽ nổ runtime.
+/// Module: TV6 (S1-T602).
+/// </summary>
+public interface IInAppNotificationBroadcaster
+{
+    Task BroadcastAsync(int userId, Notification notification, CancellationToken cancellationToken = default);
+}
+
