@@ -18,5 +18,11 @@ internal sealed class SanctionConfiguration : IEntityTypeConfiguration<Sanction>
         e.Property(x => x.UserServiceSyncStatus).HasDefaultValue(SanctionSyncStatus.NotRequired);
         e.HasIndex(x => new { x.OwnerProfileId, x.Status });
         e.HasIndex(x => x.ParkingLotId).HasFilter("\"ParkingLotId\" IS NOT NULL");
+        // US-096: mỗi chủ bãi tối đa 1 chế tài khóa cấp chủ bãi đang hiệu lực (chống 2 request khóa cùng lúc tạo trùng).
+        e.HasIndex(x => x.OwnerProfileId)
+            .IsUnique()
+            .HasDatabaseName("IX_Sanctions_OwnerProfileId_ActiveOwnerLock")
+            .HasFilter($"\"Status\" = '{nameof(SanctionStatus.Active)}' AND \"ParkingLotId\" IS NULL " +
+                $"AND \"Level\" IN ('{nameof(SanctionLevel.TemporarySuspension)}', '{nameof(SanctionLevel.PermanentBan)}')");
     }
 }
