@@ -20,7 +20,7 @@ public class OwnerUnlockTests
     private static readonly DateTimeOffset Now = new(2026, 10, 9, 8, 0, 0, TimeSpan.Zero);
     private static readonly DateTime NowUtc = Now.UtcDateTime;
 
-    private static readonly UnlockOwnerRequest ValidRequest = new("  Đã khắc phục vi phạm  ", OtherAdmin);
+    private static readonly UnlockOwnerRequest ValidRequest = new("  Đã khắc phục vi phạm  ");
 
     [Fact]
     public async Task Unlock_revokes_active_lock_with_audit_log_then_syncs()
@@ -37,7 +37,7 @@ public class OwnerUnlockTests
             Assert.Single(repo.AuditLogs);
         };
 
-        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest);
+        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
 
         Assert.Equal(SanctionStatus.Revoked, sanction.Status);
         Assert.Equal(SanctionSyncStatus.Synced, sanction.UserServiceSyncStatus);
@@ -77,7 +77,7 @@ public class OwnerUnlockTests
         var lockedUntil = NowUtc.AddDays(5);
         var repo = new FakeRepo(SyncedLock(lockedUntil));
 
-        await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest);
+        await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
 
         using var oldValues = JsonDocument.Parse(repo.AuditLogs.Single().OldValuesJson!);
         Assert.Equal("TemporarySuspension", oldValues.RootElement.GetProperty("level").GetString());
@@ -90,7 +90,7 @@ public class OwnerUnlockTests
         var sanction = SyncedLock(lockedUntilUtc: NowUtc.AddDays(-1));   // quá hạn nhưng vẫn Active
         var repo = new FakeRepo(sanction);
 
-        var dto = await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest);
+        var dto = await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
 
         Assert.Equal(SanctionStatus.Revoked, sanction.Status);
         Assert.Equal("Synced", dto.UserServiceSyncStatus);
@@ -101,7 +101,7 @@ public class OwnerUnlockTests
     {
         var repo = new FakeRepo(SyncedLock(null));
 
-        await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest with { Reason = new string('a', 1000) });
+        await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest with { Reason = new string('a', 1000) }, OtherAdmin);
 
         Assert.Equal(1000, repo.AuditLogs.Single().Reason!.Length);
     }
@@ -113,7 +113,7 @@ public class OwnerUnlockTests
         var repo = new FakeRepo(sanction);
         var userService = new FakeUserService { UnlockFailure = new UserServiceUnavailableException("down") };
 
-        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest);   // không ném lỗi ra ngoài
+        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);   // không ném lỗi ra ngoài
 
         Assert.Equal(SanctionStatus.Revoked, sanction.Status);
         Assert.Equal(SanctionSyncStatus.Failed, sanction.UserServiceSyncStatus);
@@ -129,7 +129,7 @@ public class OwnerUnlockTests
         var sanction = SyncedLock(null);
         var userService = new FakeUserService { UnlockReturnsNull = true };
 
-        var dto = await CreateUseCase(userService, new FakeRepo(sanction)).ExecuteAsync(OwnerTsn, ValidRequest);
+        var dto = await CreateUseCase(userService, new FakeRepo(sanction)).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
 
         Assert.Equal(SanctionSyncStatus.Failed, sanction.UserServiceSyncStatus);
         Assert.Equal("Failed", dto.UserServiceSyncStatus);
@@ -146,7 +146,7 @@ public class OwnerUnlockTests
         var repo = new FakeRepo(sanction);
         var userService = new FakeUserService();
 
-        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest);
+        var dto = await CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
 
         Assert.Empty(repo.AuditLogs);                                    // lần mở khóa đầu đã ghi audit log rồi
         Assert.Equal(0, repo.SaveWithAuditCount);
@@ -221,7 +221,7 @@ public class OwnerUnlockTests
         var current = SyncedLock(null);
         var repo = new FakeRepo(older, current);
 
-        await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest);
+        await CreateUseCase(new FakeUserService(), repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin);
 
         Assert.Equal(SanctionStatus.Revoked, current.Status);
         Assert.Equal(NowUtc, current.UserServiceSyncedAtUtc);
@@ -243,7 +243,7 @@ public class OwnerUnlockTests
         var userService = new FakeUserService();
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => CreateUseCase(userService, repo)
-            .ExecuteAsync(ownerProfileId, new UnlockOwnerRequest(reason, performedByUserId)));
+            .ExecuteAsync(ownerProfileId, new UnlockOwnerRequest(reason), performedByUserId));
 
         Assert.Equal(expectedMessage, ex.Message);
         AssertNothingHappened(userService, repo);
@@ -258,7 +258,7 @@ public class OwnerUnlockTests
         var userService = new FakeUserService();
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => CreateUseCase(userService, repo)
-            .ExecuteAsync(OwnerTsn, ValidRequest with { Reason = new string('a', 1001) }));
+            .ExecuteAsync(OwnerTsn, ValidRequest with { Reason = new string('a', 1001) }, OtherAdmin));
 
         Assert.Equal("Lý do mở khóa tối đa 1000 ký tự.", ex.Message);
         AssertNothingHappened(userService, repo);
@@ -292,7 +292,7 @@ public class OwnerUnlockTests
     {
         userService ??= new FakeUserService();
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(() => CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest));
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => CreateUseCase(userService, repo).ExecuteAsync(OwnerTsn, ValidRequest, OtherAdmin));
 
         Assert.Equal("Chủ bãi 2 hiện không bị khóa.", ex.Message);
         AssertNothingHappened(userService, repo);
