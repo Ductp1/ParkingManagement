@@ -27,7 +27,11 @@ public sealed class UpdateFloorUseCase(
         if (command.GridColumns <= 0 || command.GridRows <= 0)
             throw new ValidationException("Kích thước lưới phải lớn hơn 0.");
 
-        floor.Name = command.Name.Trim();
+        var trimmedName = command.Name.Trim();
+        if (await floorRepository.ExistsNameAsync(floor.ZoneId, trimmedName, excludeId: command.Id, cancellationToken))
+            throw new ConflictException($"Tầng mang tên '{trimmedName}' đã tồn tại trong khu vực này.");
+
+        floor.Name = trimmedName;
         floor.MaxHeightCm = command.MaxHeightCm;
         floor.MaxWeightKg = command.MaxWeightKg;
         floor.GridColumns = command.GridColumns;

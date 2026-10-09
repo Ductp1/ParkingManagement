@@ -4,8 +4,10 @@ using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using ParkingService.Application.Abstractions;
+using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.Slots;
+using ParkingService.Application.Features.Zones;
 using ParkingService.Domain.Entities;
 
 namespace ParkingService.Test;
@@ -104,6 +106,61 @@ public class ParkingLotManagementTests
     }
 
     [Fact]
+    public async Task UpdateParkingLot_WithDuplicateName_ThrowsConflictException()
+    {
+        var repo = new FakeLotManagementRepo();
+        var lot1 = new ParkingLot(1, "Bãi xe Bitexco", "Q.1", 10.77, 106.70, 50, 50, 210,
+            new TimeOnly(6, 0), new TimeOnly(22, 0), ParkingLotStatus.Active, ownerProfileId: 1);
+        var lot2 = new ParkingLot(2, "Bãi xe Saigon Centre", "Q.1", 10.77, 106.70, 50, 50, 210,
+            new TimeOnly(6, 0), new TimeOnly(22, 0), ParkingLotStatus.Active, ownerProfileId: 1);
+        await repo.AddAsync(lot1);
+        await repo.AddAsync(lot2);
+
+        var useCase = new UpdateParkingLotUseCase(repo, NullLogger<UpdateParkingLotUseCase>.Instance);
+
+        var command = new UpdateParkingLotCommand(
+            Id: 2,
+            OwnerProfileId: 1,
+            Name: "Bãi xe Bitexco", // Trùng tên với Lot 1 của cùng owner 1
+            Address: "65 Lê Lợi",
+            City: "TP.HCM",
+            District: "Quận 1",
+            MaxHeightCm: 220,
+            OpenTime: new TimeOnly(6, 0),
+            CloseTime: new TimeOnly(22, 0));
+
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task UpdateParkingLot_WithSameName_Succeeds()
+    {
+        var repo = new FakeLotManagementRepo();
+        var lot = new ParkingLot(1, "Bãi xe Bitexco", "2 Hải Triều", 10.77, 106.70, 50, 50, 210,
+            new TimeOnly(6, 0), new TimeOnly(22, 0), ParkingLotStatus.Active, ownerProfileId: 1);
+        await repo.AddAsync(lot);
+
+        var useCase = new UpdateParkingLotUseCase(repo, NullLogger<UpdateParkingLotUseCase>.Instance);
+
+        var command = new UpdateParkingLotCommand(
+            Id: 1,
+            OwnerProfileId: 1,
+            Name: "Bãi xe Bitexco", // Giữ nguyên tên
+            Address: "2 Hải Triều (Cập nhật)",
+            City: "TP.HCM",
+            District: "Quận 1",
+            MaxHeightCm: 220,
+            OpenTime: new TimeOnly(6, 0),
+            CloseTime: new TimeOnly(23, 0));
+
+        await useCase.ExecuteAsync(command);
+
+        var updated = await repo.GetByIdAsync(1);
+        Assert.NotNull(updated);
+        Assert.Equal("2 Hải Triều (Cập nhật)", updated.Address);
+    }
+
+    [Fact]
     public async Task GetParkingLotHierarchy_ReturnsFullTree_ForContract4()
     {
         // Khởi tạo cây Lot -> Zone -> Floor -> Slot
@@ -143,6 +200,72 @@ public class ParkingLotManagementTests
         Assert.Single(hierarchy.Zones[0].Floors[0].Slots);
         Assert.Equal("B2-01", hierarchy.Zones[0].Floors[0].Slots[0].Code);
         Assert.Equal("Available", hierarchy.Zones[0].Floors[0].Slots[0].State);
+    }
+
+    // ==================== ZONE USE CASES ====================
+
+    [Fact]
+    public async Task UpdateZone_WithDuplicateCode_ThrowsConflictException()
+    {
+        var zoneRepo = new FakeZoneRepo();
+        await zoneRepo.AddAsync(WithId(new Zone { ParkingLotId = 1, Code = "ZONE-A", Name = "Khu A" }, 1));
+        await zoneRepo.AddAsync(WithId(new Zone { ParkingLotId = 1, Code = "ZONE-B", Name = "Khu B" }, 2));
+
+        var useCase = new UpdateZoneUseCase(zoneRepo, NullLogger<UpdateZoneUseCase>.Instance);
+
+        // Đổi Zone 2 thành mã ZONE-A (đã tồn tại trong bãi 1)
+        var command = new UpdateZoneCommand(Id: 2, Code: "ZONE-A", Name: "Khu B Đổi Tên", IsOutdoor: false, IsClosed: false, ClosedReason: null, SortOrder: 2);
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task UpdateZone_WithSameCode_Succeeds()
+    {
+        var zoneRepo = new FakeZoneRepo();
+        await zoneRepo.AddAsync(WithId(new Zone { ParkingLotId = 1, Code = "ZONE-A", Name = "Khu A" }, 1));
+
+        var useCase = new UpdateZoneUseCase(zoneRepo, NullLogger<UpdateZoneUseCase>.Instance);
+
+        // Giữ nguyên Code = ZONE-A, cập nhật Name
+        var command = new UpdateZoneCommand(Id: 1, Code: "ZONE-A", Name: "Khu A VIP", IsOutdoor: true, IsClosed: false, ClosedReason: null, SortOrder: 1);
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal("ZONE-A", result.Code);
+        Assert.Equal("Khu A VIP", result.Name);
+        Assert.True(result.IsOutdoor);
+    }
+
+    // ==================== FLOOR USE CASES ====================
+
+    [Fact]
+    public async Task UpdateFloor_WithDuplicateName_ThrowsConflictException()
+    {
+        var floorRepo = new FakeFloorRepo();
+        await floorRepo.AddAsync(WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1 }, 1));
+        await floorRepo.AddAsync(WithId(new Floor { ZoneId = 1, Name = "Tầng B2", Level = -2 }, 2));
+
+        var useCase = new UpdateFloorUseCase(floorRepo, NullLogger<UpdateFloorUseCase>.Instance);
+
+        // Đổi tên Floor 2 thành "Tầng B1" (đã tồn tại trong Zone 1)
+        var command = new UpdateFloorCommand(Id: 2, Name: "Tầng B1", MaxHeightCm: 220, MaxWeightKg: 3000, GridColumns: 10, GridRows: 10, IsClosed: false);
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task UpdateFloor_WithSameName_Succeeds()
+    {
+        var floorRepo = new FakeFloorRepo();
+        await floorRepo.AddAsync(WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 10, GridRows = 10 }, 1));
+
+        var useCase = new UpdateFloorUseCase(floorRepo, NullLogger<UpdateFloorUseCase>.Instance);
+
+        // Giữ nguyên Name = "Tầng B1", cập nhật GridColumns và MaxHeightCm
+        var command = new UpdateFloorCommand(Id: 1, Name: "Tầng B1", MaxHeightCm: 230, MaxWeightKg: 3500, GridColumns: 15, GridRows: 12, IsClosed: false);
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal("Tầng B1", result.Name);
+        Assert.Equal(230, result.MaxHeightCm);
+        Assert.Equal(15, result.GridColumns);
     }
 
     // ==================== SLOT USE CASES ====================
@@ -225,6 +348,50 @@ public class ParkingLotManagementTests
         var slots = await slotRepo.GetByFloorIdAsync(1);
         Assert.Equal(5, slots.Count);
         Assert.Equal(["B2-01", "B2-02", "B2-03", "B2-04", "B2-05"], slots.Select(s => s.Code));
+    }
+
+    [Fact]
+    public async Task UpdateSlot_WithDuplicateCode_ThrowsConflictException()
+    {
+        var slotRepo = new FakeSlotRepo();
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-01", GridX = 0, GridY = 0 }, 1));
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-02", GridX = 1, GridY = 0 }, 2));
+
+        var useCase = new UpdateSlotUseCase(slotRepo, NullLogger<UpdateSlotUseCase>.Instance);
+
+        // Đổi mã Slot 2 thành A-01 (đã có trên Floor 1)
+        var command = new UpdateSlotCommand(Id: 2, Code: "A-01", SlotType: SlotType.Standard, MaxVehicleType: VehicleType.Suv, GridX: 1, GridY: 0, WidthCells: 1, HeightCells: 1, IsActive: true);
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task UpdateSlot_WithDuplicateGrid_ThrowsConflictException()
+    {
+        var slotRepo = new FakeSlotRepo();
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-01", GridX = 0, GridY = 0 }, 1));
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-02", GridX = 1, GridY = 0 }, 2));
+
+        var useCase = new UpdateSlotUseCase(slotRepo, NullLogger<UpdateSlotUseCase>.Instance);
+
+        // Đổi tọa độ Slot 2 sang (0, 0) (đã bị Slot 1 chiếm giữ)
+        var command = new UpdateSlotCommand(Id: 2, Code: "A-02", SlotType: SlotType.Standard, MaxVehicleType: VehicleType.Suv, GridX: 0, GridY: 0, WidthCells: 1, HeightCells: 1, IsActive: true);
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task UpdateSlot_WithSameCodeAndGrid_Succeeds()
+    {
+        var slotRepo = new FakeSlotRepo();
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-01", GridX = 0, GridY = 0, SlotType = SlotType.Standard }, 1));
+
+        var useCase = new UpdateSlotUseCase(slotRepo, NullLogger<UpdateSlotUseCase>.Instance);
+
+        // Giữ nguyên Code = A-01 và Grid (0, 0), cập nhật SlotType = EvCharging
+        var command = new UpdateSlotCommand(Id: 1, Code: "A-01", SlotType: SlotType.EvCharging, MaxVehicleType: VehicleType.Suv, GridX: 0, GridY: 0, WidthCells: 1, HeightCells: 1, IsActive: true);
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal("A-01", result.Code);
+        Assert.Equal("EvCharging", result.SlotType);
     }
 
     // ==================== FAKE REPOSITORIES FOR TESTING ====================
@@ -333,6 +500,38 @@ public class ParkingLotManagementTests
         public Task DeleteAsync(Slot slot, CancellationToken cancellationToken = default)
         {
             _slots.Remove(slot);
+            return Task.CompletedTask;
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class FakeZoneRepo : IZoneRepository
+    {
+        private readonly List<Zone> _zones = [];
+        private int _nextId = 1;
+
+        public Task<Zone?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+            => Task.FromResult(_zones.FirstOrDefault(z => z.Id == id));
+
+        public Task<IReadOnlyList<Zone>> GetByParkingLotIdAsync(int parkingLotId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Zone>>(_zones.Where(z => z.ParkingLotId == parkingLotId).OrderBy(z => z.SortOrder).ToList());
+
+        public Task<bool> ExistsCodeAsync(int parkingLotId, string code, int? excludeId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(_zones.Any(z => z.ParkingLotId == parkingLotId && z.Code == code && (!excludeId.HasValue || z.Id != excludeId.Value)));
+
+        public Task AddAsync(Zone zone, CancellationToken cancellationToken = default)
+        {
+            if (zone.Id == 0) WithId(zone, _nextId++);
+            _zones.Add(zone);
+            return Task.CompletedTask;
+        }
+
+        public Task UpdateAsync(Zone zone, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task DeleteAsync(Zone zone, CancellationToken cancellationToken = default)
+        {
+            _zones.Remove(zone);
             return Task.CompletedTask;
         }
 

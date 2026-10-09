@@ -21,6 +21,7 @@ public sealed record CreateZoneCommand(
 
 public sealed record UpdateZoneCommand(
     int Id,
+    string Code,
     string Name,
     bool IsOutdoor,
     bool IsClosed,

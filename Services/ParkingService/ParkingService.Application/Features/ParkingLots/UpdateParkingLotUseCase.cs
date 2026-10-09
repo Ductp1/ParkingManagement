@@ -24,6 +24,12 @@ public sealed class UpdateParkingLotUseCase(
         if (lot.OwnerProfileId != command.OwnerProfileId)
             throw new ConflictException("Bạn không có quyền chỉnh sửa bãi đỗ này.");
 
+        if (string.IsNullOrWhiteSpace(command.Name))
+            throw new ValidationException("Tên bãi đỗ không được để trống.");
+
+        if (string.IsNullOrWhiteSpace(command.Address))
+            throw new ValidationException("Địa chỉ không được để trống.");
+
         if (await repository.ExistsByNameAsync(command.OwnerProfileId, command.Name.Trim(), excludeId: command.Id, cancellationToken))
             throw new ConflictException($"Chủ bãi đã có bãi đỗ khác mang tên '{command.Name.Trim()}'.");
 

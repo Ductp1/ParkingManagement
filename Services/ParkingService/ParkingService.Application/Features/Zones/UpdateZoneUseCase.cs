@@ -21,9 +21,18 @@ public sealed class UpdateZoneUseCase(
         var zone = await zoneRepository.GetByIdAsync(command.Id, cancellationToken)
             ?? throw new NotFoundException("Khu vực (Zone)", command.Id);
 
+        if (string.IsNullOrWhiteSpace(command.Code))
+            throw new ValidationException("Mã khu vực (Code) không được để trống.");
+
         if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Tên khu vực không được để trống.");
 
+        var code = command.Code.Trim().ToUpperInvariant();
+
+        if (await zoneRepository.ExistsCodeAsync(zone.ParkingLotId, code, excludeId: command.Id, cancellationToken))
+            throw new ConflictException($"Mã khu vực '{code}' đã tồn tại trong bãi này.");
+
+        zone.Code = code;
         zone.Name = command.Name.Trim();
         zone.IsOutdoor = command.IsOutdoor;
         zone.IsClosed = command.IsClosed;

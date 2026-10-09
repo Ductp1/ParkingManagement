@@ -21,6 +21,9 @@ public sealed class UpdateSlotUseCase(
         var slot = await slotRepository.GetByIdAsync(command.Id, cancellationToken)
             ?? throw new NotFoundException("Ô đỗ (Slot)", command.Id);
 
+        if (string.IsNullOrWhiteSpace(command.Code))
+            throw new ValidationException("Mã ô đỗ (Code) không được để trống.");
+
         var code = command.Code.Trim().ToUpperInvariant();
         if (await slotRepository.ExistsCodeAsync(slot.FloorId, code, excludeId: command.Id, cancellationToken))
             throw new ConflictException($"Mã ô đỗ '{code}' đã tồn tại trên tầng này.");

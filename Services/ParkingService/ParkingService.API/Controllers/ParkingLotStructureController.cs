@@ -8,7 +8,7 @@ namespace ParkingService.API.Controllers;
 
 // ===== Requests =====
 public sealed record CreateZoneRequest(string Code, string Name, bool IsOutdoor = false, int SortOrder = 0);
-public sealed record UpdateZoneRequest(string Name, bool IsOutdoor, bool IsClosed, string? ClosedReason, int SortOrder);
+public sealed record UpdateZoneRequest(string Code, string Name, bool IsOutdoor, bool IsClosed, string? ClosedReason, int SortOrder);
 
 public sealed record CreateFloorRequest(string Name, int Level, int? MaxHeightCm, int? MaxWeightKg, int GridColumns, int GridRows);
 public sealed record UpdateFloorRequest(string Name, int? MaxHeightCm, int? MaxWeightKg, int GridColumns, int GridRows, bool IsClosed);
@@ -64,9 +64,10 @@ public sealed class ParkingLotStructureController(
     [ProducesResponseType<ZoneDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ZoneDto>> UpdateZone(int id, [FromBody] UpdateZoneRequest request, CancellationToken cancellationToken)
     {
-        var command = new UpdateZoneCommand(id, request.Name, request.IsOutdoor, request.IsClosed, request.ClosedReason, request.SortOrder);
+        var command = new UpdateZoneCommand(id, request.Code, request.Name, request.IsOutdoor, request.IsClosed, request.ClosedReason, request.SortOrder);
         return Ok(await updateZone.ExecuteAsync(command, cancellationToken));
     }
 
