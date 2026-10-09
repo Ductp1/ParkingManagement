@@ -5,8 +5,7 @@
       "launchBrowser": false,
       "applicationUrl": "http://localhost:5105",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "Vnpay__HashSecret": "XXPMWWQHGMCWVPKGQAHMVOZJWEKMLFDM"
+        "ASPNETCORE_ENVIRONMENT": "Development"
       }
     }
   }
