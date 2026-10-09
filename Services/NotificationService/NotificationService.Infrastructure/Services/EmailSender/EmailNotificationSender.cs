@@ -10,20 +10,23 @@ namespace NotificationService.Infrastructure.Services.EmailSender;
 
 /// <summary>
 /// Email notification sender - SMTP thật (System.Net.Mail) hoặc mock mode.
+/// Người nhận được tra từ UserService qua port IUserDirectory (email thuộc dữ liệu UserService).
 /// Secret lấy từ configuration/env (SmtpConfiguration__Password), không hardcode.
-/// Thiếu cấu hình khi UseMock=false → lỗi VĨNH VIỄN kèm hướng dẫn (không retry vô ích).
+/// Thiếu cấu hình / không resolve được email khi UseMock=false → lỗi VĨNH VIỄN kèm hướng dẫn.
 /// Module: TV6 (S1-T602).
 /// </summary>
 public sealed class EmailNotificationSender : IEmailNotificationSender
 {
     private readonly SmtpConfiguration _config;
+    private readonly IUserDirectory _userDirectory;
     private readonly ILogger<EmailNotificationSender> _logger;
 
     public NotificationChannel SupportedChannel => NotificationChannel.Email;
 
-    public EmailNotificationSender(SmtpConfiguration config, ILogger<EmailNotificationSender> logger)
+    public EmailNotificationSender(SmtpConfiguration config, IUserDirectory userDirectory, ILogger<EmailNotificationSender> logger)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _userDirectory = userDirectory ?? throw new ArgumentNullException(nameof(userDirectory));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -47,14 +50,12 @@ public sealed class EmailNotificationSender : IEmailNotificationSender
             if (configError is not null)
                 return ChannelSendResult.PermanentFailure(configError);
 
-            // NotificationService không sở hữu bảng Users (UserService sở hữu) –
-            // khi tích hợp UserService sẽ tra email tại đây. Hiện trả null → PermanentFailure rõ ràng.
-            var recipientEmail = await ResolveRecipientEmailAsync(notification.UserId, cancellationToken);
-            if (recipientEmail is null)
+            var recipientEmail = await _userDirectory.GetEmailAsync(notification.UserId, cancellationToken);
+            if (string.IsNullOrWhiteSpace(recipientEmail))
             {
                 return ChannelSendResult.PermanentFailure(
-                    $"Không tìm thấy email của userId={notification.UserId}. " +
-                    "Email thuộc dữ liệu UserService – cần tích hợp service tra cứu trước khi gửi Email channel.");
+                    $"Không tìm thấy email của userId={notification.UserId} trên UserService " +
+                    "(user chưa khai báo email, tài khoản bị khoá, hoặc UserService chưa chạy).");
             }
 
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -126,15 +127,6 @@ public sealed class EmailNotificationSender : IEmailNotificationSender
         if (string.IsNullOrWhiteSpace(_config.FromEmail) || !_config.FromEmail.Contains('@'))
             return "SmtpConfiguration:FromEmail không hợp lệ – cần địa chỉ email người gửi.";
 
-        return null;
-    }
-
-    private async Task<string?> ResolveRecipientEmailAsync(int userId, CancellationToken cancellationToken)
-    {
-        // Hook tích hợp UserService (HTTP GET /api/v1/users/{id}) – tạm trả null.
-        await Task.Yield();
-        _ = userId;
-        _ = cancellationToken;
         return null;
     }
 }

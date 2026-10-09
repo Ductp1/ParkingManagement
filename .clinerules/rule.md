@@ -1,0 +1,1 @@
+don't do what the user don't ask for(include build or create helper files), only do what neccessary. If have to do what that is outside of the prompt, ask first

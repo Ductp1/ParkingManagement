@@ -31,3 +31,12 @@ public interface IGetNotificationsUseCase
         CancellationToken cancellationToken = default
     );
 }
+
+/// <summary>
+/// Port ghi trạng thái thông báo (Infrastructure cài bằng EF Core). Module: TV6 (S2).
+/// </summary>
+public interface INotificationCommands
+{
+    /// <summary>Đánh dấu đã đọc NẾU thông báo thuộc về user. Trả false khi không tìm thấy.</summary>
+    Task<bool> MarkAsReadForUserAsync(int notificationId, int userId, CancellationToken cancellationToken = default);
+}

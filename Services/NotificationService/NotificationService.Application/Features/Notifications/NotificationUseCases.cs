@@ -1,9 +1,12 @@
+using ParkingManagement.SharedKernel.Exceptions;
+
 namespace NotificationService.Application.Features.Notifications;
 
 /// <summary>
 /// Use case: Đánh dấu thông báo là đã đọc. Module: TV6 (S2).
+/// Thông báo phải thuộc về user; không tìm thấy → NotFoundException (404).
 /// </summary>
-public sealed class MarkNotificationAsReadUseCase : IMarkNotificationAsReadUseCase
+public sealed class MarkNotificationAsReadUseCase(INotificationCommands commands) : IMarkNotificationAsReadUseCase
 {
     public async Task ExecuteAsync(int notificationId, int userId, CancellationToken cancellationToken = default)
     {
@@ -13,8 +16,8 @@ public sealed class MarkNotificationAsReadUseCase : IMarkNotificationAsReadUseCa
         if (userId <= 0)
             throw new ArgumentException("userId phải > 0", nameof(userId));
 
-        // TODO: Implement when repository is available
-        await Task.CompletedTask;
+        if (!await commands.MarkAsReadForUserAsync(notificationId, userId, cancellationToken))
+            throw new NotFoundException("Thông báo", notificationId);
     }
 }
 

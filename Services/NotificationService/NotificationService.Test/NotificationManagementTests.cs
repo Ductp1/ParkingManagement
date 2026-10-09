@@ -2,17 +2,19 @@ using NotificationService.Application.Features;
 using NotificationService.Application.Features.Notifications;
 using NSubstitute;
 using ParkingManagement.SharedKernel.Contracts;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace NotificationService.Test;
 
 /// <summary>
 /// Unit Tests cho Notification Management (S1+S2) – theo Test Plan v3 (TESTING_GUIDE.md).
 /// GetNotificationsUseCase: hợp lệ, validation UserId/paging, forwarding unreadOnly, đếm chưa đọc.
-/// MarkNotificationAsReadUseCase: validation input (S2, repository sẽ được gắn ở sprint sau).
+/// MarkNotificationAsReadUseCase: validation + NotFound khi thông báo không thuộc user.
 /// </summary>
 public class NotificationManagementTests
 {
     private readonly INotificationQueries _queries = Substitute.For<INotificationQueries>();
+    private readonly INotificationCommands _commands = Substitute.For<INotificationCommands>();
 
     /// <summary>Cấu hình substitute trả về 1 trang kết quả mẫu.</summary>
     private void SetupQueries(int unreadCount, int total)
@@ -138,13 +140,28 @@ public class NotificationManagementTests
     // ===== MarkNotificationAsReadUseCase (S2) =====
 
     [Fact]
-    public async Task MarkAsRead_valid_input_completes_without_error()
+    public async Task MarkAsRead_valid_notification_marks_read_once()
     {
-        // Arrange
-        var useCase = new MarkNotificationAsReadUseCase();
+        // Arrange: thông báo thuộc về user
+        _commands.MarkAsReadForUserAsync(7, 5, Arg.Any<CancellationToken>()).Returns(true);
+        var useCase = new MarkNotificationAsReadUseCase(_commands);
 
-        // Act & Assert: input hợp lệ thì không ném exception (repository gắn ở sprint sau)
+        // Act
         await useCase.ExecuteAsync(notificationId: 7, userId: 5);
+
+        // Assert
+        await _commands.Received(1).MarkAsReadForUserAsync(7, 5, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task MarkAsRead_notification_not_owned_throws_not_found()
+    {
+        // Arrange: thông báo không tồn tại / không thuộc user
+        _commands.MarkAsReadForUserAsync(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<CancellationToken>()).Returns(false);
+        var useCase = new MarkNotificationAsReadUseCase(_commands);
+
+        // Act & Assert: NotFoundException → 404 qua middleware
+        await Assert.ThrowsAsync<NotFoundException>(() => useCase.ExecuteAsync(7, 999));
     }
 
     [Theory]
@@ -155,7 +172,7 @@ public class NotificationManagementTests
     public async Task MarkAsRead_invalid_input_throws_argument_exception(int notificationId, int userId)
     {
         // Arrange
-        var useCase = new MarkNotificationAsReadUseCase();
+        var useCase = new MarkNotificationAsReadUseCase(_commands);
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(

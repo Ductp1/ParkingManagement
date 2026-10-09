@@ -1,8 +1,12 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NotificationService.Application.Features;
+using NotificationService.Application.Features.DeviceTokens;
 using NotificationService.Application.Features.Dispatcher;
+using NotificationService.Application.Features.Notifications;
+using NotificationService.Application.Features.Preferences;
 using NotificationService.Infrastructure.Persistence;
+using NotificationService.Infrastructure.Services.UserDirectory;
 using NotificationService.Infrastructure.Persistence.Queries;
 using NotificationService.Infrastructure.Persistence.Repositories;
 using NotificationService.Infrastructure.Persistence.Seeding;
@@ -25,9 +29,16 @@ public static class DependencyInjection
 
         // Repositories
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IDeviceTokenRepository, DeviceTokenRepository>();
+        services.AddScoped<INotificationPreferenceRepository, NotificationPreferenceRepository>();
+        services.AddScoped<INotificationCommands, NotificationCommands>();
 
         // Queries
         services.AddScoped<INotificationQueries, NotificationQueries>();
+
+        // User directory – tra cứu email/phone của user qua UserService API
+        var userServiceBaseUrl = configuration["UserService:BaseUrl"] ?? "http://localhost:5101";
+        services.AddHttpClient<IUserDirectory, UserServiceDirectory>(c => c.BaseAddress = new Uri(userServiceBaseUrl));
 
         // Seeding
         services.AddScoped<IDataSeeder<NotificationDbContext>, NotificationDataSeeder>();
@@ -45,8 +56,8 @@ public static class DependencyInjection
 
         // Channel-specific senders
         services.AddScoped<IEmailNotificationSender, EmailNotificationSender>();
-        services.AddScoped<ISmsNotificationSender, SmsNotificationSender>();
-        services.AddScoped<IFcmNotificationSender, FcmNotificationSender>();
+        services.AddHttpClient<ISmsNotificationSender, SmsNotificationSender>();      // Twilio REST API
+        services.AddHttpClient<IFcmNotificationSender, FcmNotificationSender>();      // FCM HTTP v1 + OAuth2
         services.AddScoped<IInAppNotificationSender, InAppNotificationSender>();
 
         // Dispatcher orchestrator
