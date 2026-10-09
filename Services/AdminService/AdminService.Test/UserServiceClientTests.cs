@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using AdminService.Application.Features.Users;
 using AdminService.Infrastructure;
 using AdminService.Infrastructure.Integrations;
@@ -209,6 +210,139 @@ public class UserServiceClientTests
     }
 
     [Fact]
+    public async Task Find_owner_account_maps_owner_profile_and_lock_state()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: false, ownerStatus: "Active")));
+
+        var account = await CreateClient(handler).FindOwnerAccountAsync(2, CancellationToken.None);
+
+        var request = handler.Requests.Single();
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("http://gateway.test/api/v1/users/owner-profiles/2", request.RequestUri!.ToString());
+        Assert.Null(handler.Bodies.Single());
+        Assert.Equal(new OwnerAccountDto(2, 3, "Công ty CP Bãi xe Tân Sơn Nhất", "Công ty Bãi xe Tân Sơn Nhất",
+            "owner.tsn@smartparking.vn", "0900000003", false, "Active", "Active"), account);
+    }
+
+    [Fact]
+    public async Task Lock_owner_posts_reason_lock_window_and_admin_then_maps_locked_account()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: true, ownerStatus: "Suspended")));
+        var lockedUntil = new DateTime(2026, 10, 20, 0, 0, 0, DateTimeKind.Utc);
+
+        var account = await CreateClient(handler).LockOwnerAsync(2, "Gian lận doanh thu", lockedUntil, 1, CancellationToken.None);
+
+        var request = handler.Requests.Single();
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://gateway.test/api/v1/users/owner-profiles/2/lock", request.RequestUri!.ToString());
+        Assert.Equal("application/json", request.Content!.Headers.ContentType!.MediaType);
+        using var body = JsonDocument.Parse(handler.Bodies.Single()!);
+        Assert.Equal("Gian lận doanh thu", body.RootElement.GetProperty("reason").GetString());
+        Assert.Equal(lockedUntil, body.RootElement.GetProperty("lockedUntilUtc").GetDateTime().ToUniversalTime());
+        Assert.Equal(1, body.RootElement.GetProperty("performedByUserId").GetInt32());
+        Assert.NotNull(account);
+        Assert.True(account.IsLocked);
+        Assert.Equal("Suspended", account.OwnerStatus);
+        Assert.Equal(3, account.UserId);
+    }
+
+    [Fact]
+    public async Task Lock_owner_without_end_date_sends_null_lock_window()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: true, ownerStatus: "Suspended")));
+
+        await CreateClient(handler).LockOwnerAsync(2, "Giấy phép giả", null, 1, CancellationToken.None);
+
+        using var body = JsonDocument.Parse(handler.Bodies.Single()!);
+        Assert.Equal(JsonValueKind.Null, body.RootElement.GetProperty("lockedUntilUtc").ValueKind);   // null = khóa vô thời hạn
+    }
+
+    [Fact]
+    public async Task Unlock_owner_posts_reason_and_admin_then_maps_unlocked_account()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: false, ownerStatus: "Active")));
+
+        var account = await CreateClient(handler).UnlockOwnerAsync(2, "Đã khắc phục vi phạm", 1, CancellationToken.None);
+
+        var request = handler.Requests.Single();
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://gateway.test/api/v1/users/owner-profiles/2/unlock", request.RequestUri!.ToString());
+        using var body = JsonDocument.Parse(handler.Bodies.Single()!);
+        Assert.Equal("Đã khắc phục vi phạm", body.RootElement.GetProperty("reason").GetString());
+        Assert.Equal(1, body.RootElement.GetProperty("performedByUserId").GetInt32());
+        Assert.False(body.RootElement.TryGetProperty("lockedUntilUtc", out _));
+        Assert.NotNull(account);
+        Assert.False(account.IsLocked);
+        Assert.Equal("Active", account.OwnerStatus);
+    }
+
+    [Theory]
+    [InlineData("find")]
+    [InlineData("lock")]
+    [InlineData("unlock")]
+    public async Task Owner_call_returns_null_when_user_service_reports_owner_not_found(string operation)
+    {
+        // 404 kèm ProblemDetails = UserService đã xử lý request và không tìm thấy chủ bãi.
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.NotFound, """{ "status": 404, "title": "Không tìm thấy" }"""));
+
+        Assert.Null(await CallOwnerEndpoint(CreateClient(handler), operation));
+    }
+
+    [Theory]
+    [InlineData("find")]
+    [InlineData("lock")]
+    [InlineData("unlock")]
+    public async Task Owner_call_treats_bodyless_not_found_as_user_service_unavailable(string operation)
+    {
+        // 404 không có body = UserService chưa có endpoint này; không được hiểu là "chủ bãi không tồn tại".
+        var handler = new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
+
+        var ex = await Assert.ThrowsAsync<UserServiceUnavailableException>(
+            () => CallOwnerEndpoint(CreateClient(handler), operation));
+
+        Assert.Contains("404", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("lock", HttpStatusCode.BadRequest)]
+    [InlineData("lock", HttpStatusCode.Forbidden)]
+    [InlineData("lock", HttpStatusCode.InternalServerError)]
+    [InlineData("unlock", HttpStatusCode.BadRequest)]
+    [InlineData("unlock", HttpStatusCode.BadGateway)]
+    public async Task Owner_write_with_unexpected_status_code_is_reported_as_user_service_unavailable(string operation, HttpStatusCode statusCode)
+    {
+        var handler = new FakeHandler(_ => Json(statusCode, """{ "status": 0, "title": "Lỗi" }"""));
+
+        var ex = await Assert.ThrowsAsync<UserServiceUnavailableException>(
+            () => CallOwnerEndpoint(CreateClient(handler), operation));
+
+        Assert.Contains(((int)statusCode).ToString(), ex.Message);
+    }
+
+    [Theory]
+    [InlineData("lock")]
+    [InlineData("unlock")]
+    public async Task Owner_write_connection_failure_is_reported_as_user_service_unavailable(string operation)
+    {
+        var handler = new FakeHandler(_ => throw new HttpRequestException("Connection refused"));
+
+        await Assert.ThrowsAsync<UserServiceUnavailableException>(
+            () => CallOwnerEndpoint(CreateClient(handler), operation));
+    }
+
+    [Fact]
+    public async Task Lock_owner_forwards_bearer_token_of_current_request()
+    {
+        var inner = new FakeHandler(_ => Json(HttpStatusCode.OK, OwnerAccountJson(isLocked: true, ownerStatus: "Suspended")));
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Authorization = "Bearer admin-token";
+
+        await CreateClient(Forwarding(inner, context)).LockOwnerAsync(2, "Gian lận doanh thu", null, 1, CancellationToken.None);
+
+        Assert.Equal("admin-token", inner.Requests.Single().Headers.Authorization!.Parameter);
+    }
+
+    [Fact]
     public void Infrastructure_registers_user_service_client()
     {
         var services = new ServiceCollection();
@@ -234,6 +368,22 @@ public class UserServiceClientTests
     private static UserServiceClient CreateClient(HttpMessageHandler handler)
         => new(new HttpClient(handler) { BaseAddress = new Uri("http://gateway.test/") });
 
+    private static Task<OwnerAccountDto?> CallOwnerEndpoint(UserServiceClient client, string operation) => operation switch
+    {
+        "find" => client.FindOwnerAccountAsync(2, CancellationToken.None),
+        "lock" => client.LockOwnerAsync(2, "Gian lận doanh thu", null, 1, CancellationToken.None),
+        "unlock" => client.UnlockOwnerAsync(2, "Đã khắc phục vi phạm", 1, CancellationToken.None),
+        _ => throw new ArgumentOutOfRangeException(nameof(operation))
+    };
+
+    private static string OwnerAccountJson(bool isLocked, string ownerStatus) => $$"""
+        {
+          "ownerProfileId": 2, "userId": 3, "businessName": "Công ty CP Bãi xe Tân Sơn Nhất", "fullName": "Công ty Bãi xe Tân Sơn Nhất",
+          "email": "owner.tsn@smartparking.vn", "phoneNumber": "0900000003",
+          "isLocked": {{(isLocked ? "true" : "false")}}, "ownerStatus": "{{ownerStatus}}", "userStatus": "Active"
+        }
+        """;
+
     private static BearerTokenForwardingHandler Forwarding(HttpMessageHandler inner, HttpContext? context)
         => new(new HttpContextAccessor { HttpContext = context }) { InnerHandler = inner };
 
@@ -250,11 +400,14 @@ public class UserServiceClientTests
     private sealed class FakeHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         public List<HttpRequestMessage> Requests { get; } = [];
+        /// <summary>Body đọc ngay lúc gửi, vì adapter giải phóng request sau khi gọi xong.</summary>
+        public List<string?> Bodies { get; } = [];
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
-            return Task.FromResult(respond(request));
+            Bodies.Add(request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken));
+            return respond(request);
         }
     }
 }
