@@ -9,6 +9,7 @@ namespace AdminService.Domain.Entities;
 public class SystemConfig : BaseEntity
 {
     public string Key { get; set; } = string.Empty;
+    /// <summary>Giá trị gốc (seed). Thay đổi của Admin nằm ở SystemConfigChange, không ghi đè cột này (US-098).</summary>
     public string Value { get; set; } = string.Empty;
     /// <summary>int | decimal | bool | string | json – để Admin portal hiển thị đúng ô nhập.</summary>
     public string DataType { get; set; } = "string";

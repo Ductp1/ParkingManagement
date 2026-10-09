@@ -8,6 +8,7 @@ namespace AdminService.Infrastructure.Persistence;
 public sealed class AdminDbContext(DbContextOptions<AdminDbContext> options) : ServiceDbContext(options)
 {
     public DbSet<SystemConfig> SystemConfigs => Set<SystemConfig>();
+    public DbSet<SystemConfigChange> SystemConfigChanges => Set<SystemConfigChange>();
     public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
     public DbSet<Sanction> Sanctions => Set<Sanction>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
