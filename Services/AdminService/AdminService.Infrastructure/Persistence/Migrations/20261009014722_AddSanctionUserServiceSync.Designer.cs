@@ -3,6 +3,7 @@ using System;
 using AdminService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AdminService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AdminDbContext))]
-    partial class AdminDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261009014722_AddSanctionUserServiceSync")]
+    partial class AddSanctionUserServiceSync
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -327,11 +330,6 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("OwnerProfileId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_Sanctions_OwnerProfileId_ActiveOwnerLock")
-                        .HasFilter("\"Status\" = 'Active' AND \"ParkingLotId\" IS NULL AND \"Level\" IN ('TemporarySuspension', 'PermanentBan')");
 
                     b.HasIndex("ParkingLotId")
                         .HasFilter("\"ParkingLotId\" IS NOT NULL");
