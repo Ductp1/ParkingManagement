@@ -21,6 +21,7 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
         e.HasIndex(x => new { x.OwnerProfileId, x.Status });               // hộp tranh chấp của chủ bãi
         e.HasIndex(x => new { x.Status, x.OwnerResponseDueAtUtc });        // job escalate khi quá 48h
         e.HasIndex(x => x.UserId);
+        e.HasIndex(x => new { x.AssignedTeam, x.Priority, x.Status });   // hàng đợi xử lý của Support/Supervisor
         e.HasIndex(x => x.BookingId).HasFilter("\"BookingId\" IS NOT NULL");
     }
 }

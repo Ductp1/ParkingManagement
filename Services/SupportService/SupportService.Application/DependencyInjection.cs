@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddScoped<IListOwnerComplaintsUseCase, ListOwnerComplaintsUseCase>();
         services.AddScoped<IGetLotReviewsUseCase, GetLotReviewsUseCase>();
         services.AddScoped<IFaqService, FaqAppService>();
+        services.AddScoped<IComplaintService, ComplaintAppService>();
         return services;
     }
 }
