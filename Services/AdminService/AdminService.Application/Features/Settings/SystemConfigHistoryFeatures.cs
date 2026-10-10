@@ -39,7 +39,9 @@ public sealed class GetSystemConfigHistoryUseCase(ISystemConfigChangeQueries que
             ?? throw new NotFoundException("Tham số hệ thống", normalizedKey);
 
         var all = SystemConfigChangeTimeline.Build(history, timeProvider.GetUtcNow().UtcDateTime);
-        return new PagedResult<SystemConfigChangeDto>([.. all.Skip((page - 1) * pageSize).Take(pageSize)], page, pageSize, all.Count);
+        var skip = (long)(page - 1) * pageSize;       // long: page rất lớn không làm tràn số rồi trả nhầm trang đầu
+        return new PagedResult<SystemConfigChangeDto>(
+            skip >= all.Count ? [] : [.. all.Skip((int)skip).Take(pageSize)], page, pageSize, all.Count);
     }
 }
 

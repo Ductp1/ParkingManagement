@@ -110,6 +110,18 @@ public class SystemConfigHistoryTests
     }
 
     [Fact]
+    public async Task Huge_page_number_is_empty_instead_of_wrapping_around()
+    {
+        // (page - 1) * pageSize vượt int: không được tràn số rồi trả nhầm dữ liệu trang đầu.
+        var queries = new FakeQueries(History("15", Row(1, "20", NowUtc.AddDays(-5))));
+
+        var result = await CreateUseCase(queries).ExecuteAsync(HoldKey, int.MaxValue, 100);
+
+        Assert.Empty(result.Items);
+        Assert.Equal(1, result.TotalCount);
+    }
+
+    [Fact]
     public async Task Config_never_changed_has_empty_history()
     {
         var result = await CreateUseCase(new FakeQueries(History("15"))).ExecuteAsync(HoldKey, 1, 20);
