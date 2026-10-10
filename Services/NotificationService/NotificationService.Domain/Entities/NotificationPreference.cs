@@ -14,7 +14,7 @@ public class NotificationPreference : BaseEntity
     public string TemplateKey { get; set; } = string.Empty;
     public NotificationChannel Channel { get; set; }
     public bool IsEnabled { get; set; } = true;
-    /// <summary>Giờ yên lặng (giờ VN): không gửi push/SMS không khẩn cấp trong khoảng này.</summary>
-    public TimeOnly? QuietFrom { get; set; }
-    public TimeOnly? QuietTo { get; set; }
+    /// <summary>Giờ yên lặng (giờ VN): không gửi push/SMS không khẩn cấp trong khoảng này. Database: TIME(0).</summary>
+    public TimeSpan? QuietFrom { get; set; }
+    public TimeSpan? QuietTo { get; set; }
 }

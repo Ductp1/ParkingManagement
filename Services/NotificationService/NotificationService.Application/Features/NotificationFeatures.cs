@@ -8,7 +8,7 @@ public sealed record NotificationDto(int Id, string Channel, string TemplateKey,
 
 public interface INotificationQueries
 {
-    Task<PagedResult<NotificationDto>> ListByUserAsync(int userId, bool unreadOnly, int page, int pageSize, CancellationToken cancellationToken);
+    Task<PagedResult<NotificationDto>> ListByUserAsync(int UserId, bool unreadOnly, int page, int pageSize, CancellationToken cancellationToken);
     Task<int> CountUnreadAsync(int userId, CancellationToken cancellationToken);
 }
 
