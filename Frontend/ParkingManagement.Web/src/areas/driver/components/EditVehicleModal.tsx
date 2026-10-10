@@ -112,28 +112,29 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({ vehicle, isO
               <label className="block text-xs font-semibold text-slate-700 mb-1">Loại xe</label>
               <select
                 value={vehicleType}
-                onChange={(e) => setVehicleType(Number(e.target.value) as VehicleType)}
+                onChange={(e) => setVehicleType(e.target.value as VehicleType)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
               >
-                <option value={VehicleType.Sedan}>Sedan</option>
-                <option value={VehicleType.Suv}>SUV</option>
+                <option value={VehicleType.Sedan}>Sedan (4 chỗ)</option>
+                <option value={VehicleType.Suv}>SUV (5-7 chỗ)</option>
                 <option value={VehicleType.Hatchback}>Hatchback</option>
                 <option value={VehicleType.Van}>Van</option>
-                <option value={VehicleType.Pickup}>Bán tải</option>
+                <option value={VehicleType.Pickup}>Bán tải (Pickup)</option>
+                <option value={VehicleType.Oversized}>Xe quá khổ (Oversized / Limousine)</option>
                 <option value={VehicleType.Motorbike}>Xe máy</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Nhiên liệu</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Nhiên liệu (US-012)</label>
               <select
                 value={fuelType}
-                onChange={(e) => setFuelType(Number(e.target.value) as FuelType)}
+                onChange={(e) => setFuelType(e.target.value as FuelType)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
               >
                 <option value={FuelType.Gasoline}>Xăng</option>
                 <option value={FuelType.Diesel}>Dầu Diesel</option>
-                <option value={FuelType.Electric}>Điện (EV)</option>
+                <option value={FuelType.Electric}>Điện (EV - Thuần điện)</option>
                 <option value={FuelType.Hybrid}>Hybrid (HEV)</option>
                 <option value={FuelType.PlugInHybrid}>Plug-in Hybrid (PHEV)</option>
               </select>
@@ -179,6 +180,32 @@ export const EditVehicleModal: React.FC<EditVehicleModalProps> = ({ vehicle, isO
                 type="number"
                 value={heightCm}
                 onChange={(e) => setHeightCm(e.target.value ? Number(e.target.value) : '')}
+                min="50"
+                max="300"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* Chiều dài & Chiều rộng (US-012 Xe quá khổ) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Chiều dài (cm)</label>
+              <input
+                type="number"
+                value={lengthCm}
+                onChange={(e) => setLengthCm(e.target.value ? Number(e.target.value) : '')}
+                placeholder="VD: 475"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Chiều rộng (cm)</label>
+              <input
+                type="number"
+                value={widthCm}
+                onChange={(e) => setWidthCm(e.target.value ? Number(e.target.value) : '')}
+                placeholder="VD: 193"
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
               />
             </div>

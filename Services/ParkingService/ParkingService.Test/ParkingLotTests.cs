@@ -39,6 +39,26 @@ public class ParkingLotTests
         await Assert.ThrowsAsync<NotFoundException>(() => useCase.ExecuteAsync(new GetParkingLotByIdQuery(3)));
     }
 
+    [Fact] // US-018: Xem chi tiết bãi đỗ (AC1, AC2, AC3)
+    public async Task GetParkingLotById_ReturnsCompleteDetailsWithHotlineAndAmenities_WhenActive()
+    {
+        var lot = new ParkingLot(1, "Bãi xe Vincom Đồng Khởi", "72 Lê Thánh Tôn", 10.7781, 106.7019, 100, 42, 210,
+            new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active, 1, IntegrationTier.PmsApi,
+            "Mô tả bãi Vincom", "02838000001");
+        lot.Amenities.Add(new LotAmenity { ParkingLotId = 1, Code = "EV", Name = "Trụ sạc xe điện" });
+
+        var useCase = new GetParkingLotByIdUseCase(new FakeRepo([lot]),
+            TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<GetParkingLotByIdUseCase>.Instance);
+
+        var dto = await useCase.ExecuteAsync(new GetParkingLotByIdQuery(1));
+
+        Assert.Equal("Bãi xe Vincom Đồng Khởi", dto.Name);
+        Assert.Equal("02838000001", dto.HotlinePhone); // AC2: Hotline chung của bãi
+        Assert.Equal("Mô tả bãi Vincom", dto.Description);
+        Assert.True(dto.CanBook); // AC3: Bãi Active được phép đặt chỗ
+        Assert.Contains("Trụ sạc xe điện", dto.Amenities!); // AC1: Tiện ích bãi
+    }
+
     [Fact]
     public async Task Search_sorts_by_distance_and_drops_lots_outside_radius()
     {

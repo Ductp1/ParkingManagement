@@ -4,6 +4,7 @@ export const VehicleType = {
   Hatchback: 'Hatchback',
   Van: 'Van',
   Pickup: 'Pickup',
+  Oversized: 'Oversized',
   Motorbike: 'Motorbike',
 } as const;
 export type VehicleType = (typeof VehicleType)[keyof typeof VehicleType] | string | number;

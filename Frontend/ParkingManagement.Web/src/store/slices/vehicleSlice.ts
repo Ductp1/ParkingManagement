@@ -112,8 +112,18 @@ export const vehicleSlice = createSlice({
       })
       .addCase(addNewVehicle.fulfilled, (state, action) => {
         state.isSubmitting = false;
-        state.vehicles.push(action.payload);
-        state.successMessage = `Thêm xe ${action.payload.plateDisplay} thành công!`;
+        const newVehicle = action.payload;
+
+        // Nếu xe mới thêm là xe mặc định -> chuyển toàn bộ xe cũ về isDefault = false
+        if (newVehicle.isDefault) {
+          state.vehicles = state.vehicles.map((v) => ({
+            ...v,
+            isDefault: false,
+          }));
+        }
+
+        state.vehicles.push(newVehicle);
+        state.successMessage = `Thêm xe ${newVehicle.plateDisplay} thành công!`;
       })
       .addCase(addNewVehicle.rejected, (state, action) => {
         state.isSubmitting = false;
