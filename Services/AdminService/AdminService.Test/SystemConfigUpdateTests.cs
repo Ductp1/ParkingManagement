@@ -487,6 +487,13 @@ public class SystemConfigUpdateTests
             AuditLogs.Add(auditLog);
             return Task.CompletedTask;
         }
+
+        // Đổi giá trị không dùng các thao tác của luồng hủy.
+        public Task<SystemConfigChange?> FindChangeTrackedAsync(int changeId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

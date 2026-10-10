@@ -39,4 +39,13 @@ public sealed class SystemConfigRepository(AdminDbContext db) : ISystemConfigRep
             throw new ConflictException("Tham số này vừa có một thay đổi cùng thời điểm hiệu lực từ một yêu cầu khác.");
         }
     }
+
+    public Task<SystemConfigChange?> FindChangeTrackedAsync(int changeId, CancellationToken cancellationToken)
+        => db.SystemConfigChanges.FirstOrDefaultAsync(c => c.Id == changeId, cancellationToken);
+
+    public async Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
+    {
+        db.AuditLogs.Add(auditLog);
+        await db.SaveChangesAsync(cancellationToken);       // đóng dấu hủy + audit log: cùng 1 lần SaveChanges
+    }
 }

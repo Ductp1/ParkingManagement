@@ -33,4 +33,12 @@ public class SystemConfigChange : BaseEntity
             Reason = reason,
             CreatedByUserId = createdByUserId,
         };
+
+    /// <summary>US-098: Admin hủy thay đổi trước khi nó hiệu lực. Dòng được giữ lại để truy vết, giá trị không bị sửa.</summary>
+    public void Cancel(int cancelledByUserId, string reason, DateTime cancelledAtUtc)
+    {
+        CancelledAtUtc = cancelledAtUtc;
+        CancelledByUserId = cancelledByUserId;
+        CancelReason = reason;
+    }
 }

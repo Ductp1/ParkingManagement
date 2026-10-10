@@ -22,6 +22,7 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<AdminDbContext>(configuration);
         services.AddScoped<ISettingsQueries, SettingsQueries>();
+        services.AddScoped<ISystemConfigChangeQueries, SystemConfigChangeQueries>();
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();

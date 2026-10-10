@@ -15,6 +15,9 @@ public static class DependencyInjection
         services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
         // US-098: đổi giá trị tham số có Effective Date
         services.AddScoped<IUpdateSystemConfigUseCase, UpdateSystemConfigUseCase>();
+        // US-098: lịch sử thay đổi + hủy thay đổi chưa hiệu lực
+        services.AddScoped<IGetSystemConfigHistoryUseCase, GetSystemConfigHistoryUseCase>();
+        services.AddScoped<ICancelSystemConfigChangeUseCase, CancelSystemConfigChangeUseCase>();
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
