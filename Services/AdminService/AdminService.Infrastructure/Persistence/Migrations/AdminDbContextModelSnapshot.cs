@@ -316,7 +316,22 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserServiceSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("NotRequired");
+
+                    b.Property<DateTime?>("UserServiceSyncedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("OwnerProfileId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Sanctions_OwnerProfileId_ActiveOwnerLock")
+                        .HasFilter("\"Status\" = 'Active' AND \"ParkingLotId\" IS NULL AND \"Level\" IN ('TemporarySuspension', 'PermanentBan')");
 
                     b.HasIndex("ParkingLotId")
                         .HasFilter("\"ParkingLotId\" IS NOT NULL");
