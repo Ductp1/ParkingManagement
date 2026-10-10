@@ -42,6 +42,8 @@ jobs:
     environment: environment
     env:
       Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
+      # T-704: secret HMAC xác thực QR token check-in (BookingService ↔ GateService). Cùng tên với biến môi trường local.
+      QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
     strategy:
       fail-fast: false                       # 1 service đỏ không hủy service khác
       matrix:
@@ -75,6 +77,11 @@ jobs:
     name: Integration tests
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # T-704: GateService đọc secret QR token từ biến môi trường – sẵn sàng khi GateService được
+      # thêm vào integration test. Lưu ý: secret phải là repository/organization secret
+      # (job này không khai báo `environment:` nên không thấy environment-scoped secrets).
+      QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
 
     # PostgreSQL thật cho integration test (WebApplicationFactory → PostgreSQL qua localhost:5432)
     services:

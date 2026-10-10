@@ -15,6 +15,8 @@ public static class DependencyInjection
         // T-702: Gate Console
         services.AddScoped<ICheckInUseCase, CheckInUseCase>();
         services.AddScoped<ICheckOutUseCase, CheckOutUseCase>();
+        // T-704: xác thực QR token do BookingService cấp (thuần crypto, không depends Infrastructure).
+        services.AddSingleton<IBookingQrTokenValidator, BookingQrTokenValidator>();
         // T-703: GateDevices
         services.AddScoped<IGetGateDevicesUseCase, GetGateDevicesUseCase>();
         services.AddScoped<IGetGateDeviceByIdUseCase, GetGateDeviceByIdUseCase>();
