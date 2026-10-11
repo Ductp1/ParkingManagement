@@ -53,14 +53,14 @@ public sealed class NotificationDataSeeder(ILogger<NotificationDataSeeder> logge
                 // driver1 tắt email nhắc lịch, chỉ nhận in-app; không nhận push 23:00–06:00.
                 new NotificationPreference { UserId = DemoIds.Driver1User, TemplateKey = "BOOKING_REMINDER", Channel = NotificationChannel.Email, IsEnabled = false },
                 new NotificationPreference { UserId = DemoIds.Driver1User, TemplateKey = "BOOKING_REMINDER", Channel = NotificationChannel.Push, IsEnabled = true,
-                                             QuietFrom = new TimeOnly(23, 0), QuietTo = new TimeOnly(6, 0) });
+                                             QuietFrom = new TimeSpan(23, 0, 0), QuietTo = new TimeSpan(6, 0, 0) });
         }
 
         if (!await db.DeviceTokens.AnyAsync(cancellationToken))
         {
             db.DeviceTokens.AddRange(
-                new DeviceToken { UserId = DemoIds.Driver1User, Token = "demo-fcm-token-driver1-android", Platform = DevicePlatform.Android, DeviceName = "Samsung Galaxy A55", LastUsedAtUtc = DateTime.UtcNow },
-                new DeviceToken { UserId = DemoIds.OwnerVincomUser, Token = "demo-fcm-token-owner-vincom-web", Platform = DevicePlatform.Web, DeviceName = "Chrome – Owner portal", LastUsedAtUtc = DateTime.UtcNow });
+                new DeviceToken { UserId = DemoIds.Driver1User, Token = "demo-fcm-token-driver1-android", Platform = "Android", DeviceName = "Samsung Galaxy A55", LastUsedAtUtc = DateTime.UtcNow },
+                new DeviceToken { UserId = DemoIds.OwnerVincomUser, Token = "demo-fcm-token-owner-vincom-web", Platform = "Web", DeviceName = "Chrome – Owner portal", LastUsedAtUtc = DateTime.UtcNow });
         }
 
         await db.SaveChangesAsync(cancellationToken);
