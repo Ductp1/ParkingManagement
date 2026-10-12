@@ -84,7 +84,7 @@ public interface IQrTokenService
 
 public sealed class QrTokenService(TimeProvider? timeProvider = null, string? secretKey = null) : IQrTokenService
 {
-    private readonly string _secretKey = secretKey ?? Environment.GetEnvironmentVariable("QR_SECRET_KEY") ?? "SmartParking_BookingService_HMACSHA256_SecretKey_2026";
+    private readonly string _secretKey = secretKey ?? Environment.GetEnvironmentVariable("QR_SECRET_KEY") ?? Environment.GetEnvironmentVariable("QrToken__SecretKey") ?? "SmartParking_BookingService_HMACSHA256_SecretKey_2026";
 
     public string GenerateToken(string code, string plateNumber, int parkingLotId, DateTime expiresAtUtc)
     {
