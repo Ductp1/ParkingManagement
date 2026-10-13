@@ -84,7 +84,9 @@ public interface IQrTokenService
 
 public sealed class QrTokenService(TimeProvider? timeProvider = null, string? secretKey = null) : IQrTokenService
 {
-    private readonly string _secretKey = secretKey ?? Environment.GetEnvironmentVariable("QR_SECRET_KEY") ?? Environment.GetEnvironmentVariable("QrToken__SecretKey") ?? "SmartParking_BookingService_HMACSHA256_SecretKey_2026";
+    private readonly string _secretKey = secretKey
+        ?? Environment.GetEnvironmentVariable("QRTOKEN_SECRET")
+        ?? throw new InvalidOperationException("Biến môi trường 'QRTOKEN_SECRET' chưa được cấu hình.");
 
     public string GenerateToken(string code, string plateNumber, int parkingLotId, DateTime expiresAtUtc)
     {
@@ -423,7 +425,7 @@ public sealed class ReviewBookingUseCase(
             throw new ValidationException("Bạn không có quyền duyệt booking của bãi này.");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        booking.ConfirmPayment(booking.TotalAmount, now);
+        booking.ApproveByOwner(now, command.OwnerProfileId, command.Reason);
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)

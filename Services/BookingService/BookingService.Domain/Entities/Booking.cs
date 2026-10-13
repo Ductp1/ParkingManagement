@@ -1,5 +1,6 @@
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace BookingService.Domain.Entities;
 
@@ -70,7 +71,7 @@ public class Booking : BaseEntity
     public void MarkAsPendingPayment(DateTime nowUtc)
     {
         if (Status != BookingStatus.Created)
-            throw new InvalidOperationException("Đơn đặt chỗ không ở trạng thái hợp lệ để bắt đầu thanh toán.");
+            throw new ConflictException($"Không thể bắt đầu thanh toán từ trạng thái {Status}. Chỉ cho phép từ Created.");
 
         Status = BookingStatus.PendingPayment;
         HoldExpiresAtUtc = nowUtc.AddMinutes(15);
@@ -82,7 +83,7 @@ public class Booking : BaseEntity
     public void RequireOwnerApproval()
     {
         if (Status != BookingStatus.PendingPayment)
-            throw new InvalidOperationException("Đơn đặt chỗ không ở trạng thái chờ duyệt.");
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không thể yêu cầu chủ bãi duyệt (Cần PendingPayment).");
 
         RequiresOwnerApproval = true;
         Status = BookingStatus.PendingOwnerApproval;
@@ -90,11 +91,24 @@ public class Booking : BaseEntity
         AddStatusLog(BookingStatus.PendingPayment, BookingStatus.PendingOwnerApproval, null, "Chờ chủ bãi kiểm tra và duyệt chỗ");
     }
 
+    /// <summary>Chủ bãi duyệt đơn đặt chỗ đối với bãi thủ công Mức 0 (US-031). Không làm thay đổi PaidAmount.</summary>
+    public void ApproveByOwner(DateTime confirmedAtUtc, int ownerUserId, string? reason = null)
+    {
+        if (Status != BookingStatus.PendingOwnerApproval && Status != BookingStatus.PendingPayment)
+            throw new ConflictException($"Chỉ duyệt booking ở trạng thái chờ duyệt. Trạng thái hiện tại: {Status}");
+
+        var oldStatus = Status;
+        Status = BookingStatus.Confirmed;
+        ConfirmedAtUtc = confirmedAtUtc;
+
+        AddStatusLog(oldStatus, BookingStatus.Confirmed, ownerUserId, reason ?? "Chủ bãi duyệt thành công");
+    }
+
     /// <summary>Xác nhận đặt chỗ thành công sau khi hoàn tất thanh toán tiền cọc/tiền đỗ.</summary>
     public void ConfirmPayment(decimal paidAmount, DateTime confirmedAtUtc)
     {
         if (Status != BookingStatus.PendingPayment && Status != BookingStatus.PendingOwnerApproval)
-            throw new InvalidOperationException("Đơn đặt chỗ chưa sẵn sàng hoặc đã hết hạn, không thể xác nhận thanh toán.");
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không thể xác nhận thanh toán.");
 
         var oldStatus = Status;
         Status = BookingStatus.Confirmed;
@@ -108,7 +122,7 @@ public class Booking : BaseEntity
     public void RejectByOwner(DateTime cancelledAtUtc, int ownerUserId, string reason)
     {
         if (Status != BookingStatus.PendingOwnerApproval)
-            throw new InvalidOperationException("Đơn đặt chỗ không ở trạng thái chờ duyệt.");
+            throw new ConflictException($"Chỉ có thể từ chối booking khi đang ở trạng thái chờ duyệt (PendingOwnerApproval). Hiện tại: {Status}");
 
         var oldStatus = Status;
         Status = BookingStatus.Cancelled;
@@ -123,7 +137,7 @@ public class Booking : BaseEntity
     public void CheckIn(DateTime checkedInAtUtc, int? staffUserId = null, int? gateDeviceId = null)
     {
         if (Status != BookingStatus.Confirmed)
-            throw new InvalidOperationException("Đơn đặt chỗ chưa được xác nhận hoặc không hợp lệ để vào bãi.");
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không hợp lệ để vào bãi (Yêu cầu trạng thái Confirmed).");
 
         Status = BookingStatus.CheckedIn;
         CheckedInAtUtc = checkedInAtUtc;
@@ -135,7 +149,7 @@ public class Booking : BaseEntity
     public void CheckOut(DateTime checkedOutAtUtc, int? staffUserId = null, int? gateDeviceId = null)
     {
         if (Status != BookingStatus.CheckedIn && Status != BookingStatus.Parking)
-            throw new InvalidOperationException("Không thể hoàn tất do xe chưa vào bãi hoặc đã rời bãi trước đó.");
+            throw new ConflictException($"Không thể hoàn tất do xe chưa vào bãi hoặc đã rời bãi (Trạng thái hiện tại: {Status}).");
 
         var oldStatus = Status;
         Status = BookingStatus.Completed;
@@ -152,17 +166,22 @@ public class Booking : BaseEntity
             return;
 
         if (HoldExpiresAtUtc.HasValue && nowUtc < HoldExpiresAtUtc.Value)
-            throw new InvalidOperationException("Thời gian giữ chỗ vẫn còn hiệu lực.");
+            throw new ValidationException("Thời gian giữ chỗ vẫn còn hiệu lực.");
 
         Status = BookingStatus.Expired;
         AddStatusLog(BookingStatus.PendingPayment, BookingStatus.Expired, null, "Hết thời gian giữ chỗ 15 phút, tự động nhả vị trí đỗ");
     }
 
-    /// <summary>Khách hàng hủy đơn trước khi vào bãi (US-038).</summary>
+    /// <summary>Khách hàng hủy đơn trước khi vào bãi (US-038). Chỉ cho phép hủy từ các trạng thái chưa vào bãi.</summary>
     public void CancelByCustomer(BookingStatus targetStatus, DateTime cancelledAtUtc, int cancelledByUserId, string? reason)
     {
-        if (Status == BookingStatus.CheckedIn || Status == BookingStatus.Parking || Status == BookingStatus.Completed)
-            throw new InvalidOperationException("Xe đã vào bãi hoặc đã hoàn tất, không thể hủy đơn đặt chỗ.");
+        if (Status != BookingStatus.Created &&
+            Status != BookingStatus.PendingPayment &&
+            Status != BookingStatus.PendingOwnerApproval &&
+            Status != BookingStatus.Confirmed)
+        {
+            throw new ConflictException($"Không thể hủy đơn đặt chỗ khi đang ở trạng thái {Status}. Chỉ cho phép hủy từ Created, PendingPayment, PendingOwnerApproval hoặc Confirmed.");
+        }
 
         var oldStatus = Status;
         Status = targetStatus;
@@ -173,15 +192,21 @@ public class Booking : BaseEntity
         AddStatusLog(oldStatus, targetStatus, cancelledByUserId, reason ?? "Khách hàng yêu cầu hủy đặt chỗ");
     }
 
-    /// <summary>Chủ bãi hủy khẩn cấp do bãi gặp sự cố (US-042).</summary>
+    /// <summary>Chủ bãi hủy khẩn cấp do bãi gặp sự cố (US-042). Chỉ cho phép hủy từ các trạng thái chưa vào bãi.</summary>
     public void CancelByOwner(DateTime cancelledAtUtc, int ownerUserId, string reason)
     {
-        if (Status == BookingStatus.CheckedIn || Status == BookingStatus.Parking || Status == BookingStatus.Completed)
-            throw new InvalidOperationException("Xe đã vào bãi, không thể hủy đơn đặt chỗ.");
+        if (Status != BookingStatus.Created &&
+            Status != BookingStatus.PendingPayment &&
+            Status != BookingStatus.PendingOwnerApproval &&
+            Status != BookingStatus.Confirmed)
+        {
+            throw new ConflictException($"Chủ bãi không thể hủy đơn đặt chỗ khi đang ở trạng thái {Status}.");
+        }
 
         var oldStatus = Status;
         Status = BookingStatus.Cancelled;
         CancelledAtUtc = cancelledAtUtc;
+        CancelledByUserId = ownerUserId;
         CancelReason = $"Chủ bãi hủy sự cố: {reason}";
 
         AddStatusLog(oldStatus, BookingStatus.Cancelled, ownerUserId, CancelReason);
@@ -191,10 +216,10 @@ public class Booking : BaseEntity
     public void MarkAsNoShow(DateTime nowUtc, int? staffUserId = null)
     {
         if (Status != BookingStatus.Confirmed)
-            throw new InvalidOperationException("Đơn đặt chỗ chưa được xác nhận hoặc đã kết thúc, không thể đánh dấu vắng mặt.");
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không thể đánh dấu vắng mặt (Yêu cầu trạng thái Confirmed).");
 
         if (nowUtc < StartAtUtc.AddMinutes(30))
-            throw new InvalidOperationException("Chưa quá 30 phút từ giờ hẹn, không thể xử lý vắng mặt.");
+            throw new ValidationException("Chưa quá 30 phút từ giờ hẹn, không thể xử lý vắng mặt.");
 
         Status = BookingStatus.NoShow;
         CancelledAtUtc = nowUtc;

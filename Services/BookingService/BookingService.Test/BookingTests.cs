@@ -101,7 +101,7 @@ public class BookingStateMachineTests
     public void MarkAsPendingPayment_from_invalid_status_throws_exception()
     {
         var booking = new Booking { Code = "BK-001", Status = BookingStatus.Confirmed };
-        Assert.Throws<InvalidOperationException>(() => booking.MarkAsPendingPayment(BaseTime));
+        Assert.Throws<ConflictException>(() => booking.MarkAsPendingPayment(BaseTime));
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class BookingStateMachineTests
     public void CheckIn_when_not_confirmed_throws_exception()
     {
         var booking = new Booking { Code = "BK-001", Status = BookingStatus.PendingPayment };
-        Assert.Throws<InvalidOperationException>(() => booking.CheckIn(BaseTime));
+        Assert.Throws<ConflictException>(() => booking.CheckIn(BaseTime));
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class BookingStateMachineTests
         };
 
         // Vẫn còn trong 15 phút -> ném lỗi
-        Assert.Throws<InvalidOperationException>(() => booking.Expire(BaseTime.AddMinutes(10)));
+        Assert.Throws<ValidationException>(() => booking.Expire(BaseTime.AddMinutes(10)));
 
         // Đã qua 15 phút -> thành công
         booking.Expire(BaseTime.AddMinutes(16));
@@ -161,8 +161,16 @@ public class BookingStateMachineTests
     public void CancelByCustomer_when_already_checked_in_throws_exception()
     {
         var booking = new Booking { Code = "BK-001", Status = BookingStatus.CheckedIn };
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<ConflictException>(() =>
             booking.CancelByCustomer(BookingStatus.Cancelled, BaseTime, cancelledByUserId: 10, reason: "Khách bận"));
+    }
+
+    [Fact]
+    public void CancelByCustomer_from_terminal_status_throws_conflict_exception()
+    {
+        var booking = new Booking { Code = "BK-001", Status = BookingStatus.Cancelled };
+        Assert.Throws<ConflictException>(() =>
+            booking.CancelByCustomer(BookingStatus.Cancelled, BaseTime, cancelledByUserId: 10, reason: "Hủy tiếp"));
     }
 
     [Fact]
@@ -176,7 +184,7 @@ public class BookingStateMachineTests
         };
 
         // Chưa tới 30 phút sau giờ hẹn -> ném lỗi
-        Assert.Throws<InvalidOperationException>(() => booking.MarkAsNoShow(BaseTime.AddMinutes(20)));
+        Assert.Throws<ValidationException>(() => booking.MarkAsNoShow(BaseTime.AddMinutes(20)));
 
         // Sau 30 phút -> chuyển NoShow
         booking.MarkAsNoShow(BaseTime.AddMinutes(31), staffUserId: 1);
@@ -195,6 +203,24 @@ public class BookingStateMachineTests
         booking.RejectByOwner(BaseTime, ownerUserId: 88, reason: "Bãi đầy xe đột xuất");
         Assert.Equal(BookingStatus.Cancelled, booking.Status);
     }
+
+    [Fact]
+    public void ApproveByOwner_transitions_to_confirmed_without_modifying_paid_amount()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-001",
+            Status = BookingStatus.PendingOwnerApproval,
+            TotalAmount = 100000,
+            PaidAmount = 0
+        };
+
+        booking.ApproveByOwner(BaseTime, ownerUserId: 99, reason: "Chủ bãi đồng ý duyệt");
+
+        Assert.Equal(BookingStatus.Confirmed, booking.Status);
+        Assert.Equal(0, booking.PaidAmount); // Không thay đổi PaidAmount
+        Assert.Equal(BaseTime, booking.ConfirmedAtUtc);
+    }
 }
 
 /// <summary>
@@ -203,6 +229,11 @@ public class BookingStateMachineTests
 public class BookingFeaturesTests
 {
     private static readonly DateTime FixedNow = new(2026, 10, 5, 8, 0, 0, DateTimeKind.Utc);
+
+    static BookingFeaturesTests()
+    {
+        Environment.SetEnvironmentVariable("QRTOKEN_SECRET", "test-secret-key-for-unit-tests-12345");
+    }
 
     [Fact]
     public void QrTokenService_generates_and_validates_token_correctly()
