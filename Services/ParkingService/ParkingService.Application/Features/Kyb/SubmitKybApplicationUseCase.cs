@@ -20,6 +20,8 @@ public interface ISubmitKybApplicationUseCase
 /// Bước 2: Ảnh hiện trường bãi đỗ và tọa độ GPS khớp với vị trí bãi (<= 500m).
 /// Bước 3: Giấy chứng nhận đủ điều kiện an toàn PCCC.
 /// Bước 4: Lịch hẹn khảo sát thực địa đối với bãi có quy mô > 50 chỗ.
+/// Cơ chế Upsert: Cập nhật trực tiếp bản ghi hiện tại của bãi đỗ (Draft, Rejected, NeedsMoreInfo)
+/// sang trạng thái Submitted, cam kết 1 bãi đỗ chỉ có 1 bản ghi duy nhất, không sinh duplicate bản ghi.
 /// </summary>
 public sealed class SubmitKybApplicationUseCase(
     IKybApplicationRepository kybRepository,

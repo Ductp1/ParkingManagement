@@ -67,6 +67,11 @@ public static class ServiceDefaultsExtensions
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseCors(FrontendCorsPolicy);
+        // Các service chưa tích hợp JWT vẫn dùng được cấu hình nền tảng.
+        if (app.Services.GetService<Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider>() is not null)
+            app.UseAuthentication();
+        if (app.Services.GetService<Microsoft.AspNetCore.Authorization.IAuthorizationPolicyProvider>() is not null)
+            app.UseAuthorization();
         app.MapOpenApi();
         app.MapHealthChecks("/health");
         app.MapControllers();

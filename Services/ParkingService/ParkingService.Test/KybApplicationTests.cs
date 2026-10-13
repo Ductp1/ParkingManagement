@@ -51,6 +51,7 @@ public class KybApplicationTests
         Assert.NotNull(result);
         Assert.Equal("Draft", result.Status);
         Assert.False(result.FieldSurveyRequired); // Không bắt buộc khảo sát thực địa
+        Assert.Equal(0, kybRepo.Count); // GET không ghi CSDL, tránh sinh bản ghi duplicate
     }
 
     [Fact]
@@ -310,6 +311,325 @@ public class KybApplicationTests
         Assert.NotNull(result.SubmittedAtUtc);
     }
 
+    // ==================== LOCKED STATUS, UPDATE-PATH & RESUBMIT TESTS ====================
+
+    [Theory]
+    [InlineData(KybStatus.Submitted)]
+    [InlineData(KybStatus.UnderReview)]
+    [InlineData(KybStatus.Approved)]
+    public async Task SubmitKyb_WhenLockedStatus_ThrowsConflictException(KybStatus lockedStatus)
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+
+        var kybRepo = new FakeKybRepo();
+        await kybRepo.AddAsync(WithId(new KybApplication { ParkingLotId = 1, Status = lockedStatus }, 1));
+
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/gpdkkd.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: null,
+            PhotoLongitude: null,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null,
+            FieldSurveyNote: null);
+
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task SubmitKyb_WhenDraftExists_UpdatesExistingRecord_NoDuplicateCreated()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+
+        var kybRepo = new FakeKybRepo();
+        // Giả lập bãi đã có sẵn 1 bản ghi Draft từ trước (Id = 1)
+        var existingDraft = WithId(new KybApplication
+        {
+            ParkingLotId = 1,
+            Status = KybStatus.Draft,
+            BusinessLicenseUrl = "/old-license.pdf",
+            FieldSurveyRequired = false
+        }, 1);
+        await kybRepo.AddAsync(existingDraft);
+
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/new-license.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: null,
+            PhotoLongitude: null,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null,
+            FieldSurveyNote: null);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal(1, result.Id); // Cập nhật đúng bản ghi Id = 1 hiện có
+        Assert.Equal("Submitted", result.Status);
+        Assert.Equal("/new-license.pdf", result.BusinessLicenseUrl);
+        Assert.Equal(1, kybRepo.Count); // Bắt buộc chỉ có 1 bản ghi duy nhất, KHÔNG sinh duplicate!
+    }
+
+    [Fact]
+    public async Task SaveKybDraft_WhenDraftExists_UpdatesExistingRecord_NoDuplicateCreated()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+
+        var kybRepo = new FakeKybRepo();
+        var existingDraft = WithId(new KybApplication
+        {
+            ParkingLotId = 1,
+            Status = KybStatus.Draft,
+            BusinessLicenseUrl = "/step1.pdf",
+            FieldSurveyRequired = false
+        }, 1);
+        await kybRepo.AddAsync(existingDraft);
+
+        var useCase = new SaveKybDraftUseCase(kybRepo, lotRepo, NullLogger<SaveKybDraftUseCase>.Instance);
+
+        // Lưu tiếp Bước 3 (PCCC)
+        var command = new SaveKybDraftCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            FireSafetyCertificateUrl: "/step3-pccc.pdf");
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal(1, result.Id);
+        Assert.Equal("Draft", result.Status);
+        Assert.Equal("/step1.pdf", result.BusinessLicenseUrl); // Giữ nguyên dữ liệu cũ
+        Assert.Equal("/step3-pccc.pdf", result.FireSafetyCertificateUrl); // Cập nhật trường mới
+        Assert.Equal(1, kybRepo.Count); // Đảm bảo không tạo thêm bản ghi thứ 2
+    }
+
+    [Fact]
+    public async Task SubmitKyb_WhenRejected_Resubmit_UpdatesExistingRecord_ClearsRejectReason()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+
+        var kybRepo = new FakeKybRepo();
+        var rejectedApp = WithId(new KybApplication
+        {
+            ParkingLotId = 1,
+            Status = KybStatus.Rejected,
+            RejectReason = "Ảnh hiện trường không rõ biển hiệu",
+            BusinessLicenseUrl = "/old-license.pdf",
+            FireSafetyCertificateUrl = "/pccc.pdf"
+        }, 1);
+        await kybRepo.AddAsync(rejectedApp);
+
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/fixed-license.pdf",
+            SitePhotoUrls: ["/new-photo-clear.jpg"],
+            PhotoLatitude: null,
+            PhotoLongitude: null,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null,
+            FieldSurveyNote: null);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal(1, result.Id);
+        Assert.Equal("Submitted", result.Status);
+        Assert.Null(result.RejectReason); // Đã xóa lý do từ chối khi nộp lại thành công
+        Assert.NotNull(result.SubmittedAtUtc);
+        Assert.Equal(1, kybRepo.Count); // Giữ nguyên 1 bản ghi duy nhất
+    }
+
+    [Fact]
+    public async Task SubmitKyb_WhenNeedsMoreInfo_Resubmit_UpdatesExistingRecord()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+
+        var kybRepo = new FakeKybRepo();
+        var needsInfoApp = WithId(new KybApplication
+        {
+            ParkingLotId = 1,
+            Status = KybStatus.NeedsMoreInfo,
+            RejectReason = "Vui lòng bổ sung chứng nhận PCCC mới nhất",
+            BusinessLicenseUrl = "/license.pdf"
+        }, 1);
+        await kybRepo.AddAsync(needsInfoApp);
+
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/license.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: null,
+            PhotoLongitude: null,
+            FireSafetyCertificateUrl: "/new-pccc.pdf",
+            FieldSurveyAtUtc: null,
+            FieldSurveyNote: null);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal(1, result.Id);
+        Assert.Equal("Submitted", result.Status);
+        Assert.Null(result.RejectReason);
+        Assert.Equal(1, kybRepo.Count);
+    }
+
+    [Theory]
+    [InlineData(KybStatus.Rejected)]
+    [InlineData(KybStatus.NeedsMoreInfo)]
+    public async Task SaveKybDraft_WhenRejectedOrNeedsMoreInfo_ResetsStatusToDraft(KybStatus priorStatus)
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+
+        var kybRepo = new FakeKybRepo();
+        var app = WithId(new KybApplication
+        {
+            ParkingLotId = 1,
+            Status = priorStatus,
+            BusinessLicenseUrl = "/license.pdf"
+        }, 1);
+        await kybRepo.AddAsync(app);
+
+        var useCase = new SaveKybDraftUseCase(kybRepo, lotRepo, NullLogger<SaveKybDraftUseCase>.Instance);
+
+        var command = new SaveKybDraftCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/license-updated.pdf");
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal(1, result.Id);
+        Assert.Equal("Draft", result.Status); // Trạng thái tự động reset về Draft khi lưu nháp sửa đổi
+        Assert.Equal("/license-updated.pdf", result.BusinessLicenseUrl);
+        Assert.Equal(1, kybRepo.Count);
+    }
+
+    // ==================== BOUNDARY TESTS (50/51 SLOTS & 500M GPS) ====================
+
+    [Fact]
+    public async Task Boundary_SlotCapacity_50Slots_DoesNotRequireSurvey_SubmitSucceedsWithoutDate()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        // Biên 50 chỗ: <= 50 chỗ không bắt buộc khảo sát thực địa
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 50));
+
+        var kybRepo = new FakeKybRepo();
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/gpdkkd.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: null,
+            PhotoLongitude: null,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null, // Không truyền ngày khảo sát
+            FieldSurveyNote: null);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal("Submitted", result.Status);
+        Assert.False(result.FieldSurveyRequired); // Đúng 50 chỗ -> FieldSurveyRequired = false
+        Assert.Null(result.FieldSurveyAtUtc);
+    }
+
+    [Fact]
+    public async Task Boundary_SlotCapacity_51Slots_RequiresSurvey_SubmitWithoutDateThrowsValidationException()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        // Biên 51 chỗ: > 50 chỗ BẮT BUỘC phải có lịch hẹn khảo sát thực địa
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 51));
+
+        var kybRepo = new FakeKybRepo();
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/gpdkkd.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: null,
+            PhotoLongitude: null,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null, // Thiếu ngày hẹn khảo sát
+            FieldSurveyNote: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(command));
+        Assert.Contains("Bước 4: Bãi đỗ có quy mô trên 50 chỗ bắt buộc phải đặt lịch khảo sát thực địa", ex.Message);
+    }
+
+    [Fact]
+    public async Task Boundary_PhotoGpsDistance_AtOrUnder500m_Succeeds()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        // Bãi tại tọa độ (10.7719, 106.7044)
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30, lat: 10.7719, lng: 106.7044));
+
+        var kybRepo = new FakeKybRepo();
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        // Độ lệch vĩ độ dLat = 0.0044 -> Khoảng cách Haversine ~ 0.489 km (<= 0.5 km / 500m)
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/gpdkkd.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: 10.7719 + 0.0044,
+            PhotoLongitude: 106.7044,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null,
+            FieldSurveyNote: null);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal("Submitted", result.Status);
+        Assert.Equal(10.7719 + 0.0044, result.PhotoLatitude);
+    }
+
+    [Fact]
+    public async Task Boundary_PhotoGpsDistance_Over500m_ThrowsValidationException()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        // Bãi tại tọa độ (10.7719, 106.7044)
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30, lat: 10.7719, lng: 106.7044));
+
+        var kybRepo = new FakeKybRepo();
+        var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
+
+        // Độ lệch vĩ độ dLat = 0.0046 -> Khoảng cách Haversine ~ 0.511 km (> 0.5 km / 500m)
+        var command = new SubmitKybApplicationCommand(
+            ParkingLotId: 1,
+            OwnerProfileId: 10,
+            BusinessLicenseUrl: "/gpdkkd.pdf",
+            SitePhotoUrls: ["/photo1.jpg"],
+            PhotoLatitude: 10.7719 + 0.0046,
+            PhotoLongitude: 106.7044,
+            FireSafetyCertificateUrl: "/pccc.pdf",
+            FieldSurveyAtUtc: null,
+            FieldSurveyNote: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(command));
+        Assert.Contains("500 m", ex.Message);
+        Assert.Contains("vượt quá bán kính cho phép", ex.Message);
+    }
+
     // ==================== FAKE REPOSITORIES ====================
 
     private sealed class FakeLotManagementRepo : IParkingLotManagementRepository
@@ -342,6 +662,9 @@ public class KybApplicationTests
     {
         private readonly List<KybApplication> _apps = [];
         private int _nextId = 1;
+
+        public int Count => _apps.Count;
+        public IReadOnlyList<KybApplication> All => _apps;
 
         public Task<KybApplication?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult(_apps.FirstOrDefault(a => a.Id == id));

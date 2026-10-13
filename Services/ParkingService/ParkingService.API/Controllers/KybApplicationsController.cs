@@ -34,7 +34,7 @@ public sealed class KybApplicationsController(
     ISaveKybDraftUseCase saveKybDraft,
     ISubmitKybApplicationUseCase submitKybApplication) : ControllerBase
 {
-    /// <summary>GET /api/v1/parking-lots/{lotId}/kyb – Lấy thông tin / khởi tạo hồ sơ KYB của bãi đỗ.</summary>
+    /// <summary>GET /api/v1/parking-lots/{lotId}/kyb – Lấy thông tin hồ sơ KYB (Read-only, không ghi CSDL nếu chưa có).</summary>
     [HttpGet]
     [ProducesResponseType<KybApplicationDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -49,7 +49,7 @@ public sealed class KybApplicationsController(
         return Ok(await getKybApplication.ExecuteAsync(query, cancellationToken));
     }
 
-    /// <summary>PUT /api/v1/parking-lots/{lotId}/kyb/draft – Lưu nháp tiến độ hồ sơ KYB (cho phép lưu từng bước).</summary>
+    /// <summary>PUT /api/v1/parking-lots/{lotId}/kyb/draft – Lưu nháp tiến độ hồ sơ KYB (Upsert: Cập nhật nếu đã có, tạo mới nếu chưa; không sinh duplicate bản ghi).</summary>
     [HttpPut("draft")]
     [ProducesResponseType<KybApplicationDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -74,7 +74,7 @@ public sealed class KybApplicationsController(
         return Ok(await saveKybDraft.ExecuteAsync(command, cancellationToken));
     }
 
-    /// <summary>POST /api/v1/parking-lots/{lotId}/kyb/submit – Nộp chính thức hồ sơ KYB (kiểm tra đầy đủ 4 bước).</summary>
+    /// <summary>POST /api/v1/parking-lots/{lotId}/kyb/submit – Nộp chính thức hồ sơ KYB (Upsert: Cập nhật bản ghi Draft/Rejected hiện có sang Submitted; không sinh duplicate bản ghi).</summary>
     [HttpPost("submit")]
     [ProducesResponseType<KybApplicationDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

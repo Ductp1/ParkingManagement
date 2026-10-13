@@ -15,6 +15,8 @@ public interface ISaveKybDraftUseCase
 /// <summary>
 /// USE CASE: Lưu nháp tiến độ hồ sơ thẩm định KYB 4 bước (US-054).
 /// Cho phép chủ bãi lưu dữ liệu dở dang của từng bước (1..4) mà không bắt buộc điền đủ tất cả các trường.
+/// Cơ chế Upsert: Cập nhật trực tiếp bản ghi hiện tại nếu đã có, hoặc tạo mới nếu chưa từng lưu nháp.
+/// Cam kết 1 bãi đỗ chỉ có 1 bản ghi duy nhất, không sinh duplicate bản ghi.
 /// </summary>
 public sealed class SaveKybDraftUseCase(
     IKybApplicationRepository kybRepository,

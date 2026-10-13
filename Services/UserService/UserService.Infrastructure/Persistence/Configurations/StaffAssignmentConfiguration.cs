@@ -11,7 +11,7 @@ internal sealed class StaffAssignmentConfiguration : IEntityTypeConfiguration<St
     public void Configure(EntityTypeBuilder<StaffAssignment> e)
     {
         e.ToTable("StaffAssignments");
-        e.HasOne(x => x.StaffUser).WithMany().HasForeignKey(x => x.StaffUserId);
+        e.HasOne(x => x.StaffUser).WithMany(u => u.StaffAssignments).HasForeignKey(x => x.StaffUserId);
         e.HasOne(x => x.OwnerProfile).WithMany(o => o.StaffAssignments).HasForeignKey(x => x.OwnerProfileId);
 
         // 1 Staff chỉ có 1 phân công đang hiệu lực cho mỗi bãi.
