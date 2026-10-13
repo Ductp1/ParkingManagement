@@ -20,21 +20,7 @@ interface BookingItem {
 }
 
 const INITIAL_BOOKINGS: BookingItem[] = [
-  {
-    id: '1',
-    code: '#PKM-2025-8842',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Landmark 81 Parking Garage',
-    spot: 'Vị trí B-04 • Hầm B2 (Cạnh trụ B-12)',
-    timeRange: '14:00 - 18:00 (4h 00m)',
-    dateLabel: 'Hôm nay',
-    services: ['Sạc nhanh EV 120kW', 'Bảo hiểm VIP'],
-    totalPrice: 156000,
-    paymentMethod: 'Ví ParkMaster',
-    status: 'upcoming',
-    statusText: 'Sắp diễn ra',
-  },
+  
   {
     id: '2',
     code: '#PKM-2025-7621',
