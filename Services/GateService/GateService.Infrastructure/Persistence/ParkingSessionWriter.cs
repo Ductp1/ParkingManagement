@@ -18,8 +18,11 @@ public sealed class ParkingSessionWriter(GateDbContext db) : IParkingSessionWrit
         }
         catch (DbUpdateException)
         {
-            // Unique index chặn 2 lượt Active cho cùng 1 biển số/bãi (chống race giữa 2 request).
-            throw new ConflictException($"Xe {session.PlateNumber} đang có lượt gửi chưa kết thúc tại bãi này.");
+            // Unique index chặn race giữa 2 request: 2 lượt Active cho cùng biển/bãi,
+            // hoặc 2 lượt cho cùng booking (T-704). Báo conflict đúng nguyên nhân.
+            throw new ConflictException(session.BookingCode is null
+                ? $"Xe {session.PlateNumber} đang có lượt gửi chưa kết thúc tại bãi này."
+                : $"Booking {session.BookingCode} đã được check-in trước đó, không thể tạo lượt gửi xe lần hai.");
         }
         return session;
     }
@@ -28,6 +31,10 @@ public sealed class ParkingSessionWriter(GateDbContext db) : IParkingSessionWrit
         => db.ParkingSessions.FirstOrDefaultAsync(
             s => s.ParkingLotId == parkingLotId && s.PlateNumber == normalizedPlate && s.Status == ParkingSessionStatus.Active,
             cancellationToken);
+
+    // T-704: 1 booking chỉ được check-in 1 lần (mọi trạng thái) – pre-check, race bị unique index chặn ở AddAsync.
+    public Task<ParkingSession?> FindByBookingCodeAsync(string bookingCode, CancellationToken cancellationToken)
+        => db.ParkingSessions.FirstOrDefaultAsync(s => s.BookingCode == bookingCode, cancellationToken);
 
     public Task SaveAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
 }

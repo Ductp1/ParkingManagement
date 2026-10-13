@@ -29,6 +29,9 @@ internal sealed class ParkingSessionConfiguration : IEntityTypeConfiguration<Par
         e.HasIndex(x => new { x.ParkingLotId, x.PlateNumber }).IsUnique().HasFilter("\"Status\" = 'Active'");
         // Một booking chỉ sinh ra 1 lượt gửi xe.
         e.HasIndex(x => x.BookingId).IsUnique().HasFilter("\"BookingId\" IS NOT NULL");
+        // T-704: 1 booking code chỉ được check-in đúng 1 lần – unique index chặn race giữa 2 request
+        // (BookingCode nullable → filter bỏ các lượt vãng lai, Postgres cho phép nhiều NULL).
+        e.HasIndex(x => x.BookingCode).IsUnique().HasFilter("\"BookingCode\" IS NOT NULL");
         e.HasIndex(x => new { x.OwnerProfileId, x.ParkingLotId, x.EntryAtUtc });
     }
 }
