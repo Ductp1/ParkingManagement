@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SupportService.Application.Features;
 using SupportService.Application.Interfaces;
 using SupportService.Application.Services;
@@ -12,6 +13,9 @@ public static class DependencyInjection
         services.AddScoped<IListOwnerComplaintsUseCase, ListOwnerComplaintsUseCase>();
         services.AddScoped<IGetLotReviewsUseCase, GetLotReviewsUseCase>();
         services.AddScoped<IFaqService, FaqAppService>();
+        services.AddScoped<IComplaintService, ComplaintAppService>();
+        // ComplaintAppService cần giờ hệ thống. AddServiceDefaults() đã đăng ký sẵn; TryAdd chỉ thêm khi chưa có (không trùng).
+        services.TryAddSingleton(TimeProvider.System);
         return services;
     }
 }

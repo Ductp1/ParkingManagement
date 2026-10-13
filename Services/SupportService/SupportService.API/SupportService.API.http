@@ -27,6 +27,47 @@ GET {{gateway}}/api/v1/faqs/999
 ### US-092 · Id không hợp lệ → 400
 GET {{gateway}}/api/v1/faqs/0
 
+### US-088 · Gửi khiếu nại cho booking của tôi → 201, Status AwaitingOwner, Priority Medium
+# Cần chạy cả BookingService (:5104). Booking phải thuộc userId và kết thúc chưa quá 7 ngày.
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{
+  "userId": 5,
+  "bookingCode": "BK-0002",
+  "category": "Overcharge",
+  "description": "Tôi ra trước giờ kết thúc 10 phút nhưng vẫn bị tính đủ block cuối.",
+  "requestedAmount": 10000,
+  "evidenceUrls": [ "https://cdn.example.com/receipt-bk0002.jpg" ]
+}
+
+### US-088 · Gửi lần 2 cho cùng booking khi ticket cũ chưa xong → 409
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{ "userId": 5, "bookingCode": "BK-0002", "category": "LotFull", "description": "Đến nơi bãi báo hết chỗ dù đã đặt trước." }
+
+### US-088 · Booking của người khác → 404
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{ "userId": 6, "bookingCode": "BK-0002", "category": "Other", "description": "Thử gửi khiếu nại cho booking không phải của tôi." }
+
+### US-088 · Mô tả quá ngắn (dưới 10 ký tự) → 400
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{ "userId": 5, "bookingCode": "BK-0002", "category": "Other", "description": "Sai" }
+
+### US-088 · Khiếu nại của tôi → 200
+GET {{gateway}}/api/v1/complaints/my?userId=5
+
+### US-088 · Chi tiết ticket (thay mã CP-... vừa tạo) → 200, kèm hội thoại
+GET {{gateway}}/api/v1/complaints/CP-0001?userId=5
+
+### US-088 · Ticket của người khác → 404
+GET {{gateway}}/api/v1/complaints/CP-0001?userId=6
+
 ### Gọi thẳng service (bỏ qua Gateway) – dùng khi nghi Gateway route sai
 GET {{direct}}/api/v1/faqs?audience=Driver
 

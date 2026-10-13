@@ -1,5 +1,6 @@
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
+using SupportService.Domain.Rules;
 
 namespace SupportService.Domain.Entities;
 
@@ -18,10 +19,14 @@ public class Complaint : BaseEntity
     public string? BookingCode { get; set; }
     /// <summary>→ ParkingService (không FK).</summary>
     public int ParkingLotId { get; set; }
-    /// <summary>→ UserService (không FK).</summary>
-    public int OwnerProfileId { get; set; }
+    /// <summary>→ UserService (không FK). Null khi chưa xác định được chủ bãi → ticket do nền tảng xử lý.</summary>
+    public int? OwnerProfileId { get; set; }
 
     public ComplaintCategory Category { get; set; }
+    /// <summary>Mức ưu tiên phân loại lúc tạo ticket (US-088 AC3).</summary>
+    public ComplaintPriority Priority { get; set; } = ComplaintPriority.Low;
+    /// <summary>Nhóm đang xử lý: Support hoặc Supervisor.</summary>
+    public SupportTeam AssignedTeam { get; set; } = SupportTeam.Support;
     public string Description { get; set; } = string.Empty;
     public string? EvidenceUrlsJson { get; set; }
     public decimal? RequestedAmount { get; set; }
