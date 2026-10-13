@@ -41,7 +41,8 @@ public sealed record PaymentFailed(int PaymentId, int? BookingId, string Reason)
 public sealed record RefundIssued(int RefundId, int PaymentId, int? BookingId, decimal Amount) : IntegrationEvent;
 
 // ===== SupportService =====
-public sealed record ComplaintCreated(int ComplaintId, string Code, int ParkingLotId, int OwnerProfileId) : IntegrationEvent;
+/// <summary>OwnerProfileId = null khi chưa xác định được chủ bãi → chỉ thông báo cho đội Support.</summary>
+public sealed record ComplaintCreated(int ComplaintId, string Code, int ParkingLotId, int? OwnerProfileId) : IntegrationEvent;
 public sealed record ReviewCreated(int ReviewId, int ParkingLotId, byte Rating) : IntegrationEvent;
 
 // ===== Mọi service → AdminService =====

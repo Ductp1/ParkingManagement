@@ -25,7 +25,7 @@ public sealed class ComplaintRepository(SupportDbContext db) : IComplaintReposit
         db.Complaints.Add(complaint);
         await db.SaveChangesAsync(cancellationToken);
 
-        var evt = new ComplaintCreated(complaint.Id, complaint.Code, complaint.ParkingLotId, complaint.OwnerProfileId ?? 0);
+        var evt = new ComplaintCreated(complaint.Id, complaint.Code, complaint.ParkingLotId, complaint.OwnerProfileId);
         db.OutboxMessages.Add(new OutboxMessage
         {
             EventType = nameof(ComplaintCreated),

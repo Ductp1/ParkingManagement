@@ -34,12 +34,12 @@ public sealed class BookingServiceClient(HttpClient http, ILogger<BookingService
 
         return new BookingSnapshot(
             dto.Id, dto.Code, Enum.Parse<BookingStatus>(dto.Status, ignoreCase: true), dto.UserId, dto.ParkingLotId,
-            dto.OwnerProfileId, dto.EndAtUtc, dto.History?.Max(h => (DateTime?)h.AtUtc), dto.PaidAmount);
+            dto.OwnerProfileId, dto.StartAtUtc, dto.EndAtUtc, dto.History?.Max(h => (DateTime?)h.AtUtc), dto.PaidAmount);
     }
 
     /// <summary>Chỉ đọc các trường cần dùng trong BookingDetailDto của BookingService.</summary>
     private sealed record BookingResponse(int Id, string Code, string Status, int UserId, int ParkingLotId,
-        int? OwnerProfileId, DateTime EndAtUtc, decimal PaidAmount, List<StatusLog>? History);
+        int? OwnerProfileId, DateTime StartAtUtc, DateTime EndAtUtc, decimal PaidAmount, List<StatusLog>? History);
 
     private sealed record StatusLog(DateTime AtUtc);
 }

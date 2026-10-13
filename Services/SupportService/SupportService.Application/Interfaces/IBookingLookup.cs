@@ -12,6 +12,7 @@ public sealed record BookingSnapshot(
     int UserId,
     int ParkingLotId,
     int? OwnerProfileId,
+    DateTime StartAtUtc,
     DateTime EndAtUtc,
     DateTime? LastChangedAtUtc,
     decimal PaidAmount);

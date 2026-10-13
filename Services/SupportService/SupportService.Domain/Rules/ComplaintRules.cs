@@ -34,6 +34,19 @@ public static class ComplaintRules
     public static bool CanComplainAbout(BookingStatus status)
         => status is not (BookingStatus.Created or BookingStatus.PendingPayment);
 
+    /// <summary>Booking đang diễn ra (đã xác nhận, đã vào cổng, đang đỗ, chờ chủ bãi duyệt) – chưa có kết thúc.</summary>
+    public static bool IsOngoing(BookingStatus status)
+        => status is BookingStatus.Confirmed or BookingStatus.CheckedIn or BookingStatus.Parking or BookingStatus.PendingOwnerApproval;
+
+    /// <summary>
+    /// Mốc sự cố dùng để tính hạn khiếu nại, theo trạng thái booking:
+    /// đang diễn ra → bây giờ, nhưng không muộn hơn giờ kết thúc dự kiến (booking "Confirmed" đã quá giờ mà chưa được
+    /// chuyển no-show vẫn bị tính hạn từ giờ kết thúc); đã kết thúc (hoàn tất, hủy, từ chối, hết hạn, no-show) →
+    /// thời điểm đổi trạng thái cuối, tức lúc check-out thực tế hoặc lúc có quyết định; không có lịch sử thì lấy giờ kết thúc dự kiến.
+    /// </summary>
+    public static DateTime ResolveIncidentAtUtc(BookingStatus status, DateTime endAtUtc, DateTime? lastChangedAtUtc, DateTime nowUtc)
+        => IsOngoing(status) ? (endAtUtc < nowUtc ? endAtUtc : nowUtc) : lastChangedAtUtc ?? endAtUtc;
+
     /// <summary>Ticket còn đang xử lý → không cho mở ticket thứ hai cho cùng booking.</summary>
     public static bool IsOpen(ComplaintStatus status)
         => status is not (ComplaintStatus.Resolved or ComplaintStatus.Rejected);

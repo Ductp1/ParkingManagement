@@ -28,21 +28,28 @@ public sealed class ComplaintAppService(IComplaintRepository repository, IBookin
         if (!ComplaintRules.CanComplainAbout(booking.Status))
             throw new ValidationException("Booking chưa thanh toán nên chưa thể gửi khiếu nại.");
 
-        // 2. AC2: chỉ trong 7 ngày làm việc kể từ khi booking kết thúc hoặc có quyết định gần nhất (hủy, check-out...).
+        // 2. Sự cố phải đã xảy ra: booking đang diễn ra thì phải bắt đầu rồi; mốc sự cố không được nằm ở tương lai.
         var now = clock.GetUtcNow().UtcDateTime;
-        var incidentAt = booking.LastChangedAtUtc is { } changed && changed > booking.EndAtUtc ? changed : booking.EndAtUtc;
+        if (ComplaintRules.IsOngoing(booking.Status) && booking.StartAtUtc > now)
+            throw new ValidationException("Booking chưa diễn ra nên chưa thể gửi khiếu nại.");
+
+        var incidentAt = ComplaintRules.ResolveIncidentAtUtc(booking.Status, booking.EndAtUtc, booking.LastChangedAtUtc, now);
+        if (incidentAt > now)
+            throw new ValidationException("Thời điểm sự cố không hợp lệ (nằm ở tương lai).");
+
+        // 3. AC2: chỉ trong 7 ngày làm việc kể từ mốc sự cố.
         if (!ReviewRules.IsWithinComplaintWindow(incidentAt, now))
             throw new ValidationException(
-                $"Đã quá {ReviewRules.ComplaintWindowWorkingDays} ngày làm việc kể từ khi booking kết thúc, không thể gửi khiếu nại mới.");
+                $"Đã quá {ReviewRules.ComplaintWindowWorkingDays} ngày làm việc kể từ khi booking kết thúc hoặc có quyết định, không thể gửi khiếu nại mới.");
 
         if (request.RequestedAmount > booking.PaidAmount)
             throw new ValidationException($"Số tiền yêu cầu không được vượt quá số tiền đã thanh toán ({booking.PaidAmount:N0}đ).");
 
-        // 3. Mỗi booking chỉ có 1 ticket đang xử lý.
+        // 4. Mỗi booking chỉ có 1 ticket đang xử lý.
         if (await repository.HasOpenComplaintForBookingAsync(booking.Id, cancellationToken))
             throw new ConflictException($"Booking {booking.Code} đã có khiếu nại đang được xử lý.");
 
-        // 4. AC3: phân mức và giao nhóm xử lý; khiếu nại về bãi thì chờ chủ bãi phản hồi 48 giờ.
+        // 5. AC3: phân mức và giao nhóm xử lý; khiếu nại về bãi thì chờ chủ bãi phản hồi 48 giờ.
         var (priority, team) = ComplaintRules.Classify(request.Category);
         var awaitOwner = ComplaintRules.RequiresOwnerResponse(request.Category) && booking.OwnerProfileId is not null;
         var evidenceJson = evidence.Count == 0 ? null : JsonSerializer.Serialize(evidence);
