@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Floors;
+using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
@@ -17,6 +18,11 @@ public static class DependencyInjection
         services.AddScoped<IUpdateParkingLotUseCase, UpdateParkingLotUseCase>();
         services.AddScoped<IGetOwnerParkingLotsUseCase, GetOwnerParkingLotsUseCase>();
         services.AddScoped<IGetParkingLotHierarchyUseCase, GetParkingLotHierarchyUseCase>();
+
+        // KYB Application (US-054)
+        services.AddScoped<IGetKybApplicationUseCase, GetKybApplicationUseCase>();
+        services.AddScoped<ISaveKybDraftUseCase, SaveKybDraftUseCase>();
+        services.AddScoped<ISubmitKybApplicationUseCase, SubmitKybApplicationUseCase>();
 
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();
