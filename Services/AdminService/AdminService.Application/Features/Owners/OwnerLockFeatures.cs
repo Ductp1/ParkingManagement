@@ -62,7 +62,7 @@ public sealed class LockOwnerUseCase(IUserServiceClient userService, IOwnerLockR
         if (string.IsNullOrWhiteSpace(request.Reason)) throw new ValidationException("Lý do khóa không được để trống.");
         var reason = request.Reason.Trim();
         if (reason.Length > 1000) throw new ValidationException("Lý do khóa tối đa 1000 ký tự.");
-        var lockedUntilUtc = OwnerLockTime.ToUtc(request.LockedUntilUtc);
+        var lockedUntilUtc = UtcDateTime.ToUtc(request.LockedUntilUtc);
         if (lockedUntilUtc <= now) throw new ValidationException("lockedUntilUtc phải sau thời điểm hiện tại.");
 
         // Xác minh hồ sơ chủ bãi có thật trước khi ghi – không lưu chế tài cho OwnerProfileId không tồn tại.
@@ -203,16 +203,5 @@ public sealed class UnlockOwnerUseCase(IUserServiceClient userService, IOwnerLoc
             new { isLocked = true, sanctionId = sanction.Id, level = sanction.Level.ToString(), lockedUntilUtc = sanction.EndsAtUtc }, AuditJson),
         NewValuesJson = JsonSerializer.Serialize(new { isLocked = false }, AuditJson),
         Reason = reason,
-    };
-}
-
-internal static class OwnerLockTime
-{
-    /// <summary>Mốc thời gian nhận từ client luôn được hiểu là UTC (giá trị không ghi múi giờ coi như đã là UTC).</summary>
-    public static DateTime? ToUtc(DateTime? value) => value switch
-    {
-        null => null,
-        { Kind: DateTimeKind.Unspecified } v => DateTime.SpecifyKind(v, DateTimeKind.Utc),
-        { } v => v.ToUniversalTime(),
     };
 }

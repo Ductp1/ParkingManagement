@@ -11,8 +11,8 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
 {
     /// <summary>
     /// POST /api/v1/gate/check-in – Check-in tại cổng vào.
-    /// Body: { parkingLotId, method: "Qr" | "BookingCode" | "Manual", plate, bookingCode?, staffUserId? }.
-    /// Khách vãng lai = không kèm bookingCode.
+    /// Body: { parkingLotId, method: "Qr" | "BookingCode" | "Manual", plate, bookingCode?, staffUserId?, qrToken? }.
+    /// method = "Qr" (T-704) bắt buộc qrToken hợp lệ do BookingService cấp; khách vãng lai = không kèm bookingCode.
     /// </summary>
     [HttpPost("check-in")]
     public async Task<ActionResult<ParkingSessionDto>> CheckIn([FromBody] CheckInCommand command, CancellationToken cancellationToken)

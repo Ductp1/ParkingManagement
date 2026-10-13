@@ -11,6 +11,14 @@ export interface ParkingLotDto {
   openingHours: string;
   isOpenNow: boolean;
   status: string;
+  description?: string | null;
+  hotlinePhone?: string | null;
+  coverImageUrl?: string | null;
+  ratingAverage?: number;
+  ratingCount?: number;
+  canBook?: boolean;
+  amenities?: string[];
+  photos?: string[];
 }
 
 export interface ParkingLotSearchItemDto {
