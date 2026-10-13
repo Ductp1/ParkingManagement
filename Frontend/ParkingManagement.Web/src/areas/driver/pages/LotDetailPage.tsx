@@ -208,8 +208,8 @@ export const LotDetailPage: React.FC = () => {
       {/* 2. Hero Section with Cover Image */}
       <div className="relative w-full h-80 overflow-hidden bg-slate-900">
         <img
-          src="https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1600&q=80"
-          alt="Landmark 81 Underground Garage"
+          src={lot?.coverImageUrl || "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1600&q=80"}
+          alt={lot?.name || "Landmark 81 Underground Garage"}
           className="w-full h-full object-cover opacity-80"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/40 to-transparent"></div>
@@ -233,6 +233,19 @@ export const LotDetailPage: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        {/* AC3 Warning Alert if Lot is Suspended/Not Bookable */}
+        {lot && (!lot.canBook || lot.status !== 'Active') && (
+          <div className="mt-6 p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-3 shadow-sm">
+            <span className="material-symbols-outlined text-amber-600 text-[26px] shrink-0">warning</span>
+            <div>
+              <h4 className="font-bold text-sm">Bãi đỗ này hiện đang tạm ngừng tiếp nhận đặt chỗ online</h4>
+              <p className="text-xs text-amber-800 mt-1">
+                Trạng thái hiện tại: <strong>{lot.status}</strong>. Hệ thống tạm khóa luồng đặt giữ chỗ trực tuyến để đảm bảo an toàn. Quý khách vui lòng liên hệ hotline chung của bãi: <strong className="underline">{lot.hotlinePhone || '1900 6868'}</strong> để được hỗ trợ.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 3. White Overlapping Info Card */}
         <div className="relative z-10 -mt-16 mx-auto max-w-7xl shadow-lg rounded-2xl bg-white p-6 sm:p-8 border border-slate-100 mb-10">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -256,17 +269,34 @@ export const LotDetailPage: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-xs text-slate-800 font-medium">
                     <span className="material-symbols-outlined text-[16px] text-emerald-600">schedule</span>
-                    Mở cửa: 24/7 (Cả ngày lễ)
+                    Mở cửa: {lot?.openingHours || '24/7 (Cả ngày lễ)'}
                   </span>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 text-xs text-emerald-700 font-bold">
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    Trống 42/120 chỗ đỗ
+                    Trống {lot ? `${lot.availableSlots}/${lot.totalSlots}` : '42/120'} chỗ đỗ
                   </span>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 text-xs text-blue-700 font-medium">
-                    <span className="material-symbols-outlined text-[16px]">videocam</span>
-                    AI Vision 360° Giám sát
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-xs text-slate-800 font-medium">
+                    <span className="material-symbols-outlined text-[16px] text-blue-600">call</span>
+                    Hotline: {lot?.hotlinePhone || '1900 6868'}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 text-xs text-slate-800 font-medium">
+                    <span className="material-symbols-outlined text-[16px] text-amber-600">height</span>
+                    Cao tối đa: {(lot?.maxHeightCm ?? 210) / 100}m
                   </span>
                 </div>
+
+                {/* Amenities Badges (US-018 AC1) */}
+                {lot?.amenities && lot.amenities.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-3 border-t border-slate-100">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Tiện ích:</span>
+                    {lot.amenities.map((item, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                        <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -890,14 +920,19 @@ export const LotDetailPage: React.FC = () => {
                   </label>
                 </div>
 
-                {/* CTA Button */}
+                {/* CTA Button (AC3: Disable khi bãi không khả dụng) */}
                 <button
                   type="button"
+                  disabled={lot?.canBook === false}
                   onClick={handleConfirmBooking}
-                  className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                  className={`w-full py-4 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 mt-2 ${
+                    lot?.canBook === false
+                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20 cursor-pointer'
+                  }`}
                 >
-                  <span className="material-symbols-outlined text-[20px]">lock</span>
-                  <span>Xác nhận & Thanh toán ({totalAmount.toLocaleString('vi-VN')}đ)</span>
+                  <span className="material-symbols-outlined text-[20px]">{lot?.canBook === false ? 'block' : 'lock'}</span>
+                  <span>{lot?.canBook === false ? 'Tạm ngừng nhận đặt chỗ' : `Xác nhận & Thanh toán (${totalAmount.toLocaleString('vi-VN')}đ)`}</span>
                 </button>
 
                 <div className="flex items-center justify-center gap-2 text-center text-slate-500 text-[11px]">

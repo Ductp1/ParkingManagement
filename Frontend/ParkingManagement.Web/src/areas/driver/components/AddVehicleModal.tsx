@@ -128,7 +128,7 @@ export const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ isOpen, onClos
               <label className="block text-xs font-semibold text-slate-700 mb-1">Loại xe</label>
               <select
                 value={vehicleType}
-                onChange={(e) => setVehicleType(Number(e.target.value) as VehicleType)}
+                onChange={(e) => setVehicleType(e.target.value as VehicleType)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
               >
                 <option value={VehicleType.Sedan}>Sedan (4 chỗ)</option>
@@ -136,6 +136,7 @@ export const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ isOpen, onClos
                 <option value={VehicleType.Hatchback}>Hatchback</option>
                 <option value={VehicleType.Van}>Van</option>
                 <option value={VehicleType.Pickup}>Bán tải (Pickup)</option>
+                <option value={VehicleType.Oversized}>Xe quá khổ (Oversized / Limousine)</option>
                 <option value={VehicleType.Motorbike}>Xe máy</option>
               </select>
             </div>
@@ -144,7 +145,7 @@ export const AddVehicleModal: React.FC<AddVehicleModalProps> = ({ isOpen, onClos
               <label className="block text-xs font-semibold text-slate-700 mb-1">Nhiên liệu (US-012)</label>
               <select
                 value={fuelType}
-                onChange={(e) => setFuelType(Number(e.target.value) as FuelType)}
+                onChange={(e) => setFuelType(e.target.value as FuelType)}
                 className="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm focus:outline-hidden focus:border-blue-500"
               >
                 <option value={FuelType.Gasoline}>Xăng</option>

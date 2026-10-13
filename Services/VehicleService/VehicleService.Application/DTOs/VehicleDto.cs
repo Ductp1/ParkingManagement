@@ -18,5 +18,6 @@ public sealed record VehicleDto(
     int HeightCm,
     bool IsDefault,
     int? LengthCm = null,
-    int? WidthCm = null
+    int? WidthCm = null,
+    bool IsEmergencyVehicle = false
 );

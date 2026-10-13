@@ -16,7 +16,7 @@ export const vehicleApi = {
    * Tra cứu thông tin xe theo biển số
    */
   findVehicleByPlate: async (plate: string): Promise<VehicleDto> => {
-    const response = await apiClient.get<VehicleDto>(`/api/v1/vehicles/lookup/${encodeURIComponent(plate)}`);
+    const response = await apiClient.get<VehicleDto>(`/api/v1/vehicles/by-plate/${encodeURIComponent(plate)}`);
     return response.data;
   },
 

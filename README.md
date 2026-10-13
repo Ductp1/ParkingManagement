@@ -87,7 +87,9 @@ hoặc chọn nó làm Startup Project trong Visual Studio. Service khác không
 dotnet test ParkingManagement.slnx
 ```
 
-- 49 unit test trong 9 project `*.Test`, bám theo Test Plan v3: TC-BOOK-07/08 (mốc hủy 59/60/61 phút), TC-PARK-07 (ân hạn 15 phút),
+- Unit test trong 9 project `*.Test` — trong đó **NotificationService.Test có 65 test case** bám Test Plan v3
+  (DispatcherTests 8, NotificationDispatcherTests 13, NotificationManagementTests 15, DeviceAndPreferenceTests 19, InboxTests 10):
+  TC-BOOK-07/08 (mốc hủy 59/60/61 phút), TC-PARK-07 (ân hạn 15 phút),
   TC-SEARCH-02 (chặn xe cao), TC-REG-04/05 (biển số)...
 - 5 integration test (ParkingService, BookingService) cần PostgreSQL đang chạy.
 
