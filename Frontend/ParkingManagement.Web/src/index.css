@@ -46,6 +46,22 @@
   }
 }
 
+/* Popup thông báo real-time (NotificationToaster) */
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-slide-in {
+  animation: toast-slide-in 0.3s ease-out;
+}
+
 /* Material Symbols alignment helper */
 .material-symbols-outlined {
   font-family: 'Material Symbols Outlined';
