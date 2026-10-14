@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppSelector } from '@/store';
+import { useAppSelector, useAppDispatch } from '@/store';
+import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { parkingApi } from '@/api/parkingApi';
 import type { ParkingLotDto } from '@/types/parking';
 
@@ -58,12 +59,18 @@ const AVAILABLE_SPOTS: SpotInfo[] = [
   },
 ];
 
+/** Mã vé demo hiển thị trong modal đặt chỗ – gửi kèm dataJson thông báo để điều hướng về đúng đặt chỗ. */
+const DEMO_TICKET_CODE = '#PKM-2025-8842';
+
 export const LotDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const lotId = id ? parseInt(id, 10) : 1;
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
   const { vehicles } = useAppSelector((state) => state.vehicle);
+  const { user } = useAppSelector((state) => state.auth);
+  const userId = user?.id || 5;
 
   const [lot, setLot] = useState<ParkingLotDto | null>(null);
   const [selectedFloor, setSelectedFloor] = useState<'B1' | 'B2' | 'B3' | 'F1'>('B2');
@@ -74,6 +81,7 @@ export const LotDetailPage: React.FC = () => {
   const [bookingNote, setBookingNote] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'momo' | 'card' | 'etc'>('wallet');
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
+  const [notifySent, setNotifySent] = useState<boolean>(false);
   const [showStickyStepper, setShowStickyStepper] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(493); // 8m 13s in seconds
 
@@ -142,8 +150,24 @@ export const LotDetailPage: React.FC = () => {
     }
   };
 
-  const handleConfirmBooking = () => {
+  // Xác nhận đặt chỗ: hiện modal vé + gửi thông báo InApp "Đặt chỗ thành công"
+  // qua NotificationService để demo chuông thông báo trên Navbar.
+  const handleConfirmBooking = async () => {
     setShowSuccessModal(true);
+    try {
+      await dispatch(
+        sendBookingConfirmedNotification({
+          userId,
+          parkingLotName: lot?.name || 'Landmark 81 Garage',
+          slotCode: currentSpot.code,
+          floor: `Hầm ${selectedFloor}`,
+          bookingCode: DEMO_TICKET_CODE,
+        })
+      ).unwrap();
+      setNotifySent(true);
+    } catch {
+      setNotifySent(false);
+    }
   };
 
   return (
@@ -961,7 +985,7 @@ export const LotDetailPage: React.FC = () => {
             <div className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-left flex flex-col gap-2.5 mb-5 text-xs">
               <div className="flex justify-between border-b pb-2">
                 <span className="text-slate-500">Mã vé:</span>
-                <span className="font-bold text-blue-600">#PKM-2025-8842</span>
+                <span className="font-bold text-blue-600">{DEMO_TICKET_CODE}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Bãi đỗ:</span>
@@ -980,6 +1004,19 @@ export const LotDetailPage: React.FC = () => {
                 <span className="font-extrabold text-blue-600">{totalAmount.toLocaleString('vi-VN')} đ</span>
               </div>
             </div>
+
+            {/* Trạng thái gửi thông báo (NotificationService – TV6) */}
+            {notifySent ? (
+              <div className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold mb-4">
+                <span className="material-symbols-outlined text-[18px]">notifications_active</span>
+                <span>Thông báo "Đặt chỗ thành công" đã được gửi – bấm chuông trên Navbar để xem.</span>
+              </div>
+            ) : (
+              <div className="w-full flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold mb-4">
+                <span className="material-symbols-outlined text-[18px]">notifications_off</span>
+                <span>Không gửi được thông báo – kiểm tra NotificationService :5106 / Gateway :5000.</span>
+              </div>
+            )}
 
             <div className="flex gap-3 w-full">
               <button

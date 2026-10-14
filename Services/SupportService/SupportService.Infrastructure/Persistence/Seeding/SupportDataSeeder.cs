@@ -4,6 +4,7 @@ using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using SupportService.Domain.Entities;
+using SupportService.Domain.Rules;
 
 namespace SupportService.Infrastructure.Persistence.Seeding;
 
@@ -25,6 +26,7 @@ public sealed class SupportDataSeeder(ILogger<SupportDataSeeder> logger) : IData
         {
             Code = "CP-0001", UserId = DemoIds.Driver1User, BookingId = DemoIds.BookingCompleted, BookingCode = "BK-0001",
             ParkingLotId = DemoIds.LotVincom, OwnerProfileId = DemoIds.OwnerVincom, Category = ComplaintCategory.Overcharge,
+            Priority = ComplaintPriority.Medium, AssignedTeam = SupportTeam.Support,
             Description = "Tôi ra trước giờ kết thúc 10 phút nhưng vẫn bị tính đủ block cuối.",
             RequestedAmount = 10000, Status = ComplaintStatus.AwaitingOwner, OwnerResponseDueAtUtc = DateTime.UtcNow.AddHours(48)
         });
