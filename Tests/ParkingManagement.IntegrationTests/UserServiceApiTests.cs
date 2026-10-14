@@ -93,6 +93,7 @@ public sealed class Tv1ApiFixture : IDisposable
         Set("Security__EncryptionKey",Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
         Set("Security__PrivateFilesPath",Path.Combine(root,"files"));Set("Database__SeedDemoData","false");
         Set("Security__AuthRequestsPerMinute","200");
+        Set("Captcha__SecretKey","integration-test-secret");
         Set("Database__ApplyMigrationsOnStartup","true");Set("EventBus__Enabled","true");
         Set("Otp__Transport","Http");Set("Otp__DeliveryUrl","https://otp.test/delivery");Set("EventBus__PublishUrl","https://events.test/publish");
         if(Environment.GetEnvironmentVariable("TV1_TEST_DB") is {Length:>0} db)Set("ConnectionStrings__ServiceDb",db);
@@ -107,7 +108,7 @@ public sealed class Tv1ApiFixture : IDisposable
         Assert.Equal(HttpStatusCode.Accepted,(await client.PostAsJsonAsync("/api/v1/auth/register",new{FullName="Test",Contact=contact,Password="Password123"})).StatusCode);
         var code=await CodeAsync(contact,"Register");
         Assert.Equal(HttpStatusCode.NoContent,(await client.PostAsJsonAsync("/api/v1/auth/otp/verify",new{Contact=contact,Code=code})).StatusCode);
-        var response=await client.PostAsJsonAsync("/api/v1/auth/login",new{EmailOrPhone=contact,Password="Password123"});
+        var response=await client.PostAsJsonAsync("/api/v1/auth/login",new{EmailOrPhone=contact,Password="Password123",CaptchaToken="integration-valid"});
         Assert.Equal(HttpStatusCode.OK,response.StatusCode);
         var tokens=(await response.Content.ReadFromJsonAsync<UserServiceApiTests.Tokens>())!;
         return(contact,tokens.AccessToken,tokens.RefreshToken);
@@ -122,9 +123,18 @@ public sealed class Tv1ApiFixture : IDisposable
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)=>builder.ConfigureLogging(logging=>logging.ClearProviders().AddConsole()).ConfigureServices(services=>
         {
+            services.AddScoped<UserService.Application.Interfaces.ICaptchaVerifier, TestCaptcha>();
             services.AddDataProtection().UseEphemeralDataProtectionProvider();
             services.AddHttpClient("IdentityIntegrations").ConfigurePrimaryHttpMessageHandler(()=>handler);
         });
+    }
+    private sealed class TestCaptcha : UserService.Application.Interfaces.ICaptchaVerifier
+    {
+        public Task VerifyAsync(string? token, CancellationToken ct = default)
+        {
+            if (token != "integration-valid") throw new UserService.Application.Interfaces.CaptchaException(false);
+            return Task.CompletedTask;
+        }
     }
     private sealed class DeliveryHandler:HttpMessageHandler
     {

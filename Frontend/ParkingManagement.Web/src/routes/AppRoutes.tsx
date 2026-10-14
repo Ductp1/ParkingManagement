@@ -1,3 +1,5 @@
+import { LoginPage } from '@/areas/auth/LoginPage';
+import { LandingPage } from '@/areas/public/LandingPage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -15,11 +17,13 @@ import { SupportPage } from '@/areas/driver/pages/SupportPage';
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
+      {/* 🌐 Public Landing Page (Valet Parking Yards / ParkMaster) */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
       <Route element={<AppLayout />}>
-        {/* Root redirect to driver portal */}
-        <Route path="/" element={<Navigate to="/driver" replace />} />
 
         {/* 🚗 1. Driver Portal (/driver/*) */}
+        <Route element={<ProtectedRoute />}>
         <Route path="/driver">
           <Route index element={<DriverHomePage />} />
           <Route path="vehicles" element={<VehiclesPage />} />
@@ -29,18 +33,19 @@ export const AppRoutes: React.FC = () => {
           <Route path="support" element={<SupportPage />} />
         </Route>
 
+        </Route>
         {/* 🏢 2. Owner Portal (/owner/*) */}
-        <Route element={<ProtectedRoute allowedRoles={['Owner', 'Admin', 'Driver']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['Owner', 'Admin']} />}>
           <Route path="/owner" element={<OwnerHomePage />} />
         </Route>
 
         {/* 🚧 3. Gate Console Portal (/gate/*) */}
-        <Route element={<ProtectedRoute allowedRoles={['Staff', 'Admin', 'Driver']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['Staff', 'Admin']} />}>
           <Route path="/gate" element={<GateConsolePage />} />
         </Route>
 
         {/* ⚙️ 4. Admin Portal (/admin/*) */}
-        <Route element={<ProtectedRoute allowedRoles={['Admin', 'Driver']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
         </Route>
 

@@ -24,6 +24,7 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<UserService.Infrastructure.Authentication.CaptchaOptions>>().Value;
 app.UseForwardedHeaders(new Microsoft.AspNetCore.Builder.ForwardedHeadersOptions
 { ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto });
 

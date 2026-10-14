@@ -1,7 +1,8 @@
+import { logoutSession } from '@/api/authApi';
 import React from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { switchRole } from '@/store/slices/authSlice';
+import { switchRole, logout } from '@/store/slices/authSlice';
 import type { UserRole } from '@/types/auth';
 
 export const MainNavbar: React.FC = () => {
@@ -9,6 +10,8 @@ export const MainNavbar: React.FC = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+  const [logoutError, setLogoutError] = React.useState('');
+  const [loggingOut, setLoggingOut] = React.useState(false);
 
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const role = e.target.value as UserRole;
@@ -73,13 +76,17 @@ export const MainNavbar: React.FC = () => {
               onChange={handleRoleChange}
               className="text-xs font-semibold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer"
             >
-              <option value="Driver">🚗 /driver (Tài xế)</option>
-              <option value="Owner">🏢 /owner (Chủ bãi)</option>
-              <option value="Staff">🚧 /gate (Soát vé)</option>
-              <option value="Admin">⚙️ /admin (Quản trị)</option>
+              {(user?.roles ?? []).map(role => <option key={role} value={role}>{role}</option>)}
             </select>
           </div>
 
+          <button type="button" disabled={loggingOut} className="text-sm text-blue-600" onClick={async () => {
+            setLogoutError(''); setLoggingOut(true);
+            try { await logoutSession(); dispatch(logout()); navigate('/login', { replace: true }); }
+            catch (error) { setLogoutError(error instanceof Error ? error.message : 'Đăng xuất thất bại.'); }
+            finally { setLoggingOut(false); }
+          }}>{loggingOut ? 'Đang đăng xuất…' : 'Đăng xuất'}</button>
+          {logoutError && <span role="alert" className="text-sm text-red-600">{logoutError}</span>}
           {/* Notifications */}
           <button
             className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
@@ -93,7 +100,7 @@ export const MainNavbar: React.FC = () => {
           {/* User Profile Info */}
           <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
             <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-sm font-semibold text-slate-900">{user?.fullName || 'Nguyễn Văn An'}</span>
+              <span className="text-sm font-semibold text-slate-900">{user?.fullName || ''}</span>
               <div className="flex items-center gap-1">
                 <span className="text-[11px] font-bold text-emerald-600 tracking-wider">• THÀNH VIÊN VIP</span>
               </div>

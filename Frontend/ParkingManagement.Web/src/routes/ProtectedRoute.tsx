@@ -8,10 +8,11 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
-  const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const { user, isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
 
+  if (isLoading) return <p role="status" className="p-8">Đang kiểm tra phiên…</p>;
   if (!isAuthenticated || !user) {
-    return <Navigate to="/driver" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
@@ -26,7 +27,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) 
           Vai trò hiện tại của bạn là <strong className="text-blue-600">{user.role}</strong>, không được phép truy cập phân hệ này.
         </p>
         <p className="text-xs text-slate-400 mt-1">
-          (Bạn có thể đổi vai trò nhanh trên thanh Navbar để kiểm thử phân hệ tương ứng)
+          Vui lòng chọn phân hệ thuộc vai trò được cấp cho tài khoản.
         </p>
       </div>
     );
