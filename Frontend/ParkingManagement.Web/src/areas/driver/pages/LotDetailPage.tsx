@@ -59,6 +59,9 @@ const AVAILABLE_SPOTS: SpotInfo[] = [
   },
 ];
 
+/** Mã vé demo hiển thị trong modal đặt chỗ – gửi kèm dataJson thông báo để điều hướng về đúng đặt chỗ. */
+const DEMO_TICKET_CODE = '#PKM-2025-8842';
+
 export const LotDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const lotId = id ? parseInt(id, 10) : 1;
@@ -158,6 +161,7 @@ export const LotDetailPage: React.FC = () => {
           parkingLotName: lot?.name || 'Landmark 81 Garage',
           slotCode: currentSpot.code,
           floor: `Hầm ${selectedFloor}`,
+          bookingCode: DEMO_TICKET_CODE,
         })
       ).unwrap();
       setNotifySent(true);
@@ -981,7 +985,7 @@ export const LotDetailPage: React.FC = () => {
             <div className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-left flex flex-col gap-2.5 mb-5 text-xs">
               <div className="flex justify-between border-b pb-2">
                 <span className="text-slate-500">Mã vé:</span>
-                <span className="font-bold text-blue-600">#PKM-2025-8842</span>
+                <span className="font-bold text-blue-600">{DEMO_TICKET_CODE}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Bãi đỗ:</span>

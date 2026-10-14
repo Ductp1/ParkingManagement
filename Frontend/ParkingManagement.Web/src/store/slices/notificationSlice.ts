@@ -53,7 +53,7 @@ export const markNotificationAsRead = createAsyncThunk(
 export const sendBookingConfirmedNotification = createAsyncThunk(
   'notification/sendBookingConfirmed',
   async (
-    payload: { userId: number; parkingLotName: string; slotCode: string; floor: string },
+    payload: { userId: number; parkingLotName: string; slotCode: string; floor: string; bookingCode: string },
     { rejectWithValue }
   ) => {
     try {
@@ -64,6 +64,7 @@ export const sendBookingConfirmedNotification = createAsyncThunk(
         title: 'Đặt chỗ thành công',
         body: `Booking của bạn tại ${payload.parkingLotName} đã được xác nhận. Vị trí: Ô ${payload.slotCode} (${payload.floor}). Giữ chỗ trong 15 phút.`,
         dataJson: JSON.stringify({
+          bookingCode: payload.bookingCode, // Để bấm thông báo điều hướng đúng thông tin đặt chỗ
           parkingLotName: payload.parkingLotName,
           slotCode: payload.slotCode,
           floor: payload.floor,

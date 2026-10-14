@@ -34,8 +34,9 @@ export const useNotificationHub = (): void => {
     connection.on('ReceiveNotification', (msg: NotificationMessageDto) => {
       // 1. Cập nhật chuông: thêm vào đầu danh sách + tăng badge chưa đọc.
       dispatch(notificationReceived(msg));
-      // 2. Bật toast popup (tự ẩn sau >= 10s, đóng được bằng tay).
-      dispatch(pushToast({ id: msg.notificationId, title: msg.title, body: msg.body }));
+      // 2. Bật toast popup (tự ẩn sau >= 10s, đóng được bằng tay; bấm vào toast
+      //    sẽ điều hướng tới thông tin đặt chỗ của thông báo qua dataJson).
+      dispatch(pushToast({ id: msg.notificationId, title: msg.title, body: msg.body, dataJson: msg.dataJson }));
     });
 
     connection.onreconnected(() => {
