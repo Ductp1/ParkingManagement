@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface BookingItem {
   id: string;
@@ -21,6 +21,21 @@ interface BookingItem {
 
 const INITIAL_BOOKINGS: BookingItem[] = [
   
+  {
+    id: '1',
+    code: '#PKM-2025-8842',
+    plate: '51K-889.32',
+    carModel: 'Mercedes EQE SUV',
+    location: 'Landmark 81 Garage',
+    spot: 'Vị trí B-04 • Tầng Hầm B2',
+    timeRange: '14:00 - 18:00 (4h 00m)',
+    dateLabel: 'Hôm nay',
+    services: ['Sạc nhanh EV 120kW'],
+    totalPrice: 175000,
+    paymentMethod: 'Ví MoMo AutoPay',
+    status: 'upcoming',
+    statusText: 'Sắp diễn ra',
+  },
   {
     id: '2',
     code: '#PKM-2025-7621',
@@ -99,6 +114,24 @@ export const BookingHistoryPage: React.FC = () => {
   const [bookings, setBookings] = useState<BookingItem[]>(INITIAL_BOOKINGS);
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Đến từ thông báo (/driver/history?booking=<id|code>) → highlight đúng đặt chỗ của thông báo đó.
+  const [searchParams] = useSearchParams();
+  const highlightParam = searchParams.get('booking');
+  const highlightId = highlightParam
+    ? (bookings.find((b) => b.id === highlightParam || b.code === highlightParam)?.id ?? null)
+    : null;
+
+  useEffect(() => {
+    if (!highlightId) return;
+    setActiveTab('all'); // Đảm bảo đặt chỗ cần highlight không bị ẩn bởi tab lọc.
+    const timer = window.setTimeout(() => {
+      document
+        .getElementById(`booking-row-${highlightId}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [highlightId]);
 
   // Modals state
   const [activeFeedbackBooking, setActiveFeedbackBooking] = useState<BookingItem | null>(null);
@@ -400,8 +433,11 @@ export const BookingHistoryPage: React.FC = () => {
                   return (
                     <tr
                       key={b.id}
-                      className={`hover:bg-slate-50/80 transition-colors group ${
-                        isUpcoming ? 'bg-blue-50/30' : ''
+                      id={`booking-row-${b.id}`}
+                      className={`transition-colors group ${
+                        highlightId === b.id
+                          ? 'bg-blue-50 ring-2 ring-inset ring-blue-500'
+                          : `hover:bg-slate-50/80 ${isUpcoming ? 'bg-blue-50/30' : ''}`
                       }`}
                     >
                       <td className="py-4 px-6 relative">
@@ -415,6 +451,12 @@ export const BookingHistoryPage: React.FC = () => {
                               <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">
                                 <span className="material-symbols-outlined text-[12px]">camera</span>
                                 ANPR Verified
+                              </span>
+                            )}
+                            {highlightId === b.id && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold">
+                                <span className="material-symbols-outlined text-[12px]">notifications</span>
+                                Từ thông báo
                               </span>
                             )}
                           </div>

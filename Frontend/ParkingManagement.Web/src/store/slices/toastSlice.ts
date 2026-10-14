@@ -6,6 +6,8 @@ export interface NotificationToast {
   id: number;
   title: string;
   body: string;
+  /** dataJson gốc từ SignalR → bấm toast điều hướng tới đặt chỗ liên quan. */
+  dataJson: string | null;
   receivedAt: number;
 }
 
@@ -22,10 +24,17 @@ export const toastSlice = createSlice({
   initialState,
   reducers: {
     /** Bật popup khi nhận thông báo mới qua SignalR (giữ tối đa 5 toast cùng lúc). */
-    pushToast: (state, action: PayloadAction<{ id: number; title: string; body: string }>) => {
+    pushToast: (
+      state,
+      action: PayloadAction<{ id: number; title: string; body: string; dataJson?: string | null }>
+    ) => {
       // Trùng id (thông báo đã đọc/refetch) → không bật lại.
       if (state.toasts.some((t) => t.id === action.payload.id)) return;
-      state.toasts.push({ ...action.payload, receivedAt: Date.now() });
+      state.toasts.push({
+        ...action.payload,
+        dataJson: action.payload.dataJson ?? null,
+        receivedAt: Date.now(),
+      });
       if (state.toasts.length > 5) state.toasts.shift();
     },
     dismissToast: (state, action: PayloadAction<number>) => {

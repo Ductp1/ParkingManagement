@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { switchRole } from '@/store/slices/authSlice';
 import { fetchNotificationInbox, markNotificationAsRead } from '@/store/slices/notificationSlice';
+import { notificationTargetRoute } from '@/utils/notificationBooking';
 import type { NotificationDto } from '@/types/notification';
 import type { UserRole } from '@/types/auth';
 
@@ -56,6 +57,10 @@ export const MainNavbar: React.FC = () => {
     if (!notification.isRead) {
       dispatch(markNotificationAsRead({ notificationId: notification.id, userId }));
     }
+    // Đóng popup và chuyển hướng tới thông tin đặt chỗ của thông báo
+    // (/driver/history?booking=<id|code>, BookingHistoryPage sẽ highlight đúng vé).
+    setIsNotificationOpen(false);
+    navigate(notificationTargetRoute(notification.dataJson));
   };
 
   const handleMarkAllAsRead = async () => {
