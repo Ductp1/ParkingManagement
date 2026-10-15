@@ -12,6 +12,8 @@ using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using SupportService.API.Controllers;
+using SupportService.Application.Interfaces;
+using SupportService.Infrastructure.Http;
 using SupportService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests.PerService;
@@ -73,7 +75,7 @@ public sealed class SupportApiFixture : IAsyncLifetime
         }
 
         // ----- 3. SupportService host (BookingService URL trỏ sang host đã chạy; key này chỉ fixture Support dùng) -----
-        Environment.SetEnvironmentVariable("Services__BookingService", BookingFactory.ClientOptions.BaseAddress.AbsoluteUri);
+        // BaseAddress của IBookingLookup bị GHI ĐÈ bằng AddHttpClient (config action đăng ký sau luôn thắng).
         SupportFactory = new WebApplicationFactory<ComplaintsController>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
@@ -81,8 +83,13 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 {
                     ["Services:BookingService"] = BookingFactory.ClientOptions.BaseAddress.AbsoluteUri,
                 }));
-            builder.ConfigureServices(services => services.UseIsolatedDatabase<SupportDbContext>(
-                TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName)));
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<SupportDbContext>(
+                    TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName));
+                services.AddHttpClient<IBookingLookup, BookingServiceClient>(client =>
+                    client.BaseAddress = new Uri(BookingFactory.ClientOptions.BaseAddress.AbsoluteUri));
+            });
         });
         SupportClient = SupportFactory.CreateClient();
 
@@ -126,7 +133,7 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
             category = "Overcharge",
             description = "Bị tính thừa 10 phút cuối, xin đối soát giờ ra bãi (integration test).",
             requestedAmount = 10000m,
-            evidenceUrls = new[] { "/uploads/complaints/it/screenshot.jpg" },
+            evidenceUrls = new[] { "https://photos.it.test/complaints/man-hinh.jpg" },
         });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         var detail = await create.Content.ReadFromJsonAsync<ComplaintDetailJson>();

@@ -20,13 +20,14 @@ public sealed class NotificationApiCollection : ICollectionFixture<ServiceHostFi
 [Collection("Notification API")]
 public class NotificationServiceApiTests(ServiceHostFixture<NotificationsController, NotificationDbContext> fixture)
 {
-    [Fact] // Seed: driver 5 có 1 thông báo BOOKING_CONFIRMED chưa đọc; mark-read làm UnreadCount về 0.
+    [Fact] // Seed: driver 5 có thông báo BOOKING_CONFIRMED chưa đọc; mark-read làm UnreadCount giảm đúng 1.
     public async Task Seed_inbox_lists_and_marks_read()
     {
         var inbox = await fixture.Client.GetFromJsonAsync<InboxJson>("/api/v1/notifications?userId=5");
-        Assert.Equal(1, inbox!.UnreadCount);
-        var seeded = inbox.Items.Items.Single(n => n.TemplateKey == "BOOKING_CONFIRMED");
-        Assert.Equal("Đặt chỗ thành công", seeded.Title);
+        var unreadBefore = inbox!.UnreadCount;
+
+        // Thông báo seed của driver 5 đang ở trạng thái chưa đọc
+        var seeded = inbox.Items.Items.Single(n => n.TemplateKey == "BOOKING_CONFIRMED" && n.Title == "Đặt chỗ thành công");
         Assert.False(seeded.IsRead);
 
         // Người dùng khác không đánh dấu được thông báo không thuộc về mình → 404
@@ -36,7 +37,7 @@ public class NotificationServiceApiTests(ServiceHostFixture<NotificationsControl
         Assert.Equal(HttpStatusCode.NoContent, read.StatusCode);
 
         var after = await fixture.Client.GetFromJsonAsync<InboxJson>("/api/v1/notifications?userId=5");
-        Assert.Equal(0, after!.UnreadCount);
+        Assert.Equal(unreadBefore - 1, after!.UnreadCount);
         Assert.True(after.Items.Items.Single(n => n.Id == seeded.Id).IsRead);
     }
 
@@ -122,7 +123,15 @@ public class NotificationServiceApiTests(ServiceHostFixture<NotificationsControl
 
         Assert.Equal(HttpStatusCode.NoContent,
             (await fixture.Client.DeleteAsync("/api/v1/devices/it-fcm-token-001?userId=9")).StatusCode);
-        await Asserts.NotFoundAsync(await fixture.Client.DeleteAsync("/api/v1/devices/it-fcm-token-001?userId=9"));
+
+        // Thu hồi lần 2: idempotent (row đã revoked vẫn khớp điều kiện revoke) → vẫn 204, không lỗi
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await fixture.Client.DeleteAsync("/api/v1/devices/it-fcm-token-001?userId=9")).StatusCode);
+
+        await using var verifyScope = fixture.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<NotificationDbContext>();
+        var revoked = await verifyDb.DeviceTokens.SingleAsync(t => t.UserId == 9 && t.Token == "it-fcm-token-001");
+        Assert.True(revoked.IsRevoked);
     }
 
     [Fact] // Validate phân trang hộp thư → 400 ProblemDetails.

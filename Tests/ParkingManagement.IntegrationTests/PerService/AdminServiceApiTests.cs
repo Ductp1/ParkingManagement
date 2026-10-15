@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using AdminService.API.Controllers;
+using AdminService.Application.Features.Users;
+using AdminService.Infrastructure.Integrations;
 using AdminService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -84,16 +86,21 @@ public sealed class AdminApiFixture : IAsyncLifetime
         AdminToken = _keys.MintToken(DemoIds.AdminUser, "admin@smartparking.vn", Sid, "Admin");
 
         // ----- 3. AdminService host (Gateway trỏ thẳng sang host UserService đã chạy) -----
-        Environment.SetEnvironmentVariable("Services__GatewayBaseUrl", UserFactory.ClientOptions.BaseAddress.AbsoluteUri);
+        // BaseAddress của client IUserServiceClient bị GHI ĐÈ bằng AddHttpClient (config action đăng ký sau
+        // luôn thắng) — cơ chế tất định, không phụ thuộc env/in-memory precedence.
         AdminFactory = new WebApplicationFactory<AdminUsersController>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
                     ["Jwt:PublicKeyPath"] = _keys.PublicKeyPath,
-                    ["Services:GatewayBaseUrl"] = UserFactory.ClientOptions.BaseAddress.AbsoluteUri,
                 }));
-            builder.ConfigureServices(services => services.UseIsolatedDatabase<AdminDbContext>(adminCs));
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<AdminDbContext>(adminCs);
+                services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
+                    client.BaseAddress = new Uri(UserFactory.ClientOptions.BaseAddress.AbsoluteUri));
+            });
         });
         AdminClient = AdminFactory.CreateClient();
         AdminClient.DefaultRequestHeaders.Authorization = new("Bearer", AdminToken);

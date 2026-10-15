@@ -61,7 +61,12 @@ public class PaymentServiceApiTests(ServiceHostFixture<PricingController, Paymen
         Assert.Equal(180, quote!.DurationMinutes);
         Assert.Equal(70000m, quote.BaseAmount);
         Assert.Equal(70000m, quote.FinalAmount);
-        Assert.Equal(3, quote.Lines.Count);
+
+        // Giá theo BẬC (không phải theo giờ): bậc 1 đủ 60′ + bậc 2 gộp 120′ thành 2 block
+        Assert.Equal(2, quote.Lines.Count);
+        Assert.Equal(20000m, quote.Lines[1].UnitPrice);
+        Assert.Equal(2, quote.Lines[1].Blocks);
+        Assert.Equal(40000m, quote.Lines[1].Amount);
     }
 
     [Fact] // US-071: đỗ ≤ 15 phút thuộc ân hạn → miễn phí hoàn toàn, không sinh dòng giá.

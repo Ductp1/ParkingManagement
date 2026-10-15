@@ -79,15 +79,29 @@ public class GateServiceApiTests(ServiceHostFixture<GateController, GateDbContex
         Assert.Contains(events, e => e.PlateNumber == "51A88888");
     }
 
-    [Fact] // 1 booking chỉ check-in đúng 1 lần (T-704) → lần 2 bị chặn 409.
+    [Fact] // 1 booking chỉ check-in đúng 1 lần (T-704): cùng booking + biển khác vẫn bị chặn vì trùng mã booking.
     public async Task Second_checkin_for_the_same_booking_conflicts()
     {
-        var token = MintQrToken("BK-IT-GATE-2", "51B23456", DemoIds.LotVincom, DateTime.UtcNow.AddHours(4));
-        var body = new { parkingLotId = DemoIds.LotVincom, method = "Qr", plate = "51B23456", qrToken = token };
-        Assert.Equal(HttpStatusCode.OK, (await fixture.Client.PostAsJsonAsync("/api/v1/gate/check-in", body)).StatusCode);
+        var expires = DateTime.UtcNow.AddHours(4);
+        var firstToken = MintQrToken("BK-IT-GATE-2", "51B23456", DemoIds.LotVincom, expires);
+        var first = await fixture.Client.PostAsJsonAsync("/api/v1/gate/check-in", new
+        {
+            parkingLotId = DemoIds.LotVincom,
+            method = "Qr",
+            plate = "51B23456",
+            qrToken = firstToken,
+        });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
 
-        await Asserts.ConflictAsync(await fixture.Client.PostAsJsonAsync("/api/v1/gate/check-in", body),
-            "đã được check-in trước đó");
+        // Cùng booking, đổi biển số (token của cùng booking): chặn trước việc tạo lượt gửi thứ hai
+        var replayToken = MintQrToken("BK-IT-GATE-2", "51B99999", DemoIds.LotVincom, expires);
+        await Asserts.ConflictAsync(await fixture.Client.PostAsJsonAsync("/api/v1/gate/check-in", new
+        {
+            parkingLotId = DemoIds.LotVincom,
+            method = "Qr",
+            plate = "51B99999",
+            qrToken = replayToken,
+        }), "đã được check-in trước đó");
     }
 
     [Fact] // Token thiếu / sai chữ ký / thuộc bãi khác / hết hạn đều bị từ chối với 400 (không rò rỉ lý do bảo mật).

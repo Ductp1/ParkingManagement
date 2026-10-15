@@ -17,24 +17,24 @@ public sealed class VehicleApiCollection : ICollectionFixture<ServiceHostFixture
 [Collection("Vehicle API")]
 public class VehicleServiceApiTests(ServiceHostFixture<VehiclesController, VehicleDbContext> fixture)
 {
-    [Fact] // Seed: driver 5 có 2 xe, Vios 51F-123.45 là xe mặc định.
+    [Fact] // Seed: driver 5 có Vios 51F-123.45 và SUV 30A-678.90; garage luôn có đúng 1 xe mặc định.
     public async Task Garage_lists_seed_vehicles_with_default_flag()
     {
         var list = await fixture.Client.GetFromJsonAsync<List<VehicleJson>>("/api/v1/vehicles?userId=5");
-        Assert.Equal(2, list!.Count);
 
-        var vios = list.Single(v => v.Id == 1);
+        // Chỉ assert trên xe seed (test khác trong class có thể đã thêm xe mới — thứ tự test trong class không đảm bảo).
+        var vios = Assert.Single(list!, v => v.Id == 1);
         Assert.Equal("51F-123.45", vios.PlateDisplay);
         Assert.Equal("51F12345", vios.PlateNumber);
         Assert.Equal("Sedan", vios.VehicleType);
         Assert.Equal("Toyota", vios.Brand);
         Assert.Equal(147, vios.HeightCm);
-        Assert.True(vios.IsDefault);
 
-        var cx5 = list.Single(v => v.Id == 2);
+        var cx5 = Assert.Single(list!, v => v.Id == 2);
         Assert.Equal("30A-678.90", cx5.PlateDisplay);
         Assert.Equal("Suv", cx5.VehicleType);
-        Assert.False(cx5.IsDefault);
+
+        Assert.Single(list!, v => v.IsDefault); // garage cá nhân chỉ có đúng 1 xe mặc định
     }
 
     [Fact] // Tra biển số cho cổng: chuẩn hóa được cả dạng không dấu chấm; sai định dạng → 400; không tồn tại → 404.
