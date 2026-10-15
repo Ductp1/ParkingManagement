@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
@@ -76,7 +77,8 @@ public sealed class SupportApiFixture : IAsyncLifetime
         }
 
         // ----- 3. SupportService host (BookingService URL trỏ sang host đã chạy; key này chỉ fixture Support dùng) -----
-        // BaseAddress của IBookingLookup bị GHI ĐÈ bằng AddHttpClient (config action đăng ký sau luôn thắng).
+        // Client IBookingLookup được thay bằng closure scoped-factory trỏ thẳng sang host BookingService test
+        // (đăng ký kiểu này không bị Program.cs ghi đè).
         SupportFactory = new WebApplicationFactory<ComplaintsController>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
@@ -89,12 +91,14 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 services.UseIsolatedDatabase<SupportDbContext>(
                     TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName));
 
-                // Thay client gọi BookingService: RemoveAll rồi đăng ký lại — bất kể thứ tự callback,
-                // IBookingLookup luôn dùng BaseAddress của host BookingService test.
-                services.RemoveAll<IBookingLookup>();
-                services.AddHttpClient<BookingServiceClient>(client =>
-                    client.BaseAddress = new Uri(BookingFactory.ClientOptions.BaseAddress.AbsoluteUri));
-                services.AddScoped<IBookingLookup>(sp => sp.GetRequiredService<BookingServiceClient>());
+                // Thay client gọi BookingService bằng HttpClient trỏ thẳng sang host test:
+                // closure scoped-factory được resolve LAZY nên Program không thể ghi đè.
+                var bookingUrl = BookingFactory.ClientOptions.BaseAddress.AbsoluteUri;
+                services.AddScoped<IBookingLookup>(sp =>
+                {
+                    var http = new HttpClient { BaseAddress = new Uri(bookingUrl) };
+                    return new BookingServiceClient(http, sp.GetRequiredService<ILogger<BookingServiceClient>>());
+                });
             });
         });
         SupportClient = SupportFactory.CreateClient();
