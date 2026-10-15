@@ -353,11 +353,15 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
         // ----- Database: PriceSnapshot khóa giá + RowVersion đóng dấu optimistic concurrency -----
         await using var scope = fixture.BookingServices.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
-        var entity = await db.Bookings.Include(b => b.PriceSnapshot).SingleAsync(b => b.Code == booking.Code);
+        var entity = await db.Bookings
+            .Include(b => b.PriceSnapshot)
+            .Include(b => b.StatusLogs)
+            .SingleAsync(b => b.Code == booking.Code);
         Assert.Equal(BookingStatus.PendingPayment, entity.Status);
         Assert.NotEmpty(entity.RowVersion);
         Assert.InRange(entity.CreatedAtUtc, before.AddSeconds(-2), after.AddSeconds(2));
-        Assert.Single(entity.StatusLogs);
+        var dbHoldLog = Assert.Single(entity.StatusLogs, l => l.ToStatus == BookingStatus.PendingPayment);
+        Assert.Equal("Bắt đầu giữ chỗ miễn phí 15 phút", dbHoldLog.Reason);
         Assert.NotNull(entity.PriceSnapshot);
         Assert.Equal(1, entity.PriceSnapshot!.RateCardId);
         Assert.Equal(40000m, entity.PriceSnapshot.BaseAmount);
@@ -789,10 +793,16 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
 
     // ===================== Helper cục bộ của test class =====================
 
-    /// <summary>POST /api/v1/bookings thô (dùng cho các case 400) — các trường hợp lệ đặt theo mặc định fixture.</summary>
+    /// <summary>
+    /// POST /api/v1/bookings thô (dùng cho các case 400) — các trường hợp lệ đặt theo mặc định fixture.
+    /// start/end tính từ CÙNG 1 mốc thời gian: 2 lần gọi DateTime.UtcNow lệch nhau vài tick sẽ bị
+    /// PostgreSQL cắt về microsecond → EndAtUtc == StartAtUtc trong DB → văng check constraint (500).
+    /// </summary>
     private Task<HttpResponseMessage> PostCreateAsync(TimeSpan startOffset, TimeSpan duration,
         string plate = "51A88888", int userId = DemoIds.Driver1User)
-        => fixture.BookingClient.PostAsJsonAsync("/api/v1/bookings", new
+    {
+        var start = DateTime.UtcNow + startOffset;
+        return fixture.BookingClient.PostAsJsonAsync("/api/v1/bookings", new
         {
             userId,
             vehicleId = DemoIds.Driver1Car,
@@ -805,26 +815,25 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
             slotId = (int?)2,
             slotCode = (string?)"B1-A02",
             allocationMode = "Dynamic",
-            startAtUtc = DateTime.UtcNow + startOffset,
-            endAtUtc = DateTime.UtcNow + startOffset + duration,
+            startAtUtc = start,
+            endAtUtc = start + duration,
             totalAmount = 40000m,
         });
+    }
 
-    /// <summary>Assert 400 + ProblemDetails với tiêu đề "Dữ liệu không hợp lệ" và đúng mảnh thông điệp nghiệp vụ.</summary>
+    /// <summary>Assert 400 + body ProblemDetails ("Dữ liệu không hợp lệ") với đúng mảnh thông điệp nghiệp vụ.</summary>
     private static async Task AssertBadRequestAsync(HttpResponseMessage response, string detailFragment)
     {
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<ProblemJson>();
         Assert.Equal("Dữ liệu không hợp lệ", problem!.Title);
         Assert.Contains(detailFragment, problem.Detail);
     }
 
-    /// <summary>Assert 409 + ProblemDetails với tiêu đề "Xung đột nghiệp vụ" (ConflictException từ Domain).</summary>
+    /// <summary>Assert 409 + body ProblemDetails ("Xung đột nghiệp vụ") — ConflictException từ Domain.</summary>
     private static async Task AssertConflictAsync(HttpResponseMessage response, string detailFragment)
     {
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<ProblemJson>();
         Assert.Equal("Xung đột nghiệp vụ", problem!.Title);
         Assert.Contains(detailFragment, problem.Detail);

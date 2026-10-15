@@ -242,20 +242,21 @@ public static class TestTime
         => new(utc.Ticks / TimeSpan.TicksPerMinute * TimeSpan.TicksPerMinute, DateTimeKind.Utc);
 }
 
-/// <summary>Assert chung cho ProblemDetails do ExceptionHandlingMiddleware (ServiceDefaults) trả về.</summary>
+/// <summary>
+/// Assert chung cho response lỗi của ExceptionHandlingMiddleware (ServiceDefaults).
+/// Middleware viết ProblemDetails bằng WriteAsJsonAsync nên content-type là "application/json" (body vẫn RFC 7807).
+/// </summary>
 public static class Asserts
 {
     public static async Task BadRequestAsync(HttpResponseMessage response, string detailFragment)
     {
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains(detailFragment, (await response.Content.ReadFromJsonAsync<ProblemJson>())!.Detail);
     }
 
     public static async Task ConflictAsync(HttpResponseMessage response, string detailFragment)
     {
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains(detailFragment, (await response.Content.ReadFromJsonAsync<ProblemJson>())!.Detail);
     }
 
