@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.Configure<VnpayOptions>(configuration.GetSection(VnpayOptions.SectionName));
         services.AddServiceDbContext<PaymentDbContext>(configuration);
         services.AddScoped<IRateCardRepository, RateCardRepository>();
+        services.AddScoped<IHolidayRepository, HolidayRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
         return services;

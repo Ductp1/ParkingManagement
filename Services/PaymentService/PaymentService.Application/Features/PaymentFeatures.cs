@@ -19,6 +19,13 @@ public interface IRateCardRepository
     Task<RateCard?> GetActiveAsync(int parkingLotId, DateTime atUtc, CancellationToken cancellationToken);
 }
 
+/// <summary>Cổng truy xuất dữ liệu ngày lễ quốc gia và địa phương phục vụ tính hệ số phụ thu (US-071).</summary>
+public interface IHolidayRepository
+{
+    /// <summary>Lấy danh sách các ngày nghỉ lễ nằm trong khoảng thời gian đỗ xe theo lịch Việt Nam.</summary>
+    Task<IReadOnlyCollection<DateOnly>> GetHolidaysInRangeAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken);
+}
+
 public interface IPaymentQueries
 {
     Task<IReadOnlyList<PaymentDto>> ListByBookingAsync(int bookingId, CancellationToken cancellationToken);
@@ -32,8 +39,10 @@ public interface IQuotePriceUseCase
     Task<PriceQuoteDto> ExecuteAsync(QuotePriceQuery query, CancellationToken cancellationToken = default);
 }
 
-/// <summary>UC-11: Báo giá trước khi đặt chỗ. BookingService gọi API này rồi lưu kết quả vào PriceSnapshot (Price Lock).</summary>
-public sealed class QuotePriceUseCase(IRateCardRepository rateCards) : IQuotePriceUseCase
+/// <summary>UC-11: Báo giá trước khi đặt chỗ (US-070, US-071). BookingService gọi API này rồi lưu kết quả vào PriceSnapshot (Price Lock).</summary>
+public sealed class QuotePriceUseCase(
+    IRateCardRepository rateCards,
+    IHolidayRepository holidayRepo) : IQuotePriceUseCase
 {
     public async Task<PriceQuoteDto> ExecuteAsync(QuotePriceQuery query, CancellationToken cancellationToken = default)
     {
@@ -44,7 +53,12 @@ public sealed class QuotePriceUseCase(IRateCardRepository rateCards) : IQuotePri
         var card = await rateCards.GetActiveAsync(query.ParkingLotId, query.StartAtUtc, cancellationToken)
             ?? throw new NotFoundException("Bảng giá của bãi", query.ParkingLotId);
 
-        var q = PriceCalculator.Calculate(card, query.VehicleType, query.StartAtUtc, query.EndAtUtc);
+        // Quy đổi sang ngày địa phương Việt Nam để so khớp chuẩn với bảng lịch nghỉ lễ
+        var startVnDate = DateOnly.FromDateTime(query.StartAtUtc.AddHours(7));
+        var endVnDate = DateOnly.FromDateTime(query.EndAtUtc.AddHours(7));
+        var holidays = await holidayRepo.GetHolidaysInRangeAsync(startVnDate, endVnDate, cancellationToken);
+
+        var q = PriceCalculator.Calculate(card, query.VehicleType, query.StartAtUtc, query.EndAtUtc, holidays);
         return new PriceQuoteDto(query.ParkingLotId, card.Id, query.VehicleType.ToString(), query.StartAtUtc, query.EndAtUtc,
             q.DurationMinutes, q.BaseAmount, q.Multiplier, q.FinalAmount, q.IsWithinGracePeriod, q.Lines);
     }
