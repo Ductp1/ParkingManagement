@@ -145,6 +145,19 @@ jobs:
           --logger "trx;LogFileName=Integration_Booking.trx"
           --results-directory ./test-results
 
+      # Test – 6 suite per-service còn lại (Vehicle, Payment, Notification, Gate, Admin, Support).
+      # Mỗi suite tự tạo database pm_it_* riêng rồi tự xóa khi chạy xong, nên không cần tạo sẵn DB ở "Prepare databases"
+      # (connection string dưới đây chỉ dùng host/port/user/password; tên database bị fixture ghi đè).
+      - name: Test – Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
+        env:
+          ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~IntegrationTests.PerService"
+          --logger "trx;LogFileName=Integration_PerService.trx"
+          --results-directory ./test-results
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
