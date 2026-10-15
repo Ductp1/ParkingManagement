@@ -134,4 +134,20 @@ public class PriceCalculatorTests
             PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, Weekday, Weekday.AddMinutes(-10)));
         Assert.Contains("Giờ kết thúc phải sau giờ bắt đầu", ex.Message);
     }
+
+    [Fact]
+    public void Multiple_overnight_parking_charges_surcharge_for_each_night()
+    {
+        // Thứ Sáu 20:00 VN (13:00 UTC) đến Chủ Nhật 08:00 sáng VN (01:00 UTC) -> Đỗ qua 2 đêm liên tiếp
+        var entryUtc = new DateTime(2026, 10, 2, 13, 0, 0, DateTimeKind.Utc);
+        var exitUtc = new DateTime(2026, 10, 4, 1, 0, 0, DateTimeKind.Utc);
+
+        var quote = PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, entryUtc, exitUtc);
+
+        var overnightLine = quote.Lines.FirstOrDefault(l => l.Description.Contains("Phụ thu qua đêm"));
+        Assert.NotNull(overnightLine);
+        Assert.Equal(2, overnightLine.Blocks);            // Số buổi tối = 2
+        Assert.Equal(50000m, overnightLine.UnitPrice);    // Đơn giá 50.000đ/đêm
+        Assert.Equal(100000m, overnightLine.Amount);      // Tổng phụ thu = 100.000đ
+    }
 }

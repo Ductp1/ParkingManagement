@@ -76,11 +76,19 @@ public static class PriceCalculator
         var endVn = endUtc.AddHours(7);
 
         // Bù đắp chi phí trực đêm và an ninh cho bãi xe khi xe lưu lại trong khung giờ giới nghiêm 22:00–06:00
+        var overnightNights = CountOvernightWindows(startVn, endVn);
         decimal overnightAmount = 0m;
-        if (card.OvernightSurcharge > 0 && CrossesOvernightWindow(startVn, endVn))
+        if (card.OvernightSurcharge > 0 && overnightNights > 0)
         {
-            overnightAmount = card.OvernightSurcharge;
-            lines.Add(new PriceLine("Phụ thu qua đêm (22:00–06:00)", minutes, 1, overnightAmount, overnightAmount));
+            overnightAmount = card.OvernightSurcharge * overnightNights;
+            lines.Add(new PriceLine(
+                overnightNights == 1
+                    ? "Phụ thu qua đêm (22:00–06:00)"
+                    : $"Phụ thu qua đêm ({overnightNights} đêm × {card.OvernightSurcharge:N0}đ)",
+                minutes,
+                overnightNights,
+                card.OvernightSurcharge,
+                overnightAmount));
         }
 
         // Ưu tiên chính sách ngày lễ quốc gia trước, nếu không phải lễ mới xét đến ngày nghỉ cuối tuần thông thường
@@ -115,29 +123,34 @@ public static class PriceCalculator
     }
 
     /// <summary>
-    /// Xác định lượt gửi xe có giao cắt với khung giờ đêm (từ 22:00 hôm trước đến 06:00 sáng hôm sau).
+    /// Đếm số buổi tối (khung giờ đêm từ 22:00 hôm trước đến 06:00 sáng hôm sau) mà xe đã gửi tại bãi.
     /// </summary>
     /// <param name="startVn">Thời điểm vào theo giờ địa phương Việt Nam.</param>
     /// <param name="endVn">Thời điểm ra theo giờ địa phương Việt Nam.</param>
-    /// <returns>True nếu phiên đỗ đi qua hoặc nằm trong khung giờ đêm, ngược lại False.</returns>
-    public static bool CrossesOvernightWindow(DateTime startVn, DateTime endVn)
+    /// <returns>Số buổi tối xe đã đỗ qua (0, 1, 2, ... đêm).</returns>
+    public static int CountOvernightWindows(DateTime startVn, DateTime endVn)
     {
-        // Quét từng ngày trong suốt khoảng thời gian đỗ để không bỏ sót các đêm liên tiếp
-        for (var currentDay = startVn.Date; currentDay <= endVn.Date; currentDay = currentDay.AddDays(1))
+        var count = 0;
+        // Quét từ đêm trước ngày bắt đầu (xử lý xe vào rạng sáng 00:00-06:00) đến ngày kết thúc
+        for (var currentDay = startVn.Date.AddDays(-1); currentDay <= endVn.Date; currentDay = currentDay.AddDays(1))
         {
             var nightStart = currentDay.AddHours(22);
             var nightEnd = currentDay.AddDays(1).AddHours(6);
 
             // Hai khoảng thời gian giao nhau khi điểm đầu nằm trước mốc kết thúc và điểm cuối nằm sau mốc bắt đầu
             if (startVn < nightEnd && endVn > nightStart)
-                return true;
-
-            // Xử lý riêng trường hợp xe vào trong khoảng rạng sáng từ 00:00 đến 06:00 của ngày đầu tiên
-            var earlyMorningEnd = currentDay.AddHours(6);
-            if (startVn < earlyMorningEnd && endVn > currentDay)
-                return true;
+                count++;
         }
 
-        return false;
+        return count;
     }
+
+    /// <summary>
+    /// Xác định lượt gửi xe có giao cắt với khung giờ đêm hay không (giữ lại để tương thích ngược).
+    /// </summary>
+    /// <param name="startVn">Thời điểm vào theo giờ địa phương Việt Nam.</param>
+    /// <param name="endVn">Thời điểm ra theo giờ địa phương Việt Nam.</param>
+    /// <returns>True nếu phiên đỗ đi qua ít nhất 1 buổi tối, ngược lại False.</returns>
+    public static bool CrossesOvernightWindow(DateTime startVn, DateTime endVn)
+        => CountOvernightWindows(startVn, endVn) > 0;
 }
