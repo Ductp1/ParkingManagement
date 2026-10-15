@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
 using UserService.API.Controllers;
@@ -98,8 +99,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
             builder.ConfigureServices(services =>
             {
                 services.UseIsolatedDatabase<AdminDbContext>(adminCs);
-                services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
-                    client.BaseAddress = new Uri(UserFactory.ClientOptions.BaseAddress.AbsoluteUri));
+
+                // Thay client gọi UserService: RemoveAll rồi đăng ký lại — bất kể thứ tự callback,
+                // IBookingLookup/IUserServiceClient luôn dùng BaseAddress của host test (không phải appsettings).
+                services.RemoveAll<IUserServiceClient>();
+                services.AddHttpClient<UserServiceClient>(client =>
+                        client.BaseAddress = new Uri(UserFactory.ClientOptions.BaseAddress.AbsoluteUri))
+                    .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+                services.AddScoped<IUserServiceClient>(sp => sp.GetRequiredService<UserServiceClient>());
             });
         });
         AdminClient = AdminFactory.CreateClient();

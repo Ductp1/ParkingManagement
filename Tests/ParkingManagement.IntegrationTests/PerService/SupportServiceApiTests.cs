@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
@@ -87,8 +88,13 @@ public sealed class SupportApiFixture : IAsyncLifetime
             {
                 services.UseIsolatedDatabase<SupportDbContext>(
                     TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName));
-                services.AddHttpClient<IBookingLookup, BookingServiceClient>(client =>
+
+                // Thay client gọi BookingService: RemoveAll rồi đăng ký lại — bất kể thứ tự callback,
+                // IBookingLookup luôn dùng BaseAddress của host BookingService test.
+                services.RemoveAll<IBookingLookup>();
+                services.AddHttpClient<BookingServiceClient>(client =>
                     client.BaseAddress = new Uri(BookingFactory.ClientOptions.BaseAddress.AbsoluteUri));
+                services.AddScoped<IBookingLookup>(sp => sp.GetRequiredService<BookingServiceClient>());
             });
         });
         SupportClient = SupportFactory.CreateClient();
