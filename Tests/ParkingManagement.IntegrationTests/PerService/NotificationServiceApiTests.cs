@@ -11,14 +11,14 @@ namespace ParkingManagement.IntegrationTests.PerService;
 
 /// <summary>Collection: NotificationService chạy host thật trên database pm_it_notification_* riêng của từng lần chạy.</summary>
 [CollectionDefinition("Notification API")]
-public sealed class NotificationApiCollection : ICollectionFixture<ServiceHostFixture<NotificationsController>>;
+public sealed class NotificationApiCollection : ICollectionFixture<ServiceHostFixture<NotificationsController, NotificationDbContext>>;
 
 /// <summary>
 /// Integration test NotificationService (TV6): hộp thư (UC-21), gửi thông báo qua dispatcher (S1-T602),
 /// đánh dấu đã đọc, cài đặt người dùng (S4) và đăng ký/thu hồi device token FCM.
 /// </summary>
 [Collection("Notification API")]
-public class NotificationServiceApiTests(ServiceHostFixture<NotificationsController> fixture)
+public class NotificationServiceApiTests(ServiceHostFixture<NotificationsController, NotificationDbContext> fixture)
 {
     [Fact] // Seed: driver 5 có 1 thông báo BOOKING_CONFIRMED chưa đọc; mark-read làm UnreadCount về 0.
     public async Task Seed_inbox_lists_and_marks_read()

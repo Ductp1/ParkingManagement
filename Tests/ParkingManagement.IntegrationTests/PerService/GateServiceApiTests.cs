@@ -13,7 +13,7 @@ namespace ParkingManagement.IntegrationTests.PerService;
 
 /// <summary>Collection: GateService chạy host thật trên database pm_it_gate_* riêng của từng lần chạy.</summary>
 [CollectionDefinition("Gate API")]
-public sealed class GateApiCollection : ICollectionFixture<ServiceHostFixture<GateController>>;
+public sealed class GateApiCollection : ICollectionFixture<ServiceHostFixture<GateController, GateDbContext>>;
 
 /// <summary>
 /// Integration test GateService (TV7): cổng vào/ra T-702 và hợp đồng QR với BookingService T-704.
@@ -21,7 +21,7 @@ public sealed class GateApiCollection : ICollectionFixture<ServiceHostFixture<Ga
 /// HMAC-SHA256 Base64) bằng chính QRTOKEN_SECRET của host → xác thực thật qua BookingQrTokenValidator.
 /// </summary>
 [Collection("Gate API")]
-public class GateServiceApiTests(ServiceHostFixture<GateController> fixture)
+public class GateServiceApiTests(ServiceHostFixture<GateController, GateDbContext> fixture)
 {
     /// <summary>Mint token QR theo đúng hợp đồng T-704 với secret của host đang chạy.</summary>
     private static string MintQrToken(string bookingCode, string plate, int parkingLotId, DateTime expiresAtUtc)

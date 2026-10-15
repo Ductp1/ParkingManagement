@@ -1,12 +1,14 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using PaymentService.API.Controllers;
+using PaymentService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests.PerService;
 
 /// <summary>Collection: PaymentService chạy host thật trên database pm_it_payment_* riêng của từng lần chạy.</summary>
 [CollectionDefinition("Payment API")]
-public sealed class PaymentApiCollection : ICollectionFixture<ServiceHostFixture<PricingController>>;
+public sealed class PaymentApiCollection : ICollectionFixture<ServiceHostFixture<PricingController, PaymentDbContext>>;
 
 /// <summary>
 /// Integration test PaymentService (TV4): công cụ tính giá UC-11 (US-070/071 – ân hạn 15 phút, bậc giá lũy tiến,
@@ -14,7 +16,7 @@ public sealed class PaymentApiCollection : ICollectionFixture<ServiceHostFixture
 /// Ngày dùng để tính giá cố tình chọn ở năm kế tiếp, rơi vào ngày thường → hệ số nhân = 1, không dính lễ/weekend seed 2026.
 /// </summary>
 [Collection("Payment API")]
-public class PaymentServiceApiTests(ServiceHostFixture<PricingController> fixture)
+public class PaymentServiceApiTests(ServiceHostFixture<PricingController, PaymentDbContext> fixture)
 {
     /// <summary>Khung giờ 2 tiếng bắt đầu 09:00 giờ VN của một ngày thường (Thứ 2–6) trong năm kế tiếp.</summary>
     private static (DateTime Start, DateTime End) WeekdayWindow(int hours = 2)

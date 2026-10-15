@@ -40,8 +40,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
+        var userCs = TestDatabaseProvisioner.ReplaceDatabase(baseCs, UserDbName);
+        var adminCs = TestDatabaseProvisioner.ReplaceDatabase(baseCs, AdminDbName);
         await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, UserDbName);
         await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, AdminDbName);
+
+        // Khóa JWT của fixture này (chỉ fixture Admin dùng 2 key này → an toàn khi chạy song song).
+        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _keys.PublicKeyPath);
+        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _keys.PrivateKeyPath);
 
         // ----- 1. UserService host (nguồn dữ liệu + xác thực phiên thật) -----
         UserFactory = new WebApplicationFactory<UsersController>().WithWebHostBuilder(builder =>
@@ -49,12 +55,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:ServiceDb"] = TestDatabaseProvisioner.ReplaceDatabase(baseCs, UserDbName),
                     ["Jwt:PublicKeyPath"] = _keys.PublicKeyPath,
                     ["Jwt:PrivateKeyPath"] = _keys.PrivateKeyPath,
                 }));
             builder.ConfigureServices(services =>
-                services.AddDataProtection().UseEphemeralDataProtectionProvider());
+            {
+                services.UseIsolatedDatabase<UserDbContext>(userCs);
+                services.AddDataProtection().UseEphemeralDataProtectionProvider();
+            });
         });
         using var userHealth = await UserFactory.CreateClient().GetAsync("/health");
         Assert.True(userHealth.IsSuccessStatusCode, $"UserService không start được trên {UserDbName}.");
@@ -75,16 +83,17 @@ public sealed class AdminApiFixture : IAsyncLifetime
 
         AdminToken = _keys.MintToken(DemoIds.AdminUser, "admin@smartparking.vn", Sid, "Admin");
 
-        // ----- 3. AdminService host (Gateway trỏ thẳng sang host UserService) -----
+        // ----- 3. AdminService host (Gateway trỏ thẳng sang host UserService đã chạy) -----
+        Environment.SetEnvironmentVariable("Services__GatewayBaseUrl", UserFactory.ClientOptions.BaseAddress.AbsoluteUri);
         AdminFactory = new WebApplicationFactory<AdminUsersController>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:ServiceDb"] = TestDatabaseProvisioner.ReplaceDatabase(baseCs, AdminDbName),
                     ["Jwt:PublicKeyPath"] = _keys.PublicKeyPath,
                     ["Services:GatewayBaseUrl"] = UserFactory.ClientOptions.BaseAddress.AbsoluteUri,
                 }));
+            builder.ConfigureServices(services => services.UseIsolatedDatabase<AdminDbContext>(adminCs));
         });
         AdminClient = AdminFactory.CreateClient();
         AdminClient.DefaultRequestHeaders.Authorization = new("Bearer", AdminToken);

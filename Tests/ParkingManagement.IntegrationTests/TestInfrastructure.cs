@@ -8,8 +8,10 @@ using BookingService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 
 namespace ParkingManagement.IntegrationTests;
@@ -162,11 +164,30 @@ public sealed class RsaTestKeys : IDisposable
 }
 
 /// <summary>
-/// Fixture chung cho 1 service: 1 host thật (WebApplicationFactory) + 1 database pm_it_* riêng.
-/// Suite đặt <see cref="Settings"/>/<see cref="ExtraServices"/> trong constructor của mình
-/// (VD: Jwt:PublicKeyPath, Services:GatewayBaseUrl...) rồi InitializeAsync sẽ dựng host + migrate + seed.
+/// Trỏ DbContext của host test sang database pm_it_*: gỡ đăng ký options gốc (từ Program.cs qua appsettings/env)
+/// rồi đăng ký lại với connection string của test. Chạy trong ConfigureServices của factory nên luôn thắng,
+/// KHÔNG đụng biến môi trường toàn cục (an toàn khi nhiều fixture chạy song song).
 /// </summary>
-public class ServiceHostFixture<TEntryPoint> : IAsyncLifetime where TEntryPoint : class
+public static class IsolatedDatabaseExtension
+{
+    public static IServiceCollection UseIsolatedDatabase<TContext>(this IServiceCollection services, string connectionString)
+        where TContext : DbContext
+    {
+        services.RemoveAll<DbContextOptions<TContext>>();
+        services.RemoveAll<IDbContextOptionsConfiguration<TContext>>();
+        services.AddDbContext<TContext>(options => options.UseNpgsql(connectionString));
+        return services;
+    }
+}
+
+/// <summary>
+/// Fixture chung cho 1 service: 1 host thật (WebApplicationFactory) + 1 database pm_it_* riêng.
+/// Database được nối vào host bằng cách thay đăng ký DbContext (xem <see cref="IsolatedDatabaseExtension"/>),
+/// nên không phụ thuộc thứ tự ưu tiên cấu hình và không đụng biến môi trường dùng chung.
+/// </summary>
+public class ServiceHostFixture<TEntryPoint, TContext> : IAsyncLifetime
+    where TEntryPoint : class
+    where TContext : DbContext
 {
     private readonly string _suffix = Guid.NewGuid().ToString("N")[..8];
 
@@ -175,29 +196,28 @@ public class ServiceHostFixture<TEntryPoint> : IAsyncLifetime where TEntryPoint 
     public HttpClient Client { get; private set; } = null!;
     public IServiceProvider Services => Factory.Services;
 
-    /// <summary>Ghi đè cấu hình in-memory (thêm sau cùng nên luôn thắng appsettings/env).</summary>
-    public Dictionary<string, string?> Settings { get; } = new();
-
     /// <summary>Hook đăng ký thêm service vào host (VD: DataProtection ephemeral cho UserService).</summary>
     public Action<IServiceCollection>? ExtraServices { get; set; }
 
     public ServiceHostFixture()
     {
-        var slug = typeof(TEntryPoint).Assembly.GetName().Name
-            .Replace("ParkingManagement.", "").Replace("Service.API", "").Replace(".API", "").ToLowerInvariant();
+        var slug = typeof(TContext).Name.Replace("DbContext", "").ToLowerInvariant();
         DbName = $"pm_it_{slug}_{_suffix}";
     }
 
     public virtual async Task InitializeAsync()
     {
         var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
+        var dbConnectionString = TestDatabaseProvisioner.ReplaceDatabase(baseCs, DbName);
         await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, DbName);
-        Settings["ConnectionStrings:ServiceDb"] = TestDatabaseProvisioner.ReplaceDatabase(baseCs, DbName);
 
         Factory = new WebApplicationFactory<TEntryPoint>().WithWebHostBuilder(builder =>
         {
-            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(Settings));
-            if (ExtraServices is { } extra) builder.ConfigureServices(extra);
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<TContext>(dbConnectionString);
+                ExtraServices?.Invoke(services);
+            });
         });
         Client = Factory.CreateClient();
 

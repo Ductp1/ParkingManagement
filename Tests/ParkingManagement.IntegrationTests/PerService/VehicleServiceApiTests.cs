@@ -1,19 +1,21 @@
 using System.Net;
 using System.Net.Http.Json;
 using VehicleService.API.Controllers;
+using VehicleService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests.PerService;
 
 /// <summary>Collection: VehicleService chạy host thật trên database pm_it_vehicle_* riêng của từng lần chạy.</summary>
 [CollectionDefinition("Vehicle API")]
-public sealed class VehicleApiCollection : ICollectionFixture<ServiceHostFixture<VehiclesController>>;
+public sealed class VehicleApiCollection : ICollectionFixture<ServiceHostFixture<VehiclesController, VehicleDbContext>>;
+
 
 /// <summary>
 /// Integration test VehicleService (TV2): Garage xe (UC-07), thêm/sửa/xóa xe (US-009/010/011),
 /// tra cứu theo biển số dùng cho cổng OCR, ràng buộc biển số Thông tư 01/2021/TT-BCA và soft delete.
 /// </summary>
 [Collection("Vehicle API")]
-public class VehicleServiceApiTests(ServiceHostFixture<VehiclesController> fixture)
+public class VehicleServiceApiTests(ServiceHostFixture<VehiclesController, VehicleDbContext> fixture)
 {
     [Fact] // Seed: driver 5 có 2 xe, Vios 51F-123.45 là xe mặc định.
     public async Task Garage_lists_seed_vehicles_with_default_flag()

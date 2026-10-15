@@ -14,6 +14,7 @@ using Microsoft.Extensions.Hosting;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.API.Controllers;
+using ParkingService.Infrastructure.Persistence;
 using ParkingService.Domain.Entities;
 using ParkingService.Infrastructure.Persistence;
 
@@ -92,8 +93,10 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         await TestDatabaseProvisioner.CreateDatabaseAsync(_baseConnectionString, ParkingDbName);
         await TestDatabaseProvisioner.CreateDatabaseAsync(_baseConnectionString, BookingDbName);
 
-        ParkingFactory = BuildFactory<ParkingLotsController>(TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, ParkingDbName));
-        BookingFactory = BuildFactory<BookingsController>(TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, BookingDbName));
+        ParkingFactory = BuildFactory<ParkingLotsController, ParkingDbContext>(
+            TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, ParkingDbName));
+        BookingFactory = BuildFactory<BookingsController, BookingDbContext>(
+            TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, BookingDbName));
 
         // Dựng host sớm ngay tại đây: migration + seed demo chạy xong trước test đầu tiên,
         // lỗi hạ tầng (PostgreSQL không chạy, thiếu secret...) báo ngay tại Initialize thay vì test đầu tiên.
@@ -106,15 +109,15 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         Assert.True(bookingHealth.IsSuccessStatusCode, $"BookingService không start được trên database {BookingDbName}.");
     }
 
-    /// <summary>Host thật + ghi đè connection string bằng in-memory config (thêm sau cùng nên luôn thắng appsettings/env).</summary>
-    private static WebApplicationFactory<TEntryPoint> BuildFactory<TEntryPoint>(string connectionString) where TEntryPoint : class
-        => new WebApplicationFactory<TEntryPoint>().WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:ServiceDb"] = connectionString,
-                ["Database:ApplyMigrationsOnStartup"] = "true",
-                ["Database:SeedDemoData"] = "true",
-            })));
+    /// <summary>
+    /// Host thật + database cô lập: thay đăng ký DbContext bằng connection string của test
+    /// (ConfigureServices chạy sau Program.cs nên luôn thắng; không đụng biến môi trường toàn cục).
+    /// </summary>
+    private static WebApplicationFactory<TEntryPoint> BuildFactory<TEntryPoint, TContext>(string connectionString)
+        where TEntryPoint : class
+        where TContext : DbContext
+        => new WebApplicationFactory<TEntryPoint>().WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => services.UseIsolatedDatabase<TContext>(connectionString)));
 
     /// <summary>Làm tròn về đầu phút – ủy quyền cho TestTime.</summary>
     public static DateTime RoundToMinute(DateTime utc) => TestTime.RoundToMinute(utc);

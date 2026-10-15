@@ -12,6 +12,7 @@ using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using SupportService.API.Controllers;
+using SupportService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests.PerService;
 
@@ -42,11 +43,8 @@ public sealed class SupportApiFixture : IAsyncLifetime
 
         // ----- 1. BookingService host (dependency thật của SupportService) -----
         BookingFactory = new WebApplicationFactory<BookingsController>().WithWebHostBuilder(builder =>
-            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:ServiceDb"] = TestDatabaseProvisioner.ReplaceDatabase(baseCs, BookingDbName),
-                })));
+            builder.ConfigureServices(services => services.UseIsolatedDatabase<BookingDbContext>(
+                TestDatabaseProvisioner.ReplaceDatabase(baseCs, BookingDbName))));
         using var bookingHealth = await BookingFactory.CreateClient().GetAsync("/health");
         Assert.True(bookingHealth.IsSuccessStatusCode, $"BookingService không start được trên {BookingDbName}.");
 
@@ -74,14 +72,18 @@ public sealed class SupportApiFixture : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        // ----- 3. SupportService host (BookingService URL trỏ sang host thật) -----
+        // ----- 3. SupportService host (BookingService URL trỏ sang host đã chạy; key này chỉ fixture Support dùng) -----
+        Environment.SetEnvironmentVariable("Services__BookingService", BookingFactory.ClientOptions.BaseAddress.AbsoluteUri);
         SupportFactory = new WebApplicationFactory<ComplaintsController>().WithWebHostBuilder(builder =>
+        {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {
-                    ["ConnectionStrings:ServiceDb"] = TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName),
                     ["Services:BookingService"] = BookingFactory.ClientOptions.BaseAddress.AbsoluteUri,
-                })));
+                }));
+            builder.ConfigureServices(services => services.UseIsolatedDatabase<SupportDbContext>(
+                TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName)));
+        });
         SupportClient = SupportFactory.CreateClient();
 
         using var supportHealth = await SupportClient.GetAsync("/health");
