@@ -65,7 +65,26 @@ public class LoginUseCaseTests
         Assert.Null(repo.Identifier);
     }
 
-    private static LoginUseCase Create(Repository repo) => new(repo, new Tokens(), new Hasher(), new Clock());
+    private static LoginUseCase Create(Repository repo) => new(repo, new Tokens(), new Hasher(), new Clock(), new Captcha());
+    [Fact]
+    public async Task Invalid_captcha_is_rejected_before_repository_access()
+    {
+        var repo = new Repository();
+        var useCase = new LoginUseCase(repo, new Tokens(), new Hasher(), new Clock(), new Captcha(false));
+        await Assert.ThrowsAsync<CaptchaException>(() => useCase.ExecuteAsync(new("driver@example.com", "password", "bad")));
+        Assert.Null(repo.Identifier);
+        Assert.Equal(0, repo.Saves);
+        Assert.Equal(0, repo.User.FailedLoginCount);
+        Assert.Empty(repo.User.RefreshTokens);
+    }
+    private sealed class Captcha(bool valid = true) : ICaptchaVerifier
+    {
+        public Task VerifyAsync(string? token, CancellationToken cancellationToken = default)
+        {
+            if (!valid) throw new CaptchaException(false);
+            return Task.CompletedTask;
+        }
+    }
     private sealed class Clock : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(Now);

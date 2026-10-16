@@ -17,8 +17,8 @@ export const apiClient = axios.create({
 // Request Interceptor: Attach JWT Bearer Token if present in localStorage
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('parkmaster_token');
-    if (token && config.headers) {
+    const token = sessionStorage.getItem('parkmaster_token');
+    if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -52,6 +52,6 @@ apiClient.interceptors.response.use(
       }
     }
 
-    return Promise.reject(new Error(message));
+    return Promise.reject(Object.assign(new Error(message), { status: error.response?.status, code: (error.response?.data as ProblemDetails & { code?: string })?.code }));
   }
 );

@@ -13,6 +13,19 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddUserInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddOptions<UserService.Infrastructure.Authentication.CaptchaOptions>()
+            .Bind(configuration.GetSection("Captcha"))
+            .Validate(o => o.TimeoutSeconds is >= 1 and <= 15, "Captcha timeout must be 1-15 seconds.")
+            .Validate(o => !o.Enabled || (!string.IsNullOrWhiteSpace(o.SecretKey)
+                && o.AllowedHostnames.Length > 0 && o.AllowedHostnames.All(h => !string.IsNullOrWhiteSpace(h))
+                && !string.IsNullOrWhiteSpace(o.ExpectedAction)), "Captcha requires SecretKey, AllowedHostnames and ExpectedAction.")
+            .ValidateOnStart();
+        services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<UserService.Infrastructure.Authentication.CaptchaOptions>,
+            UserService.Infrastructure.Authentication.CaptchaEnvironmentValidator>();
+        services.AddHttpClient<UserService.Application.Interfaces.ICaptchaVerifier,
+            UserService.Infrastructure.Authentication.TurnstileCaptchaVerifier>((provider, client) =>
+            client.Timeout = TimeSpan.FromSeconds(provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<
+                UserService.Infrastructure.Authentication.CaptchaOptions>>().Value.TimeoutSeconds));
         services.AddServiceDbContext<UserDbContext>(configuration);
         services.AddScoped<IUserQueries, UserQueries>();
         services.AddScoped<IDataSeeder<UserDbContext>, UserDataSeeder>();
