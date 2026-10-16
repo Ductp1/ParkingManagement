@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IFaqQueries, FaqQueries>();
         services.AddSingleton(configuration.GetSection("HelpCenter").Get<HelpCenterSettings>() ?? new HelpCenterSettings());
         services.AddScoped<IComplaintRepository, ComplaintRepository>();
+        services.AddScoped<IReviewRepository, ReviewRepository>();
         services.AddHttpClient<IBookingLookup, BookingServiceClient>(c =>
         {
             c.BaseAddress = new Uri(configuration["Services:BookingService"] ?? "http://localhost:5104/");
