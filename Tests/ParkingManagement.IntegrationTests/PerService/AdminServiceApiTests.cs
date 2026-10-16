@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using AdminService.API.Controllers;
 using AdminService.Application.Features.Users;
+using AdminService.Domain.Entities;
+using AdminService.Domain.Enums;
 using AdminService.Infrastructure.Integrations;
 using AdminService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
@@ -14,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
+using ParkingManagement.SharedKernel.Enums;
 using UserService.API.Controllers;
 using UserService.Infrastructure.Persistence;
 
@@ -175,7 +178,7 @@ public class AdminServiceApiTests(AdminApiFixture fixture)
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/admin/users")).StatusCode);
     }
 
-    [Fact] // UC-40: khóa chủ bãi ghi Sanction + AuditLog; unlock thu hồi; unlock lần 2 → 409 "không bị khóa".
+    [Fact] // UC-40: khóa chủ bãi ghi Sanction + AuditLog; unlock thu hồi; unlock lần 2 = thử đồng bộ lại (vẫn 200).
     public async Task Lock_then_unlock_owner_records_sanction_and_audit_logs()
     {
         // Owner 1 (Vincom) chưa có chế tài nào trong seed
@@ -201,14 +204,18 @@ public class AdminServiceApiTests(AdminApiFixture fixture)
         var unlock = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock", new { reason = "IT – đã rõ hiềm nghi" });
         Assert.Equal(HttpStatusCode.OK, unlock.StatusCode);
 
-        // Unlock lần 2 → 409 vì chủ bãi không còn bị khóa
-        await Asserts.ConflictAsync(await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock",
-            new { reason = "IT – mở lần nữa" }), "hiện không bị khóa");
+        // Unlock lần 2: lần đồng bộ sang UserService đã Failed (TV1 chưa có endpoint owner-profiles lock/unlock)
+        // → theo thiết kế "thử lại bằng gọi lại" nên vẫn 200 (idempotent retry), không phải 409.
+        var unlockAgain = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock",
+            new { reason = "IT – mở lại để thử đồng bộ" });
+        Assert.Equal(HttpStatusCode.OK, unlockAgain.StatusCode);
 
-        // Database pm_admin: đủ Sanction + AuditLog cho cả khóa và mở khóa
+        // Database pm_admin: chế tài đã Revoked + đủ AuditLog cho cả khóa và mở khóa
         await using var scope = fixture.AdminServices.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
-        var audit = await db.AuditLogs.Where(a => a.OwnerProfileId == 1).OrderBy(a => a.Id).ToListAsync();
+        var sanctionEntity = await db.Sanctions.AsNoTracking().SingleAsync(s => s.OwnerProfileId == 1);
+        Assert.Equal(SanctionStatus.Revoked, sanctionEntity.Status);
+        var audit = await db.AuditLogs.AsNoTracking().Where(a => a.OwnerProfileId == 1).OrderBy(a => a.Id).ToListAsync();
         Assert.Contains(audit, a => a.Action == "Owner.Locked");
         Assert.Contains(audit, a => a.Action == "Owner.Unlocked");
     }

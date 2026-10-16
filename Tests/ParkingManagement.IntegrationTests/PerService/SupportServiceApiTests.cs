@@ -126,7 +126,7 @@ public sealed class SupportApiCollection : ICollectionFixture<SupportApiFixture>
 [Collection("Support API")]
 public class SupportServiceApiTests(SupportApiFixture fixture)
 {
-    [Fact] // US-088 AC1: tạo khiếu nại cho booking đã hoàn thành → 201, mã CP-*, trạng thái AwaitingOwner, có tin nhắn hệ thống.
+    [Fact] // US-088 AC1: tạo khiếu nại cho booking đã hoàn thành → 201, mã CP-*, trạng thái Open, có tin nhắn hệ thống.
     public async Task Create_complaint_for_a_completed_booking()
     {
         var create = await fixture.SupportClient.PostAsJsonAsync("/api/v1/complaints", new
@@ -141,7 +141,7 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         var detail = await create.Content.ReadFromJsonAsync<ComplaintDetailJson>();
         Assert.StartsWith("CP-", detail!.Code);
-        Assert.Equal("AwaitingOwner", detail.Status);
+        Assert.Equal("Open", detail.Status); // ticket mới mở, sau khi chủ bãi phản hồi mới chuyển AwaitingOwner/Resolved
         Assert.Equal("Overcharge", detail.Category);
         Assert.Equal("BK-IT-DONE", detail.BookingCode);
         Assert.Equal(DemoIds.LotVincom, detail.ParkingLotId);
