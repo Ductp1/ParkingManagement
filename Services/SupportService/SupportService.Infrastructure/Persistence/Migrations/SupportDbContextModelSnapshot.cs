@@ -303,7 +303,7 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsHidden")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("OwnerProfileId")
+                    b.Property<int?>("OwnerProfileId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("OwnerRepliedAtUtc")

@@ -43,8 +43,25 @@ public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwne
 
 [ApiController]
 [Route("api/v1/reviews")]
-public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews) : ControllerBase
+public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews, IReviewService reviewService) : ControllerBase
 {
+    /// <summary>POST /api/v1/reviews – Tài xế đánh giá bãi 1–5 sao sau khi booking hoàn tất, mỗi booking 1 lần (US-093).</summary>
+    [HttpPost]
+    [ProducesResponseType<ReviewDetailDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ReviewDetailDto>> Create([FromBody] CreateReviewRequestDto request, CancellationToken cancellationToken)
+    {
+        var result = await reviewService.CreateAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(ForLot), new { parkingLotId = result.ParkingLotId }, result);
+    }
+
+    /// <summary>GET /api/v1/reviews/eligibility?userId=5&amp;bookingCode=BK-0001 – Có hiện nút "Đánh giá" cho booking không (US-093 AC2).</summary>
+    [HttpGet("eligibility")]
+    public async Task<ActionResult<ReviewEligibilityDto>> Eligibility([FromQuery] int userId, [FromQuery] string bookingCode, CancellationToken cancellationToken)
+        => Ok(await reviewService.CheckEligibilityAsync(userId, bookingCode, cancellationToken));
+
     /// <summary>GET /api/reviews?parkingLotId=1 – Điểm trung bình và đánh giá mới nhất của bãi (UC-18).</summary>
     [HttpGet]
     public async Task<ActionResult<LotReviewsDto>> ForLot([FromQuery] int parkingLotId, [FromQuery] int take = 10, CancellationToken cancellationToken = default)

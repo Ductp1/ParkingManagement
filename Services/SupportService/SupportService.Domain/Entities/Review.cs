@@ -11,8 +11,8 @@ public class Review : BaseEntity, ISoftDelete
     public string ReviewerName { get; set; } = string.Empty;
     /// <summary>→ ParkingService (không FK).</summary>
     public int ParkingLotId { get; set; }
-    /// <summary>→ UserService (không FK).</summary>
-    public int OwnerProfileId { get; set; }
+    /// <summary>→ UserService (không FK). Null khi BookingService chưa trả về chủ bãi.</summary>
+    public int? OwnerProfileId { get; set; }
     public byte Rating { get; set; }
     public string? Comment { get; set; }
     public string? OwnerReply { get; set; }
