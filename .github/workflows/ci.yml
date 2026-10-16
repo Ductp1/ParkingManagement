@@ -35,9 +35,68 @@ jobs:
       - name: Build
         run: dotnet build ParkingManagement.slnx -c Release --no-restore --nologo
 
+  # Xác định service nào có code thay đổi để chỉ chạy unit test của các service đó.
+  # - pull_request: dorny/paths-filter so sánh PR với base branch (dùng GitHub API lấy danh sách file thay đổi)
+  # - push thẳng vào main/develop, hoặc thay đổi code dùng chung (BuildingBlocks, Directory.Build.props,
+  #   solution, CI workflow) → chạy unit test của TẤT CẢ service (giữ hành vi an toàn như cũ)
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      # JSON dùng làm dynamic matrix cho job unit-tests, ví dụ: {"service":["UserService"]}
+      services: ${{ steps.matrix.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            UserService:
+              - 'Services/UserService/**'
+            VehicleService:
+              - 'Services/VehicleService/**'
+            ParkingService:
+              - 'Services/ParkingService/**'
+            BookingService:
+              - 'Services/BookingService/**'
+            PaymentService:
+              - 'Services/PaymentService/**'
+            NotificationService:
+              - 'Services/NotificationService/**'
+            GateService:
+              - 'Services/GateService/**'
+            AdminService:
+              - 'Services/AdminService/**'
+            SupportService:
+              - 'Services/SupportService/**'
+            # Code/ảnh hưởng dùng chung cho mọi service
+            shared:
+              - 'BuildingBlocks/**'
+              - 'Directory.Build.props'
+              - 'ParkingManagement.slnx'
+              - '.github/workflows/ci.yml'
+
+      - name: Build unit-test matrix
+        id: matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGED_SERVICES: ${{ steps.filter.outputs.changes }}   # JSON array, vd: ["UserService"]
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" nếu code dùng chung thay đổi
+        run: |
+          ALL='["UserService","VehicleService","ParkingService","BookingService","PaymentService","NotificationService","GateService","AdminService","SupportService"]'
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$SHARED_CHANGED" != "true" ]; then
+            # PR chỉ đụng service cụ thể → chỉ test các service đó
+            services="{\"service\":${CHANGED_SERVICES:-[]}}"
+          else
+            services="{\"service\":$ALL}"
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+
   unit-tests:
     name: Unit tests – ${{ matrix.service }}
-    needs: build
+    needs: [build, changes]
     runs-on: ubuntu-latest
     environment: environment
     env:
@@ -46,9 +105,9 @@ jobs:
       QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
     strategy:
       fail-fast: false                       # 1 service đỏ không hủy service khác
-      matrix:
-        service: [UserService, VehicleService, ParkingService, BookingService, PaymentService,
-                  NotificationService, GateService, AdminService, SupportService]
+      # Matrix động từ job "changes": PR chỉ đổi service nào thì chỉ chạy unit test service đó.
+      # Matrix rỗng (PR không đụng service nào) → job này tự skip. Push thẳng/code dùng chung → chạy tất cả.
+      matrix: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
 
