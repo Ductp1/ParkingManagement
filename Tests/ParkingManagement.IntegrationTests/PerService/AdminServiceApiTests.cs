@@ -7,10 +7,10 @@ using AdminService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using ParkingManagement.IntegrationTests;
 using ParkingManagement.SharedKernel.Contracts;
@@ -88,9 +88,11 @@ public sealed class AdminApiFixture : IAsyncLifetime
 
         AdminToken = _keys.MintToken(DemoIds.AdminUser, "admin@smartparking.vn", Sid, "Admin");
 
-        // ----- 3. AdminService host (Gateway trỏ thẳng sang host UserService đã chạy) -----
-        // Client IUserServiceClient được thay bằng closure scoped-factory trỏ thẳng sang host UserService test
-        // (đăng ký kiểu này không bị Program.cs ghi đè).
+        // ----- 3. AdminService host -----
+        // Client IUserServiceClient gọi THẲNG vào pipeline in-memory của host UserService:
+        // WebApplicationFactory KHÔNG mở cổng mạng thật → bắt buộc dùng TestServer.CreateHandler()
+        // làm InnerHandler; BearerTokenForwardingHandler vẫn chuyển tiếp token admin sang TV1 như production.
+        var userServerHandler = UserFactory.Server.CreateHandler();
         AdminFactory = new WebApplicationFactory<AdminUsersController>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
@@ -101,20 +103,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
             builder.ConfigureServices(services =>
             {
                 services.UseIsolatedDatabase<AdminDbContext>(adminCs);
-
-                // Thay client gọi UserService bằng HttpClient trỏ thẳng sang host test:
-                // closure scoped-factory được resolve LAZY nên Program không thể ghi đè
-                // (AddHttpClient/AddTransient của Program đăng ký type mà ta không resolve).
-                // BearerTokenForwardingHandler giữ nguyên hành vi production: chuyển tiếp token admin sang TV1.
-                var userUrl = UserFactory.ClientOptions.BaseAddress.AbsoluteUri;
                 services.AddScoped<IUserServiceClient>(sp =>
                 {
-                    var http = new HttpClient(new BearerTokenForwardingHandler(
-                        sp.GetRequiredService<IHttpContextAccessor>())
+                    var accessor = sp.GetRequiredService<IHttpContextAccessor>();
+                    var http = new HttpClient(new BearerTokenForwardingHandler(accessor)
                     {
-                        InnerHandler = new HttpClientHandler()
+                        InnerHandler = userServerHandler,
                     })
-                    { BaseAddress = new Uri(userUrl) };
+                    { BaseAddress = UserFactory.ClientOptions.BaseAddress };
                     return new UserServiceClient(http, sp.GetRequiredService<ILogger<UserServiceClient>>());
                 });
             });

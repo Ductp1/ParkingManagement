@@ -8,9 +8,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using ParkingManagement.IntegrationTests;
+using Microsoft.AspNetCore.TestHost;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using SupportService.API.Controllers;
@@ -76,31 +76,24 @@ public sealed class SupportApiFixture : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        // ----- 3. SupportService host (BookingService URL trỏ sang host đã chạy; key này chỉ fixture Support dùng) -----
-        // Client IBookingLookup được thay bằng closure scoped-factory trỏ thẳng sang host BookingService test
-        // (đăng ký kiểu này không bị Program.cs ghi đè).
+        // ----- 3. SupportService host -----
+        // Client IBookingLookup gọi THẲNG vào pipeline in-memory của host BookingService:
+        // WebApplicationFactory KHÔNG mở cổng mạng thật → bắt buộc dùng TestServer.CreateHandler().
+        var bookingServerHandler = BookingFactory.Server.CreateHandler();
         SupportFactory = new WebApplicationFactory<ComplaintsController>().WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["Services:BookingService"] = BookingFactory.ClientOptions.BaseAddress.AbsoluteUri,
-                }));
             builder.ConfigureServices(services =>
             {
                 services.UseIsolatedDatabase<SupportDbContext>(
                     TestDatabaseProvisioner.ReplaceDatabase(baseCs, SupportDbName));
-
-                // Thay client gọi BookingService bằng HttpClient trỏ thẳng sang host test:
-                // closure scoped-factory được resolve LAZY nên Program không thể ghi đè.
-                var bookingUrl = BookingFactory.ClientOptions.BaseAddress.AbsoluteUri;
                 services.AddScoped<IBookingLookup>(sp =>
                 {
-                    var http = new HttpClient { BaseAddress = new Uri(bookingUrl) };
+                    var http = new HttpClient(bookingServerHandler)
+                    {
+                        BaseAddress = BookingFactory.ClientOptions.BaseAddress,
+                    };
                     return new BookingServiceClient(http, sp.GetRequiredService<ILogger<BookingServiceClient>>());
                 });
-            });
-        });
+            }));
         SupportClient = SupportFactory.CreateClient();
 
         using var supportHealth = await SupportClient.GetAsync("/health");
