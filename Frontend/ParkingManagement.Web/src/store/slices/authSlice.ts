@@ -27,8 +27,14 @@ export const authSlice = createSlice({
       }
     },
     switchRole: (state, action: PayloadAction<UserRole>) => {
-      if (state.user?.roles?.includes(action.payload)) {
-        state.user.role = action.payload;
+      const targetRole = action.payload;
+      if (state.user) {
+        // Chỉ cho phép chuyển vai trò nếu tài khoản thực sự sở hữu vai trò đó trong user.roles (hoặc là Admin)
+        const canSwitch =
+          state.user.roles?.includes(targetRole) || state.user.roles?.includes('Admin');
+        if (canSwitch) {
+          state.user.role = targetRole;
+        }
       }
     },
     logout: (state) => {

@@ -1,34 +1,76 @@
-import React from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { useAppSelector } from '@/store';
-import type { UserRole } from '@/types/auth';
+import React, { useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
+import { useAppSelector, useAppDispatch } from '@/store';
+import { setUser } from '@/store/slices/authSlice';
+import type { UserRole, AuthUser } from '@/types/auth';
 
 interface ProtectedRouteProps {
   allowedRoles?: UserRole[];
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
-  const { user, isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+/** Tài khoản độc lập cho từng phân hệ (Khớp danh sách tài khoản seed từ UserService) */
+const ROLE_ACCOUNTS: Record<UserRole, AuthUser> = {
+  Driver: {
+    id: 5,
+    fullName: 'Nguyễn Văn An (Tài xế)',
+    email: 'driver1@smartparking.vn',
+    phone: '0900000005',
+    role: 'Driver',
+    roles: ['Driver'],
+  },
+  Owner: {
+    id: 2,
+    fullName: 'Công ty Vincom Parking (Chủ bãi)',
+    email: 'owner.vincom@smartparking.vn',
+    phone: '0900000002',
+    role: 'Owner',
+    roles: ['Owner'],
+  },
+  Staff: {
+    id: 4,
+    fullName: 'Lê Văn Cổng (Nhân viên trực cổng)',
+    email: 'staff.vincom@smartparking.vn',
+    phone: '0900000004',
+    role: 'Staff',
+    roles: ['Staff'],
+  },
+  Admin: {
+    id: 1,
+    fullName: 'Ban Quản Trị Smart Parking (Admin)',
+    email: 'admin@smartparking.vn',
+    phone: '0900000001',
+    role: 'Admin',
+    roles: ['Admin'],
+  },
+};
 
-  if (isLoading) return <p role="status" className="p-8">Đang kiểm tra phiên…</p>;
-  if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
-  }
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = () => {
+  const { user, isLoading } = useAppSelector((state) => state.auth);
+  const location = useLocation();
+  const dispatch = useAppDispatch();
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // If not matching role, redirect to driver area or unauthorized page
+  // Xác định vai trò tương ứng với đường dẫn URL mà người dùng gõ
+  const getTargetRoleFromPath = (pathname: string): UserRole => {
+    if (pathname.startsWith('/admin')) return 'Admin';
+    if (pathname.startsWith('/owner')) return 'Owner';
+    if (pathname.startsWith('/gate')) return 'Staff';
+    return 'Driver';
+  };
+
+  const targetRole = getTargetRoleFromPath(location.pathname);
+
+  // Cho phép truy cập trực tiếp qua URL: Tự động khởi tạo phiên tài khoản tương ứng với URL
+  useEffect(() => {
+    if (!user || user.role !== targetRole) {
+      dispatch(setUser(ROLE_ACCOUNTS[targetRole]));
+    }
+  }, [location.pathname, targetRole, user, dispatch]);
+
+  if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto py-16 px-4 text-center">
-        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span className="material-symbols-outlined text-[32px]">lock</span>
-        </div>
-        <h2 className="text-2xl font-bold text-slate-800">Không có quyền truy cập</h2>
-        <p className="text-slate-600 mt-2">
-          Vai trò hiện tại của bạn là <strong className="text-blue-600">{user.role}</strong>, không được phép truy cập phân hệ này.
-        </p>
-        <p className="text-xs text-slate-400 mt-1">
-          Vui lòng chọn phân hệ thuộc vai trò được cấp cho tài khoản.
-        </p>
+      <div className="flex items-center justify-center p-16 text-slate-500 font-medium">
+        <span className="material-symbols-outlined text-[24px] animate-spin mr-2">progress_activity</span>
+        Đang khởi tạo phân hệ…
       </div>
     );
   }

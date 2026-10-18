@@ -25,30 +25,33 @@ export const AppRoutes: React.FC = () => {
       <Route element={<AppLayout />}>
 
         {/* 🚗 1. Driver Portal (/driver/*) */}
-        <Route element={<ProtectedRoute />}>
-        <Route path="/driver">
-          <Route index element={<DriverHomePage />} />
-          <Route path="vehicles" element={<VehiclesPage />} />
-          <Route path="parking-lots" element={<LotDetailPage />} />
-          <Route path="parking-lots/:id" element={<LotDetailPage />} />
-          <Route path="history" element={<BookingHistoryPage />} />
-          <Route path="support" element={<SupportPage />} />
+        <Route element={<ProtectedRoute allowedRoles={['Driver', 'Admin']} />}>
+          <Route path="/driver">
+            <Route index element={<DriverHomePage />} />
+            <Route path="vehicles" element={<VehiclesPage />} />
+            <Route path="parking-lots" element={<LotDetailPage />} />
+            <Route path="parking-lots/:id" element={<LotDetailPage />} />
+            <Route path="history" element={<BookingHistoryPage />} />
+            <Route path="support" element={<SupportPage />} />
+          </Route>
         </Route>
 
-        </Route>
         {/* 🏢 2. Owner Portal (/owner/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Owner', 'Admin']} />}>
           <Route path="/owner" element={<OwnerHomePage />} />
+          <Route path="/owner/*" element={<OwnerHomePage />} />
         </Route>
 
         {/* 🚧 3. Gate Console Portal (/gate/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Staff', 'Admin']} />}>
           <Route path="/gate" element={<GateConsolePage />} />
+          <Route path="/gate/*" element={<GateConsolePage />} />
         </Route>
 
         {/* ⚙️ 4. Admin Portal (/admin/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/*" element={<AdminDashboardPage />} />
         </Route>
 
         {/* 404 Fallback */}
