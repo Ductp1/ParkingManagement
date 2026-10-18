@@ -1,4 +1,5 @@
 import { LoginPage } from '@/areas/auth/LoginPage';
+import { RegisterPage } from '@/areas/auth/RegisterPage';
 import { LandingPage } from '@/areas/public/LandingPage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -20,6 +21,7 @@ export const AppRoutes: React.FC = () => {
       {/* 🌐 Public Landing Page (Valet Parking Yards / ParkMaster) */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<AppLayout />}>
 
         {/* 🚗 1. Driver Portal (/driver/*) */}

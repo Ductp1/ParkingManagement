@@ -2,6 +2,22 @@ import { apiClient } from './client';
 import type { AuthUser, UserRole } from '@/types/auth';
 
 interface Tokens { accessToken: string; refreshToken: string }
+export interface RegisterRequest {
+  fullName: string;
+  contact: string;
+  password: string;
+  role: 'Driver' | 'LotOwner';
+  businessName?: string;
+}
+export async function registerAccount(request: RegisterRequest) {
+  await apiClient.post('/api/v1/auth/register', request);
+}
+export async function verifyRegistration(contact: string, code: string) {
+  await apiClient.post('/api/v1/auth/otp/verify', { contact, code });
+}
+export async function resendRegistrationOtp(contact: string) {
+  await apiClient.post('/api/v1/auth/otp/resend', { contact, purpose: 'Register' });
+}
 interface UserDto { id: number; fullName: string; email?: string; phoneNumber?: string; roles: string[] }
 
 function save(tokens: Tokens) {

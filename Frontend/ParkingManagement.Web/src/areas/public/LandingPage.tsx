@@ -209,6 +209,14 @@ export const LandingPage: React.FC = () => {
                 </button>
               </div>
             ) : (
+              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/register')}
+                className="px-5 py-2.5 rounded-xl border border-blue-600 text-blue-600 hover:bg-blue-50 text-xs font-bold active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
+              >
+                Đăng ký
+              </button>
               <button
                 type="button"
                 onClick={() => navigate('/login')}
@@ -216,6 +224,7 @@ export const LandingPage: React.FC = () => {
               >
                 Đăng nhập
               </button>
+              </div>
             )}
           </div>
         </div>
