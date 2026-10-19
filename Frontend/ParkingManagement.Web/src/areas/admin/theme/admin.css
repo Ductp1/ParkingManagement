@@ -1,0 +1,100 @@
+/* Font của Admin Portal (Figma: Be Vietnam Pro + JetBrains Mono cho body/mono) */
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+
+/*
+ * Design tokens Admin Portal – sinh từ Figma variable collection "Smart Parking / Admin" (23 màu, mode Light)
+ * và 32 text style. CHỈ áp dụng trong wrapper .admin-portal (AdminLayout) hoặc .admin-scope (dialog render qua portal)
+ * để không đổi theme driver/owner/gate. Đặt trong @layer components để utility Tailwind vẫn ghi đè được.
+ * Dùng trong Tailwind bằng cú pháp biến: bg-(--admin-surface-card), text-(--admin-text-nav)...
+ */
+@layer components {
+  .admin-portal,
+  .admin-scope {
+    /* surface */
+    --admin-surface-page: #f8f9ff;
+    --admin-surface-card: #ffffff;
+    --admin-surface-row-alt: #f8fafc;
+    --admin-surface-selected: #eff4ff;
+    --admin-surface-danger: #fef2f2;
+    /* brand */
+    --admin-brand-navy-900: #002045;
+    --admin-brand-navy-800: #1a365d;
+    /* table */
+    --admin-table-header: #1e293b;
+    --admin-table-header-border: #334155;
+    /* border */
+    --admin-border-default: #c4c6cf;
+    /* text */
+    --admin-text-primary: #0b1c30;
+    --admin-text-secondary: #555f71;
+    --admin-text-nav: #43474e;
+    --admin-text-placeholder: #74777f;
+    --admin-text-on-navy: #ffffff;
+    --admin-text-on-navy-muted: #adc7f7;
+    /* status (dot + text) */
+    --admin-status-success: #16a34a;
+    --admin-status-warning: #d97706;
+    --admin-status-danger: #dc2626;
+    --admin-status-info: #1a365d;
+    /* chart */
+    --admin-chart-track: #e5eeff;
+    --admin-chart-neutral: #94a3b8;
+    /* overlay */
+    --admin-overlay-scrim: rgb(0 0 0 / 0.45);
+
+    --admin-font-sans: 'Be Vietnam Pro', system-ui, sans-serif;
+    --admin-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    font-family: var(--admin-font-sans);
+    color: var(--admin-text-primary);
+  }
+
+  .admin-portal {
+    background-color: var(--admin-surface-page);
+  }
+
+  /* Text styles (Figma) – font-weight/size/line-height/letter-spacing đúng theo từng style */
+  .adm-type-banner-title { font: 700 18px/22px var(--admin-font-sans); letter-spacing: -0.45px; }
+  .adm-type-banner-subtitle { font: 400 13px/18px var(--admin-font-sans); }
+  .adm-type-kpi-label { font: 600 11px/14px var(--admin-font-sans); letter-spacing: 0.55px; }
+  .adm-type-kpi-value { font: 700 24px/28px var(--admin-font-sans); }
+  .adm-type-kpi-value-sm { font: 700 20px/24px var(--admin-font-sans); }
+  .adm-type-kpi-delta { font: 500 11px/14px var(--admin-font-sans); letter-spacing: 0.44px; }
+  .adm-type-panel-title { font: 700 12px/16px var(--admin-font-sans); letter-spacing: 0.6px; }
+  .adm-type-panel-subtitle { font: 400 12px/16px var(--admin-font-sans); }
+  .adm-type-table-header { font: 600 12px/16px var(--admin-font-sans); letter-spacing: 0.6px; }
+  .adm-type-body-default { font: 400 13px/18px var(--admin-font-sans); }
+  .adm-type-body-medium { font: 500 13px/18px var(--admin-font-sans); }
+  .adm-type-body-strong { font: 600 12px/16px var(--admin-font-sans); }
+  .adm-type-body-strong-13 { font: 600 13px/18px var(--admin-font-sans); }
+  .adm-type-body-bold { font: 700 12px/16px var(--admin-font-sans); }
+  .adm-type-body-bold-13 { font: 700 13px/18px var(--admin-font-sans); }
+  .adm-type-body-regular-12 { font: 400 12px/16px var(--admin-font-sans); }
+  .adm-type-body-small { font: 400 11px/18px var(--admin-font-sans); }
+  .adm-type-body-caption { font: 600 11px/14px var(--admin-font-sans); letter-spacing: 0.44px; }
+  .adm-type-body-mono { font: 400 12px/16px var(--admin-font-mono); }
+  .adm-type-status-label { font: 500 12px/16px var(--admin-font-sans); }
+  .adm-type-nav-item { font: 500 13px/18px var(--admin-font-sans); }
+  .adm-type-nav-logo { font: 700 14px/20px var(--admin-font-sans); letter-spacing: -0.35px; }
+  .adm-type-breadcrumb-default { font: 400 12px/16px var(--admin-font-sans); }
+  .adm-type-breadcrumb-current { font: 700 12px/16px var(--admin-font-sans); }
+  .adm-type-tab-active { font: 700 13px/18px var(--admin-font-sans); }
+  .adm-type-tab-default { font: 400 13px/18px var(--admin-font-sans); }
+  .adm-type-link-default { font: 600 12px/16px var(--admin-font-sans); }
+  .adm-type-link-small { font: 600 11px/14px var(--admin-font-sans); letter-spacing: 0.44px; }
+  .adm-type-chart-label { font: 400 10px/18px var(--admin-font-sans); }
+  .adm-type-chart-value { font: 700 10px/18px var(--admin-font-sans); }
+  .adm-type-heading-dialog { font: 700 16px/20px var(--admin-font-sans); }
+  .adm-type-heading-section { font: 600 14px/20px var(--admin-font-sans); }
+
+  /* Icon SVG từ Figma tô màu theo currentColor (giữ nguyên kích thước gốc của asset) */
+  .adm-icon {
+    display: inline-block;
+    flex-shrink: 0;
+    background-color: currentColor;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+}

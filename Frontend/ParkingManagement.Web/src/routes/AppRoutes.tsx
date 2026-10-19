@@ -7,7 +7,7 @@ import { VehiclesPage } from '@/areas/driver/pages/VehiclesPage';
 import { LotDetailPage } from '@/areas/driver/pages/LotDetailPage';
 import { OwnerHomePage } from '@/areas/owner/pages/OwnerHomePage';
 import { GateConsolePage } from '@/areas/gate/pages/GateConsolePage';
-import { AdminDashboardPage } from '@/areas/admin/pages/AdminDashboardPage';
+import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 
 import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
 import { SupportPage } from '@/areas/driver/pages/SupportPage';
@@ -39,11 +39,6 @@ export const AppRoutes: React.FC = () => {
           <Route path="/gate" element={<GateConsolePage />} />
         </Route>
 
-        {/* ⚙️ 4. Admin Portal (/admin/*) */}
-        <Route element={<ProtectedRoute allowedRoles={['Admin', 'Driver']} />}>
-          <Route path="/admin" element={<AdminDashboardPage />} />
-        </Route>
-
         {/* 404 Fallback */}
         <Route
           path="*"
@@ -55,6 +50,11 @@ export const AppRoutes: React.FC = () => {
             </div>
           }
         />
+      </Route>
+
+      {/* ⚙️ 4. Admin Portal (/admin/*) – shell riêng (sidebar + header), không dùng Navbar/Footer của AppLayout */}
+      <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+        <Route path="/admin/*" element={<AdminRoutes />} />
       </Route>
     </Routes>
   );
