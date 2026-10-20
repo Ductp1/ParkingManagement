@@ -43,7 +43,8 @@ internal sealed class ContractTemplateConfiguration : IEntityTypeConfiguration<C
     {
         e.ToTable("ContractTemplates");
         e.Property(x => x.Name).HasMaxLength(200).IsRequired();
-        e.Property(x => x.Body).IsMaxText().IsRequired();
+        // Văn bản thường có placeholder, không phải JSON → text (IsMaxText() của ServiceDefaults là jsonb).
+        e.Property(x => x.Body).HasColumnType("text").IsRequired();
         e.HasIndex(x => x.Version).IsUnique();
         e.HasIndex(x => x.IsActive).IsUnique().HasFilter("\"IsActive\" = TRUE").HasDatabaseName("IX_ContractTemplates_SingleActive");
     }

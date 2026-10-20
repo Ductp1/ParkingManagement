@@ -208,7 +208,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("jsonb");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
