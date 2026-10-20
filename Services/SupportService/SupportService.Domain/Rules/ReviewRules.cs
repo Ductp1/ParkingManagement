@@ -12,9 +12,19 @@ public static class ReviewRules
     /// <summary>Việt Nam dùng UTC+7 quanh năm (không đổi giờ mùa hè).</summary>
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
 
+    public const int MinRating = 1;
+    public const int MaxRating = 5;
+    public const int MaxCommentLength = 2000;
+    public const int MaxReviewerNameLength = 150;
+
     /// <summary>Chỉ được đánh giá 1–5 sao, và chỉ khi booking đã Completed.</summary>
     public static bool CanReview(BookingStatus bookingStatus, int rating)
-        => bookingStatus == BookingStatus.Completed && rating is >= 1 and <= 5;
+        => IsReviewable(bookingStatus) && IsValidRating(rating);
+
+    /// <summary>US-093 AC1/AC2: chỉ booking đã hoàn tất (Completed) mới có nút đánh giá.</summary>
+    public static bool IsReviewable(BookingStatus bookingStatus) => bookingStatus == BookingStatus.Completed;
+
+    public static bool IsValidRating(int rating) => rating is >= MinRating and <= MaxRating;
 
     /// <summary>Khiếu nại phải gửi trong 7 ngày làm việc kể từ ngày xảy ra sự cố / có quyết định.</summary>
     public static bool IsWithinComplaintWindow(DateTime incidentAtUtc, DateTime nowUtc)
