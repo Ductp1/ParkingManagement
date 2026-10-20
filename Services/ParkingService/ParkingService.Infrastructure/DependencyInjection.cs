@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
+        services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
         return services;
