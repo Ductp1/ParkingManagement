@@ -11,6 +11,11 @@ public sealed class PartnerApplicationRepository(AdminDbContext db) : IPartnerAp
     public Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken cancellationToken)
         => db.PartnerApplications.Include(a => a.ContractDrafts).FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
+    public Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken)
+        => db.ContractTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.IsActive, cancellationToken);
+
+    public void AddOwnerContract(OwnerContract contract) => db.OwnerContracts.Add(contract);
+
     public async Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
     {
         db.AuditLogs.Add(auditLog);
@@ -21,6 +26,8 @@ public sealed class PartnerApplicationRepository(AdminDbContext db) : IPartnerAp
         catch (DbUpdateConcurrencyException)
         {
             db.Entry(auditLog).State = EntityState.Detached;
+            foreach (var contract in db.ChangeTracker.Entries<OwnerContract>().Where(e => e.State == EntityState.Added).ToList())
+                contract.State = EntityState.Detached;
             throw new ConflictException("Hồ sơ đối tác vừa được Admin khác cập nhật, vui lòng tải lại và thử lại.");
         }
     }

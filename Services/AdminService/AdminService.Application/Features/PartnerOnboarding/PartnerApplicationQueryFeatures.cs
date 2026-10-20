@@ -38,7 +38,13 @@ public interface IPartnerApplicationQueries
         CancellationToken cancellationToken);
 
     Task<PartnerApplicationDetailDto?> GetDetailAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>Thông tin file của một phiên bản hợp đồng (A8); null khi hồ sơ / phiên bản không tồn tại.</summary>
+    Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken);
 }
+
+/// <summary>Vị trí + SHA-256 của file hợp đồng một phiên bản.</summary>
+public sealed record ContractDraftFileInfo(string ContractNumber, int Version, string FileKey, string FileContentType, string FileSha256);
 
 // ===== USE CASE (đọc) =====
 

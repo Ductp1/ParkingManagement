@@ -1,4 +1,5 @@
 using AdminService.Domain.Enums;
+using AdminService.Domain.ValueObjects;
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -143,6 +144,172 @@ public class PartnerApplication : BaseEntity
         foreach (var draft in ContractDrafts.Where(d => d.Status == ContractDraftStatus.Current))
             draft.Status = ContractDraftStatus.Superseded;
         MoveTo(PartnerApplicationStatus.Cancelled);
+    }
+
+    // ===================== Hợp đồng tự sinh + cấp tài khoản (US-116, T5 / T5b / T6 / T7) =====================
+
+    /// <summary>Phiên bản hợp đồng đang gửi đối tác ký (tối đa một).</summary>
+    public ContractDraft? CurrentDraft => ContractDrafts.FirstOrDefault(d => d.Status == ContractDraftStatus.Current);
+
+    /// <summary>Số phiên bản của lần sinh hợp đồng kế tiếp (v1, v2, …).</summary>
+    public int NextDraftVersion => ContractDrafts.Count == 0 ? 1 : ContractDrafts.Max(d => d.Version) + 1;
+
+    /// <summary>Số hợp đồng: giữ số đã cấp ở T5; chưa có thì cấp theo Id hồ sơ (HD-SP-2026-0012) – duy nhất vì Id duy nhất.</summary>
+    public string ContractNumberFor(int year) => ContractNumber ?? $"HD-SP-{year}-{Id:0000}";
+
+    /// <summary>Xem trước hợp đồng (A5): chỉ khi đang thẩm định (sắp gửi) hoặc đang chờ ký (sắp sửa). Có kiểm tra người đại diện.</summary>
+    public void EnsureCanGenerateContract()
+    {
+        if (Status is not (PartnerApplicationStatus.UnderReview or PartnerApplicationStatus.ContractPending))
+            throw new ConflictException(
+                $"Chỉ sinh hợp đồng khi hồ sơ đối tác {Code} đang ở trạng thái UnderReview hoặc ContractPending (hiện tại: {Status}).");
+        EnsureLegalRepresentative();
+    }
+
+    /// <summary>T5 chỉ từ UnderReview (đang ContractPending thì dùng sửa hợp đồng T5b).</summary>
+    public void EnsureCanSendContract()
+    {
+        EnsureStatus(PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending);
+        EnsureLegalRepresentative();
+    }
+
+    /// <summary>T5b chỉ khi đang ContractPending.</summary>
+    public void EnsureCanReviseContract()
+    {
+        EnsureStatus(PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.ContractPending);
+        EnsureLegalRepresentative();
+    }
+
+    /// <summary>T5: UnderReview → ContractPending. Cấp số hợp đồng, tạo phiên bản v1 (Current) từ file đã sinh.</summary>
+    public ContractDraft SendContract(int adminUserId, ContractTerms terms, int templateVersion, string contractNumber, StoredFile file,
+        DateTime nowUtc)
+    {
+        EnsureAdmin(adminUserId);
+        EnsureCanSendContract();
+        var draft = AddDraft(adminUserId, terms, templateVersion, contractNumber, file, revisionReason: null, nowUtc);
+        ReviewerAdminId ??= adminUserId;
+        MoveTo(PartnerApplicationStatus.ContractPending);
+        return draft;
+    }
+
+    /// <summary>T5b: ContractPending → ContractPending. Phiên bản v+1 (cùng số hợp đồng), bản đang gửi → Superseded; lý do bắt buộc.</summary>
+    public ContractDraft ReviseContract(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file, string reason,
+        DateTime nowUtc)
+    {
+        EnsureAdmin(adminUserId);
+        EnsureCanReviseContract();
+        var text = Required(reason, "Lý do sửa hợp đồng");
+        var draft = AddDraft(adminUserId, terms, templateVersion, ContractNumberFor(nowUtc.Year), file, text, nowUtc);
+        MoveTo(PartnerApplicationStatus.ContractPending);
+        return draft;
+    }
+
+    /// <summary>
+    /// Kiểm tra trước khi gọi UserService (T6): đang ContractPending, có phiên bản Current và Admin xác nhận đúng phiên bản đó.
+    /// Trả phiên bản sẽ được ký.
+    /// </summary>
+    public ContractDraft EnsureCanIssueAccount(int? confirmedDraftVersion)
+    {
+        EnsureStatus(PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.AccountIssued);
+        var draft = CurrentDraft ?? throw new ConflictException(
+            $"Hồ sơ đối tác {Code} chưa có phiên bản hợp đồng đang hiệu lực, hãy gửi lại hợp đồng trước khi cấp tài khoản.");
+        if (confirmedDraftVersion is not { } version || version <= 0)
+            throw new ValidationException("Vui lòng xác nhận phiên bản hợp đồng đã ký (confirmedDraftVersion).");
+        if (version != draft.Version)
+            throw new ConflictException(
+                $"Phiên bản hợp đồng hiện tại là v{draft.Version}, không phải v{version}. Vui lòng kiểm tra lại bản đã ký.");
+        return draft;
+    }
+
+    /// <summary>
+    /// T6: ContractPending → AccountIssued sau khi UserService đã tạo tài khoản. Phiên bản Current → Signed;
+    /// trả hợp đồng đã ký (sao chép điều khoản từ phiên bản đó) để lưu cùng lần SaveChanges.
+    /// </summary>
+    public OwnerContract IssueAccount(int adminUserId, int confirmedDraftVersion, int userId, int ownerProfileId, StoredFile signedScan)
+    {
+        EnsureAdmin(adminUserId);
+        var draft = EnsureCanIssueAccount(confirmedDraftVersion);
+        if (userId <= 0) throw new ArgumentOutOfRangeException(nameof(userId), "UserId không hợp lệ.");
+        if (ownerProfileId <= 0) throw new ArgumentOutOfRangeException(nameof(ownerProfileId), "OwnerProfileId không hợp lệ.");
+
+        draft.Status = ContractDraftStatus.Signed;
+        CreatedUserId = userId;
+        CreatedOwnerProfileId = ownerProfileId;
+        MoveTo(PartnerApplicationStatus.AccountIssued);
+        return new OwnerContract
+        {
+            OwnerProfileId = ownerProfileId,
+            PartnerApplicationId = Id,
+            PartnerApplication = this,
+            ContractDraftId = draft.Id,
+            ContractDraft = draft,
+            ContractNumber = draft.ContractNumber,
+            DraftVersion = draft.Version,
+            SignedFileKey = signedScan.Key,
+            SignedFileContentType = signedScan.ContentType,
+            SignedFileSha256 = signedScan.Sha256,
+            CommissionRate = draft.CommissionRate,
+            EffectiveFrom = draft.EffectiveFrom,
+            EffectiveTo = draft.EffectiveTo,
+            Status = OwnerContractStatus.Active,
+            CreatedByAdminId = adminUserId,
+        };
+    }
+
+    /// <summary>T7: chỉ gửi lại link kích hoạt khi đã cấp tài khoản và chưa kích hoạt. Trả OwnerProfileId bên UserService.</summary>
+    public int EnsureCanResendActivation()
+    {
+        EnsureStatus(PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.AccountIssued);
+        return CreatedOwnerProfileId ?? throw new ConflictException($"Hồ sơ đối tác {Code} chưa gắn tài khoản chủ bãi.");
+    }
+
+    private ContractDraft AddDraft(int adminUserId, ContractTerms terms, int templateVersion, string contractNumber, StoredFile file,
+        string? revisionReason, DateTime nowUtc)
+    {
+        var version = NextDraftVersion;
+        foreach (var current in ContractDrafts.Where(d => d.Status == ContractDraftStatus.Current))
+            current.Status = ContractDraftStatus.Superseded;
+
+        var draft = new ContractDraft
+        {
+            PartnerApplicationId = Id,
+            PartnerApplication = this,
+            ContractNumber = contractNumber,
+            Version = version,
+            TemplateVersion = templateVersion,
+            CommissionRate = terms.CommissionRate,
+            EffectiveFrom = terms.EffectiveFrom,
+            EffectiveTo = terms.EffectiveTo,
+            TermMonths = terms.TermMonths,
+            BankBin = terms.BankBin,
+            BankName = terms.BankName,
+            BankAccountNumber = terms.BankAccountNumber,
+            BankAccountName = terms.BankAccountName,
+            FileKey = file.Key,
+            FileContentType = file.ContentType,
+            FileSha256 = file.Sha256,
+            Status = ContractDraftStatus.Current,
+            RevisionReason = revisionReason,
+            SentAtUtc = nowUtc,
+            SentToEmail = Email,
+            CreatedByAdminId = adminUserId,
+        };
+        ContractDrafts.Add(draft);
+        ContractNumber = contractNumber;
+        return draft;
+    }
+
+    /// <summary>Thao tác chỉ hợp lệ ở đúng một trạng thái (bảng chuyển cho phép tự chuyển ContractPending / AccountIssued nên cần kiểm tra riêng).</summary>
+    private void EnsureStatus(PartnerApplicationStatus expected, PartnerApplicationStatus target)
+    {
+        if (Status != expected || !CanMove(Status, target))
+            throw new ConflictException($"Không thể chuyển hồ sơ đối tác {Code} từ trạng thái {Status} sang {target}.");
+    }
+
+    private void EnsureLegalRepresentative()
+    {
+        if (string.IsNullOrWhiteSpace(LegalRepresentativeName))
+            throw new ConflictException($"Hồ sơ đối tác {Code} chưa có người đại diện pháp luật, chưa thể sinh hợp đồng.");
     }
 
     private void EnsureCanMove(PartnerApplicationStatus target)

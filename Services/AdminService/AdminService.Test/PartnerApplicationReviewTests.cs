@@ -50,6 +50,10 @@ public class PartnerApplicationReviewTests
         public Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken cancellationToken)
             => Task.FromResult(app?.Id == id ? app : null);
 
+        public Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public void AddOwnerContract(OwnerContract contract) => throw new NotSupportedException();
+
         public Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
         {
             if (Concurrency) throw new ConflictException("Hồ sơ đối tác vừa được Admin khác cập nhật, vui lòng tải lại và thử lại.");
@@ -72,6 +76,9 @@ public class PartnerApplicationReviewTests
                 app.OperatingHours, app.ConsentAcceptedAtUtc, app.ReviewerAdminId, app.InfoRequestNote, app.RejectReason, app.CancelReason,
                 app.ContractNumber, app.CreatedUserId, app.CreatedOwnerProfileId, app.CreatedAtUtc, app.UpdatedAtUtc,
                 PartnerApplication.NextStatuses(app.Status).Select(s => s.ToString()).ToList(), []));
+
+        public Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 
     private static JsonElement Json(string? json) => JsonDocument.Parse(json!).RootElement;

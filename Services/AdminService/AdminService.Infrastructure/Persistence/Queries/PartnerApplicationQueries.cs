@@ -58,4 +58,10 @@ public sealed class PartnerApplicationQueries(AdminDbContext db) : IPartnerAppli
             ? null
             : row.Dto with { NextStatuses = PartnerApplication.NextStatuses(row.Status).Select(s => s.ToString()).ToList() };
     }
+
+    public Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken)
+        => db.ContractDrafts.AsNoTracking()
+            .Where(d => d.PartnerApplicationId == id && d.Version == version)
+            .Select(d => new ContractDraftFileInfo(d.ContractNumber, d.Version, d.FileKey, d.FileContentType, d.FileSha256))
+            .FirstOrDefaultAsync(cancellationToken);
 }

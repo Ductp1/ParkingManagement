@@ -193,5 +193,8 @@ public class PartnerApplicationTests
 
         public Task<PartnerApplicationDetailDto?> GetDetailAsync(int id, CancellationToken cancellationToken)
             => Task.FromResult(details.FirstOrDefault(d => d.Id == id));
+
+        public Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
     }
 }

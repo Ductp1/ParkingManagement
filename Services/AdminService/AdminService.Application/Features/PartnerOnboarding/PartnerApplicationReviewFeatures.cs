@@ -19,6 +19,12 @@ public interface IPartnerApplicationRepository
     /// <summary>Hồ sơ có tracking, kèm các phiên bản hợp đồng (để Superseded khi từ chối / hủy).</summary>
     Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken cancellationToken);
 
+    /// <summary>Mẫu hợp đồng đang áp dụng (IsActive), null nếu chưa có.</summary>
+    Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken);
+
+    /// <summary>Thêm hợp đồng đã ký (T6) – được ghi trong lần <see cref="SaveWithAuditAsync"/> kế tiếp.</summary>
+    void AddOwnerContract(OwnerContract contract);
+
     /// <summary>
     /// Ghi thay đổi của hồ sơ đang tracking + audit log trong CÙNG 1 lần SaveChanges.
     /// RowVersion lệch (Admin khác vừa sửa) → ConflictException.

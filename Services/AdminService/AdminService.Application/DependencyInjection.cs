@@ -35,6 +35,13 @@ public static class DependencyInjection
         services.AddScoped<IRequestPartnerInfoUseCase, RequestPartnerInfoUseCase>();
         services.AddScoped<IRejectPartnerApplicationUseCase, RejectPartnerApplicationUseCase>();
         services.AddScoped<ICancelPartnerApplicationUseCase, CancelPartnerApplicationUseCase>();
+        // US-116: hợp đồng tự sinh (xem trước, gửi, sửa, tải file) + cấp tài khoản chủ bãi qua UserService
+        services.AddScoped<IPreviewPartnerContractUseCase, PreviewPartnerContractUseCase>();
+        services.AddScoped<ISendPartnerContractUseCase, SendPartnerContractUseCase>();
+        services.AddScoped<IRevisePartnerContractUseCase, RevisePartnerContractUseCase>();
+        services.AddScoped<IGetPartnerContractFileUseCase, GetPartnerContractFileUseCase>();
+        services.AddScoped<IIssueOwnerAccountUseCase, IssueOwnerAccountUseCase>();
+        services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();
         return services;
     }
 }
