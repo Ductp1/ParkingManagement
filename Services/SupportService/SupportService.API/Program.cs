@@ -7,6 +7,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ===== Composition Root: lắp ráp các layer của SupportService =====
 builder.AddServiceDefaults("SupportService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
+// JWT do UserService phát hành (RS256): kiểm tra chữ ký bằng public key + policy RBAC dùng chung (T-102).
+// API nào cần đăng nhập thì gắn [Authorize]; userId lấy từ claim "sub" qua ICurrentUser thay vì client tự gửi.
+builder.Services.AddJwtAuth(Path.GetFullPath(
+    builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
 builder.Services.AddSupportApplication();                                  // Application: Use Case
 builder.Services.AddSupportInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 

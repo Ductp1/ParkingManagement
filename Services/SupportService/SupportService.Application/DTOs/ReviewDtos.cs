@@ -1,9 +1,9 @@
 namespace SupportService.Application.DTOs;
 
 /// <summary>Body của POST /api/v1/reviews – tài xế đánh giá bãi sau khi booking hoàn tất (US-093).</summary>
+/// <remarks>Không có userId: người đánh giá lấy từ JWT (claim "sub") để không thể đánh giá thay người khác.</remarks>
 /// <param name="ReviewerName">Tên hiển thị; bỏ trống → "Tài xế ẩn danh".</param>
 public sealed record CreateReviewRequestDto(
-    int UserId,
     string BookingCode,
     int Rating,
     string? Comment = null,

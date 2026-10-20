@@ -15,15 +15,15 @@ public sealed class ReviewAppService(IReviewRepository repository, IBookingLooku
 {
     private const string AnonymousReviewer = "Tài xế ẩn danh";
 
-    public async Task<ReviewDetailDto> CreateAsync(CreateReviewRequestDto request, CancellationToken cancellationToken = default)
+    public async Task<ReviewDetailDto> CreateAsync(int userId, CreateReviewRequestDto request, CancellationToken cancellationToken = default)
     {
         var comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim();
         var reviewerName = string.IsNullOrWhiteSpace(request.ReviewerName) ? AnonymousReviewer : request.ReviewerName.Trim();
-        Validate(request, comment, reviewerName);
+        Validate(userId, request, comment, reviewerName);
 
         // 1. Booking phải tồn tại và thuộc về người đánh giá.
         var bookingCode = request.BookingCode.Trim();
-        var booking = await FindOwnedBookingAsync(request.UserId, bookingCode, cancellationToken)
+        var booking = await FindOwnedBookingAsync(userId, bookingCode, cancellationToken)
                       ?? throw new NotFoundException("Booking", bookingCode);
 
         // 2. AC1/AC2: chỉ booking đã hoàn tất.
@@ -37,7 +37,7 @@ public sealed class ReviewAppService(IReviewRepository repository, IBookingLooku
         var review = new Review
         {
             BookingId = booking.Id,
-            UserId = request.UserId,
+            UserId = userId,
             ReviewerName = reviewerName,
             ParkingLotId = booking.ParkingLotId,
             OwnerProfileId = booking.OwnerProfileId,
@@ -75,9 +75,9 @@ public sealed class ReviewAppService(IReviewRepository repository, IBookingLooku
         return booking is not null && booking.UserId == userId ? booking : null;
     }
 
-    private static void Validate(CreateReviewRequestDto request, string? comment, string reviewerName)
+    private static void Validate(int userId, CreateReviewRequestDto request, string? comment, string reviewerName)
     {
-        if (request.UserId <= 0) throw new ValidationException("userId phải là số nguyên dương.");
+        if (userId <= 0) throw new ValidationException("userId phải là số nguyên dương.");
         if (string.IsNullOrWhiteSpace(request.BookingCode)) throw new ValidationException("Mã booking không được để trống.");
         if (!ReviewRules.IsValidRating(request.Rating))
             throw new ValidationException($"Số sao phải từ {ReviewRules.MinRating} đến {ReviewRules.MaxRating}.");

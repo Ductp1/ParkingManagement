@@ -1,14 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using BookingService.API.Controllers;
 using BookingService.Domain.Entities;
 using BookingService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using ParkingManagement.IntegrationTests;
 using Microsoft.AspNetCore.TestHost;
 using ParkingManagement.SharedKernel.Contracts;
@@ -35,6 +38,17 @@ public sealed class SupportApiFixture : IAsyncLifetime
     public WebApplicationFactory<BookingsController> BookingFactory { get; private set; } = null!;
     public WebApplicationFactory<ComplaintsController> SupportFactory { get; private set; } = null!;
     public HttpClient SupportClient { get; private set; } = null!;
+
+    /// <summary>Cặp khóa RSA test: SupportService kiểm tra JWT bằng public key này, test mint token bằng private key.</summary>
+    public RsaTestKeys Keys { get; } = RsaTestKeys.Create();
+
+    /// <summary>Client gắn sẵn JWT của <paramref name="userId"/> với các role cho trước (API có [Authorize]).</summary>
+    public HttpClient CreateAuthenticatedClient(int userId, params string[] roles)
+    {
+        var client = SupportFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", Keys.MintToken(userId, $"user{userId}@it.test", null, roles));
+        return client;
+    }
 
     public IServiceProvider BookingServices => BookingFactory.Services;
     public IServiceProvider SupportServices => SupportFactory.Services;
@@ -73,6 +87,23 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 TotalAmount = 50000,
                 PaidAmount = 50000,
             });
+            // US-093: booking đã hoàn thành ở bãi TSN để test đánh giá – khác bãi Vincom nên không đổi điểm trung bình seed của bãi 1.
+            db.Bookings.Add(new Booking
+            {
+                Code = "BK-IT-REVIEW",
+                UserId = DemoIds.Driver1User,
+                VehicleId = DemoIds.Driver1Car,
+                PlateNumber = "51F12345",
+                VehicleType = VehicleType.Sedan,
+                ParkingLotId = DemoIds.LotTsn,
+                OwnerProfileId = DemoIds.OwnerTsn,
+                ParkingLotName = "Bãi xe sân bay Tân Sơn Nhất",
+                StartAtUtc = yesterday.AddHours(5),
+                EndAtUtc = yesterday.AddHours(7),
+                Status = BookingStatus.Completed,
+                TotalAmount = 40000,
+                PaidAmount = 40000,
+            });
             await db.SaveChangesAsync();
         }
 
@@ -93,7 +124,14 @@ public sealed class SupportApiFixture : IAsyncLifetime
                     };
                     return new BookingServiceClient(http, sp.GetRequiredService<ILogger<BookingServiceClient>>());
                 });
-            }));
+            }).ConfigureTestServices(services =>
+                // Program.cs nạp Keys/public.key thật; test thay bằng public key của cặp khóa test để kiểm tra token tự mint.
+                services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    using var rsa = RSA.Create();
+                    rsa.ImportFromPem(File.ReadAllText(Keys.PublicKeyPath));
+                    options.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(rsa.ExportParameters(false));
+                })));
         SupportClient = SupportFactory.CreateClient();
 
         using var supportHealth = await SupportClient.GetAsync("/health");
@@ -104,6 +142,7 @@ public sealed class SupportApiFixture : IAsyncLifetime
     {
         BookingFactory?.Dispose();
         SupportFactory?.Dispose();
+        Keys.Dispose();
         try
         {
             var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
@@ -244,6 +283,52 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
         Assert.Equal("CP-0001", thread!.Code);
         Assert.DoesNotContain(thread.Messages, m => m.Message.Contains("Log camera")); // tin nhắn IsInternal=true bị ẩn
     }
+
+    [Fact] // US-093: đánh giá bãi với userId lấy từ JWT – không token 401, sai role 403, đúng chủ → 201, lần 2 → 409.
+    public async Task Review_after_completed_booking_uses_user_from_token()
+    {
+        const string eligibilityUrl = "/api/v1/reviews/bookings/BK-IT-REVIEW/eligibility";
+        var review = new { bookingCode = "BK-IT-REVIEW", rating = 4, comment = "Bãi sân bay rộng, dễ tìm chỗ (integration test).", reviewerName = "Tài xế IT" };
+
+        // Không đăng nhập → 401 (client cũ không có header Authorization)
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.GetAsync(eligibilityUrl)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.PostAsJsonAsync("/api/v1/reviews", review)).StatusCode);
+
+        // Đăng nhập nhưng không phải tài xế → 403
+        var owner = fixture.CreateAuthenticatedClient(DemoIds.OwnerTsnUser, "LotOwner");
+        Assert.Equal(HttpStatusCode.Forbidden, (await owner.PostAsJsonAsync("/api/v1/reviews", review)).StatusCode);
+
+        // Tài xế khác (Driver2) dò booking của Driver1 → 404, không lộ trạng thái booking (IDOR)
+        var otherDriver = fixture.CreateAuthenticatedClient(DemoIds.Driver2User, "Driver");
+        await Asserts.NotFoundAsync(await otherDriver.GetAsync(eligibilityUrl));
+        await Asserts.NotFoundAsync(await otherDriver.PostAsJsonAsync("/api/v1/reviews", review));
+
+        // Chủ booking: được đánh giá → gửi → không được đánh giá lần nữa
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        var before = await driver.GetFromJsonAsync<EligibilityJson>(eligibilityUrl);
+        Assert.True(before!.CanReview);
+
+        var create = await driver.PostAsJsonAsync("/api/v1/reviews", review);
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<ReviewJson>();
+        Assert.Equal(DemoIds.LotTsn, created!.ParkingLotId);
+        Assert.Equal(4, created.Rating);
+
+        var after = await driver.GetFromJsonAsync<EligibilityJson>(eligibilityUrl);
+        Assert.False(after!.CanReview);
+        Assert.Equal(created.Id, after.ReviewId);
+
+        await Asserts.ConflictAsync(await driver.PostAsJsonAsync("/api/v1/reviews", review), "đã được đánh giá");
+
+        // AC3: điểm của bãi TSN có đánh giá mới (API công khai, không cần đăng nhập)
+        var lot = await fixture.SupportClient.GetFromJsonAsync<LotReviewsJson>($"/api/v1/reviews?parkingLotId={DemoIds.LotTsn}");
+        Assert.Equal(1, lot!.ReviewCount);
+        Assert.Equal(4, lot.AverageRating);
+    }
+
+    public sealed record EligibilityJson(string BookingCode, bool CanReview, string? Reason, int? ReviewId);
+
+    public sealed record ReviewJson(int Id, string BookingCode, int ParkingLotId, int Rating, string? Comment, string ReviewerName);
 
     public sealed record LotReviewsJson(int ParkingLotId, double AverageRating, int ReviewCount,
         IReadOnlyDictionary<int, int> StarBreakdown);

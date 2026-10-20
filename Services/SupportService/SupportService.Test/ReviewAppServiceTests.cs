@@ -16,7 +16,7 @@ public class ReviewAppServiceTests
         => new(7, "BK-0007", status, userId, 3, ownerProfileId, Now.AddHours(-3), Now.AddHours(-1), Now.AddHours(-1), 50000);
 
     private static CreateReviewRequestDto Request(int rating = 4, string? comment = "Bãi rộng, dễ tìm chỗ.", string? reviewerName = "Nguyễn Văn An")
-        => new(Driver, "BK-0007", rating, comment, reviewerName);
+        => new("BK-0007", rating, comment, reviewerName);
 
     private static (ReviewAppService Service, FakeRepository Repo) Create(BookingSnapshot? booking, int? existingReviewId = null)
     {
@@ -31,7 +31,7 @@ public class ReviewAppServiceTests
     {
         var (service, repo) = Create(Booking());
 
-        var result = await service.CreateAsync(Request());
+        var result = await service.CreateAsync(Driver, Request());
 
         var saved = Assert.Single(repo.Saved);
         Assert.Equal(7, saved.BookingId);
@@ -46,37 +46,37 @@ public class ReviewAppServiceTests
     [InlineData(1)]
     [InlineData(5)]
     public async Task Boundary_ratings_are_accepted(int rating)
-        => Assert.Equal(rating, (await Create(Booking()).Service.CreateAsync(Request(rating))).Rating);
+        => Assert.Equal(rating, (await Create(Booking()).Service.CreateAsync(Driver, Request(rating))).Rating);
 
     [Theory]
     [InlineData(0)]
     [InlineData(6)]
     [InlineData(-1)]
     public async Task Rating_outside_1_to_5_is_rejected(int rating)
-        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking()).Service.CreateAsync(Request(rating)));
+        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking()).Service.CreateAsync(Driver, Request(rating)));
 
     [Fact]
     public async Task Comment_is_optional_and_trimmed()
     {
         var (service, repo) = Create(Booking());
 
-        await service.CreateAsync(Request(comment: "   "));
+        await service.CreateAsync(Driver, Request(comment: "   "));
         Assert.Null(repo.Saved[0].Comment);
     }
 
     [Fact]
     public async Task Too_long_comment_is_rejected()
-        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking()).Service.CreateAsync(Request(comment: new string('a', 2001))));
+        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking()).Service.CreateAsync(Driver, Request(comment: new string('a', 2001))));
 
     [Fact]
     public async Task Missing_reviewer_name_falls_back_to_anonymous()
-        => Assert.Equal("Tài xế ẩn danh", (await Create(Booking()).Service.CreateAsync(Request(reviewerName: null))).ReviewerName);
+        => Assert.Equal("Tài xế ẩn danh", (await Create(Booking()).Service.CreateAsync(Driver, Request(reviewerName: null))).ReviewerName);
 
     [Fact]
     public async Task Unknown_owner_is_stored_as_null()
     {
         var (service, repo) = Create(Booking(ownerProfileId: null));
-        await service.CreateAsync(Request());
+        await service.CreateAsync(Driver, Request());
         Assert.Null(repo.Saved[0].OwnerProfileId);
     }
 
@@ -87,7 +87,7 @@ public class ReviewAppServiceTests
     {
         var (service, repo) = Create(Booking(), existingReviewId: 11);
 
-        await Assert.ThrowsAsync<ConflictException>(() => service.CreateAsync(Request()));
+        await Assert.ThrowsAsync<ConflictException>(() => service.CreateAsync(Driver, Request()));
         Assert.Empty(repo.Saved);
     }
 
@@ -100,15 +100,21 @@ public class ReviewAppServiceTests
     [InlineData(BookingStatus.Cancelled)]
     [InlineData(BookingStatus.NoShow)]
     public async Task Booking_that_is_not_completed_cannot_be_reviewed(BookingStatus status)
-        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking(status)).Service.CreateAsync(Request()));
+        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking(status)).Service.CreateAsync(Driver, Request()));
 
     [Fact]
     public async Task Booking_of_another_user_is_not_found()
-        => await Assert.ThrowsAsync<NotFoundException>(() => Create(Booking(userId: 99)).Service.CreateAsync(Request()));
+        => await Assert.ThrowsAsync<NotFoundException>(() => Create(Booking(userId: 99)).Service.CreateAsync(Driver, Request()));
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Missing_user_from_token_is_rejected(int userId)
+        => await Assert.ThrowsAsync<ValidationException>(() => Create(Booking()).Service.CreateAsync(userId, Request()));
 
     [Fact]
     public async Task Missing_booking_is_not_found()
-        => await Assert.ThrowsAsync<NotFoundException>(() => Create(null).Service.CreateAsync(Request()));
+        => await Assert.ThrowsAsync<NotFoundException>(() => Create(null).Service.CreateAsync(Driver, Request()));
 
     // ===== AC2: kiểm tra có hiện nút đánh giá =====
 
