@@ -30,6 +30,11 @@ public static class DependencyInjection
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
         services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
         services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();
+        // US-116: thẩm định – bắt đầu xem xét, yêu cầu bổ sung, từ chối, hủy
+        services.AddScoped<IStartPartnerReviewUseCase, StartPartnerReviewUseCase>();
+        services.AddScoped<IRequestPartnerInfoUseCase, RequestPartnerInfoUseCase>();
+        services.AddScoped<IRejectPartnerApplicationUseCase, RejectPartnerApplicationUseCase>();
+        services.AddScoped<ICancelPartnerApplicationUseCase, CancelPartnerApplicationUseCase>();
         return services;
     }
 }

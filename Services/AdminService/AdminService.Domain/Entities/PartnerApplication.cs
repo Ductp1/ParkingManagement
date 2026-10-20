@@ -98,8 +98,69 @@ public class PartnerApplication : BaseEntity
     /// <summary>Chuyển trạng thái duy nhất: kiểm tra bảng T2–T10, sai → ConflictException (409).</summary>
     public void MoveTo(PartnerApplicationStatus target)
     {
+        EnsureCanMove(target);
+        Status = target;
+    }
+
+    // ===================== Thao tác Admin (US-116, T2 / T3 / T9 / T10) =====================
+
+    /// <summary>T2: Submitted → UnderReview; người thẩm định = Admin trong token.</summary>
+    public void StartReview(int adminUserId)
+    {
+        EnsureAdmin(adminUserId);
+        MoveTo(PartnerApplicationStatus.UnderReview);
+        ReviewerAdminId = adminUserId;
+    }
+
+    /// <summary>T3: UnderReview → NeedsMoreInfo, ghi chú bắt buộc (chưa sinh edit token – form public P3 chưa có).</summary>
+    public void RequestInfo(int adminUserId, string note)
+    {
+        EnsureAdmin(adminUserId);
+        EnsureCanMove(PartnerApplicationStatus.NeedsMoreInfo);
+        InfoRequestNote = Required(note, "Nội dung cần bổ sung");
+        ReviewerAdminId ??= adminUserId;
+        MoveTo(PartnerApplicationStatus.NeedsMoreInfo);
+    }
+
+    /// <summary>T9: UnderReview / ContractPending → Rejected (kết thúc), lý do bắt buộc; hợp đồng đang gửi → Superseded.</summary>
+    public void Reject(int adminUserId, string reason)
+    {
+        EnsureAdmin(adminUserId);
+        EnsureCanMove(PartnerApplicationStatus.Rejected);
+        RejectReason = Required(reason, "Lý do từ chối");
+        ReviewerAdminId ??= adminUserId;
+        foreach (var draft in ContractDrafts.Where(d => d.Status == ContractDraftStatus.Current))
+            draft.Status = ContractDraftStatus.Superseded;
+        MoveTo(PartnerApplicationStatus.Rejected);
+    }
+
+    /// <summary>T10: UnderReview / ContractPending / NeedsMoreInfo → Cancelled khi đối tác rút hồ sơ; không cho hủy sau khi đã cấp tài khoản.</summary>
+    public void Cancel(int adminUserId, string reason)
+    {
+        EnsureAdmin(adminUserId);
+        EnsureCanMove(PartnerApplicationStatus.Cancelled);
+        CancelReason = Required(reason, "Lý do hủy");
+        foreach (var draft in ContractDrafts.Where(d => d.Status == ContractDraftStatus.Current))
+            draft.Status = ContractDraftStatus.Superseded;
+        MoveTo(PartnerApplicationStatus.Cancelled);
+    }
+
+    private void EnsureCanMove(PartnerApplicationStatus target)
+    {
         if (!CanMove(Status, target))
             throw new ConflictException($"Không thể chuyển hồ sơ đối tác {Code} từ trạng thái {Status} sang {target}.");
-        Status = target;
+    }
+
+    private static void EnsureAdmin(int adminUserId)
+    {
+        if (adminUserId <= 0) throw new ArgumentOutOfRangeException(nameof(adminUserId), "Admin không hợp lệ.");
+    }
+
+    private static string Required(string? value, string field)
+    {
+        if (string.IsNullOrWhiteSpace(value)) throw new ValidationException($"{field} không được để trống.");
+        var text = value.Trim();
+        if (text.Length > 1000) throw new ValidationException($"{field} tối đa 1000 ký tự.");
+        return text;
     }
 }

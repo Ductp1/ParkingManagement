@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
+        services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 

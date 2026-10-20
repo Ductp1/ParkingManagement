@@ -8,14 +8,19 @@ namespace AdminService.API.Controllers;
 
 /// <summary>
 /// US-116: Admin thẩm định hồ sơ đăng ký đối tác chủ bãi (Partner Onboarding, API 6.1).
-/// Controller chỉ điều hướng HTTP → Use case. Chỉ role Admin; người thao tác lấy từ JWT.
+/// Controller chỉ điều hướng HTTP → Use case. Chỉ role Admin; người thao tác lấy từ JWT, không nhận từ body.
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/partner-applications")]
 [Authorize(Policy = "RequireAdmin")]
 public sealed class AdminPartnerApplicationsController(
     IListPartnerApplicationsUseCase listApplications,
-    IGetPartnerApplicationUseCase getApplication) : ControllerBase
+    IGetPartnerApplicationUseCase getApplication,
+    IStartPartnerReviewUseCase startReview,
+    IRequestPartnerInfoUseCase requestInfo,
+    IRejectPartnerApplicationUseCase reject,
+    ICancelPartnerApplicationUseCase cancel,
+    ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>GET /api/v1/admin/partner-applications?status=Submitted&amp;search=thu%20duc&amp;page=1&amp;pageSize=20 (A1).</summary>
     [HttpGet]
@@ -32,4 +37,45 @@ public sealed class AdminPartnerApplicationsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PartnerApplicationDetailDto>> GetById(int id, CancellationToken cancellationToken)
         => Ok(await getApplication.ExecuteAsync(id, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/partner-applications/12/start-review (A3, T2).</summary>
+    [HttpPost("{id:int}/start-review")]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<PartnerApplicationDetailDto>> StartReview(int id, CancellationToken cancellationToken)
+        => AsAdmin(adminId => startReview.ExecuteAsync(id, adminId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/partner-applications/12/request-info { note } (A4, T3).</summary>
+    [HttpPost("{id:int}/request-info")]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<PartnerApplicationDetailDto>> RequestInfo(int id, [FromBody] PartnerRequestInfoRequest request,
+        CancellationToken cancellationToken)
+        => AsAdmin(adminId => requestInfo.ExecuteAsync(id, request, adminId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/partner-applications/12/reject { reason } (A11, T9).</summary>
+    [HttpPost("{id:int}/reject")]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<PartnerApplicationDetailDto>> Reject(int id, [FromBody] PartnerReasonRequest request,
+        CancellationToken cancellationToken)
+        => AsAdmin(adminId => reject.ExecuteAsync(id, request, adminId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/partner-applications/12/cancel { reason } (A12, T10).</summary>
+    [HttpPost("{id:int}/cancel")]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<PartnerApplicationDetailDto>> Cancel(int id, [FromBody] PartnerReasonRequest request,
+        CancellationToken cancellationToken)
+        => AsAdmin(adminId => cancel.ExecuteAsync(id, request, adminId, cancellationToken));
+
+    private async Task<ActionResult<PartnerApplicationDetailDto>> AsAdmin(Func<int, Task<PartnerApplicationDetailDto>> action)
+        => currentUser.UserId is { } adminUserId ? Ok(await action(adminUserId)) : Unauthorized();
 }
