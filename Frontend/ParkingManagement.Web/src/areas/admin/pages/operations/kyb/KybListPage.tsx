@@ -12,7 +12,7 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { DEFAULT_PAGE_SIZE, useListParams } from '../../../hooks/useListParams';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTime, formatNumber } from '../../../utils/format';
-import { KYB_BASE as BASE, kybCode, surveyText } from './kybFormat';
+import { KYB_BASE as BASE, cityText, kybCode, ownerLabel, surveyText } from './kybFormat';
 
 /** Thứ tự theo Figma: All, Draft, Submitted, Under review, Needs more info, Approved, Rejected. */
 const STATUS_ORDER: KybStatus[] = [
@@ -31,11 +31,11 @@ const columns: DataTableColumn<AdminKybApplicationSummaryDto>[] = [
   {
     key: 'lot',
     header: 'Lot / owner',
-    render: (r) => <CellTwoLine primary={r.parkingLotName} secondary={r.ownerBusinessName ?? `OwnerProfile #${r.ownerProfileId}`} />,
+    render: (r) => <CellTwoLine primary={r.parkingLotName} secondary={`${ownerLabel(r.ownerProfileId)} · ${formatNumber(r.totalSlots)} slots`} />,
   },
-  { key: 'address', header: 'City', width: 160, render: (r) => <CellText>{r.parkingLotAddress}</CellText> },
+  { key: 'address', header: 'City', width: 160, render: (r) => <CellText>{cityText(r.city, r.district)}</CellText> },
   { key: 'submitted', header: 'Submitted', width: 123, render: (r) => <CellMuted>{formatDateTime(r.submittedAtUtc)}</CellMuted> },
-  { key: 'survey', header: 'Field survey', width: 114, render: (r) => <CellText>{surveyText(r.fieldSurveyRequired, r.fieldSurveyAtUtc)}</CellText> },
+  { key: 'survey', header: 'Field survey', width: 130, render: (r) => <CellText>{surveyText(r.fieldSurveyRequired, r.fieldSurveyAtUtc, r.fieldSurveyCompletedAtUtc)}</CellText> },
   {
     key: 'reviewer',
     header: 'Reviewer',
@@ -84,7 +84,7 @@ export const KybListPage: React.FC = () => {
       }
       toolbar={
         <ToolbarRow>
-          <SearchBox placeholder="Search KYB ID, lot, owner…" value={search} onSearch={(q) => params.set({ q: q || null })} />
+          <SearchBox placeholder="Search #ID, lot name or address…" value={search} onSearch={(q) => params.set({ q: q || null })} />
         </ToolbarRow>
       }
     >

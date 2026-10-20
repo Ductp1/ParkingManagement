@@ -1,32 +1,30 @@
 import React, { useState } from 'react';
 import { adminKybApi } from '@/api/adminKybApi';
 import type { AdminKybApplicationDetailDto } from '@/types/adminKyb';
-import type { AdminParkingLotDto } from '@/types/adminOperations';
 import { ActionDialog } from '../../../components/ActionDialog';
 import { AdminDialog, DialogSummary } from '../../../components/AdminDialog';
 import { Banner } from '../../../components/Banner';
 import { DateTimeField, TextAreaField } from '../../../components/FormFields';
-import { distanceMeters } from '../../../utils/geo';
 import { formatDate, formatNumber, localInputToUtcIso } from '../../../utils/format';
-import { kybCode } from './kybFormat';
+import { kybCode, ownerLabel } from './kybFormat';
 
-export type KybDialogType = 'startReview' | 'approve' | 'reject' | 'requestInfo' | 'scheduleSurvey';
+export type KybDialogType = 'startReview' | 'approve' | 'reject' | 'requestInfo' | 'scheduleSurvey' | 'recordSurvey';
 
 interface KybDialogsProps {
   kyb: AdminKybApplicationDetailDto;
-  lot: AdminParkingLotDto | null;
   open: KybDialogType | null;
   onClose: () => void;
   /** Gọi sau khi API thành công: bật toast (Figma "Result – …") và tải lại chi tiết. */
   onDone: (title: string, message: string) => void;
 }
 
-const ScheduleSurveyDialog: React.FC<{ open: boolean; summary: React.ReactNode; onClose: () => void; onSubmit: (atUtc: string, note: string) => Promise<void> }> = ({
-  open,
-  summary,
-  onClose,
-  onSubmit,
-}) => {
+const ScheduleSurveyDialog: React.FC<{
+  open: boolean;
+  summary: React.ReactNode;
+  reschedule: boolean;
+  onClose: () => void;
+  onSubmit: (atUtc: string, note: string) => Promise<void>;
+}> = ({ open, summary, reschedule, onClose, onSubmit }) => {
   const [at, setAt] = useState('');
   const [note, setNote] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -67,8 +65,8 @@ const ScheduleSurveyDialog: React.FC<{ open: boolean; summary: React.ReactNode; 
   return (
     <AdminDialog
       open={open}
-      title="Schedule field survey"
-      description="Sets FieldSurveyRequired = true and FieldSurveyAtUtc."
+      title={reschedule ? 'Reschedule field survey' : 'Schedule field survey'}
+      description="Sets FieldSurveyRequired = true and FieldSurveyAtUtc; a previous survey result is cleared."
       onClose={onClose}
       onConfirm={confirm}
       confirmLabel="Save schedule"
@@ -82,25 +80,24 @@ const ScheduleSurveyDialog: React.FC<{ open: boolean; summary: React.ReactNode; 
   );
 };
 
-/** Dialog của màn KYB Detail: Start review / Approve / Reject / Request more info / Schedule field survey. */
-export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, lot, open, onClose, onDone }) => {
+/**
+ * Dialog của màn KYB Detail: Start review / Approve / Reject / Request more info / Schedule field survey / Record survey result.
+ * Lỗi 400 / 409 từ ParkingService (thông điệp tiếng Việt) hiện ngay trên dialog.
+ */
+export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDone }) => {
+  const lot = kyb.parkingLot;
   const summary = (
-    <DialogSummary
-      title={`${kybCode(kyb.id)} · ${kyb.parkingLotName}`}
-      subtitle={[kyb.ownerBusinessName ?? `OwnerProfile #${kyb.ownerProfileId}`, lot ? `${formatNumber(lot.totalSlots)} slots` : null]
-        .filter(Boolean)
-        .join(' · ')}
-    />
+    <DialogSummary title={`${kybCode(kyb.id)} · ${lot.name}`} subtitle={`${ownerLabel(lot.ownerProfileId)} · ${formatNumber(lot.totalSlots)} slots`} />
   );
 
-  const distance =
-    kyb.photoLatitude !== null && kyb.photoLongitude !== null && lot
-      ? Math.round(distanceMeters(kyb.photoLatitude, kyb.photoLongitude, lot.latitude, lot.longitude))
-      : null;
-  const approveInfo = [
-    kyb.fieldSurveyRequired ? `Field survey ${kyb.fieldSurveyAtUtc ? formatDate(kyb.fieldSurveyAtUtc) : 'not scheduled'}.` : 'No field survey.',
-    distance !== null ? `Location distance ${formatNumber(distance)} m.` : 'No GPS on site photos.',
-  ].join(' ');
+  const surveyInfo = kyb.fieldSurveyCompletedAtUtc
+    ? `Field survey done ${formatDate(kyb.fieldSurveyCompletedAtUtc)}.`
+    : kyb.fieldSurveyRequired
+      ? `Field survey ${kyb.fieldSurveyAtUtc ? `scheduled ${formatDate(kyb.fieldSurveyAtUtc)}` : 'not scheduled'}.`
+      : 'No field survey.';
+  const gpsInfo =
+    kyb.gpsDistanceMeters !== null ? `Location distance ${formatNumber(Math.round(kyb.gpsDistanceMeters))} m.` : 'No GPS on site photos.';
+  const approveInfo = `${surveyInfo} ${gpsInfo}`;
 
   return (
     <>
@@ -121,28 +118,32 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, lot, open, onClose,
       <ActionDialog
         open={open === 'approve'}
         title="Approve KYB"
-        description="Status → Approved; lot status Pending approval → Active; owner emailed (KYB_APPROVED)."
+        description="Status → Approved; lot status Pending approval → Active."
         confirmLabel="Approve"
         field={{
           label: 'Approval note',
           placeholder: 'Anything the owner should know?',
-          helper: 'Saved to AuditLogs.Reason (no note column on KybApplications).',
+          helper: 'Saved to KybApplications.ReviewNote and the audit log.',
           maxLength: 1000,
         }}
         onClose={onClose}
         onSubmit={async (note) => {
           await adminKybApi.approve(kyb.id, { note: note || null });
-          onDone('KYB approved', `${kyb.parkingLotName} is now Active.`);
+          onDone('KYB approved', `${lot.name} is now Active.`);
         }}
       >
         {summary}
-        <Banner tone="info">{approveInfo}</Banner>
+        {kyb.approvalBlockers.length > 0 ? (
+          <Banner tone="warning">Not ready to approve: {kyb.approvalBlockers.join(' ')}</Banner>
+        ) : (
+          <Banner tone="info">{approveInfo}</Banner>
+        )}
       </ActionDialog>
 
       <ActionDialog
         open={open === 'reject'}
         title="Reject KYB"
-        description="Status → Rejected; owner emailed with the reason (KYB_REJECTED)."
+        description="Status → Rejected; the lot stays Pending approval."
         confirmLabel="Reject"
         destructive
         field={{
@@ -156,7 +157,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, lot, open, onClose,
         onClose={onClose}
         onSubmit={async (reason) => {
           await adminKybApi.reject(kyb.id, { reason });
-          onDone('KYB rejected', `${kybCode(kyb.id)} was rejected and the owner was notified.`);
+          onDone('KYB rejected', `${kybCode(kyb.id)} was rejected.`);
         }}
       >
         {summary}
@@ -172,7 +173,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, lot, open, onClose,
           required: true,
           requiredMessage: 'Tell the owner what to fix.',
           placeholder: 'List the documents or photos to add.',
-          helper: 'Sent by email; kept in AuditLogs.Reason',
+          helper: 'Saved to KybApplications.ReviewNote and the audit log.',
           maxLength: 1000,
         }}
         onClose={onClose}
@@ -187,12 +188,36 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, lot, open, onClose,
       <ScheduleSurveyDialog
         open={open === 'scheduleSurvey'}
         summary={summary}
+        reschedule={kyb.fieldSurveyAtUtc !== null}
         onClose={onClose}
         onSubmit={async (atUtc, note) => {
           await adminKybApi.scheduleSurvey(kyb.id, { fieldSurveyAtUtc: atUtc, note: note || null });
           onDone('Survey scheduled', `Field survey on ${formatDate(atUtc)}.`);
         }}
       />
+
+      <ActionDialog
+        open={open === 'recordSurvey'}
+        title="Record field survey result"
+        description="Sets FieldSurveyCompletedAtUtc = now; required before approving lots over 50 slots."
+        confirmLabel="Save result"
+        field={{
+          label: 'Survey result',
+          required: true,
+          requiredMessage: 'Describe what the survey found.',
+          placeholder: 'Entrance, signage, fire equipment, slot layout…',
+          helper: 'Saved to KybApplications.FieldSurveyNote',
+          maxLength: 2000,
+        }}
+        onClose={onClose}
+        onSubmit={async (note) => {
+          await adminKybApi.recordSurveyResult(kyb.id, { note });
+          onDone('Survey recorded', `${kybCode(kyb.id)} field survey is done.`);
+        }}
+      >
+        {summary}
+        <Banner tone="info">Scheduled {formatDate(kyb.fieldSurveyAtUtc)}.</Banner>
+      </ActionDialog>
     </>
   );
 };

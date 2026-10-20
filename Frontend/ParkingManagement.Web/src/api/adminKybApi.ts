@@ -5,12 +5,13 @@ import type {
   AdminKybApplicationSummaryDto,
   AdminKybListQuery,
   ApproveKybRequest,
+  RecordKybSurveyResultRequest,
   RejectKybRequest,
   RequestKybInfoRequest,
   ScheduleKybSurveyRequest,
 } from '@/types/adminKyb';
 
-/** US-055 – route dự kiến dưới "parking-lots" để Gateway chuyển sang ParkingService (route /api/v1/admin/** thuộc AdminService). */
+/** US-055 – route dưới "parking-lots" để Gateway chuyển sang ParkingService (route /api/v1/admin/** thuộc AdminService). */
 const BASE = '/api/v1/parking-lots/kyb-applications';
 
 export const adminKybApi = {
@@ -25,7 +26,7 @@ export const adminKybApi = {
     }),
 
   /**
-   * Chi tiết hồ sơ KYB: pháp lý, ảnh + GPS, PCCC, khảo sát (US-055).
+   * Chi tiết hồ sơ KYB kèm bãi đỗ, khoảng cách GPS và điều kiện duyệt còn thiếu (US-055).
    */
   getById: (id: number) => adminRequest<AdminKybApplicationDetailDto>({ method: 'GET', url: `${BASE}/${id}` }),
 
@@ -36,25 +37,31 @@ export const adminKybApi = {
     adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/start-review` }),
 
   /**
-   * Lên lịch khảo sát thực địa khi UnderReview (US-055).
+   * Lên lịch khảo sát thực địa khi UnderReview (US-055 AC4).
    */
   scheduleSurvey: (id: number, data: ScheduleKybSurveyRequest) =>
-    adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/schedule-survey`, data }),
+    adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/field-survey`, data }),
 
   /**
-   * UnderReview → Approved, bãi chuyển Active (US-055).
+   * Ghi nhận kết quả khảo sát sau giờ hẹn (US-055 AC4).
+   */
+  recordSurveyResult: (id: number, data: RecordKybSurveyResultRequest) =>
+    adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/field-survey/result`, data }),
+
+  /**
+   * UnderReview → Approved, bãi PendingApproval → Active (US-055 AC2).
    */
   approve: (id: number, data: ApproveKybRequest) =>
     adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/approve`, data }),
 
   /**
-   * UnderReview → Rejected, lý do bắt buộc (US-055).
+   * UnderReview → Rejected, lý do bắt buộc (US-055 AC3).
    */
   reject: (id: number, data: RejectKybRequest) =>
     adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/reject`, data }),
 
   /**
-   * UnderReview → NeedsMoreInfo (ranh giới với US-056, chờ chốt BE).
+   * UnderReview → NeedsMoreInfo, nội dung bắt buộc (US-055 AC3).
    */
   requestInfo: (id: number, data: RequestKybInfoRequest) =>
     adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/request-info`, data }),

@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminKybApi } from '@/api/adminKybApi';
-import { adminOperationsApi } from '@/api/adminOperationsApi';
 import { KybStatus } from '@/types/adminEnums';
 import type { AdminKybApplicationDetailDto } from '@/types/adminKyb';
-import type { AdminParkingLotDto } from '@/types/adminOperations';
 import { AdminTitleBar } from '../../../layout/AdminTitleBar';
 import { AdminButton } from '../../../components/AdminButton';
 import { Banner } from '../../../components/Banner';
@@ -18,9 +16,8 @@ import { ADMIN_ICONS } from '../../../components/adminIcons';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
 import { useAdminToast } from '../../../hooks/useAdminToast';
-import { distanceMeters } from '../../../utils/geo';
 import { formatDateTimeIct, formatNumber, orEmpty } from '../../../utils/format';
-import { fileNameFromUrl, kybCode } from './kybFormat';
+import { cityText, fileNameFromUrl, kybCode, ownerLabel, shortTime } from './kybFormat';
 import { KybDialogs, type KybDialogType } from './KybDialogs';
 
 const adminLabel = (id: number | null) => (id ? `Admin #${id}` : '—');
@@ -37,6 +34,14 @@ const buildTimeline = (kyb: AdminKybApplicationDetailDto): TimelineEntry[] => {
       state: s === KybStatus.Draft ? 'upcoming' : s === KybStatus.Submitted ? 'current' : 'done',
     },
   ];
+  if (kyb.fieldSurveyAtUtc) {
+    entries.push({
+      key: 'survey',
+      title: kyb.fieldSurveyCompletedAtUtc ? 'Field survey done' : 'Field survey scheduled',
+      meta: formatDateTimeIct(kyb.fieldSurveyCompletedAtUtc ?? kyb.fieldSurveyAtUtc),
+      state: kyb.fieldSurveyCompletedAtUtc ? 'done' : s === KybStatus.UnderReview ? 'current' : 'upcoming',
+    });
+  }
   if (s === KybStatus.Draft || s === KybStatus.Submitted) {
     entries.push({ key: 'review', title: 'Under review', state: 'upcoming' }, { key: 'approved', title: 'Approved', state: 'upcoming' });
   } else if (s === KybStatus.UnderReview) {
@@ -64,20 +69,18 @@ const DocLink: React.FC<{ url: string | null }> = ({ url }) =>
     <>—</>
   );
 
-const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; lot: AdminParkingLotDto | null; onAction: (t: KybDialogType) => void }> = ({
-  kyb,
-  lot,
-  onAction,
-}) => {
+const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; onAction: (t: KybDialogType) => void }> = ({ kyb, onAction }) => {
   const navigate = useNavigate();
-  const lotPath = `/admin/operations/parking-lots/${kyb.parkingLotId}`;
+  const lot = kyb.parkingLot;
+  const lotPath = `/admin/operations/parking-lots/${lot.id}`;
   const hasGps = kyb.photoLatitude !== null && kyb.photoLongitude !== null;
-  const distance = hasGps && lot ? Math.round(distanceMeters(kyb.photoLatitude!, kyb.photoLongitude!, lot.latitude, lot.longitude)) : null;
+  const underReview = kyb.status === KybStatus.UnderReview;
+  const surveyDue = underReview && kyb.fieldSurveyAtUtc !== null && kyb.fieldSurveyCompletedAtUtc === null;
 
   const titleActions =
     kyb.status === KybStatus.Submitted ? (
       <AdminButton onClick={() => onAction('startReview')}>Start review</AdminButton>
-    ) : kyb.status === KybStatus.UnderReview ? (
+    ) : underReview ? (
       <>
         <AdminButton variant="onNavy" onClick={() => onAction('requestInfo')}>
           Request more info
@@ -93,19 +96,24 @@ const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; lot: AdminPar
   return (
     <>
       <AdminTitleBar
-        title={kyb.parkingLotName}
-        subtitle={`${kybCode(kyb.id)} · Lot #${kyb.parkingLotId} · submitted ${formatDateTimeIct(kyb.submittedAtUtc)}`}
+        title={lot.name}
+        subtitle={`${kybCode(kyb.id)} · Lot #${lot.id} · submitted ${formatDateTimeIct(kyb.submittedAtUtc)}`}
         actions={titleActions}
       />
 
+      {underReview && kyb.approvalBlockers.length > 0 && (
+        <Banner tone="warning">Not ready to approve: {kyb.approvalBlockers.join(' ')}</Banner>
+      )}
       {kyb.status === KybStatus.NeedsMoreInfo && (
         <Banner tone="warning">
-          More info requested {formatDateTimeIct(kyb.reviewedAtUtc)} by {adminLabel(kyb.reviewedByUserId)} · the owner can edit and resubmit.
+          More info requested {formatDateTimeIct(kyb.reviewedAtUtc)} by {adminLabel(kyb.reviewedByUserId)}: {orEmpty(kyb.reviewNote)} · the owner can edit
+          and resubmit.
         </Banner>
       )}
       {kyb.status === KybStatus.Approved && (
         <Banner tone="success">
           Approved {formatDateTimeIct(kyb.reviewedAtUtc)} by {adminLabel(kyb.reviewedByUserId)} · lot status changed Pending approval → Active.
+          {kyb.reviewNote ? ` Note: ${kyb.reviewNote}` : ''}
         </Banner>
       )}
       {kyb.status === KybStatus.Rejected && (
@@ -117,14 +125,20 @@ const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; lot: AdminPar
       <SummaryRow
         items={[
           { label: 'KYB status', value: <StatusIndicator value={kyb.status} /> },
-          { label: 'Lot status', value: lot ? <StatusIndicator value={lot.status} /> : <span className="adm-type-body-strong">—</span> },
+          { label: 'Lot status', value: <StatusIndicator value={lot.status} /> },
         ]}
         actions={
-          kyb.status === KybStatus.UnderReview && (
+          underReview && (
             <>
-              <AdminButton variant="secondary" icon="calendar" onClick={() => onAction('scheduleSurvey')}>
-                Schedule field survey
-              </AdminButton>
+              {surveyDue ? (
+                <AdminButton variant="secondary" icon="calendar" onClick={() => onAction('recordSurvey')}>
+                  Record survey result
+                </AdminButton>
+              ) : (
+                <AdminButton variant="secondary" icon="calendar" onClick={() => onAction('scheduleSurvey')}>
+                  {kyb.fieldSurveyAtUtc ? 'Reschedule field survey' : 'Schedule field survey'}
+                </AdminButton>
+              )}
               <AdminButton variant="destructive" onClick={() => onAction('reject')}>
                 Reject
               </AdminButton>
@@ -158,18 +172,30 @@ const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; lot: AdminPar
               )}
             </Panel>
 
-            <Panel title="Location check" description="PhotoLatitude / PhotoLongitude vs ParkingLots.Latitude / Longitude">
+            <Panel title="Location check" description="PhotoLatitude / PhotoLongitude vs ParkingLots.Latitude / Longitude (warning above 100 m)">
               <DetailList>
                 <DetailRow label="Photo coordinates">{hasGps ? `${kyb.photoLatitude!.toFixed(4)}, ${kyb.photoLongitude!.toFixed(4)}` : '—'}</DetailRow>
-                <DetailRow label="Lot coordinates">{lot ? `${lot.latitude.toFixed(4)}, ${lot.longitude.toFixed(4)}` : '—'}</DetailRow>
-                <DetailRow label="Distance">{distance !== null ? `${formatNumber(distance)} m` : '—'}</DetailRow>
+                <DetailRow label="Lot coordinates">{`${lot.latitude.toFixed(4)}, ${lot.longitude.toFixed(4)}`}</DetailRow>
+                <DetailRow label="Distance">
+                  {kyb.gpsDistanceMeters !== null ? `${formatNumber(Math.round(kyb.gpsDistanceMeters))} m` : '—'}
+                  {kyb.gpsWarning && (
+                    <>
+                      {' '}
+                      <StatusIndicator tone="warning" label={hasGps ? 'Check location' : 'No GPS on photos'} />
+                    </>
+                  )}
+                </DetailRow>
               </DetailList>
             </Panel>
 
-            <Panel title="Field survey" description="FieldSurveyRequired · FieldSurveyAtUtc · FieldSurveyNote">
+            <Panel title="Field survey" description="FieldSurveyRequired · FieldSurveyAtUtc · FieldSurveyCompletedAtUtc · FieldSurveyNote">
               <DetailList>
-                <DetailRow label="Required">{kyb.fieldSurveyRequired ? 'Yes' : 'No'}</DetailRow>
-                <DetailRow label="Scheduled / done at">{formatDateTimeIct(kyb.fieldSurveyAtUtc)}</DetailRow>
+                <DetailRow label="Required">
+                  {kyb.fieldSurveyRequired ? 'Yes' : 'No'}
+                  {kyb.fieldSurveyMandatory ? ' · mandatory (over 50 slots)' : ''}
+                </DetailRow>
+                <DetailRow label="Scheduled at">{formatDateTimeIct(kyb.fieldSurveyAtUtc)}</DetailRow>
+                <DetailRow label="Completed at">{formatDateTimeIct(kyb.fieldSurveyCompletedAtUtc)}</DetailRow>
                 <DetailRow label="Note">{orEmpty(kyb.fieldSurveyNote)}</DetailRow>
               </DetailList>
             </Panel>
@@ -189,17 +215,20 @@ const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; lot: AdminPar
           <>
             <Panel title="Lot & owner" action={{ label: 'Open lot →', to: lotPath }}>
               <DetailList>
-                <DetailRow label="Lot">{kyb.parkingLotName}</DetailRow>
-                <DetailRow label="Address">{kyb.parkingLotAddress}</DetailRow>
-                <DetailRow label="Total slots">{lot ? formatNumber(lot.totalSlots) : '—'}</DetailRow>
-                <DetailRow label="Lot status">{lot ? <StatusIndicator value={lot.status} /> : '—'}</DetailRow>
-                <DetailRow label="OwnerProfile">
-                  #{kyb.ownerProfileId}
-                  {kyb.ownerBusinessName ? ` · ${kyb.ownerBusinessName}` : ''}
+                <DetailRow label="Lot">{lot.name}</DetailRow>
+                <DetailRow label="Address">{lot.address}</DetailRow>
+                <DetailRow label="City">{cityText(lot.city, lot.district)}</DetailRow>
+                <DetailRow label="Total slots">{formatNumber(lot.totalSlots)}</DetailRow>
+                <DetailRow label="Active slots">{formatNumber(lot.activeSlotCount)}</DetailRow>
+                <DetailRow label="Max height">{`${formatNumber(lot.maxHeightCm)} cm`}</DetailRow>
+                <DetailRow label="Opening hours">{`${shortTime(lot.openTime)} – ${shortTime(lot.closeTime)}`}</DetailRow>
+                <DetailRow label="Lot status">
+                  <StatusIndicator value={lot.status} />
                 </DetailRow>
+                <DetailRow label="Owner">{ownerLabel(lot.ownerProfileId)}</DetailRow>
               </DetailList>
             </Panel>
-            <Panel title="Status timeline" description="CreatedAtUtc · SubmittedAtUtc · ReviewedAtUtc">
+            <Panel title="Status timeline" description="CreatedAtUtc · SubmittedAtUtc · FieldSurvey · ReviewedAtUtc">
               <Timeline entries={buildTimeline(kyb)} />
             </Panel>
           </>
@@ -217,8 +246,6 @@ export const KybDetailPage: React.FC = () => {
   const [dialog, setDialog] = useState<KybDialogType | null>(null);
 
   const query = useAdminQuery(Number.isInteger(kybId) && kybId > 0 ? () => adminKybApi.getById(kybId) : null, [kybId]);
-  const lotId = query.data?.parkingLotId ?? null;
-  const lotQuery = useAdminQuery(lotId ? () => adminOperationsApi.getParkingLot(lotId) : null, [lotId]);
 
   useAdminBreadcrumb(Number.isInteger(kybId) ? kybCode(kybId) : null);
 
@@ -244,16 +271,14 @@ export const KybDetailPage: React.FC = () => {
 
   return (
     <>
-      <KybDetailBody kyb={query.data} lot={lotQuery.data} onAction={setDialog} />
+      <KybDetailBody kyb={query.data} onAction={setDialog} />
       <KybDialogs
         kyb={query.data}
-        lot={lotQuery.data}
         open={dialog}
         onClose={() => setDialog(null)}
         onDone={(title, message) => {
           toast.show({ type: 'success', title, message });
           query.refetch();
-          lotQuery.refetch();
         }}
       />
     </>
