@@ -9,6 +9,8 @@ public static class DependencyInjection
     {
         services.AddScoped<IGetUserByIdUseCase, GetUserByIdUseCase>();
         services.AddScoped<IListUsersUseCase, ListUsersUseCase>();
+        services.AddScoped<ILockOwnerProfileUseCase, LockOwnerProfileUseCase>();
+        services.AddScoped<IUnlockOwnerProfileUseCase, UnlockOwnerProfileUseCase>();
         services.AddScoped<UserService.Application.Features.Auth.ILoginUseCase, UserService.Application.Features.Auth.LoginUseCase>();
         services.AddScoped<UserService.Application.Features.Auth.IRefreshSessionUseCase, UserService.Application.Features.Auth.RefreshSessionUseCase>();
         services.AddScoped<UserService.Application.Features.Auth.ILogoutUseCase, UserService.Application.Features.Auth.LogoutUseCase>();
