@@ -207,10 +207,7 @@ export type SystemConfigChangeStatus = ValueOf<typeof SystemConfigChangeStatus>;
 export const SanctionSyncStatus = { NotRequired: 'NotRequired', Pending: 'Pending', Synced: 'Synced', Failed: 'Failed' } as const;
 export type SanctionSyncStatus = ValueOf<typeof SanctionSyncStatus>;
 
-/**
- * PartnerApplicationStatus – enum DỰ KIẾN của AdminService (chưa có trong SharedKernel/AdminService),
- * lấy theo "api design/AdminService/Partner Onboarding - State Machine & Flow.md" mục 2–3.
- */
+// AdminService.Domain/Enums/PartnerOnboardingEnums.cs (US-116)
 export const PartnerApplicationStatus = {
   Submitted: 'Submitted',
   UnderReview: 'UnderReview',
@@ -222,3 +219,6 @@ export const PartnerApplicationStatus = {
   Cancelled: 'Cancelled',
 } as const;
 export type PartnerApplicationStatus = ValueOf<typeof PartnerApplicationStatus>;
+
+export const ContractDraftStatus = { Current: 'Current', Superseded: 'Superseded', Signed: 'Signed' } as const;
+export type ContractDraftStatus = ValueOf<typeof ContractDraftStatus>;

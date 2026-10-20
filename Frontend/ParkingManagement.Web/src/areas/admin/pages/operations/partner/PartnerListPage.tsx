@@ -6,15 +6,14 @@ import type { PartnerApplicationSummaryDto } from '@/types/adminPartnerOnboardin
 import { ListScreen, QueryState } from '../../../components/PageLayout';
 import { FilterColumn, FilterPanel } from '../../../components/FilterColumn';
 import { SearchBox, ToolbarRow } from '../../../components/Toolbar';
-import { Banner } from '../../../components/Banner';
 import { CellMono, CellMuted, CellStatus, CellText, CellTwoLine, CellView, DataTable, type DataTableColumn } from '../../../components/DataTable';
 import { Pagination } from '../../../components/Pagination';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { DEFAULT_PAGE_SIZE, useListParams } from '../../../hooks/useListParams';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTime, formatNumber } from '../../../utils/format';
+import { PARTNER_BASE as BASE } from './partnerFormat';
 
-const BASE = '/admin/operations/partner-onboarding';
 const STATUSES = Object.values(PartnerApplicationStatus);
 const isStatus = (v: string): v is PartnerApplicationStatus => (STATUSES as string[]).includes(v);
 
@@ -23,13 +22,18 @@ const columns: DataTableColumn<PartnerApplicationSummaryDto>[] = [
   { key: 'business', header: 'Business', render: (r) => <CellTwoLine primary={r.businessName} secondary={`MST ${r.taxCode}`} /> },
   { key: 'contact', header: 'Contact', render: (r) => <CellTwoLine primary={r.fullName} secondary={r.phone} /> },
   { key: 'lots', header: 'Lots', width: 60, render: (r) => <CellText>{r.lotCount}</CellText> },
-  { key: 'status', header: 'Status', width: 140, render: (r) => <CellStatus value={r.status} /> },
+  {
+    key: 'status',
+    header: 'Status',
+    width: 150,
+    render: (r) => <CellTwoLine primary={<CellStatus value={r.status} />} secondary={r.contractNumber ?? undefined} />,
+  },
   { key: 'reviewer', header: 'Reviewer', width: 90, render: (r) => <CellText>{r.reviewerAdminId ? `Admin #${r.reviewerAdminId}` : '—'}</CellText> },
   { key: 'updated', header: 'Updated', width: 123, render: (r) => <CellMuted>{formatDateTime(r.updatedAtUtc ?? r.createdAtUtc)}</CellMuted> },
   { key: 'actions', header: '', width: 74, render: (r) => <CellView to={`${BASE}/${r.id}`} /> },
 ];
 
-/** Operations / Partner Onboarding / List – endpoint A1 dự kiến (AdminService chưa có PartnerApplication). */
+/** Operations / Partner Onboarding / List (US-116, A1) – lọc trạng thái, tìm kiếm, phân trang qua AdminService. */
 export const PartnerListPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useListParams();
@@ -49,11 +53,6 @@ export const PartnerListPage: React.FC = () => {
     <ListScreen
       title="Partner Onboarding"
       subtitle={total === null ? '—' : `${formatNumber(total)} applications`}
-      top={
-        <Banner tone="info">
-          Future entity: PartnerApplication + OwnerContract exist only in the draft api design (“Partner Onboarding – State Machine &amp; Flow”).
-        </Banner>
-      }
       filters={
         <FilterColumn>
           <FilterPanel
@@ -69,7 +68,7 @@ export const PartnerListPage: React.FC = () => {
       }
       toolbar={
         <ToolbarRow>
-          <SearchBox placeholder="Search code, business name, tax code, email…" width={360} value={search} onSearch={(q) => params.set({ q: q || null })} />
+          <SearchBox placeholder="Search code, business name, tax code, email, phone…" width={360} value={search} onSearch={(q) => params.set({ q: q || null })} />
         </ToolbarRow>
       }
     >
