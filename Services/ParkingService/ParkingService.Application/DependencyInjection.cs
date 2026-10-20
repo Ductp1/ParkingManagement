@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
+using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
@@ -23,6 +24,16 @@ public static class DependencyInjection
         services.AddScoped<IGetKybApplicationUseCase, GetKybApplicationUseCase>();
         services.AddScoped<ISaveKybDraftUseCase, SaveKybDraftUseCase>();
         services.AddScoped<ISubmitKybApplicationUseCase, SubmitKybApplicationUseCase>();
+
+        // KYB Review – Admin (US-055)
+        services.AddScoped<IListAdminKybApplicationsUseCase, ListAdminKybApplicationsUseCase>();
+        services.AddScoped<IGetAdminKybApplicationUseCase, GetAdminKybApplicationUseCase>();
+        services.AddScoped<IStartKybReviewUseCase, StartKybReviewUseCase>();
+        services.AddScoped<IScheduleKybFieldSurveyUseCase, ScheduleKybFieldSurveyUseCase>();
+        services.AddScoped<IRecordKybFieldSurveyResultUseCase, RecordKybFieldSurveyResultUseCase>();
+        services.AddScoped<IApproveKybApplicationUseCase, ApproveKybApplicationUseCase>();
+        services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
+        services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
 
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();

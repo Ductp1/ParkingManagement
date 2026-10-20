@@ -1,5 +1,6 @@
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace ParkingService.Domain.Entities;
 
@@ -111,7 +112,13 @@ public class ParkingLot : BaseEntity, ISoftDelete
     }
 
     /// <summary>Admin duyệt KYB → bãi được công khai.</summary>
-    public void Activate() => Status = ParkingLotStatus.Active;
+    /// <summary>Kích hoạt bãi sau khi KYB được duyệt (US-055): chỉ đi từ PendingApproval → Active.</summary>
+    public void Activate()
+    {
+        if (Status != ParkingLotStatus.PendingApproval)
+            throw new ConflictException($"Chỉ kích hoạt được bãi đang chờ duyệt (hiện tại: {Status}).");
+        Status = ParkingLotStatus.Active;
+    }
 
     /// <summary>Gán quận/thành phố (dùng khi tạo bãi và khi seed dữ liệu).</summary>
     public void SetLocation(string city, string? district)
