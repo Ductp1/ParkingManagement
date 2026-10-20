@@ -32,6 +32,23 @@ public class ComplaintAppServiceTests
 
     // ===== AC1: tạo ticket có mã và trạng thái =====
 
+    // ===== US-089 AC3: phong tỏa tiền quyết toán khi tạo khiếu nại =====
+
+    [Fact]
+    public async Task Lot_dispute_with_requested_amount_holds_payout()
+    {
+        var (service, repo) = Create(Booking());
+        var result = await service.CreateAsync(Request(ComplaintCategory.Overcharge, amount: 10000));
+        Assert.True(result.PayoutHeld);
+        Assert.True(repo.Saved[0].PayoutHeld);
+    }
+
+    [Theory]
+    [InlineData(ComplaintCategory.Overcharge, null)]     // không đòi tiền
+    [InlineData(ComplaintCategory.AppError, 10000)]      // lỗi app – không phải lỗi của bãi
+    public async Task Payout_is_not_held_without_money_or_for_platform_issues(ComplaintCategory category, int? amount)
+        => Assert.False((await Create(Booking()).Service.CreateAsync(Request(category, amount: amount))).PayoutHeld);
+
     [Fact]
     public async Task Creates_ticket_with_code_status_and_first_message()
     {
@@ -260,24 +277,5 @@ public class ComplaintAppServiceTests
             => Task.FromResult(booking?.Code == bookingCode ? booking : null);
     }
 
-    private sealed class FakeRepository : IComplaintRepository
-    {
-        public bool HasOpenTicket { get; set; }
-        public List<Complaint> Saved { get; } = [];
-
-        public Task<bool> HasOpenComplaintForBookingAsync(int bookingId, CancellationToken cancellationToken = default)
-            => Task.FromResult(HasOpenTicket);
-
-        public Task AddAsync(Complaint complaint, CancellationToken cancellationToken = default)
-        {
-            Saved.Add(complaint);
-            return Task.CompletedTask;
-        }
-
-        public Task<ComplaintDetailDto?> GetForUserAsync(string code, int userId, CancellationToken cancellationToken = default)
-            => Task.FromResult<ComplaintDetailDto?>(null);
-
-        public Task<IReadOnlyList<ComplaintSummaryDto>> ListForUserAsync(int userId, CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<ComplaintSummaryDto>>([]);
-    }
+    private sealed class FakeRepository : InMemoryComplaintRepository;
 }

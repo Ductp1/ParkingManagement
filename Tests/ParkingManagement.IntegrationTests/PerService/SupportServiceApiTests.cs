@@ -50,6 +50,15 @@ public sealed class SupportApiFixture : IAsyncLifetime
         return client;
     }
 
+    /// <summary>Client của chủ bãi: token có role LotOwner + claim OwnerProfileId (giống token UserService phát hành).</summary>
+    public HttpClient CreateOwnerClient(int ownerUserId, int ownerProfileId)
+    {
+        var client = SupportFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", Keys.MintToken(ownerUserId, $"owner{ownerUserId}@it.test", null,
+            [new System.Security.Claims.Claim("OwnerProfileId", ownerProfileId.ToString())], "LotOwner"));
+        return client;
+    }
+
     public IServiceProvider BookingServices => BookingFactory.Services;
     public IServiceProvider SupportServices => SupportFactory.Services;
 
@@ -136,7 +145,33 @@ public sealed class SupportApiFixture : IAsyncLifetime
 
         using var supportHealth = await SupportClient.GetAsync("/health");
         Assert.True(supportHealth.IsSuccessStatusCode, $"SupportService không start được trên {SupportDbName}.");
+
+        // ----- 4. Arrange US-089: 2 tranh chấp của chủ bãi TSN đang giữ tiền – 1 còn hạn 48h, 1 đã quá hạn -----
+        // (BookingService chưa trả OwnerProfileId nên chưa tạo được ticket AwaitingOwner qua API → ghi thẳng vào pm_it_support.)
+        await using (var scope = SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            db.Complaints.AddRange(
+                OwnerDispute("CP-IT-OWNER", DateTime.UtcNow.AddHours(47), 20000m),
+                OwnerDispute("CP-IT-LATE", DateTime.UtcNow.AddHours(-1), 15000m));
+            await db.SaveChangesAsync();
+        }
     }
+
+    private static SupportService.Domain.Entities.Complaint OwnerDispute(string code, DateTime dueAtUtc, decimal amount) => new()
+    {
+        Code = code,
+        UserId = DemoIds.Driver1User,
+        BookingCode = "BK-IT-REVIEW",
+        ParkingLotId = DemoIds.LotTsn,
+        OwnerProfileId = DemoIds.OwnerTsn,
+        Category = ComplaintCategory.Overcharge,
+        Description = "Bị tính thừa block cuối (integration test US-089).",
+        RequestedAmount = amount,
+        Status = ComplaintStatus.AwaitingOwner,
+        OwnerResponseDueAtUtc = dueAtUtc,
+        PayoutHeld = true,
+    };
 
     public async Task DisposeAsync()
     {
@@ -325,6 +360,76 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
         Assert.Equal(1, lot!.ReviewCount);
         Assert.Equal(4, lot.AverageRating);
     }
+
+    [Fact] // US-089: chủ bãi phản hồi tranh chấp bằng JWT; quá 48h → Escalated; tiền tranh chấp bị phong tỏa.
+    public async Task Owner_responds_to_dispute_within_48_hours_and_overdue_is_escalated()
+    {
+        const string url = "/api/v1/complaints/CP-IT-OWNER";
+        var reply = new
+        {
+            response = "Log cổng cho thấy xe ra lúc 11:52, đúng giờ tính phí; đính kèm log và ảnh camera.",
+            evidenceUrls = new[] { "https://evidence.it.test/gate-log.pdf", "https://evidence.it.test/camera-1152.jpg" },
+        };
+
+        // Không đăng nhập → 401; tài xế → 403; chủ bãi khác (Vincom) → 404 (không lộ tranh chấp của bãi khác)
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.GetAsync($"{url}/owner-view")).StatusCode);
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.PostAsJsonAsync($"{url}/owner-response", reply)).StatusCode);
+        var otherOwner = fixture.CreateOwnerClient(DemoIds.OwnerVincomUser, DemoIds.OwnerVincom);
+        await Asserts.NotFoundAsync(await otherOwner.GetAsync($"{url}/owner-view"));
+        await Asserts.NotFoundAsync(await otherOwner.PostAsJsonAsync($"{url}/owner-response", reply));
+
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+
+        // AC1: xem tranh chấp còn hạn, đang giữ tiền
+        var view = await owner.GetFromJsonAsync<OwnerComplaintJson>($"{url}/owner-view");
+        Assert.Equal("AwaitingOwner", view!.Status);
+        Assert.True(view.PayoutHeld);
+
+        // AC3: khoản tiền bị phong tỏa của chủ bãi TSN (lấy từ token, không truyền ownerProfileId)
+        var holds = await owner.GetFromJsonAsync<List<PayoutHoldJson>>("/api/v1/complaints/payout-holds");
+        Assert.Contains(holds!, h => h.ComplaintCode == "CP-IT-OWNER" && h.Amount == 20000m);
+        Assert.All(holds!, h => Assert.Equal(DemoIds.OwnerTsn, h.OwnerProfileId));
+
+        // AC1: phản hồi quá ngắn → 400; phản hồi hợp lệ → OwnerResponded + tin nhắn của chủ bãi; lần 2 → 409
+        await Asserts.BadRequestAsync(await owner.PostAsJsonAsync($"{url}/owner-response", new { response = "Sai" }), "Nội dung phản hồi");
+        var responded = await owner.PostAsJsonAsync($"{url}/owner-response", reply);
+        Assert.Equal(HttpStatusCode.OK, responded.StatusCode);
+        var afterReply = await responded.Content.ReadFromJsonAsync<OwnerComplaintJson>();
+        Assert.Equal("OwnerResponded", afterReply!.Status);
+        Assert.NotNull(afterReply.OwnerRespondedAtUtc);
+        Assert.True(afterReply.PayoutHeld);   // vẫn giữ tiền đến khi Admin phán quyết
+        Assert.Contains(afterReply.Messages, m => m.SenderParty == "LotOwner" && m.AttachmentUrls.Count == 2);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"{url}/owner-response", reply), "đã phản hồi");
+
+        // Tài xế thấy phản hồi của chủ bãi trong ticket của mình
+        var driverView = await fixture.SupportClient.GetFromJsonAsync<ComplaintDetailJson>($"{url}?userId={DemoIds.Driver1User}");
+        Assert.Equal("OwnerResponded", driverView!.Status);
+
+        // AC2: quá hạn 48h → phản hồi bị từ chối; lượt escalate chuyển Escalated, giao Supervisor
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync("/api/v1/complaints/CP-IT-LATE/owner-response", reply), "quá hạn");
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<IComplaintEscalationService>().EscalateOverdueAsync();
+        var late = await owner.GetFromJsonAsync<OwnerComplaintJson>("/api/v1/complaints/CP-IT-LATE/owner-view");
+        Assert.Equal("Escalated", late!.Status);
+        Assert.Equal("Supervisor", late.AssignedTeam);
+        Assert.NotNull(late.EscalatedAtUtc);
+        Assert.Contains(late.Messages, m => m.SenderParty == "System");
+
+        // Sự kiện đã vào Outbox để báo tài xế / Admin
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var types = await db.OutboxMessages.Select(o => o.EventType).ToListAsync();
+            Assert.Contains("ComplaintOwnerResponded", types);
+            Assert.Contains("ComplaintEscalated", types);
+        }
+    }
+
+    public sealed record OwnerComplaintJson(string Code, string Status, string AssignedTeam, bool PayoutHeld,
+        DateTime? OwnerRespondedAtUtc, DateTime? EscalatedAtUtc, IReadOnlyList<MessageJson> Messages);
+
+    public sealed record PayoutHoldJson(string ComplaintCode, string Status, int ParkingLotId, int? OwnerProfileId, decimal Amount);
 
     public sealed record EligibilityJson(string BookingCode, bool CanReview, string? Reason, int? ReviewId);
 

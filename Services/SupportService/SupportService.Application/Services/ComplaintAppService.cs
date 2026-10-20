@@ -17,7 +17,7 @@ public sealed class ComplaintAppService(IComplaintRepository repository, IBookin
     public async Task<ComplaintDetailDto> CreateAsync(CreateComplaintRequestDto request, CancellationToken cancellationToken = default)
     {
         var description = request.Description?.Trim() ?? string.Empty;
-        var evidence = NormalizeEvidence(request.EvidenceUrls);
+        var evidence = EvidenceUrls.Normalize(request.EvidenceUrls, ComplaintRules.MaxEvidenceFiles);
         Validate(request, description);
 
         // 1. Booking phải tồn tại và thuộc về người gửi.
@@ -52,7 +52,7 @@ public sealed class ComplaintAppService(IComplaintRepository repository, IBookin
         // 5. AC3: phân mức và giao nhóm xử lý; khiếu nại về bãi thì chờ chủ bãi phản hồi 48 giờ.
         var (priority, team) = ComplaintRules.Classify(request.Category);
         var awaitOwner = ComplaintRules.RequiresOwnerResponse(request.Category) && booking.OwnerProfileId is not null;
-        var evidenceJson = evidence.Count == 0 ? null : JsonSerializer.Serialize(evidence);
+        var evidenceJson = EvidenceUrls.ToJson(evidence);
 
         var complaint = new Complaint
         {
@@ -70,6 +70,8 @@ public sealed class ComplaintAppService(IComplaintRepository repository, IBookin
             RequestedAmount = request.RequestedAmount,
             Status = awaitOwner ? ComplaintStatus.AwaitingOwner : ComplaintStatus.Open,
             OwnerResponseDueAtUtc = awaitOwner ? now.AddHours(ReviewRules.OwnerResponseHours) : null,
+            // US-089 AC3: giữ tiền quyết toán của chủ bãi cho tới khi có phán quyết.
+            PayoutHeld = ComplaintRules.ShouldHoldPayout(request.Category, request.RequestedAmount),
         };
         complaint.Messages.Add(new ComplaintMessage
         {
@@ -107,26 +109,14 @@ public sealed class ComplaintAppService(IComplaintRepository repository, IBookin
         if (request.RequestedAmount < 0) throw new ValidationException("Số tiền yêu cầu không được âm.");
     }
 
-    private static List<string> NormalizeEvidence(IReadOnlyList<string>? urls)
-    {
-        var list = (urls ?? []).Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u.Trim()).Distinct().ToList();
-        if (list.Count > ComplaintRules.MaxEvidenceFiles)
-            throw new ValidationException($"Chỉ được đính kèm tối đa {ComplaintRules.MaxEvidenceFiles} ảnh/video.");
-        foreach (var url in list)
-        {
-            if (url.Length > 500 || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https"))
-                throw new ValidationException($"Đường dẫn bằng chứng không hợp lệ: {url}");
-        }
-        return list;
-    }
-
     private static ComplaintDetailDto ToDetail(Complaint c) => new(
         c.Id, c.Code, c.Status.ToString(), c.Category.ToString(), c.Priority.ToString(), c.AssignedTeam.ToString(),
         c.BookingCode, c.ParkingLotId, c.Description, ReadUrls(c.EvidenceUrlsJson), c.RequestedAmount,
         c.OwnerResponseDueAtUtc, c.OwnerResponse, c.Resolution, c.ResolvedRefundAmount, c.CreatedAtUtc, c.UpdatedAtUtc,
         c.Messages.Where(m => !m.IsInternal)
             .Select(m => new ComplaintMessageDto(m.Id, m.SenderParty.ToString(), m.Message, ReadUrls(m.AttachmentUrlsJson), m.CreatedAtUtc))
-            .ToList());
+            .ToList(),
+        c.OwnerRespondedAtUtc, c.EscalatedAtUtc, c.PayoutHeld);
 
     /// <summary>Đọc mảng URL đã lưu dạng JSON; chuỗi rỗng/hỏng → danh sách rỗng.</summary>
     public static IReadOnlyList<string> ReadUrls(string? json)

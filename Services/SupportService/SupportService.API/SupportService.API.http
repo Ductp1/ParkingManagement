@@ -68,6 +68,34 @@ GET {{gateway}}/api/v1/complaints/CP-0001?userId=5
 ### US-088 · Ticket của người khác → 404
 GET {{gateway}}/api/v1/complaints/CP-0001?userId=6
 
+### US-089 · Các API của chủ bãi cần JWT có role LotOwner + claim OwnerProfileId (đăng nhập tài khoản chủ bãi demo).
+@ownerToken = DAN_ACCESS_TOKEN_CHU_BAI_VAO_DAY
+
+### US-089 · Chủ bãi xem tranh chấp về bãi của mình (CP-0001 thuộc chủ bãi Vincom)
+GET {{gateway}}/api/v1/complaints/CP-0001/owner-view
+Authorization: Bearer {{ownerToken}}
+
+### US-089 · Chủ bãi phản hồi trong 48 giờ kèm bằng chứng → 200, Status OwnerResponded
+POST {{gateway}}/api/v1/complaints/CP-0001/owner-response
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "response": "Log cổng cho thấy xe ra lúc 11:52, đúng giờ tính phí. Đính kèm log check-out và ảnh camera.",
+  "evidenceUrls": [ "https://cdn.example.com/gate-log-bk0001.pdf", "https://cdn.example.com/camera-1152.jpg" ]
+}
+
+### US-089 · Phản hồi lần 2 / quá hạn 48 giờ → 409
+POST {{gateway}}/api/v1/complaints/CP-0001/owner-response
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "response": "Phản hồi bổ sung cho tranh chấp đã trả lời." }
+
+### US-089 · Khoản quyết toán đang bị phong tỏa vì tranh chấp (AC3)
+GET {{gateway}}/api/v1/complaints/payout-holds
+Authorization: Bearer {{ownerToken}}
+
 ### US-093 · Các API đánh giá cần JWT của tài xế: userId lấy từ claim "sub", không gửi trong body/query.
 # Lấy token bằng POST {{gateway}}/api/v1/auth/login (tài khoản tài xế demo) rồi dán accessToken vào @driverToken.
 @driverToken = DAN_ACCESS_TOKEN_VAO_DAY
