@@ -16,7 +16,29 @@ public sealed class AdminDataSeeder(ILogger<AdminDataSeeder> logger) : IDataSeed
     {
         await SeedCoreAsync(db, cancellationToken);
         await SeedExtrasAsync(db, cancellationToken);
+        await SeedContractTemplateAsync(db, cancellationToken);
         await SeedPartnerOnboardingAsync(db, cancellationToken);
+    }
+
+    /// <summary>
+    /// US-116 (dev): bảo đảm mẫu hợp đồng v2 (đủ điều khoản, bản tham khảo) tồn tại và đang áp dụng.
+    /// Database đã có mẫu v1 thì v1 thôi áp dụng (cùng SaveChanges) – hợp đồng đã sinh vẫn giữ TemplateVersion cũ.
+    /// </summary>
+    private static async Task SeedContractTemplateAsync(AdminDbContext db, CancellationToken cancellationToken)
+    {
+        if (await db.ContractTemplates.AnyAsync(t => t.Version == PartnerContractTemplates.V2Version, cancellationToken)) return;
+
+        foreach (var active in await db.ContractTemplates.Where(t => t.IsActive).ToListAsync(cancellationToken))
+            active.IsActive = false;
+        db.ContractTemplates.Add(new ContractTemplate
+        {
+            Version = PartnerContractTemplates.V2Version,
+            Name = PartnerContractTemplates.V2Name,
+            Body = PartnerContractTemplates.V2Body,
+            EffectiveFromUtc = DateTime.UtcNow,
+            IsActive = true,
+        });
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>Dữ liệu demo ban đầu (migration InitialCreate).</summary>
@@ -81,27 +103,13 @@ public sealed class AdminDataSeeder(ILogger<AdminDataSeeder> logger) : IDataSeed
     }
 
     /// <summary>
-    /// US-116 (dev): mẫu hợp đồng v1 (nội dung NHÁP – chờ BA / pháp chế) và 8 hồ sơ đối tác, mỗi trạng thái một hồ sơ,
-    /// đi đúng đường chuyển trạng thái của domain. Chưa seed phiên bản hợp đồng vì file hợp đồng sinh ở bước gửi hợp đồng.
+    /// US-116 (dev): 8 hồ sơ đối tác, mỗi trạng thái một hồ sơ, đi đúng đường chuyển trạng thái của domain.
+    /// Mẫu hợp đồng seed riêng (SeedContractTemplateAsync). Chưa seed phiên bản hợp đồng vì file sinh ở bước gửi hợp đồng.
     /// </summary>
     private static async Task SeedPartnerOnboardingAsync(AdminDbContext db, CancellationToken cancellationToken)
     {
         if (await db.PartnerApplications.AnyAsync(cancellationToken)) return;
         var now = DateTime.UtcNow;
-
-        if (!await db.ContractTemplates.AnyAsync(cancellationToken))
-        {
-            db.ContractTemplates.Add(new ContractTemplate
-            {
-                Version = 1, Name = "Hợp đồng hợp tác đối tác bãi đỗ (bản nháp)", EffectiveFromUtc = now.AddDays(-30), IsActive = true,
-                Body = "BẢN NHÁP – nội dung pháp lý do BA / pháp chế cung cấp.\n" +
-                       "HỢP ĐỒNG HỢP TÁC SỐ {{ContractNumber}} (phiên bản {{Version}})\n" +
-                       "Bên B: {{BusinessName}} – MST {{TaxCode}} – Địa chỉ {{BusinessAddress}}\n" +
-                       "Đại diện: {{LegalRepresentativeName}} ({{LegalRepresentativePosition}})\n" +
-                       "Hoa hồng nền tảng: {{CommissionRate}}% · Hiệu lực {{EffectiveFrom}} – {{EffectiveTo}} ({{TermMonths}} tháng)\n" +
-                       "Tài khoản nhận tiền: {{BankName}} (BIN {{BankBin}}) · {{BankAccountNumber}} · {{BankAccountName}}"
-            });
-        }
 
         PartnerApplication Apply(int seq, string business, string taxCode, string person, string email, string phone, string lotAddress,
             int lotCount, int daysAgo)

@@ -594,7 +594,52 @@ public class PartnerContractTests
         Assert.StartsWith("<!doctype html>", html);
         Assert.Contains("<meta charset=\"utf-8\">", html);
         Assert.Contains("<p>Dòng 1 x&lt;y</p>", html);
-        Assert.Contains("<p>&nbsp;</p>", html);
+        Assert.Contains("<div class=\"gap\"></div>", html);
+        Assert.Contains("<p>Dòng 3</p>", html);
+        Assert.Contains("Mẫu hợp đồng v2", html);
+        Assert.Contains("@page { size: A4", html);
+    }
+
+    [Fact]
+    public void Renderer_turns_markup_lines_into_headings_lists_tables_and_page_breaks()
+    {
+        const string body = "^ Độc lập\n# Hợp đồng {{N}}\n## Điều 1\n### 1.1\n- Ý 1\n- Ý {{N}}\nĐoạn\n|| Tên: || {{N}}\n|| ||\n||Chỉ một ô\n!! BÊN A !! BÊN B\n!! !!\n---\nPhụ lục";
+
+        var html = Text(new HtmlContractRenderer().Render(body, 2, new Dictionary<string, string> { ["N"] = "<b>" }).Content);
+
+        Assert.Contains("<p class=\"center\">Độc lập</p>", html);
+        Assert.Contains("<h1>Hợp đồng &lt;b&gt;</h1>", html);
+        Assert.Contains("<h2>Điều 1</h2>", html);
+        Assert.Contains("<h3>1.1</h3>", html);
+        Assert.Contains("<ul>\n<li>Ý 1</li>\n<li>Ý &lt;b&gt;</li>\n</ul>\n<p>Đoạn</p>", html);
+        Assert.Contains("<table class=\"cols\">\n<tr><td>Tên:</td><td>&lt;b&gt;</td></tr>\n<tr><td></td><td></td></tr>\n<tr><td>Chỉ một ô</td><td></td></tr>\n</table>", html);
+        Assert.Contains("<table class=\"sign\">\n<tr><td>BÊN A</td><td>BÊN B</td></tr>\n<tr><td></td><td></td></tr>\n</table>", html);
+        Assert.Contains("<div class=\"page-break\"></div>\n<p>Phụ lục</p>", html);
+        Assert.DoesNotContain("<b>", html);
+    }
+
+    [Fact]
+    public async Task Seeded_template_v2_renders_a_full_contract_without_missing_placeholders()
+    {
+        var template = new ContractTemplate
+        {
+            Version = AdminService.Infrastructure.Persistence.Seeding.PartnerContractTemplates.V2Version,
+            Name = AdminService.Infrastructure.Persistence.Seeding.PartnerContractTemplates.V2Name,
+            Body = AdminService.Infrastructure.Persistence.Seeding.PartnerContractTemplates.V2Body,
+            IsActive = true,
+        };
+        var fx = new Fixture(App(PartnerApplicationStatus.UnderReview), template);
+
+        var html = Text((await fx.Preview().ExecuteAsync(AppId, Terms())).Content);
+
+        Assert.DoesNotContain("{{", html);
+        Assert.Contains("<h1>Hợp đồng hợp tác kinh doanh dịch vụ đỗ xe</h1>", html);
+        Assert.Contains("Số: HD-SP-2026-0012 · Phiên bản: 1", html);
+        Assert.Contains("<h2>Điều 15. Điều khoản chung</h2>", html);
+        Assert.Contains("8.5% Doanh thu giao dịch", html);
+        Assert.Contains("từ 01/11/2026 đến 31/10/2027", html);
+        Assert.Contains("<td>Công ty CP Bãi xe Thủ Đức</td>", html);
+        Assert.Contains("<h1>Phụ lục 01 – Thông tin hợp tác</h1>", html);
         Assert.Contains("Mẫu hợp đồng v2", html);
     }
 
