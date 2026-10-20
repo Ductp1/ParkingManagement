@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.Owners;
+using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,9 @@ public static class DependencyInjection
         // US-096: khóa / mở khóa chủ bãi
         services.AddScoped<ILockOwnerUseCase, LockOwnerUseCase>();
         services.AddScoped<IUnlockOwnerUseCase, UnlockOwnerUseCase>();
+        // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
+        services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
+        services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();
         return services;
     }
 }

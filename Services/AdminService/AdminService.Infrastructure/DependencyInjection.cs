@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.Owners;
+using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using AdminService.Infrastructure.Integrations;
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<ISettingsQueries, SettingsQueries>();
         services.AddScoped<ISystemConfigChangeQueries, SystemConfigChangeQueries>();
         services.AddScoped<ISanctionQueries, SanctionQueries>();
+        services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();

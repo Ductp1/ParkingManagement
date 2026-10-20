@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AdminService.Domain.Entities;
+using AdminService.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ParkingManagement.ServiceDefaults.Persistence;
@@ -15,6 +16,7 @@ public sealed class AdminDataSeeder(ILogger<AdminDataSeeder> logger) : IDataSeed
     {
         await SeedCoreAsync(db, cancellationToken);
         await SeedExtrasAsync(db, cancellationToken);
+        await SeedPartnerOnboardingAsync(db, cancellationToken);
     }
 
     /// <summary>Dữ liệu demo ban đầu (migration InitialCreate).</summary>
@@ -75,6 +77,102 @@ public sealed class AdminDataSeeder(ILogger<AdminDataSeeder> logger) : IDataSeed
                 Description = "Số lượt qua barie cao hơn 35% so với số booking + vãng lai được ghi nhận trong tuần.",
                 EvidenceJson = "{\"barrierPasses\":412,\"recordedSessions\":305}", DueAtUtc = now.AddHours(4), AssignedToUserId = DemoIds.AdminUser
             });
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// US-116 (dev): mẫu hợp đồng v1 (nội dung NHÁP – chờ BA / pháp chế) và 8 hồ sơ đối tác, mỗi trạng thái một hồ sơ,
+    /// đi đúng đường chuyển trạng thái của domain. Chưa seed phiên bản hợp đồng vì file hợp đồng sinh ở bước gửi hợp đồng.
+    /// </summary>
+    private static async Task SeedPartnerOnboardingAsync(AdminDbContext db, CancellationToken cancellationToken)
+    {
+        if (await db.PartnerApplications.AnyAsync(cancellationToken)) return;
+        var now = DateTime.UtcNow;
+
+        if (!await db.ContractTemplates.AnyAsync(cancellationToken))
+        {
+            db.ContractTemplates.Add(new ContractTemplate
+            {
+                Version = 1, Name = "Hợp đồng hợp tác đối tác bãi đỗ (bản nháp)", EffectiveFromUtc = now.AddDays(-30), IsActive = true,
+                Body = "BẢN NHÁP – nội dung pháp lý do BA / pháp chế cung cấp.\n" +
+                       "HỢP ĐỒNG HỢP TÁC SỐ {{ContractNumber}} (phiên bản {{Version}})\n" +
+                       "Bên B: {{BusinessName}} – MST {{TaxCode}} – Địa chỉ {{BusinessAddress}}\n" +
+                       "Đại diện: {{LegalRepresentativeName}} ({{LegalRepresentativePosition}})\n" +
+                       "Hoa hồng nền tảng: {{CommissionRate}}% · Hiệu lực {{EffectiveFrom}} – {{EffectiveTo}} ({{TermMonths}} tháng)\n" +
+                       "Tài khoản nhận tiền: {{BankName}} (BIN {{BankBin}}) · {{BankAccountNumber}} · {{BankAccountName}}"
+            });
+        }
+
+        PartnerApplication Apply(int seq, string business, string taxCode, string person, string email, string phone, string lotAddress,
+            int lotCount, int daysAgo)
+        {
+            var app = PartnerApplication.Submit($"PA-2026-{seq:0000}", now.AddDays(-daysAgo));
+            app.FullName = person; app.Email = email; app.Phone = phone; app.Position = "Giám đốc";
+            app.BusinessType = PartnerBusinessType.Company; app.BusinessName = business; app.TaxCode = taxCode;
+            app.BusinessAddress = lotAddress; app.LegalRepresentativeName = person; app.LegalRepresentativePosition = "Giám đốc";
+            app.BusinessLicenseUrl = $"/uploads/partner/{seq:0000}/giay-phep-kinh-doanh.pdf";
+            app.LotCount = lotCount; app.PrimaryLotAddress = lotAddress; app.EstimatedCarSlots = 120 * lotCount;
+            app.EstimatedMotorbikeSlots = 300 * lotCount; app.OperatingHours = "06:00 – 23:00";
+            return app;
+        }
+
+        var submitted = Apply(1, "Công ty TNHH Bãi xe Bình Dương", "3702345671", "Trương Văn Phúc", "phuc.truong@bdparking.vn",
+            "0912311223", "15 Đại lộ Bình Dương, Thủ Dầu Một", 2, 1);
+
+        var underReview = Apply(2, "Công ty CP Bãi xe Thủ Đức", "0316789012", "Nguyễn Thị Lan", "lan.nguyen@thuducparking.vn",
+            "0903456789", "216 Võ Văn Ngân, TP. Thủ Đức", 2, 10);
+        underReview.MoveTo(PartnerApplicationStatus.UnderReview);
+        underReview.ReviewerAdminId = DemoIds.AdminUser;
+
+        var needsInfo = Apply(3, "Công ty TNHH Đỗ xe Hà Đông", "0109876543", "Lê Minh Tuấn", "tuan.le@hadongparking.vn",
+            "0987654321", "88 Quang Trung, Hà Đông, Hà Nội", 1, 12);
+        needsInfo.MoveTo(PartnerApplicationStatus.UnderReview);
+        needsInfo.MoveTo(PartnerApplicationStatus.NeedsMoreInfo);
+        needsInfo.ReviewerAdminId = DemoIds.AdminUser;
+        needsInfo.InfoRequestNote = "Bổ sung bản sao giấy phép kinh doanh có dấu đỏ.";
+
+        var contractPending = Apply(4, "Công ty TNHH Bãi đỗ xe Gò Vấp", "0314567890", "Phạm Quốc Lâm", "lam.pham@govapparking.vn",
+            "0938111222", "12 Quang Trung, Gò Vấp", 1, 15);
+        contractPending.MoveTo(PartnerApplicationStatus.UnderReview);
+        contractPending.MoveTo(PartnerApplicationStatus.ContractPending);
+        contractPending.ReviewerAdminId = DemoIds.AdminUser;
+        contractPending.ContractNumber = "HD-SP-2026-0004";
+
+        var accountIssued = Apply(5, "Công ty TNHH Bãi xe Tân Bình", "0312233445", "Đỗ Thị Hạnh", "hanh.do@tanbinhparking.vn",
+            "0909222333", "45 Cộng Hòa, Tân Bình", 1, 20);
+        accountIssued.MoveTo(PartnerApplicationStatus.UnderReview);
+        accountIssued.MoveTo(PartnerApplicationStatus.ContractPending);
+        accountIssued.MoveTo(PartnerApplicationStatus.AccountIssued);
+        accountIssued.ReviewerAdminId = DemoIds.AdminUser;
+        accountIssued.ContractNumber = "HD-SP-2026-0005";
+
+        // Hồ sơ đã kích hoạt gắn với chủ bãi demo Vincom (đã có trong UserService seed).
+        var activated = Apply(6, "Công ty TNHH Vincom Parking", "0312345678", "Công ty Vincom Parking", "owner.vincom@smartparking.vn",
+            "0900000002", "720A Điện Biên Phủ, Bình Thạnh", 2, 60);
+        activated.MoveTo(PartnerApplicationStatus.UnderReview);
+        activated.MoveTo(PartnerApplicationStatus.ContractPending);
+        activated.MoveTo(PartnerApplicationStatus.AccountIssued);
+        activated.MoveTo(PartnerApplicationStatus.Activated);
+        activated.ReviewerAdminId = DemoIds.AdminUser;
+        activated.ContractNumber = "HD-SP-2026-0006";
+        activated.CreatedUserId = DemoIds.OwnerVincomUser;
+        activated.CreatedOwnerProfileId = DemoIds.OwnerVincom;
+
+        var rejected = Apply(7, "Công ty TNHH Bãi xe Long Biên", "0105556667", "Hoàng Văn Nam", "nam.hoang@longbienparking.vn",
+            "0977000111", "1 Nguyễn Văn Cừ, Long Biên, Hà Nội", 1, 25);
+        rejected.MoveTo(PartnerApplicationStatus.UnderReview);
+        rejected.MoveTo(PartnerApplicationStatus.Rejected);
+        rejected.ReviewerAdminId = DemoIds.AdminUser;
+        rejected.RejectReason = "Giấy phép kinh doanh không có ngành nghề kinh doanh bãi đỗ xe.";
+
+        var cancelled = Apply(8, "Công ty TNHH Đỗ xe Quận 7", "0318889990", "Vũ Thị Hương", "huong.vu@q7parking.vn",
+            "0911555666", "99 Nguyễn Thị Thập, Quận 7", 1, 18);
+        cancelled.MoveTo(PartnerApplicationStatus.UnderReview);
+        cancelled.MoveTo(PartnerApplicationStatus.Cancelled);
+        cancelled.ReviewerAdminId = DemoIds.AdminUser;
+        cancelled.CancelReason = "Đối tác xin rút hồ sơ.";
+
+        db.PartnerApplications.AddRange(submitted, underReview, needsInfo, contractPending, accountIssued, activated, rejected, cancelled);
         await db.SaveChangesAsync(cancellationToken);
     }
 }
