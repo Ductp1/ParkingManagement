@@ -118,7 +118,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
       <ActionDialog
         open={open === 'approve'}
         title="Approve KYB"
-        description="Status → Approved; lot status Pending approval → Active."
+        description="Status → Approved. The lot stays Pending approval until its lot contract is signed."
         confirmLabel="Approve"
         field={{
           label: 'Approval note',
@@ -129,7 +129,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
         onClose={onClose}
         onSubmit={async (note) => {
           await adminKybApi.approve(kyb.id, { note: note || null });
-          onDone('KYB approved', `${lot.name} is now Active.`);
+          onDone('KYB approved', `Create the lot contract for ${lot.name} to activate it.`);
         }}
       >
         {summary}

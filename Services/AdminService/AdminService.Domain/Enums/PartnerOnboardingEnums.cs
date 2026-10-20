@@ -1,7 +1,8 @@
 namespace AdminService.Domain.Enums;
 
 /// <summary>
-/// [AdminService] Trạng thái hồ sơ đăng ký đối tác chủ bãi (US-116, "Partner Onboarding - State Machine &amp; Flow" mục 2).
+/// [AdminService] Trạng thái hồ sơ đăng ký đối tác chủ bãi (US-116, "Partner Onboarding - State Machine &amp; Flow" mục 14).
+/// Hợp đồng ký theo từng bãi (LotContract) nên hồ sơ đối tác không còn bước ContractPending.
 /// Chỉ AdminService dùng nên đặt trong AdminService.Domain (không đưa vào SharedKernel).
 /// </summary>
 public enum PartnerApplicationStatus
@@ -9,7 +10,6 @@ public enum PartnerApplicationStatus
     Submitted = 0,
     UnderReview = 1,
     NeedsMoreInfo = 2,
-    ContractPending = 3,
     AccountIssued = 4,
     /// <summary>Kết thúc: chủ bãi đã kích hoạt tài khoản (T8).</summary>
     Activated = 5,
@@ -26,21 +26,26 @@ public enum PartnerBusinessType
     HouseholdBusiness = 2,
 }
 
-/// <summary>[AdminService] Trạng thái một phiên bản hợp đồng tự sinh (T5 / T5b / T6).</summary>
-public enum ContractDraftStatus
+/// <summary>[AdminService] Trạng thái hợp đồng của một bãi đỗ (US-116, mục 14.4).</summary>
+public enum LotContractStatus
 {
-    /// <summary>Phiên bản đang gửi cho đối tác ký.</summary>
-    Current = 0,
-    /// <summary>Đã bị thay bằng phiên bản mới hơn (T5b) hoặc hồ sơ bị từ chối.</summary>
-    Superseded = 1,
-    /// <summary>Đối tác đã ký, Admin đã cấp tài khoản (T6).</summary>
-    Signed = 2,
+    /// <summary>Đã sinh, chờ ký (có thể sửa sang phiên bản mới).</summary>
+    Pending = 0,
+    /// <summary>Đã ký, bãi đã được kích hoạt.</summary>
+    Signed = 1,
+    /// <summary>Hủy trước khi ký.</summary>
+    Cancelled = 2,
+    /// <summary>Chấm dứt sau khi ký (chưa có endpoint – dự phòng).</summary>
+    Terminated = 3,
 }
 
-/// <summary>[AdminService] Trạng thái hợp đồng đối tác đã ký.</summary>
-public enum OwnerContractStatus
+/// <summary>[AdminService] Trạng thái một phiên bản hợp đồng bãi.</summary>
+public enum LotContractVersionStatus
 {
-    Active = 0,
-    Expired = 1,
-    Terminated = 2,
+    /// <summary>Phiên bản đang chờ ký.</summary>
+    Current = 0,
+    /// <summary>Đã bị thay bằng phiên bản mới hơn hoặc hợp đồng bị hủy.</summary>
+    Superseded = 1,
+    /// <summary>Phiên bản đã được ký.</summary>
+    Signed = 2,
 }

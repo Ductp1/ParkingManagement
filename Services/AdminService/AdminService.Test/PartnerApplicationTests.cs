@@ -19,15 +19,10 @@ public class PartnerApplicationTests
             PartnerApplicationStatus.Submitted => [],
             PartnerApplicationStatus.UnderReview => [PartnerApplicationStatus.UnderReview],
             PartnerApplicationStatus.NeedsMoreInfo => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.NeedsMoreInfo],
-            PartnerApplicationStatus.ContractPending => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending],
-            PartnerApplicationStatus.AccountIssued =>
-            [
-                PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.AccountIssued,
-            ],
+            PartnerApplicationStatus.AccountIssued => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.AccountIssued],
             PartnerApplicationStatus.Activated =>
             [
-                PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.AccountIssued,
-                PartnerApplicationStatus.Activated,
+                PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.Activated,
             ],
             PartnerApplicationStatus.Rejected => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Rejected],
             PartnerApplicationStatus.Cancelled => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled],
@@ -37,22 +32,18 @@ public class PartnerApplicationTests
         return app;
     }
 
-    // ==================== Bảng chuyển trạng thái (design mục 2–3) ====================
+    // ==================== Bảng chuyển trạng thái (design mục 14.2 – hợp đồng ký theo từng bãi) ====================
 
     public static TheoryData<PartnerApplicationStatus, PartnerApplicationStatus> ValidTransitions => new()
     {
         { PartnerApplicationStatus.Submitted, PartnerApplicationStatus.UnderReview },            // T2
         { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.NeedsMoreInfo },        // T3
         { PartnerApplicationStatus.NeedsMoreInfo, PartnerApplicationStatus.UnderReview },        // T4
-        { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending },      // T5
-        { PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.ContractPending },  // T5b
-        { PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.AccountIssued },    // T6
+        { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.AccountIssued },        // T6
         { PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.AccountIssued },      // T7
         { PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.Activated },          // T8
         { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Rejected },             // T9
-        { PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.Rejected },         // T9
         { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled },            // T10
-        { PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.Cancelled },        // T10
         { PartnerApplicationStatus.NeedsMoreInfo, PartnerApplicationStatus.Cancelled },          // T10
     };
 
@@ -178,7 +169,7 @@ public class PartnerApplicationTests
         id, "PA-2026-0012", "UnderReview", "Nguyễn Thị Lan", "lan.nguyen@thuducparking.vn", "0903456789", "Giám đốc", "Company",
         "Công ty CP Bãi xe Thủ Đức", "0316789012", "12 Võ Văn Ngân", "Nguyễn Thị Lan", "Giám đốc", null, 2, "216 Võ Văn Ngân", 640,
         1200, "06:00 – 23:00", Now, 1, null, null, null, null, null, null, Now, null,
-        ["NeedsMoreInfo", "ContractPending", "Rejected", "Cancelled"], []);
+        ["NeedsMoreInfo", "AccountIssued", "Rejected", "Cancelled"]);
 
     private sealed class FakePartnerQueries(params PartnerApplicationDetailDto[] details) : IPartnerApplicationQueries
     {
@@ -193,8 +184,5 @@ public class PartnerApplicationTests
 
         public Task<PartnerApplicationDetailDto?> GetDetailAsync(int id, CancellationToken cancellationToken)
             => Task.FromResult(details.FirstOrDefault(d => d.Id == id));
-
-        public Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
     }
 }

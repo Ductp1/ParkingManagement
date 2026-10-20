@@ -54,6 +54,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       tab('/admin/operations', 'partner-onboarding', 'Partner Onboarding'),
       tab('/admin/operations', 'parking-lots', 'Parking Lots'),
       tab('/admin/operations', 'kyb-review', 'KYB Review'),
+      tab('/admin/operations', 'lot-contracts', 'Lot Contracts'),
       tab('/admin/operations', 'users', 'Users'),
       tab('/admin/operations', 'bookings', 'Bookings'),
       tab('/admin/operations', 'gate-activity', 'Gate Activity'),

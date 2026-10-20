@@ -212,7 +212,6 @@ export const PartnerApplicationStatus = {
   Submitted: 'Submitted',
   UnderReview: 'UnderReview',
   NeedsMoreInfo: 'NeedsMoreInfo',
-  ContractPending: 'ContractPending',
   AccountIssued: 'AccountIssued',
   Activated: 'Activated',
   Rejected: 'Rejected',
@@ -220,5 +219,8 @@ export const PartnerApplicationStatus = {
 } as const;
 export type PartnerApplicationStatus = ValueOf<typeof PartnerApplicationStatus>;
 
-export const ContractDraftStatus = { Current: 'Current', Superseded: 'Superseded', Signed: 'Signed' } as const;
-export type ContractDraftStatus = ValueOf<typeof ContractDraftStatus>;
+export const LotContractStatus = { Pending: 'Pending', Signed: 'Signed', Cancelled: 'Cancelled', Terminated: 'Terminated' } as const;
+export type LotContractStatus = ValueOf<typeof LotContractStatus>;
+
+export const LotContractVersionStatus = { Current: 'Current', Superseded: 'Superseded', Signed: 'Signed' } as const;
+export type LotContractVersionStatus = ValueOf<typeof LotContractVersionStatus>;

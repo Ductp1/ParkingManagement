@@ -12,10 +12,10 @@ namespace AdminService.Infrastructure.Documents;
 /// Placeholder không có giá trị được giữ nguyên để dễ phát hiện mẫu sai.
 /// <para>
 /// Cú pháp mẫu (mỗi dòng một khối):
-/// <c># Tiêu đề</c> · <c>## Điều</c> · <c>### Mục</c> · <c>^ dòng căn giữa</c> · <c>- gạch đầu dòng</c> ·
-/// <c>|| nhãn: || giá trị</c> (các dòng liền nhau thành bảng thông tin 2 cột) · <c>!! trái !! phải</c> (khối chữ ký, căn giữa) ·
-/// <c>---</c> sang trang · dòng trống = khoảng cách ·
-/// dòng khác = đoạn văn.
+/// <c># Tiêu đề</c> · <c>## Điều</c> · <c>### Mục</c> · <c>^ dòng căn giữa</c> · <c>~ dòng in nghiêng</c> · <c>- gạch đầu dòng</c> ·
+/// <c>|| nhãn: || giá trị</c> (bảng thông tin 2 cột) · <c>!! trái !! phải</c> (khối 2 cột căn giữa, dòng đầu đậm – quốc hiệu, chữ ký) ·
+/// <c>#| cột 1 | cột 2 | …</c> dòng tiêu đề + <c>| ô 1 | ô 2 | …</c> dòng dữ liệu (bảng có khung) · <c>---</c> sang trang ·
+/// dòng trống = khoảng cách · dòng bắt đầu "1.2." = khoản (thụt lề) · dòng khác = đoạn văn. Trong dòng: <c>**chữ đậm**</c>.
 /// </para>
 /// </summary>
 public sealed partial class HtmlContractRenderer : IContractRenderer
@@ -25,7 +25,8 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
     /// <summary>Giữ nguyên chữ tiếng Việt (UTF-8), chỉ mã hóa ký tự đặc biệt của HTML.</summary>
     private static readonly HtmlEncoder Encoder = HtmlEncoder.Create(UnicodeRanges.All);
 
-    public RenderedContract Render(string templateBody, int templateVersion, IReadOnlyDictionary<string, string> values)
+    public RenderedContract Render(string templateBody, int templateVersion, IReadOnlyDictionary<string, string> values,
+        bool previewWatermark)
     {
         var html = new StringBuilder();
         var open = Block.None;
@@ -34,13 +35,19 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         {
             var line = raw.TrimEnd();
             var block = KindOf(line);
-            if (block != open)
+            var group = block == Block.GridHeader ? Block.Grid : block;
+            if (group != open)
             {
                 Close(html, open);
-                if (block == Block.List) html.Append("<ul>\n");
-                if (block == Block.Table) html.Append("<table class=\"cols\">\n");
-                if (block == Block.Sign) html.Append("<table class=\"sign\">\n");
-                open = block is Block.List or Block.Table or Block.Sign ? block : Block.None;
+                html.Append(group switch
+                {
+                    Block.List => "<ul>\n",
+                    Block.Table => "<table class=\"cols\">\n",
+                    Block.Sign => "<table class=\"sign\">\n",
+                    Block.Grid => "<table class=\"grid\">\n",
+                    _ => string.Empty,
+                });
+                open = group is Block.List or Block.Table or Block.Sign or Block.Grid ? group : Block.None;
             }
 
             switch (block)
@@ -63,6 +70,9 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
                 case Block.Center:
                     html.Append("<p class=\"center\">").Append(Fill(line[2..], values)).Append("</p>\n");
                     break;
+                case Block.Italic:
+                    html.Append("<p class=\"italic\">").Append(Fill(line[2..], values)).Append("</p>\n");
+                    break;
                 case Block.List:
                     html.Append("<li>").Append(Fill(line[2..], values)).Append("</li>\n");
                     break;
@@ -70,10 +80,16 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
                 case Block.Sign:
                     var cells = line[2..].Split(block == Block.Table ? "||" : "!!");
                     var pair = cells.Length == 1 ? new[] { cells[0], string.Empty } : cells[..2];
-                    html.Append("<tr>");
-                    foreach (var cell in pair)
-                        html.Append("<td>").Append(Fill(cell.Trim(), values)).Append("</td>");
-                    html.Append("</tr>\n");
+                    AppendRow(html, pair, "td", values);
+                    break;
+                case Block.GridHeader:
+                    AppendRow(html, line[2..].Split('|'), "th", values);
+                    break;
+                case Block.Grid:
+                    AppendRow(html, line[1..].Split('|'), "td", values);
+                    break;
+                case Block.Clause:
+                    html.Append("<p class=\"clause\">").Append(Fill(line, values)).Append("</p>\n");
                     break;
                 default:
                     html.Append("<p>").Append(Fill(line, values)).Append("</p>\n");
@@ -82,8 +98,12 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         }
         Close(html, open);
 
-        var title = Encoder.Encode(
-            $"Hợp đồng {Value(values, "ContractNumber")} – phiên bản {Value(values, "Version")}");
+        var contractNumber = Encoder.Encode(Value(values, "ContractNumber"));
+        var version = Encoder.Encode(Value(values, "Version"));
+        var title = $"Hợp đồng {contractNumber} – phiên bản {version}";
+        var watermark = previewWatermark
+            ? "<div class=\"watermark\" aria-hidden=\"true\">BẢN XEM TRƯỚC<br>KHÔNG CÓ GIÁ TRỊ PHÁP LÝ</div>\n"
+            : string.Empty;
         var document = $$"""
             <!doctype html>
             <html lang="vi">
@@ -91,39 +111,45 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
             <meta charset="utf-8">
             <title>{{title}}</title>
             <style>
-            @page { size: A4; margin: 20mm 18mm; }
+            @page { size: A4; margin: 20mm 18mm 24mm; }
             body { font-family: "Times New Roman", "Noto Serif", serif; font-size: 13pt; max-width: 794px; margin: 32px auto; padding: 0 40px; line-height: 1.5; color: #111; text-align: justify; }
-            h1 { font-size: 16pt; text-align: center; text-transform: uppercase; margin: 16px 0 4px; }
-            h2 { font-size: 13pt; margin: 18px 0 6px; }
-            h3 { font-size: 13pt; font-style: italic; margin: 10px 0 4px; }
+            h1 { font-size: 16pt; text-align: center; text-transform: uppercase; margin: 16px 0 2px; }
+            h2 { font-size: 13pt; text-transform: uppercase; margin: 16px 0 6px; }
+            h3 { font-size: 13pt; margin: 10px 0 4px; }
             p { margin: 4px 0; }
-            p.center { text-align: center; }
+            p.center { text-align: center; margin: 2px 0; }
+            p.italic { font-style: italic; }
+            p.clause { margin: 4px 0 4px 28px; }
             ul { margin: 4px 0 4px 24px; padding: 0; }
             li { margin: 2px 0; }
-            table.cols { width: 100%; border-collapse: collapse; margin: 6px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 6px 0; }
             table.cols td { vertical-align: top; padding: 2px 8px 2px 0; text-align: left; }
-            table.cols td:first-child { width: 34%; }
-            table.sign { width: 100%; border-collapse: collapse; margin: 24px 0 8px; text-align: center; }
+            table.cols td:first-child { width: 30%; }
+            table.sign { text-align: center; }
             table.sign td { width: 50%; vertical-align: top; padding: 2px 8px; }
             table.sign tr:first-child td { font-weight: bold; }
             table.sign td:empty { height: 90px; }
-            .gap { height: 10px; }
+            table.grid { margin: 8px 0; text-align: left; }
+            table.grid th, table.grid td { border: 1px solid #333; padding: 4px 6px; vertical-align: top; font-size: 12pt; }
+            table.grid th { background: #f0f0f0; }
+            .gap { height: 8px; }
             .page-break { break-after: page; height: 24px; }
+            .watermark { position: fixed; top: 40%; left: 0; right: 0; text-align: center; font-size: 44pt; font-weight: bold; color: rgba(180, 0, 0, 0.08); transform: rotate(-30deg); pointer-events: none; line-height: 1.3; }
             footer { margin-top: 40px; font-size: 9pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; text-align: left; }
-            @media print { body { margin: 0; padding: 0; max-width: none; } footer { position: fixed; bottom: 0; left: 0; right: 0; } }
+            @media print { body { margin: 0; padding: 0; max-width: none; } footer { position: fixed; bottom: -14mm; left: 0; right: 0; } }
             </style>
             </head>
             <body>
-            <main>
+            {{watermark}}<main>
             {{html}}</main>
-            <footer>Mẫu hợp đồng v{{templateVersion}} · {{title}}</footer>
+            <footer>Hợp đồng số {{contractNumber}} · Phiên bản {{version}} · Mẫu hợp đồng v{{templateVersion}}<br>Ký nháy: Bên A ……… Bên B ………</footer>
             </body>
             </html>
             """;
         return new RenderedContract(Encoding.UTF8.GetBytes(document), ContentType, ".html");
     }
 
-    private enum Block { None, Blank, PageBreak, Title, Article, Section, Center, List, Table, Sign, Paragraph }
+    private enum Block { None, Blank, PageBreak, Title, Article, Section, Center, Italic, List, Table, Sign, GridHeader, Grid, Clause, Paragraph }
 
     private static Block KindOf(string line) => line switch
     {
@@ -131,28 +157,52 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         "---" => Block.PageBreak,
         _ when line.StartsWith("### ", StringComparison.Ordinal) => Block.Section,
         _ when line.StartsWith("## ", StringComparison.Ordinal) => Block.Article,
+        _ when line.StartsWith("#|", StringComparison.Ordinal) => Block.GridHeader,
         _ when line.StartsWith("# ", StringComparison.Ordinal) => Block.Title,
         _ when line.StartsWith("^ ", StringComparison.Ordinal) => Block.Center,
+        _ when line.StartsWith("~ ", StringComparison.Ordinal) => Block.Italic,
         _ when line.StartsWith("- ", StringComparison.Ordinal) => Block.List,
         _ when line.StartsWith("||", StringComparison.Ordinal) => Block.Table,
         _ when line.StartsWith("!!", StringComparison.Ordinal) => Block.Sign,
+        _ when line.StartsWith('|') => Block.Grid,
+        _ when ClausePrefix().IsMatch(line) => Block.Clause,
         _ => Block.Paragraph,
     };
+
+    private static void AppendRow(StringBuilder html, IEnumerable<string> cells, string tag, IReadOnlyDictionary<string, string> values)
+    {
+        html.Append("<tr>");
+        foreach (var cell in cells)
+            html.Append('<').Append(tag).Append('>').Append(Fill(cell.Trim(), values)).Append("</").Append(tag).Append('>');
+        html.Append("</tr>\n");
+    }
 
     private static void Close(StringBuilder html, Block open)
     {
         if (open == Block.List) html.Append("</ul>\n");
-        if (open is Block.Table or Block.Sign) html.Append("</table>\n");
+        if (open is Block.Table or Block.Sign or Block.Grid) html.Append("</table>\n");
     }
 
-    /// <summary>Encode phần chữ của mẫu rồi thay placeholder bằng giá trị đã encode.</summary>
+    /// <summary>
+    /// Encode chữ của mẫu, đổi **đậm** của mẫu thành &lt;strong&gt;, RỒI mới thay placeholder bằng giá trị đã encode –
+    /// dữ liệu đối tác có dấu ** cũng không thành định dạng.
+    /// </summary>
     private static string Fill(string text, IReadOnlyDictionary<string, string> values)
-        => Placeholder().Replace(Encoder.Encode(text),
+    {
+        var encoded = Bold().Replace(Encoder.Encode(text), "<strong>$1</strong>");
+        return Placeholder().Replace(encoded,
             m => values.TryGetValue(m.Groups[1].Value, out var value) ? Encoder.Encode(value) : m.Value);
+    }
 
     private static string Value(IReadOnlyDictionary<string, string> values, string key)
         => values.TryGetValue(key, out var value) ? value : string.Empty;
 
     [GeneratedRegex(@"\{\{([A-Za-z]+)\}\}")]
     private static partial Regex Placeholder();
+
+    [GeneratedRegex(@"\*\*(.+?)\*\*")]
+    private static partial Regex Bold();
+
+    [GeneratedRegex(@"^\d+\.\d+\.\s")]
+    private static partial Regex ClausePrefix();
 }

@@ -88,115 +88,6 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.ToTable("AuditLogs", (string)null);
                 });
 
-            modelBuilder.Entity("AdminService.Domain.Entities.ContractDraft", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BankAccountName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("BankAccountNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<string>("BankBin")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("BankName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<decimal>("CommissionRate")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<string>("ContractNumber")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("CreatedByAdminId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly>("EffectiveTo")
-                        .HasColumnType("date");
-
-                    b.Property<string>("FileContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("FileKey")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("FileSha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int>("PartnerApplicationId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("RevisionReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<DateTime>("SentAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SentToEmail")
-                        .IsRequired()
-                        .HasMaxLength(254)
-                        .HasColumnType("character varying(254)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<int>("TemplateVersion")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("TermMonths")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PartnerApplicationId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ContractDrafts_SingleCurrent")
-                        .HasFilter("\"Status\" = 'Current'");
-
-                    b.HasIndex("PartnerApplicationId", "Version")
-                        .IsUnique();
-
-                    b.ToTable("ContractDrafts", (string)null);
-                });
-
             modelBuilder.Entity("AdminService.Domain.Entities.ContractTemplate", b =>
                 {
                     b.Property<int>("Id")
@@ -346,7 +237,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("AdminService.Domain.Entities.OwnerContract", b =>
+            modelBuilder.Entity("AdminService.Domain.Entities.LotContract", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -354,12 +245,44 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("CommissionRate")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
+                    b.Property<string>("ApplicationCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
-                    b.Property<int>("ContractDraftId")
-                        .HasColumnType("integer");
+                    b.Property<string>("BankAccountName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("BankAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("BankBin")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("BusinessAddress")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("BusinessName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<string>("ContractNumber")
                         .IsRequired()
@@ -372,33 +295,81 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.Property<int>("CreatedByAdminId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("DraftVersion")
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)");
+
+                    b.Property<int>("KybApplicationId")
                         .HasColumnType("integer");
 
-                    b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("date");
+                    b.Property<string>("LegalRepresentativeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
-                    b.Property<DateOnly>("EffectiveTo")
-                        .HasColumnType("date");
+                    b.Property<string>("LegalRepresentativePosition")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LotAddress")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("LotCity")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LotDistrict")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LotName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("LotOpeningHours")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("LotTotalSlots")
+                        .HasColumnType("integer");
 
                     b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
                         .HasColumnType("integer");
 
                     b.Property<int>("PartnerApplicationId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("SignedFileContentType")
+                    b.Property<string>("Phone")
                         .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTime?>("SignedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SignedFileContentType")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
                     b.Property<string>("SignedFileKey")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
                     b.Property<string>("SignedFileSha256")
-                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
@@ -407,22 +378,107 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<string>("TaxCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ContractDraftId");
 
                     b.HasIndex("ContractNumber")
                         .IsUnique();
 
                     b.HasIndex("OwnerProfileId");
 
-                    b.HasIndex("PartnerApplicationId")
+                    b.HasIndex("ParkingLotId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LotContracts_SingleOpenPerLot")
+                        .HasFilter("\"Status\" <> 'Cancelled'");
+
+                    b.HasIndex("PartnerApplicationId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("LotContracts", (string)null);
+                });
+
+            modelBuilder.Entity("AdminService.Domain.Entities.LotContractVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CreatedByAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("EffectiveTo")
+                        .HasColumnType("date");
+
+                    b.Property<string>("FileContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("FileKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("FileSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("LotContractId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RevisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("TemplateVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TermMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LotContractId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_LotContractVersions_SingleCurrent")
+                        .HasFilter("\"Status\" = 'Current'");
+
+                    b.HasIndex("LotContractId", "Version")
                         .IsUnique();
 
-                    b.ToTable("OwnerContracts", (string)null);
+                    b.ToTable("LotContractVersions", (string)null);
                 });
 
             modelBuilder.Entity("AdminService.Domain.Entities.PartnerApplication", b =>
@@ -463,10 +519,6 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("ConsentAcceptedAtUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ContractNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -510,6 +562,22 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("OperatingHours")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PayoutBankAccountName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PayoutBankAccountNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("PayoutBankBin")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("PayoutBankName")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
@@ -557,9 +625,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("ContractNumber")
-                        .IsUnique()
-                        .HasFilter("\"ContractNumber\" IS NOT NULL");
+                    b.HasIndex("CreatedOwnerProfileId");
 
                     b.HasIndex("Status");
 
@@ -1123,34 +1189,24 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.ToTable("OutboxMessages", (string)null);
                 });
 
-            modelBuilder.Entity("AdminService.Domain.Entities.ContractDraft", b =>
+            modelBuilder.Entity("AdminService.Domain.Entities.LotContract", b =>
                 {
-                    b.HasOne("AdminService.Domain.Entities.PartnerApplication", "PartnerApplication")
-                        .WithMany("ContractDrafts")
+                    b.HasOne("AdminService.Domain.Entities.PartnerApplication", null)
+                        .WithMany()
                         .HasForeignKey("PartnerApplicationId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.Navigation("PartnerApplication");
                 });
 
-            modelBuilder.Entity("AdminService.Domain.Entities.OwnerContract", b =>
+            modelBuilder.Entity("AdminService.Domain.Entities.LotContractVersion", b =>
                 {
-                    b.HasOne("AdminService.Domain.Entities.ContractDraft", "ContractDraft")
-                        .WithMany()
-                        .HasForeignKey("ContractDraftId")
+                    b.HasOne("AdminService.Domain.Entities.LotContract", "LotContract")
+                        .WithMany("Versions")
+                        .HasForeignKey("LotContractId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("AdminService.Domain.Entities.PartnerApplication", "PartnerApplication")
-                        .WithMany()
-                        .HasForeignKey("PartnerApplicationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ContractDraft");
-
-                    b.Navigation("PartnerApplication");
+                    b.Navigation("LotContract");
                 });
 
             modelBuilder.Entity("AdminService.Domain.Entities.RiskFlag", b =>
@@ -1172,9 +1228,9 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("AdminService.Domain.Entities.PartnerApplication", b =>
+            modelBuilder.Entity("AdminService.Domain.Entities.LotContract", b =>
                 {
-                    b.Navigation("ContractDrafts");
+                    b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618
         }

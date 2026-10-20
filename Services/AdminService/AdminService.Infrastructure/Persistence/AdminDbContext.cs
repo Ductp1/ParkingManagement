@@ -15,6 +15,6 @@ public sealed class AdminDbContext(DbContextOptions<AdminDbContext> options) : S
     public DbSet<RiskFlag> RiskFlags => Set<RiskFlag>();
     public DbSet<PartnerApplication> PartnerApplications => Set<PartnerApplication>();
     public DbSet<ContractTemplate> ContractTemplates => Set<ContractTemplate>();
-    public DbSet<ContractDraft> ContractDrafts => Set<ContractDraft>();
-    public DbSet<OwnerContract> OwnerContracts => Set<OwnerContract>();
+    public DbSet<LotContract> LotContracts => Set<LotContract>();
+    public DbSet<LotContractVersion> LotContractVersions => Set<LotContractVersion>();
 }

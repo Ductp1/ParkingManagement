@@ -387,9 +387,9 @@ public class UserServiceClientTests
 
     // ==================== US-116: U2 tạo tài khoản chủ bãi / U3 gửi lại link kích hoạt ====================
 
-    private static readonly IssueOwnerAccountCommand IssueCommand = new(12, "HD-SP-2026-0012", "Nguyễn Thị Lan",
+    private static readonly IssueOwnerAccountCommand IssueCommand = new(12, "Nguyễn Thị Lan",
         "lan.nguyen@thuducparking.vn", "0903456789", "Công ty CP Bãi xe Thủ Đức", "0316789012", "216 Võ Văn Ngân", "970436",
-        "Vietcombank", "0011000000099", "CONG TY CP BAI XE THU DUC", 0.085m);
+        "Vietcombank", "0011000000099", "CONG TY CP BAI XE THU DUC");
 
     [Fact]
     public async Task Issue_owner_account_posts_command_with_idempotency_key()
@@ -405,7 +405,8 @@ public class UserServiceClientTests
         var body = JsonDocument.Parse(handler.Bodies.Single()!).RootElement;
         Assert.Equal(12, body.GetProperty("partnerApplicationId").GetInt32());
         Assert.Equal("0316789012", body.GetProperty("taxCode").GetString());
-        Assert.Equal(0.085m, body.GetProperty("commissionRateOverride").GetDecimal());
+        Assert.Equal("0011000000099", body.GetProperty("bankAccountNumber").GetString());
+        Assert.False(body.TryGetProperty("commissionRateOverride", out _));   // hoa hồng theo từng bãi, không gửi khi tạo tài khoản
         Assert.Equal(new IssuedOwnerAccountDto(41, 9), result);
     }
 

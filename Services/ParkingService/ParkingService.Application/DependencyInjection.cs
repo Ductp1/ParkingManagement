@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.AddScoped<IScheduleKybFieldSurveyUseCase, ScheduleKybFieldSurveyUseCase>();
         services.AddScoped<IRecordKybFieldSurveyResultUseCase, RecordKybFieldSurveyResultUseCase>();
         services.AddScoped<IApproveKybApplicationUseCase, ApproveKybApplicationUseCase>();
+        services.AddScoped<IActivateKybLotUseCase, ActivateKybLotUseCase>();   // US-116: kích hoạt bãi sau khi ký hợp đồng bãi
         services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
         services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
 

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminKybApi } from '@/api/adminKybApi';
-import { KybStatus } from '@/types/adminEnums';
+import { adminLotContractsApi } from '@/api/adminLotContractsApi';
+import { KybStatus, LotContractStatus, ParkingLotStatus } from '@/types/adminEnums';
 import type { AdminKybApplicationDetailDto } from '@/types/adminKyb';
+import type { LotContractSummaryDto } from '@/types/adminLotContracts';
 import { AdminTitleBar } from '../../../layout/AdminTitleBar';
 import { AdminButton } from '../../../components/AdminButton';
 import { Banner } from '../../../components/Banner';
@@ -19,6 +21,8 @@ import { useAdminToast } from '../../../hooks/useAdminToast';
 import { formatDateTimeIct, formatNumber, orEmpty } from '../../../utils/format';
 import { cityText, fileNameFromUrl, kybCode, ownerLabel, shortTime } from './kybFormat';
 import { KybDialogs, type KybDialogType } from './KybDialogs';
+import { ContractTermsDialog } from '../lot-contracts/LotContractDialogs';
+import { LOT_CONTRACT_BASE } from '../lot-contracts/lotContractFormat';
 
 const adminLabel = (id: number | null) => (id ? `Admin #${id}` : '—');
 
@@ -69,13 +73,21 @@ const DocLink: React.FC<{ url: string | null }> = ({ url }) =>
     <>—</>
   );
 
-const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; onAction: (t: KybDialogType) => void }> = ({ kyb, onAction }) => {
+const KybDetailBody: React.FC<{
+  kyb: AdminKybApplicationDetailDto;
+  /** Hợp đồng chưa hủy của bãi (US-116), null nếu chưa lập. */
+  lotContract: LotContractSummaryDto | null;
+  onAction: (t: KybDialogType) => void;
+  onCreateContract: () => void;
+}> = ({ kyb, lotContract, onAction, onCreateContract }) => {
   const navigate = useNavigate();
   const lot = kyb.parkingLot;
   const lotPath = `/admin/operations/parking-lots/${lot.id}`;
   const hasGps = kyb.photoLatitude !== null && kyb.photoLongitude !== null;
   const underReview = kyb.status === KybStatus.UnderReview;
   const surveyDue = underReview && kyb.fieldSurveyAtUtc !== null && kyb.fieldSurveyCompletedAtUtc === null;
+  const awaitingContract = kyb.status === KybStatus.Approved && lot.status === ParkingLotStatus.PendingApproval;
+  const contractPath = lotContract ? `${LOT_CONTRACT_BASE}/${lotContract.id}` : null;
 
   const titleActions =
     kyb.status === KybStatus.Submitted ? (
@@ -88,9 +100,16 @@ const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; onAction: (t:
         <AdminButton onClick={() => onAction('approve')}>Approve</AdminButton>
       </>
     ) : kyb.status === KybStatus.Approved ? (
-      <AdminButton variant="onNavy" onClick={() => navigate(lotPath)}>
-        Open lot
-      </AdminButton>
+      <>
+        <AdminButton variant="onNavy" onClick={() => navigate(lotPath)}>
+          Open lot
+        </AdminButton>
+        {contractPath ? (
+          <AdminButton onClick={() => navigate(contractPath)}>Open lot contract</AdminButton>
+        ) : (
+          awaitingContract && <AdminButton onClick={onCreateContract}>Create lot contract</AdminButton>
+        )}
+      </>
     ) : undefined;
 
   return (
@@ -111,8 +130,13 @@ const KybDetailBody: React.FC<{ kyb: AdminKybApplicationDetailDto; onAction: (t:
         </Banner>
       )}
       {kyb.status === KybStatus.Approved && (
-        <Banner tone="success">
-          Approved {formatDateTimeIct(kyb.reviewedAtUtc)} by {adminLabel(kyb.reviewedByUserId)} · lot status changed Pending approval → Active.
+        <Banner tone={awaitingContract ? 'warning' : 'success'}>
+          Approved {formatDateTimeIct(kyb.reviewedAtUtc)} by {adminLabel(kyb.reviewedByUserId)} ·{' '}
+          {!awaitingContract
+            ? 'lot contract signed, lot is Active.'
+            : lotContract
+              ? `lot contract ${lotContract.contractNumber} is ${lotContract.status} – the lot goes Active when it is signed.`
+              : 'create the lot contract – the lot goes Active when it is signed.'}
           {kyb.reviewNote ? ` Note: ${kyb.reviewNote}` : ''}
         </Banner>
       )}
@@ -245,7 +269,12 @@ export const KybDetailPage: React.FC = () => {
   const toast = useAdminToast();
   const [dialog, setDialog] = useState<KybDialogType | null>(null);
 
+  const [creatingContract, setCreatingContract] = useState(false);
+  const navigate = useNavigate();
   const query = useAdminQuery(Number.isInteger(kybId) && kybId > 0 ? () => adminKybApi.getById(kybId) : null, [kybId]);
+  const lotId = query.data?.status === KybStatus.Approved ? query.data.parkingLot.id : null;
+  const contracts = useAdminQuery(lotId ? () => adminLotContractsApi.list({ parkingLotId: lotId, page: 1, pageSize: 10 }) : null, [lotId]);
+  const lotContract = contracts.data?.items.find((c) => c.status !== LotContractStatus.Cancelled) ?? null;
 
   useAdminBreadcrumb(Number.isInteger(kybId) ? kybCode(kybId) : null);
 
@@ -271,7 +300,22 @@ export const KybDetailPage: React.FC = () => {
 
   return (
     <>
-      <KybDetailBody kyb={query.data} onAction={setDialog} />
+      <KybDetailBody kyb={query.data} lotContract={lotContract} onAction={setDialog} onCreateContract={() => setCreatingContract(true)} />
+      {creatingContract && (
+        <ContractTermsDialog
+          target={{
+            mode: 'create',
+            kybApplicationId: query.data.id,
+            lotName: query.data.parkingLot.name,
+            ownerLabel: ownerLabel(query.data.parkingLot.ownerProfileId),
+          }}
+          onClose={() => setCreatingContract(false)}
+          onDone={(contract, title) => {
+            toast.show({ type: 'success', title, message: `${contract.contractNumber} · ${contract.lotName}` });
+            navigate(`${LOT_CONTRACT_BASE}/${contract.id}`);
+          }}
+        />
+      )}
       <KybDialogs
         kyb={query.data}
         open={dialog}

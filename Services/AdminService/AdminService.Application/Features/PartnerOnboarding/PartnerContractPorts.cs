@@ -1,7 +1,4 @@
-using System.Globalization;
 using System.Security.Cryptography;
-using AdminService.Domain.Entities;
-using AdminService.Domain.ValueObjects;
 using ParkingManagement.SharedKernel.Exceptions;
 
 namespace AdminService.Application.Features.PartnerOnboarding;
@@ -12,18 +9,19 @@ namespace AdminService.Application.Features.PartnerOnboarding;
 public sealed record RenderedContract(byte[] Content, string ContentType, string FileExtension);
 
 /// <summary>
-/// US-116: sinh file hợp đồng từ nội dung mẫu + giá trị placeholder ({{ContractNumber}}, {{BusinessName}}…).
+/// US-116: sinh file hợp đồng từ nội dung mẫu + giá trị placeholder ({{ContractNumber}}, {{LotName}}…).
 /// MVP sinh HTML (không thêm package PDF); đổi sang PDF chỉ cần thay cài đặt ở Infrastructure.
 /// </summary>
 public interface IContractRenderer
 {
-    RenderedContract Render(string templateBody, int templateVersion, IReadOnlyDictionary<string, string> values);
+    /// <param name="previewWatermark">true = bản xem trước: đóng dấu "BẢN XEM TRƯỚC – KHÔNG CÓ GIÁ TRỊ PHÁP LÝ".</param>
+    RenderedContract Render(string templateBody, int templateVersion, IReadOnlyDictionary<string, string> values, bool previewWatermark);
 }
 
 // ===== PORT: lưu file =====
 
 /// <summary>
-/// US-116: lưu file hợp đồng đã sinh và bản scan đã ký. Khóa dạng "partner-applications/12/contract-v1.html".
+/// US-116: lưu file hợp đồng đã sinh và bản scan đã ký. Khóa dạng "lot-contracts/12/contract-v1.html".
 /// Dev: thư mục local (App_Data, đã ignore); môi trường thật thay bằng object storage.
 /// </summary>
 public interface IFileStorage
@@ -40,12 +38,10 @@ public interface IFileStorage
 
 // ===== PORT: tạo tài khoản chủ bãi bên UserService (U2 / U3, Trường làm phía UserService) =====
 
-/// <summary>
-/// Body U2 POST api/v1/users/owner-profiles. CommissionRateOverride theo tỷ lệ thập phân như UserService (8% = 0.08).
-/// </summary>
-public sealed record IssueOwnerAccountCommand(int PartnerApplicationId, string ContractNumber, string FullName, string Email,
-    string Phone, string BusinessName, string TaxCode, string BusinessAddress, string BankBin, string BankName,
-    string BankAccountNumber, string BankAccountName, decimal CommissionRateOverride);
+/// <summary>Body U2 POST api/v1/users/owner-profiles: thông tin pháp nhân + tài khoản nhận thanh toán mặc định (không còn hoa hồng).</summary>
+public sealed record IssueOwnerAccountCommand(int PartnerApplicationId, string FullName, string Email, string Phone,
+    string BusinessName, string TaxCode, string BusinessAddress, string BankBin, string BankName, string BankAccountNumber,
+    string BankAccountName);
 
 public sealed record IssuedOwnerAccountDto(int UserId, int OwnerProfileId);
 
@@ -64,7 +60,7 @@ public interface IOwnerAccountClient
     Task ResendActivationAsync(int ownerProfileId, CancellationToken cancellationToken);
 }
 
-// ===== Dùng chung cho các use case hợp đồng =====
+// ===== Dùng chung =====
 
 /// <summary>File trả về cho client (xem trước / tải hợp đồng).</summary>
 public sealed record ContractFileResult(byte[] Content, string ContentType, string FileName);
@@ -72,61 +68,34 @@ public sealed record ContractFileResult(byte[] Content, string ContentType, stri
 /// <summary>File Admin tải lên. Length = kích thước khai báo; Content chỉ được đọc khi không vượt giới hạn (rỗng nếu quá lớn).</summary>
 public sealed record UploadedFile(string FileName, long Length, byte[] Content);
 
-/// <summary>Khung điều khoản hợp đồng trong body A5 / A6 / A7.</summary>
+/// <summary>Tài khoản nhận thanh toán trong body (T6 issue-account).</summary>
 public sealed record PartnerBankAccountRequest(string? Bin, string? Name, string? AccountNumber, string? AccountName);
 
-internal static class PartnerContractSupport
+/// <summary>Kiểm tra bản scan đã ký: PDF / JPG / PNG nhận diện theo nội dung file (không tin tên hay Content-Type từ client).</summary>
+public static class SignedScanRules
+{
+    public const int MaxBytes = 10 * 1024 * 1024;
+
+    public static (string ContentType, string Extension) Detect(UploadedFile? file)
+    {
+        if (file is null || file.Length == 0) throw new ValidationException("Vui lòng tải lên bản scan hợp đồng đã ký.");
+        if (file.Length > MaxBytes || file.Content.Length > MaxBytes) throw new ValidationException("Bản scan hợp đồng tối đa 10 MB.");
+        var bytes = file.Content;
+        if (StartsWith(bytes, "%PDF-"u8)) return ("application/pdf", ".pdf");
+        if (StartsWith(bytes, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) return ("image/png", ".png");
+        if (StartsWith(bytes, [0xFF, 0xD8, 0xFF])) return ("image/jpeg", ".jpg");
+        throw new ValidationException("Bản scan hợp đồng phải là file PDF, JPG hoặc PNG.");
+    }
+
+    private static bool StartsWith(byte[] content, ReadOnlySpan<byte> signature) => content.AsSpan().StartsWith(signature);
+}
+
+/// <summary>Tiện ích dùng chung cho hồ sơ đối tác và hợp đồng bãi.</summary>
+public static class ContractSupport
 {
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
 
     public static DateOnly TodayInVietnam(DateTime nowUtc) => DateOnly.FromDateTime(nowUtc + VietnamOffset);
 
     public static string Sha256Hex(byte[] content) => Convert.ToHexStringLower(SHA256.HashData(content));
-
-    public static string ContractKey(int applicationId, int version, string extension)
-        => $"partner-applications/{applicationId}/contract-v{version}{extension}";
-
-    public static string SignedScanKey(int applicationId, int version, string extension)
-        => $"partner-applications/{applicationId}/signed-v{version}{extension}";
-
-    public static ContractTerms Terms(decimal? commissionRate, DateOnly? effectiveFrom, int? termMonths, PartnerBankAccountRequest? bank,
-        DateTime nowUtc)
-        => ContractTerms.Create(commissionRate, effectiveFrom, termMonths, bank?.Bin, bank?.Name, bank?.AccountNumber,
-            bank?.AccountName, TodayInVietnam(nowUtc));
-
-    /// <summary>Giá trị placeholder của mẫu hợp đồng (đã định dạng kiểu Việt Nam).</summary>
-    public static IReadOnlyDictionary<string, string> Values(PartnerApplication app, string contractNumber, int version,
-        ContractTerms terms, DateTime nowUtc)
-    {
-        static string Date(DateOnly d) => d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-        return new Dictionary<string, string>
-        {
-            ["ContractNumber"] = contractNumber,
-            ["Version"] = version.ToString(CultureInfo.InvariantCulture),
-            ["IssuedDate"] = Date(TodayInVietnam(nowUtc)),
-            ["ApplicationCode"] = app.Code,
-            ["BusinessName"] = app.BusinessName,
-            ["TaxCode"] = app.TaxCode,
-            ["BusinessAddress"] = app.BusinessAddress,
-            ["LegalRepresentativeName"] = app.LegalRepresentativeName,
-            ["LegalRepresentativePosition"] = app.LegalRepresentativePosition ?? string.Empty,
-            ["ContactName"] = app.FullName,
-            ["Email"] = app.Email,
-            ["Phone"] = app.Phone,
-            ["LotCount"] = app.LotCount.ToString(CultureInfo.InvariantCulture),
-            ["PrimaryLotAddress"] = app.PrimaryLotAddress,
-            ["CommissionRate"] = terms.CommissionRate.ToString("0.##", CultureInfo.InvariantCulture),
-            ["EffectiveFrom"] = Date(terms.EffectiveFrom),
-            ["EffectiveTo"] = Date(terms.EffectiveTo),
-            ["TermMonths"] = terms.TermMonths.ToString(CultureInfo.InvariantCulture),
-            ["BankBin"] = terms.BankBin,
-            ["BankName"] = terms.BankName,
-            ["BankAccountNumber"] = terms.BankAccountNumber,
-            ["BankAccountName"] = terms.BankAccountName,
-        };
-    }
-
-    public static async Task<ContractTemplate> ActiveTemplateAsync(IPartnerApplicationRepository repository, CancellationToken ct)
-        => await repository.GetActiveTemplateAsync(ct)
-           ?? throw new ConflictException("Chưa có mẫu hợp đồng đang áp dụng, chưa thể sinh hợp đồng.");
 }

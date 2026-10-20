@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.Settings;
@@ -35,13 +36,19 @@ public static class DependencyInjection
         services.AddScoped<IRequestPartnerInfoUseCase, RequestPartnerInfoUseCase>();
         services.AddScoped<IRejectPartnerApplicationUseCase, RejectPartnerApplicationUseCase>();
         services.AddScoped<ICancelPartnerApplicationUseCase, CancelPartnerApplicationUseCase>();
-        // US-116: hợp đồng tự sinh (xem trước, gửi, sửa, tải file) + cấp tài khoản chủ bãi qua UserService
-        services.AddScoped<IPreviewPartnerContractUseCase, PreviewPartnerContractUseCase>();
-        services.AddScoped<ISendPartnerContractUseCase, SendPartnerContractUseCase>();
-        services.AddScoped<IRevisePartnerContractUseCase, RevisePartnerContractUseCase>();
-        services.AddScoped<IGetPartnerContractFileUseCase, GetPartnerContractFileUseCase>();
+        // US-116: cấp tài khoản chủ bãi qua UserService (kèm tài khoản nhận tiền), gửi lại link kích hoạt
         services.AddScoped<IIssueOwnerAccountUseCase, IssueOwnerAccountUseCase>();
         services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();
+        // US-116: hợp đồng theo từng bãi (sau KYB) – lập, xem trước, sửa, tải file, ký (kích hoạt bãi), hủy
+        services.AddScoped<IListLotContractsUseCase, ListLotContractsUseCase>();
+        services.AddScoped<IGetLotContractUseCase, GetLotContractUseCase>();
+        services.AddScoped<IGetLotContractFileUseCase, GetLotContractFileUseCase>();
+        services.AddScoped<IPreviewNewLotContractUseCase, PreviewNewLotContractUseCase>();
+        services.AddScoped<IPreviewLotContractRevisionUseCase, PreviewLotContractRevisionUseCase>();
+        services.AddScoped<ICreateLotContractUseCase, CreateLotContractUseCase>();
+        services.AddScoped<IReviseLotContractUseCase, ReviseLotContractUseCase>();
+        services.AddScoped<ISignLotContractUseCase, SignLotContractUseCase>();
+        services.AddScoped<ICancelLotContractUseCase, CancelLotContractUseCase>();
         return services;
     }
 }

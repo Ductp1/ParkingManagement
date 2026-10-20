@@ -33,10 +33,10 @@ export const humanizeEnum = (value: string | null | undefined): string => {
 
 const SUCCESS = new Set([
   'Active', 'Approved', 'Activated', 'Synced', 'Paid', 'Succeeded', 'Completed', 'Verified', 'Online', 'Effective',
-  'Resolved', 'Sent', 'Redeemed', 'Closed', 'Confirmed', 'Visible', 'Published',
+  'Resolved', 'Sent', 'Redeemed', 'Closed', 'Confirmed', 'Visible', 'Published', 'Signed',
 ]);
 const WARNING = new Set([
-  'PendingVerification', 'NeedsMoreInfo', 'ContractPending', 'Scheduled', 'Flagged', 'PendingApproval', 'PendingReview',
+  'PendingVerification', 'NeedsMoreInfo', 'Scheduled', 'Flagged', 'PendingApproval', 'PendingReview',
   'PendingPayment', 'PendingOwnerApproval', 'Pending', 'AwaitingOwner', 'Escalated', 'Warning', 'Processing', 'Maintenance',
   'Investigating', 'TemporarySuspension', 'RankingPenalty', 'InProgress', 'Leaving', 'Requested', 'Issued', 'Abnormal',
   'PartiallyRefunded',
@@ -46,7 +46,7 @@ const DANGER = new Set([
   'Critical', 'PermanentBan', 'Terminated', 'Revoked', 'Dismissed',
 ]);
 const INFO = new Set([
-  'Submitted', 'UnderReview', 'CheckedIn', 'Parking', 'CheckedOut', 'AccountIssued', 'Open', 'OwnerResponded', 'Refunded',
+  'Submitted', 'UnderReview', 'CheckedIn', 'Parking', 'CheckedOut', 'AccountIssued', 'Open', 'OwnerResponded', 'Refunded', 'Current',
   'Info',
 ]);
 

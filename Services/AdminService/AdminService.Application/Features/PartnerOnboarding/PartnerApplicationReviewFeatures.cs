@@ -16,14 +16,8 @@ public sealed record PartnerReasonRequest(string? Reason);
 
 public interface IPartnerApplicationRepository
 {
-    /// <summary>Hồ sơ có tracking, kèm các phiên bản hợp đồng (để Superseded khi từ chối / hủy).</summary>
+    /// <summary>Hồ sơ có tracking.</summary>
     Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken cancellationToken);
-
-    /// <summary>Mẫu hợp đồng đang áp dụng (IsActive), null nếu chưa có.</summary>
-    Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken);
-
-    /// <summary>Thêm hợp đồng đã ký (T6) – được ghi trong lần <see cref="SaveWithAuditAsync"/> kế tiếp.</summary>
-    void AddOwnerContract(OwnerContract contract);
 
     /// <summary>
     /// Ghi thay đổi của hồ sơ đang tracking + audit log trong CÙNG 1 lần SaveChanges.
@@ -44,9 +38,8 @@ public static class PartnerApplicationAudit
     {
         status = app.Status.ToString(),
         reviewerAdminId = app.ReviewerAdminId,
-        contractNumber = app.ContractNumber,
-        currentDraftVersion = app.ContractDrafts
-            .Where(d => d.Status == Domain.Enums.ContractDraftStatus.Current).Select(d => (int?)d.Version).FirstOrDefault(),
+        ownerProfileId = app.CreatedOwnerProfileId,
+        payoutBankAccount = app.PayoutBankAccountNumber,
     };
 
     public static AuditLog Build(PartnerApplication app, string action, int adminUserId, object before, string? reason) => new()
@@ -131,7 +124,7 @@ public interface IRejectPartnerApplicationUseCase
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-116 (A11, T9): UnderReview / ContractPending → Rejected, lý do bắt buộc; hợp đồng đang gửi → Superseded.</summary>
+/// <summary>US-116 (A11, T9): UnderReview → Rejected, lý do bắt buộc.</summary>
 public sealed class RejectPartnerApplicationUseCase(IPartnerApplicationRepository repository, IPartnerApplicationQueries queries)
     : IRejectPartnerApplicationUseCase
 {
@@ -154,7 +147,7 @@ public interface ICancelPartnerApplicationUseCase
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-116 (A12, T10): UnderReview / ContractPending / NeedsMoreInfo → Cancelled khi đối tác rút hồ sơ.</summary>
+/// <summary>US-116 (A12, T10): UnderReview / NeedsMoreInfo → Cancelled khi đối tác rút hồ sơ.</summary>
 public sealed class CancelPartnerApplicationUseCase(IPartnerApplicationRepository repository, IPartnerApplicationQueries queries)
     : ICancelPartnerApplicationUseCase
 {

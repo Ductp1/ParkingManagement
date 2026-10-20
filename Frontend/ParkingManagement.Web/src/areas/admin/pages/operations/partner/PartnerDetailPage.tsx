@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { adminLotContractsApi } from '@/api/adminLotContractsApi';
 import { adminPartnerOnboardingApi } from '@/api/adminPartnerOnboardingApi';
 import { PartnerApplicationStatus as S } from '@/types/adminEnums';
-import type { ContractDraftDto, PartnerApplicationDetailDto } from '@/types/adminPartnerOnboarding';
+import type { LotContractSummaryDto } from '@/types/adminLotContracts';
+import type { PartnerApplicationDetailDto } from '@/types/adminPartnerOnboarding';
 import { AdminTitleBar } from '../../../layout/AdminTitleBar';
 import { AdminButton } from '../../../components/AdminButton';
 import { Banner } from '../../../components/Banner';
-import { CellStatus, CellText, CellTwoLine, DataTable, type DataTableColumn } from '../../../components/DataTable';
+import { CellLink, CellStatus, CellText, CellTwoLine, DataTable, type DataTableColumn } from '../../../components/DataTable';
 import { DetailColumns, QueryState, SummaryRow } from '../../../components/PageLayout';
 import { Panel } from '../../../components/Panel';
 import { DetailList, DetailRow } from '../../../components/DetailRow';
@@ -19,15 +21,14 @@ import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
 import { useAdminToast } from '../../../hooks/useAdminToast';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDate, formatDateTimeIct, formatNumber, orEmpty } from '../../../utils/format';
-import { bankText, percentText, saveFile, termText } from './partnerFormat';
-import { ContractTermsDialog, IssueAccountDialog } from './PartnerContractDialogs';
+import { LOT_CONTRACT_BASE, bankText, percentText } from '../lot-contracts/lotContractFormat';
+import { IssueAccountDialog } from './PartnerAccountDialog';
 
-type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'sendContract' | 'reviseContract' | 'createAccount' | null;
+type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | null;
 
 const FLOW: Array<{ status: string; title: string }> = [
   { status: S.Submitted, title: 'Submitted' },
   { status: S.UnderReview, title: 'Under review' },
-  { status: S.ContractPending, title: 'Contract pending' },
   { status: S.AccountIssued, title: 'Account issued' },
   { status: S.Activated, title: 'Activated' },
 ];
@@ -54,61 +55,42 @@ const timeline = (app: PartnerApplicationDetailDto): TimelineEntry[] => {
   }));
 };
 
-/** Bảng phiên bản hợp đồng (mới nhất trước) + tải file HTML (A8). */
-const ContractVersions: React.FC<{ app: PartnerApplicationDetailDto; onError: (message: string) => void }> = ({ app, onError }) => {
-  const [downloading, setDownloading] = useState<number | null>(null);
+const lotColumns: DataTableColumn<LotContractSummaryDto>[] = [
+  { key: 'number', header: 'Contract', width: 150, render: (c) => <CellLink to={`${LOT_CONTRACT_BASE}/${c.id}`}>{c.contractNumber}</CellLink> },
+  { key: 'lot', header: 'Lot', render: (c) => <CellTwoLine primary={c.lotName} secondary={`Lot #${c.parkingLotId} · ${c.lotCity}`} /> },
+  { key: 'fee', header: 'Fee', width: 80, render: (c) => <CellText>{percentText(c.commissionRate)}</CellText> },
+  { key: 'status', header: 'Status', width: 110, render: (c) => <CellStatus value={c.status} /> },
+];
 
-  const download = async (draft: ContractDraftDto) => {
-    setDownloading(draft.version);
-    try {
-      saveFile(await adminPartnerOnboardingApi.contractFile(app.id, draft.version), `${draft.contractNumber}-v${draft.version}.html`);
-    } catch (err: unknown) {
-      onError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDownloading(null);
-    }
-  };
-
-  const columns: DataTableColumn<ContractDraftDto>[] = [
-    { key: 'version', header: 'Version', width: 80, render: (d) => <CellText>{`v${d.version}`}</CellText> },
-    { key: 'status', header: 'Status', width: 110, render: (d) => <CellStatus value={d.status} /> },
-    { key: 'terms', header: 'Terms', render: (d) => <CellTwoLine primary={`${percentText(d.commissionRate)} · ${termText(d)}`} secondary={bankText(d)} /> },
-    {
-      key: 'sent',
-      header: 'Sent',
-      width: 150,
-      render: (d) => <CellTwoLine primary={formatDateTimeIct(d.sentAtUtc)} secondary={d.revisionReason ?? `Admin #${d.createdByAdminId}`} />,
-    },
-    {
-      key: 'file',
-      header: '',
-      width: 110,
-      render: (d) => (
-        <AdminButton variant="ghost" icon="download" onClick={() => download(d)} disabled={downloading !== null}>
-          {downloading === d.version ? 'Loading…' : 'Download'}
-        </AdminButton>
-      ),
-    },
-  ];
-
+/** Hợp đồng của các bãi thuộc chủ bãi này (mỗi bãi một hợp đồng, lập từ KYB Review). */
+const OwnerLotContracts: React.FC<{ ownerProfileId: number }> = ({ ownerProfileId }) => {
+  const query = useAdminQuery(() => adminLotContractsApi.list({ ownerProfileId, page: 1, pageSize: 50 }), [ownerProfileId], (d) => d.items.length === 0);
   return (
-    <Panel
-      title="Contract versions"
-      description={app.contractNumber ? `${app.contractNumber} · HTML generated from the active template · SHA-256 checked on download` : 'No contract sent yet'}
-      padded={false}
-    >
+    <Panel title="Lot contracts" description="One contract per lot, created after the lot’s KYB is approved" padded={false}>
       <DataTable
         bare
-        columns={columns}
-        rows={app.contractDrafts}
-        rowKey={(d) => d.id}
-        placeholder={<p className="adm-type-body-default m-0 px-4 py-3 text-(--admin-text-secondary)">Send the contract to create version 1.</p>}
+        columns={lotColumns}
+        rows={query.status === 'ready' ? query.data?.items ?? [] : []}
+        rowKey={(c) => c.id}
+        placeholder={
+          <QueryState
+            status={query.status}
+            error={query.error}
+            onRetry={query.refetch}
+            copy={{
+              emptyTitle: 'No lot contracts yet',
+              emptyMessage: 'The owner creates lots and submits KYB; contracts are created from KYB Review.',
+              errorTitle: 'Could not load lot contracts',
+              service: 'AdminService',
+            }}
+          />
+        }
       />
     </Panel>
   );
 };
 
-/** Operations / Partner Onboarding / Detail (US-116): hồ sơ, hợp đồng tự sinh, cấp tài khoản – thao tác theo nextStatuses của AdminService. */
+/** Operations / Partner Onboarding / Detail (US-116): thẩm định hồ sơ + cấp tài khoản; hợp đồng ký theo từng bãi. */
 export const PartnerDetailPage: React.FC = () => {
   const { id } = useParams();
   const appId = Number(id);
@@ -151,13 +133,6 @@ export const PartnerDetailPage: React.FC = () => {
         <AdminButton variant="onNavy" onClick={() => setDialog('requestInfo')}>
           Request info
         </AdminButton>
-        <AdminButton onClick={() => setDialog('sendContract')}>Send contract</AdminButton>
-      </>
-    ) : app.status === S.ContractPending ? (
-      <>
-        <AdminButton variant="onNavy" onClick={() => setDialog('reviseContract')}>
-          Revise contract
-        </AdminButton>
         <AdminButton onClick={() => setDialog('createAccount')}>Create owner account</AdminButton>
       </>
     ) : app.status === S.AccountIssued ? (
@@ -180,7 +155,7 @@ export const PartnerDetailPage: React.FC = () => {
       <SummaryRow
         items={[
           { label: 'Status', value: <StatusIndicator value={app.status} /> },
-          { label: 'Contract', value: <span className="adm-type-body-strong">{orEmpty(app.contractNumber)}</span> },
+          { label: 'OwnerProfile', value: <span className="adm-type-body-strong">{app.createdOwnerProfileId ? `#${app.createdOwnerProfileId}` : '—'}</span> },
         ]}
         actions={
           (can(S.Cancelled) || can(S.Rejected)) && (
@@ -241,7 +216,7 @@ export const PartnerDetailPage: React.FC = () => {
                 <DetailRow label="Operating hours">{orEmpty(app.operatingHours)}</DetailRow>
               </DetailList>
             </Panel>
-            <ContractVersions app={app} onError={(message) => toast.show({ type: 'error', title: 'Could not download the contract', message })} />
+            {app.createdOwnerProfileId !== null && <OwnerLotContracts ownerProfileId={app.createdOwnerProfileId} />}
           </>
         }
         side={
@@ -253,6 +228,9 @@ export const PartnerDetailPage: React.FC = () => {
               <p className="adm-type-body-default m-0 text-(--admin-text-primary)">
                 {app.nextStatuses.length > 0 ? app.nextStatuses.map((s) => humanizeEnum(s)).join(' · ') : 'None — terminal'}
               </p>
+            </Panel>
+            <Panel title="Payout account" description="Printed in Appendix 02 of every lot contract">
+              <p className="adm-type-body-default m-0 text-(--admin-text-primary)">{app.payoutBank ? bankText(app.payoutBank) : 'Set when the owner account is issued.'}</p>
             </Panel>
             {app.createdOwnerProfileId !== null && (
               <Panel title="Owner account" description="Created in UserService at T6">
@@ -296,7 +274,7 @@ export const PartnerDetailPage: React.FC = () => {
       <ActionDialog
         open={dialog === 'reject'}
         title="Reject application"
-        description="Terminal. A contract version being signed becomes Superseded."
+        description="Terminal. No owner account is created."
         confirmLabel="Reject application"
         destructive
         field={{ label: 'Reason', required: true, requiredMessage: 'A reason is required.', placeholder: 'Why is this application rejected?', maxLength: 1000 }}
@@ -337,10 +315,7 @@ export const PartnerDetailPage: React.FC = () => {
       >
         {summary}
       </ActionDialog>
-      {(dialog === 'sendContract' || dialog === 'reviseContract') && (
-        <ContractTermsDialog app={app} mode={dialog === 'sendContract' ? 'send' : 'revise'} open onClose={close} onDone={done} />
-      )}
-      {dialog === 'createAccount' && <IssueAccountDialog app={app} open onClose={close} onDone={done} />}
+      {dialog === 'createAccount' && <IssueAccountDialog app={app} onClose={close} onDone={done} />}
     </>
   );
 };

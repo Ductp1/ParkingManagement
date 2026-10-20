@@ -1,171 +1,154 @@
 namespace AdminService.Infrastructure.Persistence.Seeding;
 
 /// <summary>
-/// US-116 (dev): nội dung mẫu hợp đồng hợp tác đối tác bãi đỗ. BẢN MẪU THAM KHẢO do dev soạn để xem trước / kiểm thử –
-/// pháp chế phải rà soát trước khi dùng thật (thông tin Bên A, tỷ lệ, thời hạn đối soát là giá trị đề xuất).
-/// Cú pháp dòng xem <see cref="Documents.HtmlContractRenderer"/>; placeholder lấy từ PartnerContractSupport.Values.
+/// US-116 (dev): mẫu hợp đồng hợp tác khai thác MỘT bãi đỗ, theo bản mẫu "Hop dong mau HD-SP-2026-052 v2.pdf"
+/// (12 điều, Phụ lục 01 = bãi đỗ của hợp đồng, Phụ lục 02 = tài khoản nhận thanh toán). Thông tin Bên A là giả định;
+/// điều khoản là bản tham khảo – pháp chế phải rà soát trước khi dùng thật.
+/// Cú pháp dòng xem <see cref="Documents.HtmlContractRenderer"/>; placeholder lấy từ LotContractSupport.Values.
 /// </summary>
 public static class PartnerContractTemplates
 {
-    public const int V2Version = 2;
-    public const string V2Name = "Hợp đồng hợp tác kinh doanh dịch vụ đỗ xe (mẫu tham khảo v2)";
+    public const int V3Version = 3;
+    public const string V3Name = "Hợp đồng hợp tác khai thác bãi đỗ xe – theo từng bãi (mẫu tham khảo v3)";
 
-    public const string V2Body = """
-        ^ CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
-        ^ Độc lập – Tự do – Hạnh phúc
-        ^ ———————————
+    public const string V3Body = """
+        !! CÔNG TY CỔ PHẦN CÔNG NGHỆ SMART PARKING !! CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+        !! (tên giả định – bản mẫu) !! **Độc lập – Tự do – Hạnh phúc**
+        !! Số: {{ContractNumber}} !! TP. Hồ Chí Minh, {{IssuedDateLong}}
 
-        # Hợp đồng hợp tác kinh doanh dịch vụ đỗ xe
-        ^ Số: {{ContractNumber}} · Phiên bản: {{Version}}
-        ^ (Bản mẫu tham khảo – cần pháp chế rà soát trước khi sử dụng)
+        # Hợp đồng hợp tác khai thác bãi đỗ xe
+        ^ **TRÊN NỀN TẢNG SMART PARKING MARKETPLACE**
+        ^ ({{VersionNote}})
 
-        Căn cứ:
-        - Bộ luật Dân sự số 91/2015/QH13;
-        - Luật Thương mại số 36/2005/QH11;
-        - Luật Giao dịch điện tử số 20/2023/QH15;
-        - Nghị định số 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân;
-        - Hồ sơ đăng ký đối tác số {{ApplicationCode}} và nhu cầu, khả năng của hai bên.
+        ~ – Căn cứ Bộ luật Dân sự số 91/2015/QH13 ngày 24/11/2015;
+        ~ – Căn cứ Luật Thương mại số 36/2005/QH11 ngày 14/6/2005 và các văn bản sửa đổi, bổ sung;
+        ~ – Căn cứ Luật Giao dịch điện tử số 20/2023/QH15 ngày 22/6/2023;
+        ~ – Căn cứ các quy định pháp luật hiện hành về thương mại điện tử và bảo vệ dữ liệu cá nhân;
+        ~ – Căn cứ nhu cầu và khả năng của hai bên.
+        Hôm nay, {{IssuedDateLong}}, tại TP. Hồ Chí Minh, chúng tôi gồm:
 
-        Hôm nay, ngày {{IssuedDate}}, chúng tôi gồm:
+        ## BÊN A: CÔNG TY CỔ PHẦN CÔNG NGHỆ SMART PARKING (tên giả định)
+        || Địa chỉ trụ sở: || Số 01 đường Mẫu, Phường Mẫu, TP. Hồ Chí Minh
+        || Mã số doanh nghiệp: || 0123456789 (mẫu)
+        || Điện thoại / Email: || 1900 0000 · partner@smartparking.example
+        || Người đại diện: || Ông **NGUYỄN VĂN MẪU** – Chức vụ: Tổng Giám đốc
+        ~ (Sau đây gọi là “Bên A” hoặc “Nền tảng”)
 
-        ## BÊN A: ĐƠN VỊ VẬN HÀNH NỀN TẢNG SMART PARKING
-        || Tên doanh nghiệp: || [Tên pháp nhân vận hành nền tảng – chờ xác nhận]
-        || Mã số thuế: || [Mã số thuế Bên A]
-        || Địa chỉ trụ sở: || [Địa chỉ Bên A]
-        || Người đại diện: || [Họ tên] – Chức vụ: [Chức vụ]
-        || Email liên hệ: || partner@smartparking.vn
-
-        ## BÊN B: ĐỐI TÁC CHỦ BÃI ĐỖ XE
-        || Tên doanh nghiệp: || {{BusinessName}}
-        || Mã số thuế: || {{TaxCode}}
+        ## BÊN B: {{BusinessName}}
         || Địa chỉ trụ sở: || {{BusinessAddress}}
-        || Người đại diện: || {{LegalRepresentativeName}} – Chức vụ: {{LegalRepresentativePosition}}
-        || Người liên hệ: || {{ContactName}} – Điện thoại: {{Phone}} – Email: {{Email}}
-        || Tài khoản nhận tiền: || {{BankAccountNumber}} – {{BankAccountName}} – {{BankName}} (BIN {{BankBin}})
+        || Mã số doanh nghiệp: || {{TaxCode}}
+        || Điện thoại / Email: || {{Phone}} · {{Email}}
+        || Người đại diện: || **{{LegalRepresentativeName}}** – Chức vụ: {{LegalRepresentativePosition}}
+        || Tài khoản nhận thanh toán: || Chi tiết tại Phụ lục 02
+        ~ (Sau đây gọi là “Bên B” hoặc “Chủ bãi”)
 
-        Hai bên thống nhất ký kết hợp đồng hợp tác (sau đây gọi là "Hợp đồng") với các điều khoản sau:
+        Mã hồ sơ đăng ký hợp tác: **{{ApplicationCode}}**. Hai bên thống nhất ký kết Hợp đồng hợp tác số {{ContractNumber}} (sau đây gọi là “Hợp đồng”) để khai thác bãi đỗ xe **{{LotName}}** trên Nền tảng, với các điều khoản sau:
 
-        ## Điều 1. Định nghĩa
-        - "Nền tảng": hệ thống Smart Parking (website, ứng dụng di động, API) do Bên A vận hành, cho phép tài xế tìm, đặt chỗ và thanh toán phí đỗ xe.
-        - "Bãi đỗ": địa điểm đỗ xe do Bên B quản lý hợp pháp và được đưa lên Nền tảng sau khi được Bên A duyệt hồ sơ xác minh (KYB).
-        - "Tài xế": người sử dụng Nền tảng để đặt chỗ và sử dụng dịch vụ đỗ xe tại Bãi đỗ.
-        - "Giao dịch hoàn tất": lượt đặt chỗ đã được thanh toán qua Nền tảng và tài xế đã ra khỏi bãi (hoặc hết thời gian đặt chỗ mà không hủy hợp lệ).
-        - "Doanh thu giao dịch": tổng số tiền tài xế thanh toán qua Nền tảng cho các Giao dịch hoàn tất, đã trừ khoản hoàn tiền.
-        - "Kỳ đối soát": khoảng thời gian từ ngày 01 đến ngày cuối cùng của mỗi tháng dương lịch.
+        ## ĐIỀU 1. GIẢI THÍCH TỪ NGỮ
+        1.1. **“Nền tảng”**: hệ thống Smart Parking Marketplace gồm ứng dụng web/di động dành cho Tài xế, cổng quản trị Chủ bãi, cổng Nhân viên và các giao diện lập trình (API) do Bên A vận hành.
+        1.2. **“Bãi đỗ xe”**: địa điểm do Bên B sở hữu hoặc có quyền khai thác hợp pháp, nêu tại Phụ lục 01, đã được Bên A phê duyệt hồ sơ thẩm định (KYB).
+        1.3. **“Lượt gửi xe”**: một giao dịch đặt chỗ (booking) hoặc gửi xe vãng lai được ghi nhận check-in/check-out trên Nền tảng.
+        1.4. **“Doanh thu gộp (GMV)”**: tổng số tiền Tài xế thanh toán cho các Lượt gửi xe tại Bãi đỗ xe trong kỳ đối soát, trước khi trừ hoàn tiền và phí nền tảng.
+        1.5. **“Phí nền tảng”**: khoản phí Bên B trả cho Bên A, tính bằng tỷ lệ phần trăm trên GMV theo Điều 4.
+        1.6. **“Kỳ đối soát”**: chu kỳ tổng hợp giao dịch và quyết toán giữa hai bên theo Điều 4.3.
 
-        ## Điều 2. Phạm vi hợp tác
-        - Bên B đưa các Bãi đỗ thuộc quyền quản lý của mình lên Nền tảng để cung cấp dịch vụ đỗ xe cho Tài xế; Bên A cung cấp Nền tảng, kênh thanh toán và hỗ trợ khách hàng.
-        - Quy mô dự kiến: {{LotCount}} bãi đỗ, địa chỉ bãi chính: {{PrimaryLotAddress}}.
-        - Mỗi Bãi đỗ chỉ được hiển thị và nhận đặt chỗ sau khi hồ sơ KYB của bãi (giấy phép kinh doanh, ảnh hiện trường và tọa độ, chứng nhận PCCC, khảo sát thực địa khi cần) được Bên A phê duyệt.
-        - Thông tin chi tiết từng Bãi đỗ (sức chứa, giờ hoạt động, bảng giá) do Bên B khai báo trên Nền tảng và là một phần của Hợp đồng.
+        ## ĐIỀU 2. PHẠM VI HỢP TÁC
+        2.1. Bên A cung cấp cho Bên B quyền niêm yết Bãi đỗ xe, nhận đặt chỗ, thu tiền hộ qua các cổng thanh toán (VNPAY, MoMo, VietQR) và sử dụng các công cụ quản lý vận hành trên Nền tảng.
+        2.2. Bên B cung cấp dịch vụ trông giữ phương tiện tại Bãi đỗ xe cho Tài xế đặt chỗ qua Nền tảng theo đúng thông tin, giá và điều kiện đã niêm yết.
+        2.3. Bãi đỗ xe đã được Bên A phê duyệt hồ sơ thẩm định gồm: giấy tờ pháp lý, ảnh hiện trường và tọa độ GPS, giấy chứng nhận đủ điều kiện về phòng cháy chữa cháy, và khảo sát thực địa (nếu có yêu cầu). Bãi đỗ xe được hiển thị công khai và nhận đặt chỗ kể từ khi Hợp đồng này được ký.
+        2.4. Mỗi bãi đỗ xe khác của Bên B được thẩm định và ký hợp đồng riêng; Hợp đồng này chỉ áp dụng cho Bãi đỗ xe tại Phụ lục 01.
+        2.5. Hợp đồng này không tạo ra quan hệ lao động, liên doanh hay đại lý độc quyền giữa hai bên.
 
-        ## Điều 3. Thời hạn hợp đồng
-        - Hợp đồng có hiệu lực từ ngày {{EffectiveFrom}} đến hết ngày {{EffectiveTo}} ({{TermMonths}} tháng).
-        - Trước khi hết hạn ít nhất 30 ngày, hai bên trao đổi việc gia hạn. Việc gia hạn hoặc thay đổi điều khoản được thực hiện bằng một phiên bản Hợp đồng mới có cùng số hợp đồng.
-        - Nếu hết hạn mà chưa ký gia hạn, các Bãi đỗ của Bên B tự động ngừng nhận đặt chỗ mới; các lượt đặt chỗ đã xác nhận vẫn phải được phục vụ.
+        ## ĐIỀU 3. THỜI HẠN HỢP ĐỒNG
+        3.1. Hợp đồng có hiệu lực **{{TermMonthsText}} tháng**, kể từ ngày **{{EffectiveFrom}}** đến hết ngày **{{EffectiveTo}}**.
+        3.2. Trước ngày hết hạn ít nhất 30 (ba mươi) ngày, nếu không bên nào thông báo bằng văn bản về việc không gia hạn, Hợp đồng được tự động gia hạn thêm {{TermMonths}} tháng với các điều khoản không đổi.
 
-        ## Điều 4. Phí dịch vụ nền tảng (hoa hồng)
-        - Bên B trả cho Bên A phí dịch vụ bằng {{CommissionRate}}% Doanh thu giao dịch của mỗi Kỳ đối soát.
-        - Mức phí trên chưa bao gồm thuế giá trị gia tăng (VAT) theo quy định. Phí cổng thanh toán do Bên A chịu.
-        - Bên A không thu thêm bất kỳ khoản phí nào khác ngoài phí quy định tại Điều này nếu không có thỏa thuận bằng văn bản.
-        - Mọi thay đổi tỷ lệ phí chỉ có hiệu lực khi hai bên ký phiên bản Hợp đồng mới.
+        ## ĐIỀU 4. PHÍ NỀN TẢNG, ĐỐI SOÁT VÀ THANH TOÁN
+        4.1. Phí nền tảng: **{{CommissionRate}}%** trên GMV của mỗi Kỳ đối soát. Mức phí này chưa bao gồm thuế giá trị gia tăng (GTGT) theo quy định.
+        4.2. Số tiền Bên B được nhận trong mỗi kỳ được xác định như sau:
+        ^ **Số tiền quyết toán = GMV − Phí nền tảng − Tiền hoàn cho Tài xế − Khoản tạm giữ + Khoản điều chỉnh**
+        4.3. Kỳ đối soát: **hằng tuần**, từ 00:00 thứ Hai đến 23:59 Chủ nhật (giờ Việt Nam). Bên A gửi bảng đối soát trên cổng Chủ bãi chậm nhất vào thứ Ba của tuần kế tiếp.
+        4.4. Bên B có 02 (hai) ngày làm việc để phản hồi sai lệch. Quá thời hạn này, bảng đối soát được coi là đã được Bên B chấp thuận.
+        4.5. Bên A chuyển khoản số tiền quyết toán vào tài khoản tại Phụ lục 02 trong vòng 03 (ba) ngày làm việc kể từ ngày bảng đối soát được chấp thuận. Phí chuyển khoản do Bên A chịu.
+        4.6. **Khoản tạm giữ**: Bên A được tạm giữ phần doanh thu liên quan đến khiếu nại/tranh chấp chưa giải quyết. Khoản tạm giữ được hoàn trả hoặc khấu trừ ngay trong Kỳ đối soát kế tiếp sau khi có kết quả giải quyết.
+        4.7. Hóa đơn: Bên A xuất hóa đơn điện tử cho Phí nền tảng; Bên B chịu trách nhiệm xuất hóa đơn cho dịch vụ trông giữ phương tiện theo quy định về thuế.
+        4.8. Thay đổi mức phí nền tảng chỉ có hiệu lực khi hai bên ký phụ lục hoặc phiên bản hợp đồng mới.
 
-        ## Điều 5. Thanh toán và đối soát
-        - Bên A thu hộ toàn bộ tiền đặt chỗ từ Tài xế qua Nền tảng.
-        - Trong vòng 05 ngày làm việc sau khi kết thúc Kỳ đối soát, Bên A gửi Bảng đối soát cho Bên B (số giao dịch, Doanh thu giao dịch, khoản hoàn tiền, phí dịch vụ, số tiền thanh toán).
-        - Bên B có 07 ngày làm việc để xác nhận hoặc khiếu nại Bảng đối soát. Quá thời hạn này mà không có phản hồi, Bảng đối soát được coi là đã xác nhận.
-        - Trong vòng 07 ngày làm việc sau khi Bảng đối soát được xác nhận, Bên A chuyển số tiền thanh toán (Doanh thu giao dịch trừ phí dịch vụ) vào tài khoản của Bên B nêu tại phần thông tin các bên.
-        - Bên A xuất hóa đơn cho phí dịch vụ; Bên B tự chịu trách nhiệm kê khai thuế với phần doanh thu của mình.
-        - Bên B thông báo bằng văn bản ít nhất 10 ngày trước khi thay đổi tài khoản nhận tiền.
+        ## ĐIỀU 5. QUYỀN VÀ NGHĨA VỤ CỦA BÊN A
+        5.1. Vận hành Nền tảng ổn định; thông báo trước ít nhất 24 giờ đối với việc bảo trì theo kế hoạch.
+        5.2. Thu hộ tiền gửi xe, đối soát và thanh toán cho Bên B đúng hạn theo Điều 4.
+        5.3. Cung cấp tài khoản quản trị cho Bên B, hỗ trợ kỹ thuật trong giờ hành chính và kênh hỗ trợ khẩn cấp.
+        5.4. Được kiểm tra, yêu cầu bổ sung hồ sơ và thực hiện khảo sát thực địa đối với Bãi đỗ xe.
+        5.5. Được tạm ẩn niêm yết, áp dụng chế tài theo Điều 7 khi Bên B vi phạm Hợp đồng hoặc quy chế của Nền tảng.
+        5.6. Được thay mặt Bên B hoàn tiền cho Tài xế trong các trường hợp lỗi thuộc về Bãi đỗ xe và khấu trừ vào Kỳ đối soát.
 
-        ## Điều 6. Quyền và nghĩa vụ của Bên A
-        ### 6.1. Quyền của Bên A
-        - Kiểm tra, xác minh hồ sơ và yêu cầu Bên B bổ sung thông tin về Bãi đỗ trước và trong thời gian hợp tác.
-        - Tạm ẩn Bãi đỗ hoặc tạm khóa tài khoản Bên B khi phát hiện vi phạm theo Điều 12.
-        - Khấu trừ phí dịch vụ và các khoản hoàn tiền hợp lệ trước khi thanh toán cho Bên B.
-        ### 6.2. Nghĩa vụ của Bên A
-        - Duy trì Nền tảng hoạt động ổn định (mục tiêu sẵn sàng 99% mỗi tháng, trừ thời gian bảo trì đã báo trước).
-        - Cung cấp cho Bên B công cụ quản lý bãi, theo dõi đặt chỗ và báo cáo doanh thu.
-        - Thanh toán đúng hạn theo Điều 5.
-        - Hỗ trợ Tài xế và phối hợp với Bên B xử lý khiếu nại liên quan đến đặt chỗ, thanh toán.
+        ## ĐIỀU 6. QUYỀN VÀ NGHĨA VỤ CỦA BÊN B
+        6.1. Bảo đảm Bãi đỗ xe có đầy đủ giấy tờ pháp lý, điều kiện an toàn phòng cháy chữa cháy và các giấy phép cần thiết trong suốt thời hạn Hợp đồng; thông báo cho Bên A trong vòng 03 ngày khi có thay đổi.
+        6.2. Niêm yết đúng giá, giờ hoạt động, chiều cao tối đa, sức chứa và tiện ích; không thu thêm bất kỳ khoản phí nào ngoài giá đã niêm yết.
+        6.3. Phục vụ Tài xế đã đặt chỗ hợp lệ; cập nhật trạng thái chỗ đỗ kịp thời; thực hiện check-in/check-out trên Nền tảng.
+        6.4. Phản hồi khiếu nại của Tài xế trên Nền tảng trong vòng **48 (bốn mươi tám) giờ** kể từ khi nhận thông báo.
+        6.5. Trường hợp Tài xế đã đặt chỗ hợp lệ nhưng không còn chỗ đỗ khi đến nơi, Bên B chịu chi phí hoàn tiền và voucher bồi thường theo quy chế của Nền tảng.
+        6.6. Quản lý tài khoản quản trị và tài khoản nhân viên; chịu trách nhiệm về mọi thao tác thực hiện bằng các tài khoản này.
+        6.7. Được nhận đầy đủ, đúng hạn số tiền quyết toán; được truy cập báo cáo doanh thu, lịch sử giao dịch trên cổng Chủ bãi.
 
-        ## Điều 7. Quyền và nghĩa vụ của Bên B
-        ### 7.1. Quyền của Bên B
-        - Tự quyết định bảng giá, giờ hoạt động và số chỗ mở bán trên Nền tảng trong giới hạn sức chứa đã khai báo.
-        - Nhận thanh toán đầy đủ, đúng hạn theo Điều 5 và được cung cấp số liệu đối soát chi tiết.
-        ### 7.2. Nghĩa vụ của Bên B
-        - Có đầy đủ giấy phép kinh doanh, quyền sử dụng mặt bằng và chứng nhận phòng cháy chữa cháy còn hiệu lực cho từng Bãi đỗ; cung cấp bản sao khi Bên A yêu cầu.
-        - Cập nhật chính xác, kịp thời tình trạng chỗ trống, giờ hoạt động, giá và các thay đổi của Bãi đỗ trên Nền tảng.
-        - Phục vụ đầy đủ mọi lượt đặt chỗ đã được xác nhận; không thu thêm của Tài xế bất kỳ khoản nào ngoài giá đã niêm yết trên Nền tảng.
-        - Bảo đảm an ninh, trật tự, vệ sinh, an toàn phòng cháy tại Bãi đỗ; trông giữ và bảo quản phương tiện theo quy định pháp luật.
-        - Duy trì bảo hiểm trách nhiệm đối với phương tiện gửi tại bãi (khuyến nghị).
-        - Thông báo cho Bên A trong vòng 24 giờ khi có sự cố ảnh hưởng đến việc phục vụ (đóng cửa đột xuất, mất an ninh, cháy nổ…).
+        ## ĐIỀU 7. TIÊU CHUẨN DỊCH VỤ VÀ CHẾ TÀI
+        7.1. Khi Bên B vi phạm tiêu chuẩn dịch vụ (tỷ lệ từ chối đặt chỗ, khiếu nại có căn cứ, sai lệch giá, mất kết nối thiết bị kéo dài…), Bên A áp dụng chế tài theo 04 cấp:
+        #| Cấp | Hình thức | Nội dung
+        | 1 | Cảnh cáo | Thông báo bằng văn bản, yêu cầu khắc phục trong thời hạn ấn định.
+        | 2 | Giảm thứ hạng hiển thị | Hạ thứ hạng Bãi đỗ xe trong kết quả tìm kiếm tối đa 30 ngày.
+        | 3 | Tạm ngừng niêm yết | Ẩn Bãi đỗ xe, ngừng nhận đặt chỗ mới; booking đã xác nhận vẫn phải được phục vụ.
+        | 4 | Chấm dứt hợp tác | Khóa vĩnh viễn tài khoản Chủ bãi và đơn phương chấm dứt Hợp đồng theo Điều 10.
+        7.2. Ngoài chế tài trên, bên vi phạm phải chịu phạt vi phạm tối đa 8% giá trị phần nghĩa vụ bị vi phạm theo Điều 301 Luật Thương mại và bồi thường thiệt hại thực tế phát sinh.
+        7.3. Bên B có quyền khiếu nại quyết định chế tài trong vòng 05 ngày làm việc kể từ ngày nhận thông báo.
 
-        ## Điều 8. Chất lượng dịch vụ
-        - Bên B phản hồi khiếu nại của Tài xế do Bên A chuyển đến trong vòng 24 giờ.
-        - Tỷ lệ từ chối phục vụ lượt đặt chỗ đã xác nhận không vượt quá 2% mỗi Kỳ đối soát.
-        - Vi phạm chất lượng dịch vụ được xử lý theo chính sách chế tài của Nền tảng (nhắc nhở, tạm ẩn bãi, tạm khóa tài khoản) đã công bố cho đối tác.
+        ## ĐIỀU 8. BẢO MẬT VÀ BẢO VỆ DỮ LIỆU CÁ NHÂN
+        8.1. Mỗi bên có nghĩa vụ giữ bí mật thông tin kinh doanh, kỹ thuật và giá của bên kia trong thời hạn Hợp đồng và 02 năm sau khi chấm dứt.
+        8.2. Dữ liệu cá nhân của Tài xế (họ tên, số điện thoại, biển số xe, hình ảnh tại cổng) chỉ được sử dụng để thực hiện dịch vụ trông giữ; Bên B không được sao chép, chuyển giao cho bên thứ ba hay sử dụng cho mục đích tiếp thị khi chưa có sự đồng ý của chủ thể dữ liệu.
+        8.3. Hai bên tuân thủ quy định pháp luật về bảo vệ dữ liệu cá nhân; thông báo cho nhau trong vòng 24 giờ khi phát hiện sự cố lộ, mất dữ liệu.
 
-        ## Điều 9. Bảo vệ dữ liệu cá nhân
-        - Mỗi bên chỉ xử lý dữ liệu cá nhân của Tài xế (họ tên, số điện thoại, biển số xe…) để thực hiện Hợp đồng, theo Nghị định số 13/2023/NĐ-CP.
-        - Bên B không sao chép, lưu trữ ngoài mục đích phục vụ đỗ xe, không chia sẻ cho bên thứ ba và không dùng dữ liệu để quảng cáo khi chưa có sự đồng ý của Tài xế.
-        - Khi phát hiện sự cố lộ, mất dữ liệu cá nhân, bên phát hiện phải thông báo cho bên kia trong vòng 24 giờ để phối hợp xử lý.
+        ## ĐIỀU 9. BẤT KHẢ KHÁNG
+        9.1. Sự kiện bất khả kháng là sự kiện xảy ra khách quan, không thể lường trước và không thể khắc phục được mặc dù đã áp dụng mọi biện pháp cần thiết, bao gồm thiên tai, hỏa hoạn, dịch bệnh, chiến tranh, quyết định của cơ quan nhà nước có thẩm quyền.
+        9.2. Bên gặp sự kiện bất khả kháng phải thông báo cho bên kia trong vòng 03 ngày và được miễn trách nhiệm đối với nghĩa vụ bị ảnh hưởng trong thời gian xảy ra sự kiện. Đóng bãi khẩn cấp phải được cập nhật ngay trên Nền tảng để thông báo cho Tài xế đã đặt chỗ.
 
-        ## Điều 10. Bảo mật thông tin
-        - Hai bên giữ bí mật nội dung Hợp đồng, số liệu doanh thu và thông tin kinh doanh của nhau trong thời hạn Hợp đồng và 02 năm sau khi Hợp đồng chấm dứt, trừ trường hợp phải cung cấp theo yêu cầu của cơ quan nhà nước có thẩm quyền.
+        ## ĐIỀU 10. TẠM NGỪNG, CHẤM DỨT HỢP ĐỒNG
+        10.1. Hợp đồng chấm dứt khi: (a) hết thời hạn mà không gia hạn; (b) hai bên thỏa thuận chấm dứt; (c) một bên đơn phương chấm dứt theo Điều 10.2 hoặc 10.3.
+        10.2. Bên B có quyền xin đưa Bãi đỗ xe rời Nền tảng bằng thông báo trên cổng Chủ bãi hoặc văn bản gửi trước ít nhất **30 (ba mươi) ngày**. Trong thời gian báo trước, Bên B tiếp tục phục vụ các booking đã xác nhận.
+        10.3. Bên A được đơn phương chấm dứt khi Bên B bị áp dụng chế tài cấp 4, cung cấp hồ sơ giả mạo, hoặc Bãi đỗ xe bị cơ quan có thẩm quyền đình chỉ hoạt động.
+        10.4. Khi chấm dứt, hai bên hoàn tất đối soát và thanh toán các khoản còn lại trong vòng 15 ngày làm việc.
 
-        ## Điều 11. Trách nhiệm bồi thường
-        - Bên B chịu trách nhiệm bồi thường thiệt hại đối với mất mát, hư hỏng phương tiện xảy ra trong thời gian phương tiện được gửi tại Bãi đỗ, trừ trường hợp do lỗi của chính Tài xế.
-        - Bên A chịu trách nhiệm về lỗi của Nền tảng (sai thông tin đặt chỗ, sai số tiền thanh toán) và hoàn tiền cho Tài xế trong các trường hợp đó.
-        - Bên vi phạm nghĩa vụ thanh toán phải trả lãi chậm trả theo mức lãi suất quy định tại Điều 357 Bộ luật Dân sự trên số tiền chậm trả.
+        ## ĐIỀU 11. GIẢI QUYẾT TRANH CHẤP
+        11.1. Tranh chấp phát sinh được ưu tiên giải quyết bằng thương lượng, hòa giải trong vòng 30 ngày.
+        11.2. Nếu không thương lượng được, một trong hai bên có quyền đưa tranh chấp ra Tòa án nhân dân có thẩm quyền tại TP. Hồ Chí Minh để giải quyết theo pháp luật Việt Nam.
 
-        ## Điều 12. Tạm ngưng và chấm dứt hợp đồng
-        - Bên A được tạm ẩn Bãi đỗ hoặc tạm khóa tài khoản Bên B khi: Bên B cung cấp thông tin sai sự thật; giấy phép hoặc chứng nhận PCCC hết hiệu lực; có khiếu nại nghiêm trọng đã được xác minh; vi phạm Điều 7, Điều 9.
-        - Mỗi bên được đơn phương chấm dứt Hợp đồng khi bên kia vi phạm nghiêm trọng và không khắc phục trong 15 ngày kể từ ngày nhận thông báo bằng văn bản.
-        - Mỗi bên được chấm dứt Hợp đồng vì lý do khác nếu thông báo bằng văn bản cho bên kia trước ít nhất 30 ngày.
-        - Khi Hợp đồng chấm dứt, Bên B vẫn phải phục vụ các lượt đặt chỗ đã xác nhận trước ngày chấm dứt; hai bên thực hiện đối soát cuối cùng trong vòng 30 ngày.
-
-        ## Điều 13. Sự kiện bất khả kháng
-        - Bên gặp sự kiện bất khả kháng (thiên tai, dịch bệnh, hỏa hoạn không do lỗi của bên đó, quyết định của cơ quan nhà nước…) được miễn trách nhiệm đối với nghĩa vụ bị ảnh hưởng, với điều kiện thông báo cho bên kia trong vòng 03 ngày và áp dụng mọi biện pháp cần thiết để hạn chế thiệt hại.
-
-        ## Điều 14. Giải quyết tranh chấp
-        - Tranh chấp phát sinh được giải quyết trước hết bằng thương lượng, hòa giải trong vòng 30 ngày.
-        - Nếu không thương lượng được, một trong hai bên có quyền đưa tranh chấp ra Tòa án nhân dân có thẩm quyền tại nơi Bên A đặt trụ sở để giải quyết theo pháp luật Việt Nam.
-
-        ## Điều 15. Điều khoản chung
-        - Phụ lục 01 và các phiên bản sửa đổi được hai bên ký là bộ phận không tách rời của Hợp đồng. Phiên bản có số lớn hơn thay thế phiên bản trước đó.
-        - Mọi sửa đổi, bổ sung phải được lập thành văn bản (phiên bản mới) và có chữ ký của đại diện hợp pháp hai bên.
-        - Hợp đồng được lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ 01 bản; bản điện tử trên Nền tảng có cùng nội dung và mã SHA-256 được dùng để đối chiếu.
+        ## ĐIỀU 12. ĐIỀU KHOẢN CHUNG
+        12.1. Các phụ lục là bộ phận không tách rời của Hợp đồng. Mọi sửa đổi, bổ sung phải lập thành văn bản hoặc phiên bản hợp đồng mới có chữ ký của đại diện hợp pháp hai bên.
+        12.2. Phiên bản {{Version}} này thay thế toàn bộ phiên bản trước đó (nếu có) của Hợp đồng số {{ContractNumber}}.
+        12.3. Hai bên đồng ý giao dịch, thông báo qua email đã đăng ký và cổng Chủ bãi có giá trị như văn bản theo Luật Giao dịch điện tử.
+        12.4. Hợp đồng được lập thành 02 (hai) bản bằng tiếng Việt có giá trị pháp lý như nhau, mỗi bên giữ 01 bản, có hiệu lực kể từ ngày ký. Bản điện tử trên Nền tảng có cùng nội dung và mã SHA-256 được dùng để đối chiếu.
 
         !! ĐẠI DIỆN BÊN A !! ĐẠI DIỆN BÊN B
         !! (Ký, ghi rõ họ tên, đóng dấu) !! (Ký, ghi rõ họ tên, đóng dấu)
         !! !!
-        !! [Họ tên đại diện Bên A] !! {{LegalRepresentativeName}}
+        !! **TỔNG GIÁM ĐỐC** !! **{{LegalRepresentativePosition}}**
+        !! **Nguyễn Văn Mẫu** !! **{{LegalRepresentativeName}}**
 
         ---
-        # Phụ lục 01 – Thông tin hợp tác
-        ^ (Kèm theo Hợp đồng số {{ContractNumber}} – phiên bản {{Version}})
+        # Phụ lục 01
+        ^ **BÃI ĐỖ XE HỢP TÁC**
+        ^ (Kèm theo Hợp đồng số {{ContractNumber}} – Phiên bản {{Version}})
+        #| Tên bãi | Địa chỉ | Sức chứa | Giờ hoạt động | Trạng thái thẩm định
+        | {{LotName}} | {{LotAddress}} | {{LotCapacity}} | {{LotOpeningHours}} | Đã phê duyệt KYB
+        Bãi đỗ xe được niêm yết công khai và nhận đặt chỗ kể từ khi Hợp đồng được ký. Thông tin chi tiết (bảng giá, sơ đồ chỗ đỗ, tiện ích) do Bên B cập nhật trên cổng Chủ bãi và là một phần của Phụ lục này.
 
-        ## 1. Thông tin đối tác
-        || Mã hồ sơ đăng ký: || {{ApplicationCode}}
-        || Tên doanh nghiệp: || {{BusinessName}}
-        || Mã số thuế: || {{TaxCode}}
-        || Người liên hệ: || {{ContactName}} – {{Phone}} – {{Email}}
+        # Phụ lục 02
+        ^ **THÔNG TIN TÀI KHOẢN NHẬN THANH TOÁN**
+        ^ (Kèm theo Hợp đồng số {{ContractNumber}} – Phiên bản {{Version}})
+        | **Tên chủ tài khoản** | {{BankAccountName}}
+        | **Số tài khoản** | {{BankAccountNumber}}
+        | **Ngân hàng** | {{BankName}} – BIN {{BankBin}}
+        | **Hình thức nhận** | Chuyển khoản, chu kỳ hằng tuần theo Điều 4
+        Bên B chịu trách nhiệm về tính chính xác của thông tin tài khoản. Thay đổi tài khoản nhận thanh toán phải được xác nhận bằng văn bản có chữ ký và con dấu của Bên B; Bên A áp dụng kể từ Kỳ đối soát kế tiếp.
 
-        ## 2. Bãi đỗ dự kiến
-        || Số lượng bãi: || {{LotCount}}
-        || Địa chỉ bãi chính: || {{PrimaryLotAddress}}
-        || Điều kiện hoạt động: || Từng bãi phải được duyệt hồ sơ KYB trước khi nhận đặt chỗ
-
-        ## 3. Điều khoản thương mại
-        || Phí dịch vụ nền tảng: || {{CommissionRate}}% Doanh thu giao dịch (chưa VAT)
-        || Thời hạn: || {{TermMonths}} tháng, từ {{EffectiveFrom}} đến {{EffectiveTo}}
-        || Kỳ đối soát: || Hằng tháng; thanh toán trong 07 ngày làm việc sau khi xác nhận
-        || Tài khoản nhận tiền: || {{BankAccountNumber}} – {{BankAccountName}}
-        || Ngân hàng: || {{BankName}} (BIN {{BankBin}})
-
-        !! ĐẠI DIỆN BÊN A !! ĐẠI DIỆN BÊN B
-        !! !!
-        !! [Họ tên đại diện Bên A] !! {{LegalRepresentativeName}}
+        ~ Ghi chú: thông tin Bên A trong mẫu là giả định; nội dung điều khoản là bản tham khảo, cần bộ phận pháp chế rà soát trước khi sử dụng chính thức.
         """;
 }

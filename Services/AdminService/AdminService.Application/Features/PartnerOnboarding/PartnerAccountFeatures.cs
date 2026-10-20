@@ -1,30 +1,11 @@
-using ParkingManagement.SharedKernel.Exceptions;
+using AdminService.Domain.ValueObjects;
 
 namespace AdminService.Application.Features.PartnerOnboarding;
 
 // ===== REQUEST =====
 
-/// <summary>A9 issue-account (multipart): bản scan hợp đồng đã ký + phiên bản Admin xác nhận đã ký.</summary>
-public sealed record IssueOwnerAccountRequest(int? ConfirmedDraftVersion, UploadedFile? SignedFile);
-
-/// <summary>Kiểm tra bản scan đã ký: PDF / JPG / PNG nhận diện theo nội dung file (không tin tên hay Content-Type từ client).</summary>
-public static class SignedScanRules
-{
-    public const int MaxBytes = 10 * 1024 * 1024;
-
-    public static (string ContentType, string Extension) Detect(UploadedFile? file)
-    {
-        if (file is null || file.Length == 0) throw new ValidationException("Vui lòng tải lên bản scan hợp đồng đã ký.");
-        if (file.Length > MaxBytes || file.Content.Length > MaxBytes) throw new ValidationException("Bản scan hợp đồng tối đa 10 MB.");
-        var bytes = file.Content;
-        if (StartsWith(bytes, "%PDF-"u8)) return ("application/pdf", ".pdf");
-        if (StartsWith(bytes, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) return ("image/png", ".png");
-        if (StartsWith(bytes, [0xFF, 0xD8, 0xFF])) return ("image/jpeg", ".jpg");
-        throw new ValidationException("Bản scan hợp đồng phải là file PDF, JPG hoặc PNG.");
-    }
-
-    private static bool StartsWith(byte[] content, ReadOnlySpan<byte> signature) => content.AsSpan().StartsWith(signature);
-}
+/// <summary>A9 issue-account: tài khoản nhận thanh toán mặc định của đối tác (in vào Phụ lục 02 của hợp đồng từng bãi).</summary>
+public sealed record IssueOwnerAccountRequest(PartnerBankAccountRequest? Bank);
 
 // ===== USE CASE =====
 
@@ -35,14 +16,13 @@ public interface IIssueOwnerAccountUseCase
 }
 
 /// <summary>
-/// US-116 (A9, T6): ContractPending → AccountIssued.
-/// 1. Kiểm tra trạng thái, phiên bản Admin xác nhận == phiên bản Current, bản scan hợp lệ (chưa gọi ra ngoài).
+/// US-116 (A9, T6): UnderReview → AccountIssued. Không ký hợp đồng ở bước này – hợp đồng lập theo từng bãi sau KYB.
+/// 1. Kiểm tra trạng thái, rồi tài khoản ngân hàng (chưa gọi ra ngoài).
 /// 2. Gọi UserService U2 (Idempotency-Key theo hồ sơ): lỗi → hồ sơ giữ nguyên, Admin thử lại an toàn (503 / 409).
-/// 3. Lưu bản scan + SHA-256, rồi hồ sơ + phiên bản Signed + OwnerContract + AuditLog trong 1 SaveChanges.
-///    Lưu database lỗi (vd. Admin khác vừa thao tác) → xóa bản scan; thử lại dùng cùng Idempotency-Key nên không tạo trùng tài khoản.
+/// 3. Hồ sơ (AccountIssued + ngân hàng + Id tài khoản) + AuditLog trong 1 SaveChanges; lỗi lưu → thử lại cùng Idempotency-Key.
 /// </summary>
 public sealed class IssueOwnerAccountUseCase(IPartnerApplicationRepository repository, IPartnerApplicationQueries queries,
-    IOwnerAccountClient ownerAccounts, IFileStorage storage) : IIssueOwnerAccountUseCase
+    IOwnerAccountClient ownerAccounts) : IIssueOwnerAccountUseCase
 {
     public async Task<PartnerApplicationDetailDto> ExecuteAsync(int id, IssueOwnerAccountRequest request, int performedByUserId,
         CancellationToken cancellationToken = default)
@@ -50,23 +30,17 @@ public sealed class IssueOwnerAccountUseCase(IPartnerApplicationRepository repos
         PartnerApplicationSteps.EnsureIds(id, performedByUserId);
         var app = await PartnerApplicationSteps.LoadAsync(repository, id, cancellationToken);
         var before = PartnerApplicationAudit.Snapshot(app);
-        var draft = app.EnsureCanIssueAccount(request.ConfirmedDraftVersion);
-        var (contentType, extension) = SignedScanRules.Detect(request.SignedFile);
-        var scan = request.SignedFile!.Content;
+        app.EnsureCanIssueAccount();
+        var bank = BankAccount.Create(request.Bank?.Bin, request.Bank?.Name, request.Bank?.AccountNumber, request.Bank?.AccountName);
 
         var account = await ownerAccounts.IssueOwnerAccountAsync(new IssueOwnerAccountCommand(
-                app.Id, draft.ContractNumber, app.FullName, app.Email, app.Phone, app.BusinessName, app.TaxCode, app.BusinessAddress,
-                draft.BankBin, draft.BankName, draft.BankAccountNumber, draft.BankAccountName, draft.CommissionRate / 100m),
+                app.Id, app.FullName, app.Email, app.Phone, app.BusinessName, app.TaxCode, app.BusinessAddress,
+                bank.Bin, bank.BankName, bank.AccountNumber, bank.AccountName),
             IdempotencyKey(app.Id), cancellationToken);
 
-        var key = PartnerContractSupport.SignedScanKey(app.Id, draft.Version, extension);
-        await storage.SaveAsync(key, scan, cancellationToken);
-        var contract = app.IssueAccount(performedByUserId, draft.Version, account.UserId, account.OwnerProfileId,
-            new Domain.ValueObjects.StoredFile(key, contentType, PartnerContractSupport.Sha256Hex(scan)));
-        repository.AddOwnerContract(contract);
-
-        await PartnerContractFiles.SaveOrDeleteAsync(repository, storage, key,
-            PartnerApplicationAudit.Build(app, "AccountIssued", performedByUserId, before, null), cancellationToken);
+        app.IssueAccount(performedByUserId, bank, account.UserId, account.OwnerProfileId);
+        await repository.SaveWithAuditAsync(PartnerApplicationAudit.Build(app, "AccountIssued", performedByUserId, before, null),
+            cancellationToken);
         return await PartnerApplicationSteps.ReloadAsync(queries, id, cancellationToken);
     }
 

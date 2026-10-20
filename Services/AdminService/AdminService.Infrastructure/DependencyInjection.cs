@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.Settings;
@@ -32,6 +33,8 @@ public static class DependencyInjection
         services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
+        services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
+        services.AddScoped<ILotContractRepository, LotContractRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 
@@ -56,6 +59,13 @@ public static class DependencyInjection
         services.AddTransient<IUserServiceClient>(sp => sp.GetRequiredService<UserServiceClient>());
         // US-116: tạo / kích hoạt tài khoản chủ bãi (U2 / U3) dùng chung client UserService.
         services.AddTransient<IOwnerAccountClient>(sp => sp.GetRequiredService<UserServiceClient>());
+        // US-116: đọc hồ sơ KYB + kích hoạt bãi bên ParkingService qua Gateway (route parking-lots), chuyển tiếp JWT Admin.
+        services.AddHttpClient<IParkingServiceClient, ParkingServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         return services;
     }
 }

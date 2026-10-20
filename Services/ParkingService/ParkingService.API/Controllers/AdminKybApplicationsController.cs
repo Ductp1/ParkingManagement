@@ -20,6 +20,7 @@ public sealed class AdminKybApplicationsController(
     IScheduleKybFieldSurveyUseCase scheduleSurvey,
     IRecordKybFieldSurveyResultUseCase recordSurveyResult,
     IApproveKybApplicationUseCase approve,
+    IActivateKybLotUseCase activateLot,
     IRejectKybApplicationUseCase reject,
     IRequestKybMoreInfoUseCase requestMoreInfo,
     ICurrentUser currentUser) : ControllerBase
@@ -68,7 +69,7 @@ public sealed class AdminKybApplicationsController(
         [FromBody] RecordKybFieldSurveyResultRequest request, CancellationToken cancellationToken)
         => AsAdmin(adminId => recordSurveyResult.ExecuteAsync(id, request, adminId, cancellationToken));
 
-    /// <summary>POST …/5/approve – UnderReview → Approved, bãi → Active.</summary>
+    /// <summary>POST …/5/approve – UnderReview → Approved; bãi vẫn chờ duyệt cho tới khi hợp đồng bãi được ký.</summary>
     [HttpPost("{id:int}/approve")]
     [ProducesResponseType<AdminKybApplicationDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -97,6 +98,19 @@ public sealed class AdminKybApplicationsController(
     public Task<ActionResult<AdminKybApplicationDetailDto>> RequestMoreInfo(int id, [FromBody] RequestKybMoreInfoRequest request,
         CancellationToken cancellationToken)
         => AsAdmin(adminId => requestMoreInfo.ExecuteAsync(id, request, adminId, cancellationToken));
+
+    /// <summary>
+    /// POST …/5/activate-lot { contractNumber } – AdminService gọi sau khi hợp đồng bãi được ký (US-116): bãi PendingApproval → Active.
+    /// Idempotent: bãi đã Active vẫn trả 200.
+    /// </summary>
+    [HttpPost("{id:int}/activate-lot")]
+    [ProducesResponseType<AdminKybApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<AdminKybApplicationDetailDto>> ActivateLot(int id, [FromBody] ActivateKybLotRequest request,
+        CancellationToken cancellationToken)
+        => AsAdmin(adminId => activateLot.ExecuteAsync(id, request, adminId, cancellationToken));
 
     private async Task<ActionResult<AdminKybApplicationDetailDto>> AsAdmin(Func<int, Task<AdminKybApplicationDetailDto>> action)
         => currentUser.UserId is { } adminUserId ? Ok(await action(adminUserId)) : Unauthorized();

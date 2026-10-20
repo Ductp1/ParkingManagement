@@ -35,3 +35,6 @@ public sealed record ApproveKybApplicationRequest(string? Note);
 public sealed record RejectKybApplicationRequest(string? Reason);
 
 public sealed record RequestKybMoreInfoRequest(string? Note);
+
+/// <summary>activate-lot (AdminService gọi sau khi hợp đồng bãi được ký): số hợp đồng ghi vào AuditRecorded.Reason.</summary>
+public sealed record ActivateKybLotRequest(string? ContractNumber);

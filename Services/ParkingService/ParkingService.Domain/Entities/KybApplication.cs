@@ -96,25 +96,43 @@ public class KybApplication : BaseEntity
     }
 
     /// <summary>
-    /// UnderReview → Approved và bãi PendingApproval → Active (US-055 AC2).
-    /// Bãi Tier 1 phải đã khảo sát thực địa (AC4); bãi phải có ít nhất 1 ô đỗ đang hoạt động (sơ đồ).
+    /// UnderReview → Approved (US-055 AC2). Bãi vẫn PendingApproval: chỉ chuyển Active khi hợp đồng của bãi được ký
+    /// (AdminService gọi <see cref="ActivateLot"/>, US-116 mục 14). Bãi phải đang chờ duyệt; bãi Tier 1 phải đã khảo sát thực địa (AC4);
+    /// bãi phải có ít nhất 1 ô đỗ đang hoạt động (sơ đồ).
     /// </summary>
     public void Approve(int adminUserId, ParkingLot lot, int activeSlotCount, string? note, DateTime nowUtc)
     {
         EnsureAdmin(adminUserId);
         if (lot.Id != ParkingLotId) throw new ArgumentException("Bãi đỗ không khớp hồ sơ KYB.", nameof(lot));
         EnsureStatus(KybStatus.UnderReview, "duyệt");
+        if (lot.Status != ParkingLotStatus.PendingApproval)
+            throw new ConflictException($"Bãi đang ở trạng thái {lot.Status}, không phải chờ duyệt.");
         if (IsFieldSurveyMandatory(lot.TotalSlots) && FieldSurveyCompletedAtUtc is null)
             throw new ConflictException($"Bãi trên {FieldSurveySlotThreshold} chỗ phải được khảo sát thực địa trước khi duyệt.");
         if (activeSlotCount <= 0)
             throw new ConflictException("Bãi chưa có sơ đồ ô đỗ đang hoạt động, chưa thể duyệt.");
 
-        lot.Activate();
         MoveTo(KybStatus.Approved);
         ReviewedByUserId = adminUserId;
         ReviewedAtUtc = nowUtc;
         ReviewNote = Normalize(note);
         RejectReason = null;
+    }
+
+    /// <summary>
+    /// Kích hoạt bãi sau khi hợp đồng bãi được ký (US-116 L3): KYB Approved + bãi PendingApproval → bãi Active.
+    /// Idempotent: bãi đã Active thì trả false, không đổi gì (AdminService gọi lại sau lỗi vẫn an toàn).
+    /// </summary>
+    public bool ActivateLot(ParkingLot lot, int activeSlotCount)
+    {
+        if (lot.Id != ParkingLotId) throw new ArgumentException("Bãi đỗ không khớp hồ sơ KYB.", nameof(lot));
+        if (Status != KybStatus.Approved)
+            throw new ConflictException($"Hồ sơ KYB #{Id} chưa được duyệt (trạng thái {Status}), chưa thể kích hoạt bãi.");
+        if (lot.Status == ParkingLotStatus.Active) return false;
+        if (activeSlotCount <= 0)
+            throw new ConflictException("Bãi chưa có sơ đồ ô đỗ đang hoạt động, chưa thể kích hoạt.");
+        lot.Activate();
+        return true;
     }
 
     /// <summary>UnderReview → Rejected, lý do bắt buộc; bãi giữ PendingApproval, chủ bãi được nộp lại (US-054).</summary>

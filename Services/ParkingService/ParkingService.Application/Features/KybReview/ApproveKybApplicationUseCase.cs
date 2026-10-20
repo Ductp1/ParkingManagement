@@ -9,8 +9,8 @@ public interface IApproveKybApplicationUseCase
 }
 
 /// <summary>
-/// US-055 AC2: UnderReview → Approved, bãi PendingApproval → Active. Hồ sơ + bãi + AuditRecorded + ParkingLotApproved
-/// (NotificationService báo chủ bãi) lưu trong một SaveChanges.
+/// US-055 AC2: UnderReview → Approved; bãi vẫn PendingApproval cho tới khi hợp đồng bãi được ký (activate-lot, US-116).
+/// Hồ sơ + AuditRecorded lưu trong một SaveChanges.
 /// </summary>
 public sealed class ApproveKybApplicationUseCase(IKybReviewRepository repository, IAdminKybQueries queries, TimeProvider timeProvider)
     : IApproveKybApplicationUseCase
@@ -25,11 +25,8 @@ public sealed class ApproveKybApplicationUseCase(IKybReviewRepository repository
 
         var before = KybReviewEvents.Snapshot(app);
         app.Approve(performedByUserId, app.ParkingLot, activeSlots, request.Note, now);
-        await repository.SaveWithEventsAsync(
-        [
-            KybReviewEvents.Audit(app, "Approved", performedByUserId, before, app.ReviewNote, now),
-            KybReviewEvents.LotApproved(app.ParkingLot, now),
-        ], cancellationToken);
+        await repository.SaveWithEventsAsync([KybReviewEvents.Audit(app, "Approved", performedByUserId, before, app.ReviewNote, now)],
+            cancellationToken);
         return await KybReviewSupport.ReloadAsync(queries, id, cancellationToken);
     }
 }

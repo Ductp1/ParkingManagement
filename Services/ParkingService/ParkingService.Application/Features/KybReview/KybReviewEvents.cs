@@ -6,7 +6,8 @@ namespace ParkingService.Application.Features.KybReview;
 
 /// <summary>
 /// Sự kiện tích hợp của thao tác Admin trên KYB (US-055). AuditRecorded đúng hợp đồng SharedKernel để AdminService (T-802)
-/// lưu vào AuditLogs; ParkingLotApproved khi bãi được kích hoạt. Ghi vào outbox cùng SaveChanges với dữ liệu nghiệp vụ.
+/// lưu vào AuditLogs; ParkingLotApproved khi bãi được kích hoạt (activate-lot, sau khi ký hợp đồng bãi).
+/// Ghi vào outbox cùng SaveChanges với dữ liệu nghiệp vụ.
 /// </summary>
 public static class KybReviewEvents
 {

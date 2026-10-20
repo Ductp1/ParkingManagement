@@ -16,7 +16,7 @@ public class PartnerApplicationReviewTests
     private const int AppId = 12;
     private static readonly DateTime Now = new(2026, 10, 20, 2, 0, 0, DateTimeKind.Utc);
 
-    private static PartnerApplication App(PartnerApplicationStatus status, bool withCurrentDraft = false)
+    private static PartnerApplication App(PartnerApplicationStatus status)
     {
         var app = PartnerApplication.Submit("PA-2026-0012", Now);
         typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id), BindingFlags.Public | BindingFlags.Instance)!.SetValue(app, AppId);
@@ -25,20 +25,12 @@ public class PartnerApplicationReviewTests
         {
             PartnerApplicationStatus.UnderReview => [PartnerApplicationStatus.UnderReview],
             PartnerApplicationStatus.NeedsMoreInfo => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.NeedsMoreInfo],
-            PartnerApplicationStatus.ContractPending => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending],
-            PartnerApplicationStatus.AccountIssued =>
-                [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.ContractPending, PartnerApplicationStatus.AccountIssued],
+            PartnerApplicationStatus.AccountIssued => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.AccountIssued],
             PartnerApplicationStatus.Rejected => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Rejected],
             PartnerApplicationStatus.Cancelled => [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled],
             _ => [],
         };
         foreach (var step in path) app.MoveTo(step);
-        if (withCurrentDraft)
-        {
-            app.ContractNumber = "HD-SP-2026-0012";
-            app.ContractDrafts.Add(new ContractDraft { Version = 1, ContractNumber = "HD-SP-2026-0012", Status = ContractDraftStatus.Superseded });
-            app.ContractDrafts.Add(new ContractDraft { Version = 2, ContractNumber = "HD-SP-2026-0012", Status = ContractDraftStatus.Current });
-        }
         return app;
     }
 
@@ -49,10 +41,6 @@ public class PartnerApplicationReviewTests
 
         public Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken cancellationToken)
             => Task.FromResult(app?.Id == id ? app : null);
-
-        public Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public void AddOwnerContract(OwnerContract contract) => throw new NotSupportedException();
 
         public Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
         {
@@ -74,11 +62,8 @@ public class PartnerApplicationReviewTests
                 app.BusinessName, app.TaxCode, app.BusinessAddress, app.LegalRepresentativeName, app.LegalRepresentativePosition,
                 app.BusinessLicenseUrl, app.LotCount, app.PrimaryLotAddress, app.EstimatedCarSlots, app.EstimatedMotorbikeSlots,
                 app.OperatingHours, app.ConsentAcceptedAtUtc, app.ReviewerAdminId, app.InfoRequestNote, app.RejectReason, app.CancelReason,
-                app.ContractNumber, app.CreatedUserId, app.CreatedOwnerProfileId, app.CreatedAtUtc, app.UpdatedAtUtc,
-                PartnerApplication.NextStatuses(app.Status).Select(s => s.ToString()).ToList(), []));
-
-        public Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
+                null, app.CreatedUserId, app.CreatedOwnerProfileId, app.CreatedAtUtc, app.UpdatedAtUtc,
+                PartnerApplication.NextStatuses(app.Status).Select(s => s.ToString()).ToList()));
     }
 
     private static JsonElement Json(string? json) => JsonDocument.Parse(json!).RootElement;
@@ -105,7 +90,7 @@ public class PartnerApplicationReviewTests
 
     [Theory]
     [InlineData(PartnerApplicationStatus.UnderReview)]
-    [InlineData(PartnerApplicationStatus.ContractPending)]
+    [InlineData(PartnerApplicationStatus.AccountIssued)]
     [InlineData(PartnerApplicationStatus.Rejected)]
     public async Task Start_review_from_wrong_state_is_409_and_saves_nothing(PartnerApplicationStatus status)
     {
@@ -170,9 +155,9 @@ public class PartnerApplicationReviewTests
     // ==================== A11 reject (T9) ====================
 
     [Fact]
-    public async Task Reject_from_contract_pending_supersedes_current_draft()
+    public async Task Reject_from_under_review_is_terminal_and_audits_reason()
     {
-        var app = App(PartnerApplicationStatus.ContractPending, withCurrentDraft: true);
+        var app = App(PartnerApplicationStatus.UnderReview);
         var repo = new FakeRepository(app);
 
         var dto = await new RejectPartnerApplicationUseCase(repo, new FakeQueries(app))
@@ -181,11 +166,11 @@ public class PartnerApplicationReviewTests
         Assert.Equal("Rejected", dto.Status);
         Assert.Equal("MST không khớp giấy phép", dto.RejectReason);
         Assert.Empty(dto.NextStatuses);
-        Assert.All(app.ContractDrafts, d => Assert.Equal(ContractDraftStatus.Superseded, d.Status));
         var audit = Assert.Single(repo.Audits);
         Assert.Equal("PartnerApplication.Rejected", audit.Action);
-        Assert.Equal(2, Json(audit.OldValuesJson).GetProperty("currentDraftVersion").GetInt32());
-        Assert.Equal(JsonValueKind.Null, Json(audit.NewValuesJson).GetProperty("currentDraftVersion").ValueKind);
+        Assert.Equal("MST không khớp giấy phép", audit.Reason);
+        Assert.Equal("UnderReview", Json(audit.OldValuesJson).GetProperty("status").GetString());
+        Assert.Equal("Rejected", Json(audit.NewValuesJson).GetProperty("status").GetString());
     }
 
     [Theory]
@@ -211,10 +196,9 @@ public class PartnerApplicationReviewTests
     [Theory]
     [InlineData(PartnerApplicationStatus.UnderReview)]
     [InlineData(PartnerApplicationStatus.NeedsMoreInfo)]
-    [InlineData(PartnerApplicationStatus.ContractPending)]
     public async Task Cancel_allowed_before_account_issued(PartnerApplicationStatus status)
     {
-        var app = App(status, withCurrentDraft: status == PartnerApplicationStatus.ContractPending);
+        var app = App(status);
         var repo = new FakeRepository(app);
 
         var dto = await new CancelPartnerApplicationUseCase(repo, new FakeQueries(app))
@@ -222,7 +206,6 @@ public class PartnerApplicationReviewTests
 
         Assert.Equal("Cancelled", dto.Status);
         Assert.Equal("Đối tác xin rút hồ sơ", dto.CancelReason);
-        Assert.DoesNotContain(app.ContractDrafts, d => d.Status == ContractDraftStatus.Current);
         Assert.Equal("PartnerApplication.Cancelled", Assert.Single(repo.Audits).Action);
     }
 

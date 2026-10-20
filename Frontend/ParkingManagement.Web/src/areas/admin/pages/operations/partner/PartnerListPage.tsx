@@ -26,7 +26,7 @@ const columns: DataTableColumn<PartnerApplicationSummaryDto>[] = [
     key: 'status',
     header: 'Status',
     width: 150,
-    render: (r) => <CellTwoLine primary={<CellStatus value={r.status} />} secondary={r.contractNumber ?? undefined} />,
+    render: (r) => <CellTwoLine primary={<CellStatus value={r.status} />} secondary={r.createdOwnerProfileId ? `OwnerProfile #${r.createdOwnerProfileId}` : undefined} />,
   },
   { key: 'reviewer', header: 'Reviewer', width: 90, render: (r) => <CellText>{r.reviewerAdminId ? `Admin #${r.reviewerAdminId}` : '—'}</CellText> },
   { key: 'updated', header: 'Updated', width: 123, render: (r) => <CellMuted>{formatDateTime(r.updatedAtUtc ?? r.createdAtUtc)}</CellMuted> },

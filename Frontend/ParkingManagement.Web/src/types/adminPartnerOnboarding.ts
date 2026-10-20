@@ -1,8 +1,9 @@
-import type { ContractDraftStatus, PartnerApplicationStatus } from './adminEnums';
+import type { PartnerApplicationStatus } from './adminEnums';
 
 /**
  * Partner Onboarding (US-116) – AdminService, khớp
- * Services/AdminService/AdminService.Application/Features/PartnerOnboarding/*.cs (A1–A12).
+ * Services/AdminService/AdminService.Application/Features/PartnerOnboarding/*.cs.
+ * Hồ sơ đối tác chỉ còn thẩm định + cấp tài khoản; hợp đồng ký theo từng bãi (types/adminLotContracts.ts).
  */
 export interface PartnerApplicationSummaryDto {
   id: number;
@@ -15,38 +16,20 @@ export interface PartnerApplicationSummaryDto {
   lotCount: number;
   status: PartnerApplicationStatus | string;
   reviewerAdminId: number | null;
-  contractNumber: string | null;
+  createdOwnerProfileId: number | null;
   createdAtUtc: string;
   updatedAtUtc: string | null;
 }
 
-/** Một phiên bản hợp đồng tự sinh (T5 / T5b). commissionRate theo %; ngày dạng "yyyy-MM-dd". */
-export interface ContractDraftDto {
-  id: number;
-  version: number;
-  contractNumber: string;
-  templateVersion: number;
-  commissionRate: number;
-  effectiveFrom: string;
-  effectiveTo: string;
-  termMonths: number;
-  bankBin: string;
-  bankName: string;
-  bankAccountNumber: string;
-  bankAccountName: string;
-  fileContentType: string;
-  fileSha256: string;
-  status: ContractDraftStatus | string;
-  revisionReason: string | null;
-  sentAtUtc: string;
-  sentToEmail: string;
-  createdByAdminId: number;
+/** Tài khoản nhận thanh toán (in vào Phụ lục 02 của hợp đồng từng bãi). */
+export interface PartnerBankAccountDto {
+  bin: string;
+  name: string;
+  accountNumber: string;
+  accountName: string;
 }
 
-/**
- * Chi tiết hồ sơ (A2; mọi thao tác A3–A12 trả về cùng DTO này).
- * nextStatuses = trạng thái có thể chuyển tới theo bảng T2–T10; contractDrafts = mới nhất trước.
- */
+/** Chi tiết hồ sơ (A2; mọi thao tác A3–A12 trả về cùng DTO này). nextStatuses = trạng thái có thể chuyển tới theo bảng T2–T10. */
 export interface PartnerApplicationDetailDto {
   id: number;
   code: string;
@@ -72,13 +55,13 @@ export interface PartnerApplicationDetailDto {
   infoRequestNote: string | null;
   rejectReason: string | null;
   cancelReason: string | null;
-  contractNumber: string | null;
+  /** null khi chưa cấp tài khoản. */
+  payoutBank: PartnerBankAccountDto | null;
   createdUserId: number | null;
   createdOwnerProfileId: number | null;
   createdAtUtc: string;
   updatedAtUtc: string | null;
   nextStatuses: Array<PartnerApplicationStatus | string>;
-  contractDrafts: ContractDraftDto[];
 }
 
 /** A1: GET /api/v1/admin/partner-applications?status=&search=&page=&pageSize= (search: mã, tên DN, MST, email, SĐT). */
@@ -108,29 +91,12 @@ export interface PartnerBankAccountRequest {
   accountName: string;
 }
 
-/**
- * A5 contract-preview / A6 send-contract. commissionRate theo % (> 0, ≤ 100, 2 chữ số thập phân);
- * effectiveFrom "yyyy-MM-dd" ≥ hôm nay; termMonths 12 / 24 / 36.
- */
-export interface PartnerContractTermsRequest {
-  commissionRate: number;
-  effectiveFrom: string;
-  termMonths: number;
+/** A9 issue-account: tài khoản nhận thanh toán mặc định của đối tác. */
+export interface IssueOwnerAccountRequest {
   bank: PartnerBankAccountRequest;
 }
 
-/** A7 revise-contract: điều khoản mới + lý do (≤ 1000 ký tự). */
-export interface PartnerReviseContractRequest extends PartnerContractTermsRequest {
-  reason: string;
-}
-
-/** A9 issue-account (multipart): bản scan PDF / JPG / PNG ≤ 10 MB + phiên bản Admin xác nhận đã ký. */
-export interface IssueOwnerAccountRequest {
-  confirmedDraftVersion: number;
-  signedFile: File;
-}
-
-/** File trả về từ A5 / A8 (HTML hợp đồng). */
+/** File trả về từ API (HTML hợp đồng). */
 export interface AdminFile {
   blob: Blob;
   fileName: string | null;

@@ -27,7 +27,7 @@ public sealed class PartnerApplicationQueries(AdminDbContext db) : IPartnerAppli
             .OrderByDescending(a => a.UpdatedAtUtc ?? a.CreatedAtUtc).ThenByDescending(a => a.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(a => new PartnerApplicationSummaryDto(a.Id, a.Code, a.BusinessName, a.TaxCode, a.FullName, a.Email, a.Phone,
-                a.LotCount, a.Status.ToString(), a.ReviewerAdminId, a.ContractNumber, a.CreatedAtUtc, a.UpdatedAtUtc))
+                a.LotCount, a.Status.ToString(), a.ReviewerAdminId, a.CreatedOwnerProfileId, a.CreatedAtUtc, a.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
         return new PagedResult<PartnerApplicationSummaryDto>(items, page, pageSize, total);
     }
@@ -43,14 +43,11 @@ public sealed class PartnerApplicationQueries(AdminDbContext db) : IPartnerAppli
                     a.BusinessType.ToString(), a.BusinessName, a.TaxCode, a.BusinessAddress, a.LegalRepresentativeName,
                     a.LegalRepresentativePosition, a.BusinessLicenseUrl, a.LotCount, a.PrimaryLotAddress, a.EstimatedCarSlots,
                     a.EstimatedMotorbikeSlots, a.OperatingHours, a.ConsentAcceptedAtUtc, a.ReviewerAdminId, a.InfoRequestNote,
-                    a.RejectReason, a.CancelReason, a.ContractNumber, a.CreatedUserId, a.CreatedOwnerProfileId, a.CreatedAtUtc,
-                    a.UpdatedAtUtc, new List<string>(),
-                    a.ContractDrafts.OrderByDescending(d => d.Version)
-                        .Select(d => new ContractDraftDto(d.Id, d.Version, d.ContractNumber, d.TemplateVersion, d.CommissionRate,
-                            d.EffectiveFrom, d.EffectiveTo, d.TermMonths, d.BankBin, d.BankName, d.BankAccountNumber,
-                            d.BankAccountName, d.FileContentType, d.FileSha256, d.Status.ToString(), d.RevisionReason, d.SentAtUtc,
-                            d.SentToEmail, d.CreatedByAdminId))
-                        .ToList()),
+                    a.RejectReason, a.CancelReason,
+                    a.PayoutBankBin == null
+                        ? null
+                        : new PartnerBankAccountDto(a.PayoutBankBin, a.PayoutBankName!, a.PayoutBankAccountNumber!, a.PayoutBankAccountName!),
+                    a.CreatedUserId, a.CreatedOwnerProfileId, a.CreatedAtUtc, a.UpdatedAtUtc, new List<string>()),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -58,10 +55,4 @@ public sealed class PartnerApplicationQueries(AdminDbContext db) : IPartnerAppli
             ? null
             : row.Dto with { NextStatuses = PartnerApplication.NextStatuses(row.Status).Select(s => s.ToString()).ToList() };
     }
-
-    public Task<ContractDraftFileInfo?> GetContractFileAsync(int id, int version, CancellationToken cancellationToken)
-        => db.ContractDrafts.AsNoTracking()
-            .Where(d => d.PartnerApplicationId == id && d.Version == version)
-            .Select(d => new ContractDraftFileInfo(d.ContractNumber, d.Version, d.FileKey, d.FileContentType, d.FileSha256))
-            .FirstOrDefaultAsync(cancellationToken);
 }
