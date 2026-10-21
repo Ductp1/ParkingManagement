@@ -44,8 +44,11 @@ public interface IParkingServiceClient
     /// <summary>Null khi ParkingService báo không có hồ sơ KYB.</summary>
     Task<KybLotInfo?> GetKybAsync(int kybApplicationId, CancellationToken cancellationToken);
 
-    /// <summary>Kích hoạt bãi sau khi ký hợp đồng (idempotent: bãi đã Active thì vẫn thành công).</summary>
-    Task ActivateLotAsync(int kybApplicationId, string contractNumber, CancellationToken cancellationToken);
+    /// <summary>
+    /// Duyệt KYB khi hợp đồng bãi đã ký (design v9): KYB UnderReview → Approved, bãi → Active. Idempotent: đã duyệt + bãi Active thì
+    /// vẫn thành công. Điều kiện duyệt chưa đạt (khảo sát, sơ đồ ô đỗ…) → ConflictException với thông điệp của ParkingService.
+    /// </summary>
+    Task ApproveKybAsync(int kybApplicationId, string contractNumber, string? note, CancellationToken cancellationToken);
 }
 
 // ===== PORT (ghi) =====

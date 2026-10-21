@@ -21,7 +21,8 @@ import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
 import { useAdminToast } from '../../../hooks/useAdminToast';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDate, formatDateTimeIct, formatNumber, orEmpty } from '../../../utils/format';
-import { LOT_CONTRACT_BASE, bankText, percentText } from '../lot-contracts/lotContractFormat';
+import { KYB_BASE } from '../kyb/kybFormat';
+import { bankText, percentText } from '../lot-contracts/lotContractFormat';
 import { IssueAccountDialog } from './PartnerAccountDialog';
 
 type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | null;
@@ -56,7 +57,7 @@ const timeline = (app: PartnerApplicationDetailDto): TimelineEntry[] => {
 };
 
 const lotColumns: DataTableColumn<LotContractSummaryDto>[] = [
-  { key: 'number', header: 'Contract', width: 150, render: (c) => <CellLink to={`${LOT_CONTRACT_BASE}/${c.id}`}>{c.contractNumber}</CellLink> },
+  { key: 'number', header: 'Contract', width: 150, render: (c) => <CellLink to={`${KYB_BASE}/${c.kybApplicationId}`}>{c.contractNumber}</CellLink> },
   { key: 'lot', header: 'Lot', render: (c) => <CellTwoLine primary={c.lotName} secondary={`Lot #${c.parkingLotId} · ${c.lotCity}`} /> },
   { key: 'fee', header: 'Fee', width: 80, render: (c) => <CellText>{percentText(c.commissionRate)}</CellText> },
   { key: 'status', header: 'Status', width: 110, render: (c) => <CellStatus value={c.status} /> },
@@ -66,7 +67,7 @@ const lotColumns: DataTableColumn<LotContractSummaryDto>[] = [
 const OwnerLotContracts: React.FC<{ ownerProfileId: number }> = ({ ownerProfileId }) => {
   const query = useAdminQuery(() => adminLotContractsApi.list({ ownerProfileId, page: 1, pageSize: 50 }), [ownerProfileId], (d) => d.items.length === 0);
   return (
-    <Panel title="Lot contracts" description="One contract per lot, created after the lot’s KYB is approved" padded={false}>
+    <Panel title="Lot contracts" description="One contract per lot, negotiated and signed in the lot’s KYB review" padded={false}>
       <DataTable
         bare
         columns={lotColumns}
@@ -79,7 +80,7 @@ const OwnerLotContracts: React.FC<{ ownerProfileId: number }> = ({ ownerProfileI
             onRetry={query.refetch}
             copy={{
               emptyTitle: 'No lot contracts yet',
-              emptyMessage: 'The owner creates lots and submits KYB; contracts are created from KYB Review.',
+              emptyMessage: 'The owner creates lots and submits KYB; contracts are created in KYB Review.',
               errorTitle: 'Could not load lot contracts',
               service: 'AdminService',
             }}

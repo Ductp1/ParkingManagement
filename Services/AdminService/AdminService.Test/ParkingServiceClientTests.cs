@@ -54,37 +54,39 @@ public class ParkingServiceClientTests
             .GetKybAsync(31, CancellationToken.None));
 
     [Fact]
-    public async Task Activate_lot_posts_contract_number()
+    public async Task Approve_kyb_posts_contract_number_and_note()
     {
         var handler = new FakeHandler(_ => Json(HttpStatusCode.OK, KybJson));
 
-        await Client(handler).ActivateLotAsync(31, "HD-SP-2026-0007", CancellationToken.None);
+        await Client(handler).ApproveKybAsync(31, "HD-SP-2026-0007", "Đạt", CancellationToken.None);
 
         var request = handler.Requests.Single();
         Assert.Equal(HttpMethod.Post, request.Method);
-        Assert.Equal("http://gateway.test/api/v1/parking-lots/kyb-applications/31/activate-lot", request.RequestUri!.ToString());
-        Assert.Equal("HD-SP-2026-0007", JsonDocument.Parse(handler.Bodies.Single()!).RootElement.GetProperty("contractNumber").GetString());
+        Assert.Equal("http://gateway.test/api/v1/parking-lots/kyb-applications/31/approve", request.RequestUri!.ToString());
+        var body = JsonDocument.Parse(handler.Bodies.Single()!).RootElement;
+        Assert.Equal(("HD-SP-2026-0007", "Đạt"), (body.GetProperty("contractNumber").GetString(), body.GetProperty("note").GetString()));
     }
 
     [Fact]
-    public async Task Activate_lot_conflict_carries_parking_service_message()
+    public async Task Approve_kyb_conflict_carries_parking_service_message()
     {
         var handler = new FakeHandler(_ => Json(HttpStatusCode.Conflict,
-            """{ "status": 409, "detail": "Hồ sơ KYB #31 chưa được duyệt (trạng thái UnderReview), chưa thể kích hoạt bãi." }"""));
+            """{ "status": 409, "detail": "Bãi trên 50 chỗ phải được khảo sát thực địa trước khi duyệt." }"""));
 
-        var ex = await Assert.ThrowsAsync<ConflictException>(() => Client(handler).ActivateLotAsync(31, "HD-SP-2026-0007", CancellationToken.None));
-        Assert.Equal("Hồ sơ KYB #31 chưa được duyệt (trạng thái UnderReview), chưa thể kích hoạt bãi.", ex.Message);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            Client(handler).ApproveKybAsync(31, "HD-SP-2026-0007", null, CancellationToken.None));
+        Assert.Equal("Bãi trên 50 chỗ phải được khảo sát thực địa trước khi duyệt.", ex.Message);
     }
 
     [Fact]
-    public async Task Activate_lot_unknown_kyb_is_not_found()
+    public async Task Approve_kyb_unknown_is_not_found()
         => await Assert.ThrowsAsync<NotFoundException>(() => Client(new FakeHandler(_ => Json(HttpStatusCode.NotFound, """{ "status": 404 }""")))
-            .ActivateLotAsync(31, "HD-SP-2026-0007", CancellationToken.None));
+            .ApproveKybAsync(31, "HD-SP-2026-0007", null, CancellationToken.None));
 
     [Fact]
-    public async Task Activate_lot_connection_failure_is_unavailable()
+    public async Task Approve_kyb_connection_failure_is_unavailable()
         => await Assert.ThrowsAsync<DependencyUnavailableException>(() => Client(new FakeHandler(_ => throw new HttpRequestException("refused")))
-            .ActivateLotAsync(31, "HD-SP-2026-0007", CancellationToken.None));
+            .ApproveKybAsync(31, "HD-SP-2026-0007", null, CancellationToken.None));
 
     [Fact]
     public void Infrastructure_registers_parking_service_client()

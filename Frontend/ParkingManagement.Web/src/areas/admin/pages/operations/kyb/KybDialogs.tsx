@@ -8,7 +8,7 @@ import { DateTimeField, TextAreaField } from '../../../components/FormFields';
 import { formatDate, formatNumber, localInputToUtcIso } from '../../../utils/format';
 import { kybCode, ownerLabel } from './kybFormat';
 
-export type KybDialogType = 'startReview' | 'approve' | 'reject' | 'requestInfo' | 'scheduleSurvey' | 'recordSurvey';
+export type KybDialogType = 'startReview' | 'reject' | 'requestInfo' | 'scheduleSurvey' | 'recordSurvey';
 
 interface KybDialogsProps {
   kyb: AdminKybApplicationDetailDto;
@@ -81,7 +81,8 @@ const ScheduleSurveyDialog: React.FC<{
 };
 
 /**
- * Dialog của màn KYB Detail: Start review / Approve / Reject / Request more info / Schedule field survey / Record survey result.
+ * Dialog của màn KYB Detail: Start review / Reject / Request more info / Schedule field survey / Record survey result.
+ * Duyệt KYB nằm ở panel hợp đồng bãi (tải bản hợp đồng đã ký = duyệt, US-116 design v9).
  * Lỗi 400 / 409 từ ParkingService (thông điệp tiếng Việt) hiện ngay trên dialog.
  */
 export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDone }) => {
@@ -89,15 +90,6 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
   const summary = (
     <DialogSummary title={`${kybCode(kyb.id)} · ${lot.name}`} subtitle={`${ownerLabel(lot.ownerProfileId)} · ${formatNumber(lot.totalSlots)} slots`} />
   );
-
-  const surveyInfo = kyb.fieldSurveyCompletedAtUtc
-    ? `Field survey done ${formatDate(kyb.fieldSurveyCompletedAtUtc)}.`
-    : kyb.fieldSurveyRequired
-      ? `Field survey ${kyb.fieldSurveyAtUtc ? `scheduled ${formatDate(kyb.fieldSurveyAtUtc)}` : 'not scheduled'}.`
-      : 'No field survey.';
-  const gpsInfo =
-    kyb.gpsDistanceMeters !== null ? `Location distance ${formatNumber(Math.round(kyb.gpsDistanceMeters))} m.` : 'No GPS on site photos.';
-  const approveInfo = `${surveyInfo} ${gpsInfo}`;
 
   return (
     <>
@@ -113,31 +105,6 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
         }}
       >
         {summary}
-      </ActionDialog>
-
-      <ActionDialog
-        open={open === 'approve'}
-        title="Approve KYB"
-        description="Status → Approved. The lot stays Pending approval until its lot contract is signed."
-        confirmLabel="Approve"
-        field={{
-          label: 'Approval note',
-          placeholder: 'Anything the owner should know?',
-          helper: 'Saved to KybApplications.ReviewNote and the audit log.',
-          maxLength: 1000,
-        }}
-        onClose={onClose}
-        onSubmit={async (note) => {
-          await adminKybApi.approve(kyb.id, { note: note || null });
-          onDone('KYB approved', `Create the lot contract for ${lot.name} to activate it.`);
-        }}
-      >
-        {summary}
-        {kyb.approvalBlockers.length > 0 ? (
-          <Banner tone="warning">Not ready to approve: {kyb.approvalBlockers.join(' ')}</Banner>
-        ) : (
-          <Banner tone="info">{approveInfo}</Banner>
-        )}
       </ActionDialog>
 
       <ActionDialog

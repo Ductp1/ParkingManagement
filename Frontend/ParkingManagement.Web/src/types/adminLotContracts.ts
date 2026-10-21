@@ -101,10 +101,11 @@ export interface ReviseLotContractRequest extends LotContractTermsRequest {
   reason: string;
 }
 
-/** L3 (multipart): bản scan PDF / JPG / PNG ≤ 10 MB + phiên bản Admin xác nhận đã ký. */
+/** L3 (multipart): bản scan PDF / JPG / PNG ≤ 10 MB + phiên bản Admin xác nhận đã ký + ghi chú duyệt KYB (≤ 1000). Ký = duyệt KYB. */
 export interface SignLotContractRequest {
   confirmedVersion: number;
   signedFile: File;
+  note?: string;
 }
 
 /** L4. */

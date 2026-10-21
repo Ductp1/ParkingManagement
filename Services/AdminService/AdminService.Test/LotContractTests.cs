@@ -58,7 +58,7 @@ public class LotContractTests
         return app;
     }
 
-    private static KybLotInfo Kyb(string kybStatus = "Approved", string lotStatus = "PendingApproval") => new(KybId, kybStatus, LotId,
+    private static KybLotInfo Kyb(string kybStatus = "UnderReview", string lotStatus = "PendingApproval") => new(KybId, kybStatus, LotId,
         "Bãi xe Tân Bình 1", "125 Cộng Hòa", "TP. Hồ Chí Minh", "Tân Bình", 240, new TimeOnly(5, 0), new TimeOnly(23, 0), lotStatus,
         OwnerProfileId);
 
@@ -178,9 +178,10 @@ public class LotContractTests
     }
 
     [Theory]
-    [InlineData("UnderReview", "PendingApproval", "chưa được duyệt")]
-    [InlineData("Approved", "Active", "không phải chờ duyệt")]
-    public async Task Create_requires_approved_kyb_and_pending_lot(string kybStatus, string lotStatus, string message)
+    [InlineData("Submitted", "PendingApproval", "đang thẩm định")]
+    [InlineData("Approved", "Active", "đang thẩm định")]
+    [InlineData("UnderReview", "Active", "không phải chờ duyệt")]
+    public async Task Create_requires_kyb_under_review_and_pending_lot(string kybStatus, string lotStatus, string message)
     {
         var fx = new Fixture();
         fx.Parking.Kyb = Kyb(kybStatus, lotStatus);
@@ -222,7 +223,7 @@ public class LotContractTests
     public async Task Create_checks_state_before_terms()
     {
         var fx = new Fixture();
-        fx.Parking.Kyb = Kyb("UnderReview");
+        fx.Parking.Kyb = Kyb("Submitted");
 
         await Assert.ThrowsAsync<ConflictException>(() => fx.Create().ExecuteAsync(Create(rate: 0), AdminId));
     }
@@ -385,22 +386,23 @@ public class LotContractTests
 
     private static readonly byte[] Pdf = "%PDF-1.7 signed"u8.ToArray();
 
-    private static SignLotContractRequest SignRequest(int? version = 2, byte[]? content = null, long? length = null)
+    private static SignLotContractRequest SignRequest(int? version = 2, byte[]? content = null, long? length = null, string? note = null)
     {
         var bytes = content ?? Pdf;
-        return new SignLotContractRequest(version, new UploadedFile("da-ky.pdf", length ?? bytes.Length, bytes));
+        return new SignLotContractRequest(version, new UploadedFile("da-ky.pdf", length ?? bytes.Length, bytes), note);
     }
 
     [Fact]
-    public async Task Sign_activates_lot_then_signs_current_version()
+    public async Task Sign_approves_kyb_then_signs_current_version()
     {
         var c = Contract(versions: 2);
         var fx = new Fixture(c);
 
-        var dto = await fx.Sign().ExecuteAsync(5, SignRequest(), AdminId);
+        var dto = await fx.Sign().ExecuteAsync(5, SignRequest(note: "  Đạt khảo sát  "), AdminId);
 
         Assert.Equal("Signed", dto.Status);
-        Assert.Equal([(KybId, Number)], fx.Parking.Activations);
+        Assert.Equal([(KybId, Number, (string?)"Đạt khảo sát")], fx.Parking.Approvals);
+        Assert.Equal("Đạt khảo sát", fx.Repository.Audits.Single().Reason);
         Assert.Equal(LotContractStatus.Signed, c.Status);
         Assert.Equal(LotContractVersionStatus.Signed, c.Versions.Single(v => v.Version == 2).Status);
         Assert.Equal(("lot-contracts/hd-sp-2026-0007/signed-v2.pdf", "application/pdf", Sha(Pdf)),
@@ -411,13 +413,36 @@ public class LotContractTests
     }
 
     [Fact]
+    public async Task Sign_with_too_long_note_is_bad_request_before_approving()
+    {
+        var fx = new Fixture(Contract(versions: 2));
+
+        await Assert.ThrowsAsync<ValidationException>(() => fx.Sign().ExecuteAsync(5, SignRequest(note: new string('x', 1001)), AdminId));
+        Assert.Empty(fx.Parking.Approvals);
+        Assert.Empty(fx.Storage.Files);
+    }
+
+    [Fact]
+    public async Task Kyb_approval_blocker_keeps_contract_pending_and_deletes_scan()
+    {
+        var c = Contract(versions: 2);
+        var fx = new Fixture(c);
+        fx.Parking.Failure = new ConflictException("Bãi trên 50 chỗ phải được khảo sát thực địa trước khi duyệt.");
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => fx.Sign().ExecuteAsync(5, SignRequest(), AdminId));
+        Assert.Contains("khảo sát thực địa", ex.Message);
+        Assert.Equal(LotContractStatus.Pending, c.Status);
+        Assert.Empty(fx.Storage.Files);
+    }
+
+    [Fact]
     public async Task Sign_old_version_is_conflict_without_activating()
     {
         var fx = new Fixture(Contract(versions: 2));
 
         Assert.Equal("Phiên bản hợp đồng hiện tại là v2, không phải v1. Vui lòng kiểm tra lại bản đã ký.",
             (await Assert.ThrowsAsync<ConflictException>(() => fx.Sign().ExecuteAsync(5, SignRequest(version: 1), AdminId))).Message);
-        Assert.Empty(fx.Parking.Activations);
+        Assert.Empty(fx.Parking.Approvals);
     }
 
     [Theory]
@@ -434,7 +459,7 @@ public class LotContractTests
         await Assert.ThrowsAsync<ValidationException>(() => fx.Sign().ExecuteAsync(5, SignRequest(content: "MZ exe"u8.ToArray()), AdminId));
         await Assert.ThrowsAsync<ValidationException>(() =>
             fx.Sign().ExecuteAsync(5, SignRequest(content: [], length: SignedScanRules.MaxBytes + 1L), AdminId));
-        Assert.Empty(fx.Parking.Activations);
+        Assert.Empty(fx.Parking.Approvals);
     }
 
     [Fact]
@@ -639,7 +664,7 @@ public class LotContractTests
     {
         public KybLotInfo? Kyb { get; set; } = LotContractTests.Kyb();
         public Exception? Failure { get; set; }
-        public List<(int KybId, string Number)> Activations { get; } = [];
+        public List<(int KybId, string Number, string? Note)> Approvals { get; } = [];
 
         public Task<KybLotInfo?> GetKybAsync(int kybApplicationId, CancellationToken cancellationToken)
         {
@@ -647,10 +672,10 @@ public class LotContractTests
             return Task.FromResult(Kyb?.KybApplicationId == kybApplicationId ? Kyb : null);
         }
 
-        public Task ActivateLotAsync(int kybApplicationId, string contractNumber, CancellationToken cancellationToken)
+        public Task ApproveKybAsync(int kybApplicationId, string contractNumber, string? note, CancellationToken cancellationToken)
         {
             if (Failure is not null) throw Failure;
-            Activations.Add((kybApplicationId, contractNumber));
+            Approvals.Add((kybApplicationId, contractNumber, note));
             return Task.CompletedTask;
         }
     }

@@ -4,7 +4,6 @@ import type {
   AdminKybApplicationDetailDto,
   AdminKybApplicationSummaryDto,
   AdminKybListQuery,
-  ApproveKybRequest,
   RecordKybSurveyResultRequest,
   RejectKybRequest,
   RequestKybInfoRequest,
@@ -47,12 +46,6 @@ export const adminKybApi = {
    */
   recordSurveyResult: (id: number, data: RecordKybSurveyResultRequest) =>
     adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/field-survey/result`, data }),
-
-  /**
-   * UnderReview → Approved, bãi PendingApproval → Active (US-055 AC2).
-   */
-  approve: (id: number, data: ApproveKybRequest) =>
-    adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/approve`, data }),
 
   /**
    * UnderReview → Rejected, lý do bắt buộc (US-055 AC3).

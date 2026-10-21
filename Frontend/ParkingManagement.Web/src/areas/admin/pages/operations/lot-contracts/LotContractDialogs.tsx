@@ -111,7 +111,7 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
       title={target.mode === 'create' ? 'Create lot contract' : 'Revise lot contract'}
       description={
         target.mode === 'create'
-          ? 'Generates contract v1 for this lot from the active template. The lot goes Active when the signed contract is uploaded.'
+          ? 'Generates contract v1 for this lot from the active template. Send it to the owner; uploading the signed contract approves the KYB.'
           : `Generates v${(current?.version ?? 0) + 1} with the same contract number; the current version becomes Superseded.`
       }
       confirmLabel={target.mode === 'create' ? 'Create contract' : 'Save revision'}
@@ -166,18 +166,21 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
 
 interface SignDialogProps {
   contract: LotContractDetailDto;
+  /** Điều kiện duyệt KYB còn thiếu (từ ParkingService) – hiện cảnh báo, server vẫn kiểm tra lại. */
+  blockers: string[];
   onClose: () => void;
   onDone: (contract: LotContractDetailDto, title: string) => void;
 }
 
 /**
- * Ký hợp đồng (L3): tải bản scan đã ký và xác nhận đúng phiên bản đang chờ ký. AdminService kích hoạt bãi bên ParkingService –
- * lỗi 503 / 409 thì hợp đồng vẫn chờ ký, thử lại an toàn.
+ * Ký hợp đồng = duyệt KYB (L3, design v9): tải bản scan đã ký và xác nhận đúng phiên bản đang chờ ký. AdminService gọi ParkingService
+ * duyệt KYB + kích hoạt bãi – điều kiện duyệt chưa đạt (409) hoặc lỗi 503 thì hợp đồng vẫn chờ ký, thử lại an toàn.
  */
-export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, onClose, onDone }) => {
+export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, blockers, onClose, onDone }) => {
   const current = contract.versions.find((v) => v.status === LotContractVersionStatus.Current);
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [note, setNote] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -188,8 +191,12 @@ export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, onClos
     setSubmitting(true);
     setApiError(null);
     try {
-      const saved = await adminLotContractsApi.sign(contract.id, { confirmedVersion: current.version, signedFile: file });
-      onDone(saved, 'Contract signed – lot is Active');
+      const saved = await adminLotContractsApi.sign(contract.id, {
+        confirmedVersion: current.version,
+        signedFile: file,
+        note: note.trim() || undefined,
+      });
+      onDone(saved, 'Contract signed – KYB approved, lot is Active');
       onClose();
     } catch (err: unknown) {
       setApiError(errorText(err));
@@ -202,9 +209,9 @@ export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, onClos
     <AdminDialog
       open
       size={640}
-      title="Upload signed contract"
-      description="Pending → Signed. ParkingService activates the lot so drivers can book it."
-      confirmLabel="Sign & activate lot"
+      title="Upload signed contract & approve KYB"
+      description="Contract Pending → Signed, KYB Under review → Approved, lot Pending approval → Active (bookable)."
+      confirmLabel="Sign & approve"
       onClose={onClose}
       onConfirm={confirm}
       confirmDisabled={!current}
@@ -221,6 +228,7 @@ export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, onClos
       ) : (
         <Banner tone="warning">No version is waiting for signature.</Banner>
       )}
+      {blockers.length > 0 && <Banner tone="warning">KYB not ready to approve: {blockers.join(' ')}</Banner>}
       <UploadZone
         label="Signed contract scan"
         required
@@ -234,6 +242,14 @@ export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, onClos
         onChange={setConfirmed}
       />
       {submitted && !confirmed && <span className="adm-type-body-small text-(--admin-status-danger)">Confirm the signed version.</span>}
+      <TextAreaField
+        label="Approval note"
+        value={note}
+        onChange={setNote}
+        maxLength={1000}
+        placeholder="Anything the owner should know?"
+        helper="Saved to KybApplications.ReviewNote and both audit logs."
+      />
     </AdminDialog>
   );
 };

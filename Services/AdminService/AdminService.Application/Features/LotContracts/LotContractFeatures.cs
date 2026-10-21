@@ -20,8 +20,8 @@ public sealed record LotContractTermsRequest(decimal? CommissionRate, DateOnly? 
 /// <summary>L2: điều khoản mới + lý do sửa.</summary>
 public sealed record ReviseLotContractRequest(decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths, string? Reason);
 
-/// <summary>L3 (multipart): bản scan đã ký + phiên bản Admin xác nhận đã ký.</summary>
-public sealed record SignLotContractRequest(int? ConfirmedVersion, UploadedFile? SignedFile);
+/// <summary>L3 (multipart): bản scan đã ký + phiên bản Admin xác nhận đã ký + ghi chú duyệt KYB (tùy chọn, ≤ 1000).</summary>
+public sealed record SignLotContractRequest(int? ConfirmedVersion, UploadedFile? SignedFile, string? Note = null);
 
 /// <summary>L4.</summary>
 public sealed record LotContractReasonRequest(string? Reason);
@@ -94,7 +94,7 @@ internal static class LotContractSupport
 
     /// <summary>
     /// Kiểm tra và dựng hợp đồng mới trong bộ nhớ (chưa lưu) cho L1p / L1:
-    /// KYB tồn tại (404) và đã duyệt, bãi đang chờ duyệt, chưa có hợp đồng mở, chủ bãi có hồ sơ đối tác đã cấp tài khoản (409),
+    /// KYB tồn tại (404) và đang thẩm định, bãi đang chờ duyệt, chưa có hợp đồng mở, chủ bãi có hồ sơ đối tác đã cấp tài khoản (409),
     /// rồi mới kiểm tra điều khoản (400).
     /// </summary>
     public static async Task<(LotContract Contract, ContractTerms Terms, ContractTemplate Template)> PrepareNewAsync(
@@ -104,8 +104,8 @@ internal static class LotContractSupport
         if (request.KybApplicationId is not { } kybId || kybId <= 0)
             throw new ValidationException("kybApplicationId phải là số nguyên dương.");
         var kyb = await parking.GetKybAsync(kybId, ct) ?? throw new NotFoundException("Hồ sơ KYB", kybId);
-        if (kyb.KybStatus != nameof(ParkingManagement.SharedKernel.Enums.KybStatus.Approved))
-            throw new ConflictException($"Hồ sơ KYB #{kybId} chưa được duyệt (trạng thái {kyb.KybStatus}), chưa thể lập hợp đồng.");
+        if (kyb.KybStatus != nameof(ParkingManagement.SharedKernel.Enums.KybStatus.UnderReview))
+            throw new ConflictException($"Chỉ lập hợp đồng khi hồ sơ KYB #{kybId} đang thẩm định (trạng thái {kyb.KybStatus}).");
         if (kyb.LotStatus != nameof(ParkingManagement.SharedKernel.Enums.ParkingLotStatus.PendingApproval))
             throw new ConflictException($"Bãi {kyb.LotName} đang ở trạng thái {kyb.LotStatus}, không phải chờ duyệt – không lập hợp đồng kích hoạt.");
         if (await repository.HasOpenContractAsync(kyb.ParkingLotId, ct))
@@ -378,10 +378,11 @@ public interface ISignLotContractUseCase
 }
 
 /// <summary>
-/// US-116 (L3): Pending → Signed và bãi Active.
-/// 1. Kiểm tra trạng thái, phiên bản xác nhận == phiên bản chờ ký, bản scan hợp lệ.
-/// 2. Lưu bản scan, gọi ParkingService activate-lot (idempotent). Lỗi → xóa bản scan, hợp đồng giữ Pending (503 / 409).
-/// 3. Hợp đồng Signed + AuditLog trong 1 SaveChanges; lưu lỗi → xóa bản scan, thử lại an toàn vì activate-lot idempotent.
+/// US-116 (L3, design v9): ký hợp đồng = duyệt KYB. Pending → Signed, KYB Approved, bãi Active.
+/// 1. Kiểm tra trạng thái, phiên bản xác nhận == phiên bản chờ ký, ghi chú ≤ 1000, bản scan hợp lệ.
+/// 2. Lưu bản scan, gọi ParkingService approve kèm số hợp đồng (idempotent). Lỗi (vd. chưa khảo sát thực địa) → xóa bản scan,
+///    hợp đồng giữ Pending (409 / 503).
+/// 3. Hợp đồng Signed + AuditLog trong 1 SaveChanges; lưu lỗi → xóa bản scan, thử lại an toàn vì approve idempotent.
 /// </summary>
 public sealed class SignLotContractUseCase(ILotContractRepository repository, ILotContractQueries queries, IParkingServiceClient parking,
     IFileStorage storage, TimeProvider timeProvider) : ISignLotContractUseCase
@@ -393,6 +394,8 @@ public sealed class SignLotContractUseCase(ILotContractRepository repository, IL
         var contract = await LotContractSupport.LoadAsync(repository, id, cancellationToken);
         var before = LotContractAudit.Snapshot(contract);
         var current = contract.EnsureCanSign(request.ConfirmedVersion);
+        var note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        if (note is { Length: > 1000 }) throw new ValidationException("Ghi chú duyệt tối đa 1000 ký tự.");
         var (contentType, extension) = SignedScanRules.Detect(request.SignedFile);
         var scan = request.SignedFile!.Content;
 
@@ -400,7 +403,7 @@ public sealed class SignLotContractUseCase(ILotContractRepository repository, IL
         await storage.SaveAsync(key, scan, cancellationToken);
         try
         {
-            await parking.ActivateLotAsync(contract.KybApplicationId, contract.ContractNumber, cancellationToken);
+            await parking.ApproveKybAsync(contract.KybApplicationId, contract.ContractNumber, note, cancellationToken);
         }
         catch
         {
@@ -411,7 +414,7 @@ public sealed class SignLotContractUseCase(ILotContractRepository repository, IL
         contract.Sign(performedByUserId, current.Version, new StoredFile(key, contentType, ContractSupport.Sha256Hex(scan)),
             timeProvider.GetUtcNow().UtcDateTime);
         await LotContractSupport.SaveOrDeleteAsync(repository, storage, key,
-            LotContractAudit.Build(contract, "Signed", performedByUserId, before, null), cancellationToken);
+            LotContractAudit.Build(contract, "Signed", performedByUserId, before, note), cancellationToken);
         return await LotContractSupport.ReloadAsync(queries, id, cancellationToken);
     }
 }

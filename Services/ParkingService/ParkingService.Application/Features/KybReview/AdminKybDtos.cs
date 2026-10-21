@@ -30,11 +30,9 @@ public sealed record ScheduleKybFieldSurveyRequest(DateTime? FieldSurveyAtUtc, s
 
 public sealed record RecordKybFieldSurveyResultRequest(string? Note);
 
-public sealed record ApproveKybApplicationRequest(string? Note);
+/// <summary>approve (US-055 + US-116 v9): gọi khi hợp đồng bãi đã ký – số hợp đồng bắt buộc, ghi vào AuditRecorded.Reason.</summary>
+public sealed record ApproveKybApplicationRequest(string? Note, string? ContractNumber = null);
 
 public sealed record RejectKybApplicationRequest(string? Reason);
 
 public sealed record RequestKybMoreInfoRequest(string? Note);
-
-/// <summary>activate-lot (AdminService gọi sau khi hợp đồng bãi được ký): số hợp đồng ghi vào AuditRecorded.Reason.</summary>
-public sealed record ActivateKybLotRequest(string? ContractNumber);

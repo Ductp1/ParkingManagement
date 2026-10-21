@@ -11,7 +11,6 @@ import { ParkingLotDetailPage } from './pages/operations/lots/ParkingLotDetailPa
 import { KybListPage } from './pages/operations/kyb/KybListPage';
 import { KybDetailPage } from './pages/operations/kyb/KybDetailPage';
 import { LotContractListPage } from './pages/operations/lot-contracts/LotContractListPage';
-import { LotContractDetailPage } from './pages/operations/lot-contracts/LotContractDetailPage';
 import { UsersListPage } from './pages/operations/users/UsersListPage';
 import { UserDetailPage } from './pages/operations/users/UserDetailPage';
 import { BookingDetailPage } from './pages/operations/bookings/BookingDetailPage';
@@ -58,7 +57,6 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/kyb-review" element={<KybListPage />} />
         <Route path="operations/kyb-review/:id" element={<KybDetailPage />} />
         <Route path="operations/lot-contracts" element={<LotContractListPage />} />
-        <Route path="operations/lot-contracts/:id" element={<LotContractDetailPage />} />
         <Route path="operations/users" element={<UsersListPage />} />
         <Route path="operations/users/:id" element={<UserDetailPage />} />
         <Route path="operations/bookings" element={unavailable('bookings')} />

@@ -94,10 +94,7 @@ export interface RecordKybSurveyResultRequest {
   note: string;
 }
 
-/** POST …/{id}/approve – note lưu KybApplications.ReviewNote, ≤ 1000 ký tự. */
-export interface ApproveKybRequest {
-  note?: string | null;
-}
+/* POST …/{id}/approve không gọi từ FE: AdminService duyệt KYB khi hợp đồng bãi được ký (adminLotContractsApi.sign). */
 
 /** POST …/{id}/reject – lưu KybApplications.RejectReason, ≤ 1000 ký tự. */
 export interface RejectKybRequest {

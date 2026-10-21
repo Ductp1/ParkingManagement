@@ -2,8 +2,6 @@ import type { LotContractVersionDto } from '@/types/adminLotContracts';
 import type { AdminFile, PartnerBankAccountDto } from '@/types/adminPartnerOnboarding';
 import { formatDate, formatNumber } from '../../../utils/format';
 
-export const LOT_CONTRACT_BASE = '/admin/operations/lot-contracts';
-
 /** "7.5%" – phí nền tảng theo %. */
 export const percentText = (rate: number | null) => (rate === null ? '—' : `${formatNumber(rate)}%`);
 

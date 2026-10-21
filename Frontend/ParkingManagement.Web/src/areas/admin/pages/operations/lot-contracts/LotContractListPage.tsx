@@ -12,7 +12,8 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { DEFAULT_PAGE_SIZE, useListParams } from '../../../hooks/useListParams';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDate, formatDateTime, formatNumber } from '../../../utils/format';
-import { LOT_CONTRACT_BASE as BASE, percentText } from './lotContractFormat';
+import { KYB_BASE } from '../kyb/kybFormat';
+import { percentText } from './lotContractFormat';
 
 const STATUSES = Object.values(LotContractStatus);
 const isStatus = (v: string): v is LotContractStatus => (STATUSES as string[]).includes(v);
@@ -35,10 +36,13 @@ const columns: DataTableColumn<LotContractSummaryDto>[] = [
   { key: 'status', header: 'Status', width: 110, render: (r) => <CellStatus value={r.status} /> },
   { key: 'updated', header: 'Updated', width: 123, render: (r) => <CellMuted>{formatDateTime(r.updatedAtUtc ?? r.createdAtUtc)}</CellMuted> },
   { key: 'kyb', header: 'KYB', width: 70, render: (r) => <CellText>{`#${r.kybApplicationId}`}</CellText> },
-  { key: 'actions', header: '', width: 74, render: (r) => <CellView to={`${BASE}/${r.id}`} /> },
+  { key: 'actions', header: '', width: 96, render: (r) => <CellView to={`${KYB_BASE}/${r.kybApplicationId}`} label="Open KYB" /> },
 ];
 
-/** Operations / Lot Contracts / List (US-116, L0) – hợp đồng theo từng bãi, lập từ màn KYB Review khi KYB đã duyệt. */
+/**
+ * Operations / Lot Contracts / List (US-116, L0) – tra cứu hợp đồng theo từng bãi. Lập, sửa, ký (= duyệt KYB), hủy đều làm
+ * trong trang KYB Review của bãi (design v9), nên mỗi dòng mở hồ sơ KYB.
+ */
 export const LotContractListPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useListParams();
@@ -81,7 +85,7 @@ export const LotContractListPage: React.FC = () => {
         columns={columns}
         rows={query.status === 'ready' ? query.data?.items ?? [] : []}
         rowKey={(r) => r.id}
-        onRowClick={(r) => navigate(`${BASE}/${r.id}`)}
+        onRowClick={(r) => navigate(`${KYB_BASE}/${r.kybApplicationId}`)}
         placeholder={
           <QueryState
             status={query.status}
@@ -89,7 +93,7 @@ export const LotContractListPage: React.FC = () => {
             onRetry={query.refetch}
             copy={{
               emptyTitle: 'No lot contracts',
-              emptyMessage: 'Create a contract from KYB Review once a lot’s KYB is approved.',
+              emptyMessage: 'Contracts are created from KYB Review while a lot’s KYB is under review.',
               errorTitle: 'Could not load lot contracts',
               service: 'AdminService',
             }}

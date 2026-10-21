@@ -98,7 +98,8 @@ public sealed class AdminLotContractsController(
         => ContractFile(await getFile.ExecuteAsync(id, version, cancellationToken), asAttachment: true);
 
     /// <summary>
-    /// POST /api/v1/admin/lot-contracts/5/sign (L3) – multipart/form-data: signedFile (PDF / JPG / PNG ≤ 10 MB) + confirmedVersion.
+    /// POST /api/v1/admin/lot-contracts/5/sign (L3) – multipart/form-data: signedFile (PDF / JPG / PNG ≤ 10 MB) + confirmedVersion + note.
+    /// Ký hợp đồng = duyệt KYB (design v9): ParkingService duyệt KYB và kích hoạt bãi rồi hợp đồng chuyển Signed.
     /// Kích hoạt bãi bên ParkingService rồi chuyển hợp đồng sang Signed.
     /// </summary>
     [HttpPost("{id:int}/sign")]
@@ -126,7 +127,7 @@ public sealed class AdminLotContractsController(
             signedFile = new UploadedFile(file.FileName, file.Length, content);
         }
 
-        return await AsAdmin(adminId => sign.ExecuteAsync(id, new SignLotContractRequest(form.ConfirmedVersion, signedFile), adminId,
+        return await AsAdmin(adminId => sign.ExecuteAsync(id, new SignLotContractRequest(form.ConfirmedVersion, signedFile, form.Note), adminId,
             cancellationToken));
     }
 
@@ -157,4 +158,6 @@ public sealed class SignLotContractForm
 {
     public IFormFile? SignedFile { get; init; }
     public int? ConfirmedVersion { get; init; }
+    /// <summary>Ghi chú duyệt KYB (tùy chọn).</summary>
+    public string? Note { get; init; }
 }

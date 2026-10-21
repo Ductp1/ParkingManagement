@@ -30,10 +30,10 @@ public sealed class ParkingServiceClient(HttpClient http, ILogger<ParkingService
             lot.CloseTime, lot.Status, lot.OwnerProfileId);
     }
 
-    public async Task ActivateLotAsync(int kybApplicationId, string contractNumber, CancellationToken cancellationToken)
+    public async Task ApproveKybAsync(int kybApplicationId, string contractNumber, string? note, CancellationToken cancellationToken)
     {
-        var path = $"{BasePath}/{kybApplicationId}/activate-lot";
-        var (found, _) = await SendAsync<object>(HttpMethod.Post, path, new { contractNumber }, cancellationToken, readBody: false);
+        var path = $"{BasePath}/{kybApplicationId}/approve";
+        var (found, _) = await SendAsync<object>(HttpMethod.Post, path, new { note, contractNumber }, cancellationToken, readBody: false);
         if (!found) throw new NotFoundException("Hồ sơ KYB", kybApplicationId);
     }
 

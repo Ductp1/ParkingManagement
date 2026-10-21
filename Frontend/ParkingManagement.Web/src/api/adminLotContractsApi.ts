@@ -52,11 +52,12 @@ export const adminLotContractsApi = {
   versionFile: (id: number, version: number): Promise<AdminFile> =>
     adminFileRequest({ method: 'GET', url: `${BASE}/${id}/versions/${version}/file` }),
 
-  /** L3 – ký (multipart: bản scan + phiên bản xác nhận); AdminService kích hoạt bãi bên ParkingService. */
+  /** L3 – ký = duyệt KYB (multipart: bản scan + phiên bản xác nhận + ghi chú); ParkingService duyệt KYB và kích hoạt bãi. */
   sign: (id: number, data: SignLotContractRequest) => {
     const form = new FormData();
     form.append('confirmedVersion', String(data.confirmedVersion));
     form.append('signedFile', data.signedFile);
+    if (data.note) form.append('note', data.note);
     // Ghi đè JSON mặc định của apiClient; trình duyệt tự thêm boundary.
     return adminRequest<LotContractDetailDto>({
       method: 'POST',

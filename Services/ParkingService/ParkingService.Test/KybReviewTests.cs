@@ -134,14 +134,14 @@ public class KybReviewTests
     }
 
     [Fact]
-    public void Approve_KeepsLotPendingUntilLotContractSigned_AndStampsReview()
+    public void Approve_ActivatesPendingLot_AndStampsReview()
     {
         var app = Kyb(KybStatus.UnderReview);
 
         app.Approve(AdminId, app.ParkingLot, activeSlotCount: 5, note: "  Đạt  ", Now);
 
         Assert.Equal(KybStatus.Approved, app.Status);
-        Assert.Equal(ParkingLotStatus.PendingApproval, app.ParkingLot.Status);
+        Assert.Equal(ParkingLotStatus.Active, app.ParkingLot.Status);
         Assert.Equal(AdminId, app.ReviewedByUserId);
         Assert.Equal(Now, app.ReviewedAtUtc);
         Assert.Equal("Đạt", app.ReviewNote);
@@ -285,22 +285,73 @@ public class KybReviewTests
     }
 
     [Fact]
-    public async Task Approve_WritesOnlyAudit_LotStaysPending()
+    public async Task Approve_WithSignedContract_ActivatesLot_WritesAuditAndParkingLotApproved_InSameSave()
     {
         var app = Kyb(KybStatus.UnderReview);
         var repo = new FakeReviewRepo(app, activeSlots: 3);
         var useCase = new ApproveKybApplicationUseCase(repo, new FakeQueries(app, 3), new FixedClock(Now));
 
-        var dto = await useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest("OK"), AdminId);
+        var dto = await useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest(" Đạt ", " HD-SP-2026-0007 "), AdminId);
 
         Assert.Equal("Approved", dto.Status);
-        Assert.Equal("PendingApproval", dto.ParkingLot.Status);
+        Assert.Equal("Active", dto.ParkingLot.Status);
         Assert.Equal(1, repo.SaveCount);
-        Assert.Equal("KybApplication.Approved", SingleAudit(repo).Action);
-        Assert.Empty(repo.Saved.OfType<ParkingLotApproved>());
+        var audit = SingleAudit(repo);
+        Assert.Equal("KybApplication.Approved", audit.Action);
+        Assert.Equal("HD-SP-2026-0007 – Đạt", audit.Reason);
+        var approved = Assert.Single(repo.Saved.OfType<ParkingLotApproved>());
+        Assert.Equal((7, 57, "Bãi xe Thủ Đức"), (approved.ParkingLotId, approved.OwnerProfileId, approved.Name));
     }
 
-    // ==================== activate-lot (US-116: sau khi ký hợp đồng bãi) ====================
+    [Theory]
+    [InlineData(null)]
+    [InlineData("  ")]
+    [InlineData("HD-SP-2026-0007-0000000000000000000")]
+    public async Task Approve_WithoutValidContractNumber_Throws400_AndSavesNothing(string? contractNumber)
+    {
+        var app = Kyb(KybStatus.UnderReview);
+        var repo = new FakeReviewRepo(app);
+        var useCase = new ApproveKybApplicationUseCase(repo, new FakeQueries(app), new FixedClock(Now));
+
+        await Assert.ThrowsAsync<ValidationException>(
+            () => useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest(null, contractNumber), AdminId));
+        Assert.Equal(KybStatus.UnderReview, app.Status);
+        Assert.Equal(0, repo.SaveCount);
+    }
+
+    [Fact]
+    public async Task Approve_Again_WhenAlreadyApprovedAndActive_IsIdempotent()
+    {
+        var app = Kyb(KybStatus.Approved, Lot(status: ParkingLotStatus.Active));
+        var repo = new FakeReviewRepo(app);
+        var useCase = new ApproveKybApplicationUseCase(repo, new FakeQueries(app), new FixedClock(Now));
+
+        var dto = await useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest(null, "HD-SP-2026-0007"), AdminId);
+
+        Assert.Equal("Active", dto.ParkingLot.Status);
+        Assert.Equal(0, repo.SaveCount);
+    }
+
+    [Fact]
+    public async Task Approve_LegacyApprovedPendingLot_ActivatesLot()
+    {
+        var app = Kyb(KybStatus.Approved);
+        var repo = new FakeReviewRepo(app, activeSlots: 3);
+        var useCase = new ApproveKybApplicationUseCase(repo, new FakeQueries(app, 3), new FixedClock(Now));
+
+        var dto = await useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest(null, "HD-SP-2026-0007"), AdminId);
+
+        Assert.Equal("Active", dto.ParkingLot.Status);
+        Assert.Equal(("KybApplication.LotActivated", "HD-SP-2026-0007"), (SingleAudit(repo).Action, SingleAudit(repo).Reason));
+        Assert.Single(repo.Saved.OfType<ParkingLotApproved>());
+    }
+
+    [Fact]
+    public async Task Approve_UnknownKyb_Throws404()
+        => await Assert.ThrowsAsync<NotFoundException>(() => new ApproveKybApplicationUseCase(new FakeReviewRepo(null), new FakeQueries(null),
+            new FixedClock(Now)).ExecuteAsync(31, new ApproveKybApplicationRequest(null, "HD-SP-2026-0007"), AdminId));
+
+    // ==================== ActivateLot (dữ liệu cũ design v8: KYB Approved, bãi còn chờ) ====================
 
     [Fact]
     public void ActivateLot_AfterApproval_ActivatesPendingLot()
@@ -335,14 +386,6 @@ public class KybReviewTests
     }
 
     [Fact]
-    public void ActivateLot_WithoutActiveSlots_ThrowsConflict()
-    {
-        var app = Kyb(KybStatus.Approved);
-
-        Assert.Throws<ConflictException>(() => app.ActivateLot(app.ParkingLot, activeSlotCount: 0));
-    }
-
-    [Fact]
     public void ActivateLot_SuspendedLot_ThrowsConflict()
     {
         var app = Kyb(KybStatus.Approved, Lot(status: ParkingLotStatus.Suspended));
@@ -351,62 +394,14 @@ public class KybReviewTests
     }
 
     [Fact]
-    public async Task ActivateLotUseCase_WritesAuditWithContractNumberAndParkingLotApproved_InSameSave()
-    {
-        var app = Kyb(KybStatus.Approved);
-        var repo = new FakeReviewRepo(app, activeSlots: 3);
-        var useCase = new ActivateKybLotUseCase(repo, new FakeQueries(app, 3), new FixedClock(Now));
-
-        var dto = await useCase.ExecuteAsync(app.Id, new ActivateKybLotRequest(" HD-SP-2026-0007 "), AdminId);
-
-        Assert.Equal("Active", dto.ParkingLot.Status);
-        Assert.Equal(1, repo.SaveCount);
-        var audit = SingleAudit(repo);
-        Assert.Equal("KybApplication.LotActivated", audit.Action);
-        Assert.Equal("HD-SP-2026-0007", audit.Reason);
-        var approved = Assert.Single(repo.Saved.OfType<ParkingLotApproved>());
-        Assert.Equal((7, 57, "Bãi xe Thủ Đức"), (approved.ParkingLotId, approved.OwnerProfileId, approved.Name));
-    }
-
-    [Fact]
-    public async Task ActivateLotUseCase_WhenAlreadyActive_SavesNothing_AndReturnsDetail()
-    {
-        var app = Kyb(KybStatus.Approved, Lot(status: ParkingLotStatus.Active));
-        var repo = new FakeReviewRepo(app);
-        var useCase = new ActivateKybLotUseCase(repo, new FakeQueries(app), new FixedClock(Now));
-
-        var dto = await useCase.ExecuteAsync(app.Id, new ActivateKybLotRequest("HD-SP-2026-0007"), AdminId);
-
-        Assert.Equal("Active", dto.ParkingLot.Status);
-        Assert.Equal(0, repo.SaveCount);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("  ")]
-    [InlineData("HD-SP-2026-0007-0000000000000000000")]
-    public async Task ActivateLotUseCase_InvalidContractNumber_Throws400(string? contractNumber)
-    {
-        var app = Kyb(KybStatus.Approved);
-        var useCase = new ActivateKybLotUseCase(new FakeReviewRepo(app), new FakeQueries(app), new FixedClock(Now));
-
-        await Assert.ThrowsAsync<ValidationException>(
-            () => useCase.ExecuteAsync(app.Id, new ActivateKybLotRequest(contractNumber), AdminId));
-    }
-
-    [Fact]
-    public async Task ActivateLotUseCase_UnknownKyb_Throws404()
-        => await Assert.ThrowsAsync<NotFoundException>(() => new ActivateKybLotUseCase(new FakeReviewRepo(null), new FakeQueries(null),
-            new FixedClock(Now)).ExecuteAsync(31, new ActivateKybLotRequest("HD-SP-2026-0007"), AdminId));
-
-    [Fact]
     public async Task Approve_WhenGuardFails_SavesNothing()
     {
         var app = Kyb(KybStatus.UnderReview, Lot(totalSlots: 80));
         var repo = new FakeReviewRepo(app);
         var useCase = new ApproveKybApplicationUseCase(repo, new FakeQueries(app), new FixedClock(Now));
 
-        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest(null), AdminId));
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            useCase.ExecuteAsync(app.Id, new ApproveKybApplicationRequest(null, "HD-SP-2026-0007"), AdminId));
 
         Assert.Equal(0, repo.SaveCount);
         Assert.Empty(repo.Saved);
