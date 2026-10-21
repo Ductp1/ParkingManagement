@@ -493,3 +493,33 @@ $RECYCLE.BIN/
 .clinerules
 .vscode
 
+
+# Frontend build output and caches
+**/dist/
+**/dist-ssr/
+**/.vite/
+**/.vite-temp/
+*.tsbuildinfo
+
+# Local environment overrides (keep shared config and examples)
+.env.local
+.env.*.local
+.envrc
+
+# Test reports and coverage output
+**/TestResults/
+**/coverage/
+**/playwright-report/
+**/blob-report/
+
+# Runtime logs
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local certificates and private keys
+*.p12
+*.pfx
