@@ -10,6 +10,10 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <!-- Public key RS256 để kiểm tra JWT do UserService phát hành (giống AdminService). -->
+    <Content Include="Keys\public.key" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\SupportService.Application\SupportService.Application.csproj" />
     <ProjectReference Include="..\SupportService.Infrastructure\SupportService.Infrastructure.csproj" />
   </ItemGroup>

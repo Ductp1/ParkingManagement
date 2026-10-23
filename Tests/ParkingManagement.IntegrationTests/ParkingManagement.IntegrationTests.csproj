@@ -19,5 +19,11 @@
     <ProjectReference Include="..\..\Services\ParkingService\ParkingService.API\ParkingService.API.csproj" />
     <ProjectReference Include="..\..\Services\BookingService\BookingService.API\BookingService.API.csproj" />
     <ProjectReference Include="..\..\Services\UserService\UserService.API\UserService.API.csproj" />
+    <ProjectReference Include="..\..\Services\VehicleService\VehicleService.API\VehicleService.API.csproj" />
+    <ProjectReference Include="..\..\Services\PaymentService\PaymentService.API\PaymentService.API.csproj" />
+    <ProjectReference Include="..\..\Services\NotificationService\NotificationService.API\NotificationService.API.csproj" />
+    <ProjectReference Include="..\..\Services\GateService\GateService.API\GateService.API.csproj" />
+    <ProjectReference Include="..\..\Services\AdminService\AdminService.API\AdminService.API.csproj" />
+    <ProjectReference Include="..\..\Services\SupportService\SupportService.API\SupportService.API.csproj" />
   </ItemGroup>
 </Project>
