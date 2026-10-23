@@ -126,6 +126,10 @@ public sealed class RsaTestKeys : IDisposable
     /// Issuer/Audience khớp cứng với AuthExtensions: ParkingManagement / ParkingManagement.Clients.
     /// </summary>
     public string MintToken(int userId, string email, string? sid = null, params string[] roles)
+        => MintToken(userId, email, sid, [], roles);
+
+    /// <summary>Như trên, kèm claim bổ sung (VD "OwnerProfileId" cho chủ bãi – giống token UserService phát hành).</summary>
+    public string MintToken(int userId, string email, string? sid, IEnumerable<Claim> extraClaims, params string[] roles)
     {
         var claims = new List<Claim>
         {
@@ -135,6 +139,7 @@ public sealed class RsaTestKeys : IDisposable
         };
         if (sid is not null) claims.Add(new Claim("sid", sid));
         foreach (var role in roles) claims.Add(new Claim("role", role));
+        claims.AddRange(extraClaims);
 
         using var rsa = RSA.Create();
         rsa.ImportFromPem(File.ReadAllText(PrivateKeyPath));

@@ -10,8 +10,58 @@ namespace SupportService.API.Controllers;
 
 [ApiController]
 [Route("api/v1/complaints")]
-public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwner, IComplaintService complaintService) : ControllerBase
+public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwner, IComplaintService complaintService,
+    IOwnerDisputeService ownerDisputes, ICurrentUser currentUser) : ControllerBase
 {
+    /// <summary>GET /api/v1/complaints/payout-holds – Khoản quyết toán đang bị phong tỏa vì tranh chấp (US-089 AC3).</summary>
+    /// <remarks>Chủ bãi chỉ thấy khoản của mình (lấy từ JWT); Admin xem tất cả hoặc lọc bằng <paramref name="ownerProfileId"/>.</remarks>
+    [HttpGet("payout-holds")]
+    [Authorize(Roles = "LotOwner,Admin")]
+    [ProducesResponseType<IReadOnlyList<PayoutHoldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<PayoutHoldDto>>> PayoutHolds([FromQuery] int? ownerProfileId, CancellationToken cancellationToken)
+    {
+        if (currentUser.Roles.Contains("Admin"))
+            return Ok(await ownerDisputes.ListPayoutHoldsAsync(ownerProfileId, cancellationToken));
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.ListPayoutHoldsAsync(owner, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/complaints/CP-0001/owner-view – Chủ bãi xem tranh chấp về bãi của mình (US-089 AC1).</summary>
+    [HttpGet("{code}/owner-view")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<ComplaintDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ComplaintDetailDto>> OwnerView([FromRoute] string code, CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.GetAsync(owner, code, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/complaints/CP-0001/owner-response – Chủ bãi phản hồi tranh chấp trong 48 giờ kèm bằng chứng (US-089 AC1).</summary>
+    [HttpPost("{code}/owner-response")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<ComplaintDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ComplaintDetailDto>> OwnerRespond([FromRoute] string code, [FromBody] OwnerResponseRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.RespondAsync(owner, currentUser.UserId, code, request, cancellationToken));
+    }
+
+    /// <summary>Token có vai trò LotOwner nhưng không gắn 1 hồ sơ chủ bãi (claim "OwnerProfileId").</summary>
+    private ObjectResult OwnerProfileMissing()
+        => Problem(statusCode: StatusCodes.Status403Forbidden, title: "Không có quyền",
+            detail: "Tài khoản chưa gắn với một hồ sơ chủ bãi.");
+
     /// <summary>GET /api/complaints?ownerProfileId=1&amp;status=AwaitingOwner – Hộp tranh chấp của chủ bãi (UC-38).</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ComplaintDto>>> ListForOwner(
