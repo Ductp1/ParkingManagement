@@ -68,6 +68,45 @@ GET {{gateway}}/api/v1/complaints/CP-0001?userId=5
 ### US-088 · Ticket của người khác → 404
 GET {{gateway}}/api/v1/complaints/CP-0001?userId=6
 
+### US-093 · Các API đánh giá cần JWT của tài xế: userId lấy từ claim "sub", không gửi trong body/query.
+# Lấy token bằng POST {{gateway}}/api/v1/auth/login (tài khoản tài xế demo) rồi dán accessToken vào @driverToken.
+@driverToken = DAN_ACCESS_TOKEN_VAO_DAY
+
+### US-093 · Booking có được đánh giá không? (BK-0001 đã được đánh giá → canReview = false)
+GET {{gateway}}/api/v1/reviews/bookings/BK-0001/eligibility
+Authorization: Bearer {{driverToken}}
+
+### US-093 · Booking chưa hoàn tất (BK-0002 Confirmed) → canReview = false
+GET {{gateway}}/api/v1/reviews/bookings/BK-0002/eligibility
+Authorization: Bearer {{driverToken}}
+
+### US-093 · Không gửi token → 401
+GET {{gateway}}/api/v1/reviews/bookings/BK-0001/eligibility
+
+### US-093 · Đánh giá bãi sau khi hoàn tất → 201 (booking phải Completed và chưa được đánh giá)
+POST {{gateway}}/api/v1/reviews
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0001", "rating": 4, "comment": "Bãi rộng, dễ tìm chỗ, nhân viên thân thiện.", "reviewerName": "Nguyễn Văn An" }
+
+### US-093 · Đánh giá booking chưa hoàn tất → 400
+POST {{gateway}}/api/v1/reviews
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0002", "rating": 5 }
+
+### US-093 · Số sao ngoài 1–5 → 400
+POST {{gateway}}/api/v1/reviews
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0001", "rating": 6 }
+
+### US-093 · Điểm trung bình + đánh giá mới nhất của bãi (AC3)
+GET {{gateway}}/api/v1/reviews?parkingLotId=1
+
 ### Gọi thẳng service (bỏ qua Gateway) – dùng khi nghi Gateway route sai
 GET {{direct}}/api/v1/faqs?audience=Driver
 

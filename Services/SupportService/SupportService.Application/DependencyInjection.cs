@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<IGetLotReviewsUseCase, GetLotReviewsUseCase>();
         services.AddScoped<IFaqService, FaqAppService>();
         services.AddScoped<IComplaintService, ComplaintAppService>();
+        services.AddScoped<IReviewService, ReviewAppService>();
         // ComplaintAppService cần giờ hệ thống. AddServiceDefaults() đã đăng ký sẵn; TryAdd chỉ thêm khi chưa có (không trùng).
         services.TryAddSingleton(TimeProvider.System);
         return services;
