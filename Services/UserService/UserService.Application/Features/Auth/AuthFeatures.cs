@@ -6,7 +6,7 @@ using ParkingManagement.SharedKernel.Enums;
 namespace UserService.Application.Features.Auth;
 
 // ===== DTO =====
-public sealed record LoginDto(string EmailOrPhone, string Password);
+public sealed record LoginDto(string EmailOrPhone, string Password, string? CaptchaToken = null);
 public sealed record TokenResponseDto(string AccessToken, string RefreshToken);
 
 // ===== PORT (Infrastructure cài đặt bằng EF Core) =====
@@ -22,12 +22,13 @@ public interface ILoginUseCase
     Task<TokenResponseDto> ExecuteAsync(LoginDto request, CancellationToken cancellationToken = default);
 }
 
-public sealed class LoginUseCase(IAuthRepository repository, IJwtTokenGenerator jwtTokenGenerator, IPasswordHasher passwordHasher, TimeProvider timeProvider) : ILoginUseCase
+public sealed class LoginUseCase(IAuthRepository repository, IJwtTokenGenerator jwtTokenGenerator, IPasswordHasher passwordHasher, TimeProvider timeProvider, ICaptchaVerifier captchaVerifier) : ILoginUseCase
 {
     public async Task<TokenResponseDto> ExecuteAsync(LoginDto request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.EmailOrPhone) || string.IsNullOrWhiteSpace(request.Password))
             throw new ValidationException("Tài khoản và mật khẩu không được rỗng.");
+        await captchaVerifier.VerifyAsync(request.CaptchaToken, cancellationToken);
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var identifier = request.EmailOrPhone.Trim();
         if (identifier.Contains('@')) identifier = identifier.ToLowerInvariant();

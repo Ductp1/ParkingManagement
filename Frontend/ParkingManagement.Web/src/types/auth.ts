@@ -6,6 +6,7 @@ export interface AuthUser {
   phone?: string;
   email?: string;
   role: UserRole;
+  roles?: UserRole[];
   token?: string;
 }
 

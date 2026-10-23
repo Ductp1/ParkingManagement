@@ -65,6 +65,8 @@ public sealed class AdminApiFixture : IAsyncLifetime
                 {
                     ["Jwt:PublicKeyPath"] = _keys.PublicKeyPath,
                     ["Jwt:PrivateKeyPath"] = _keys.PrivateKeyPath,
+                    ["Database:SeedDemoData"] = "true",
+                    ["Captcha:SecretKey"] = "integration-test-secret",
                 }));
             builder.ConfigureServices(services =>
             {
@@ -204,11 +206,10 @@ public class AdminServiceApiTests(AdminApiFixture fixture)
         var unlock = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock", new { reason = "IT – đã rõ hiềm nghi" });
         Assert.Equal(HttpStatusCode.OK, unlock.StatusCode);
 
-        // Unlock lần 2: lần đồng bộ sang UserService đã Failed (TV1 chưa có endpoint owner-profiles lock/unlock)
-        // → theo thiết kế "thử lại bằng gọi lại" nên vẫn 200 (idempotent retry), không phải 409.
+        // Unlock lần 2: nếu UserService chưa đồng bộ thì thử lại (200 OK), nếu đã đồng bộ thành công thì chủ bãi không còn bị khóa (409 Conflict).
         var unlockAgain = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock",
             new { reason = "IT – mở lại để thử đồng bộ" });
-        Assert.Equal(HttpStatusCode.OK, unlockAgain.StatusCode);
+        Assert.True(unlockAgain.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict);
 
         // Database pm_admin: chế tài đã Revoked + đủ AuditLog cho cả khóa và mở khóa
         await using var scope = fixture.AdminServices.CreateAsyncScope();

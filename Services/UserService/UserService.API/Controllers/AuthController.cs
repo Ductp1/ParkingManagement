@@ -22,8 +22,21 @@ public sealed class AuthController(ILoginUseCase loginUseCase, IRefreshSessionUs
     {
         Response.Headers.CacheControl = "no-store";
         Response.Headers.Pragma = "no-cache";
-        var result = await loginUseCase.ExecuteAsync(request, cancellationToken);
-        return Ok(result);
+        try
+        {
+            return Ok(await loginUseCase.ExecuteAsync(request, cancellationToken));
+        }
+        catch (UserService.Application.Interfaces.CaptchaException ex)
+        {
+            var problem = new ProblemDetails
+            {
+                Status = ex.Unavailable ? 503 : 400,
+                Title = ex.Unavailable ? "Dịch vụ CAPTCHA chưa sẵn sàng" : "CAPTCHA không hợp lệ",
+                Detail = ex.Message, Instance = Request.Path
+            };
+            problem.Extensions["code"] = ex.Code;
+            return StatusCode(problem.Status.Value, problem);
+        }
     }
 
     [HttpPost("refresh")]

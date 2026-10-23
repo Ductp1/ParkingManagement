@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { switchRole } from '@/store/slices/authSlice';
+import { logoutSession } from '@/api/authApi';
+import { logout, switchRole } from '@/store/slices/authSlice';
 import { fetchNotificationInbox, markNotificationAsRead } from '@/store/slices/notificationSlice';
 import { notificationTargetRoute } from '@/utils/notificationBooking';
 import type { NotificationDto } from '@/types/notification';
@@ -29,11 +30,137 @@ const formatTimeAgo = (isoUtc: string): string => {
   return `${Math.floor(hours / 24)} ngày trước`;
 };
 
+interface RolePortalItem {
+  id: UserRole;
+  label: string;
+  subtitle: string;
+  badge: string;
+  path: string;
+  icon: string;
+  activeTabClass: string;
+  badgeClass: string;
+  subActiveClass: string;
+}
+
+const ROLE_PORTALS: RolePortalItem[] = [
+  {
+    id: 'Driver',
+    label: 'Tài xế',
+    subtitle: 'Cổng Dịch Vụ Khách Hàng',
+    badge: 'Tài xế',
+    path: '/driver',
+    icon: 'directions_car',
+    activeTabClass: 'bg-blue-600 text-white shadow-xs',
+    badgeClass: 'bg-blue-100 text-blue-700',
+    subActiveClass: 'bg-blue-50 text-blue-700 font-bold',
+  },
+  {
+    id: 'Owner',
+    label: 'Chủ bãi',
+    subtitle: 'Cổng Đối Tác Chủ Bãi',
+    badge: 'Chủ bãi',
+    path: '/owner',
+    icon: 'domain',
+    activeTabClass: 'bg-indigo-600 text-white shadow-xs',
+    badgeClass: 'bg-indigo-100 text-indigo-700',
+    subActiveClass: 'bg-indigo-50 text-indigo-700 font-bold',
+  },
+  {
+    id: 'Staff',
+    label: 'Trực cổng',
+    subtitle: 'Trạm Soát Vé Barie (Gate Console)',
+    badge: 'Nhân viên cổng',
+    path: '/gate',
+    icon: 'fence',
+    activeTabClass: 'bg-amber-600 text-white shadow-xs',
+    badgeClass: 'bg-amber-100 text-amber-800',
+    subActiveClass: 'bg-amber-50 text-amber-800 font-bold',
+  },
+  {
+    id: 'Admin',
+    label: 'Quản trị',
+    subtitle: 'Hệ Thống Quản Trị Trung Tâm',
+    badge: 'Quản trị viên',
+    path: '/admin',
+    icon: 'admin_panel_settings',
+    activeTabClass: 'bg-purple-600 text-white shadow-xs',
+    badgeClass: 'bg-purple-100 text-purple-700',
+    subActiveClass: 'bg-purple-50 text-purple-700 font-bold',
+  },
+];
+
+interface SubNavItem {
+  label: string;
+  path: string;
+  icon: string;
+}
+
+const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
+  Driver: [
+    { label: 'Trang chủ', path: '/driver', icon: 'home' },
+    { label: 'Bãi đỗ & Sơ đồ', path: '/driver/parking-lots', icon: 'local_parking' },
+    { label: 'Xe của tôi', path: '/driver/vehicles', icon: 'directions_car' },
+    { label: 'Lịch sử đặt', path: '/driver/history', icon: 'receipt_long' },
+    { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
+  ],
+  Owner: [
+    { label: 'Tổng quan & Doanh thu', path: '/owner', icon: 'analytics' },
+    { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
+    { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
+    { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
+    { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
+  ],
+  Staff: [
+    { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
+    { label: 'Làn vào (ANPR Inbound)', path: '/gate/inbound', icon: 'login' },
+    { label: 'Làn ra (ANPR Outbound)', path: '/gate/outbound', icon: 'logout' },
+    { label: 'Soát vé thủ công', path: '/gate/manual', icon: 'edit_square' },
+    { label: 'Nhật ký trạm', path: '/gate/events', icon: 'history' },
+  ],
+  Admin: [
+    { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
+    { label: 'Quản lý tài khoản', path: '/admin/users', icon: 'manage_accounts' },
+    { label: 'Phê duyệt KYB', path: '/admin/kyb-approvals', icon: 'fact_check' },
+    { label: 'Cấu hình tham số', path: '/admin/parameters', icon: 'settings' },
+    { label: 'Feature Toggles', path: '/admin/toggles', icon: 'toggle_on' },
+    { label: 'Đối soát tài chính', path: '/admin/settlements', icon: 'account_balance' },
+  ],
+};
+
+const ROLE_BADGE_META: Record<UserRole, { label: string; color: string }> = {
+  Driver: { label: '• TÀI XẾ VIP', color: 'text-emerald-600' },
+  Owner: { label: '• CHỦ BÃI ĐỐI TÁC', color: 'text-indigo-600' },
+  Staff: { label: '• NHÂN VIÊN TRỰC CỔNG', color: 'text-amber-600' },
+  Admin: { label: '• QUẢN TRỊ VIÊN HỆ THỐNG', color: 'text-purple-600' },
+};
+
 export const MainNavbar: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [logoutError, setLogoutError] = useState('');
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Xác định phân hệ đang active từ URL hiện tại
+  const getActiveRole = (pathname: string): UserRole => {
+    if (pathname.startsWith('/admin')) return 'Admin';
+    if (pathname.startsWith('/owner')) return 'Owner';
+    if (pathname.startsWith('/gate')) return 'Staff';
+    return 'Driver';
+  };
+
+  const activeRole = getActiveRole(location.pathname);
+  const activePortal = ROLE_PORTALS.find((p) => p.id === activeRole) || ROLE_PORTALS[0];
+  const currentSubNavs = PORTAL_SUB_NAVS[activeRole] || PORTAL_SUB_NAVS.Driver;
+
+  // Xác định các phân hệ mà tài khoản hiện tại được cấp quyền truy cập
+  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : []);
+  const authorizedPortals = ROLE_PORTALS.filter(
+    (portal) => userRoles.includes('Admin') || userRoles.includes(portal.id)
+  );
 
   // ===== Hộp thông báo (NotificationService – TV6) =====
   const { items: notifications, unreadCount, isLoading: isNotificationLoading } = useAppSelector(
@@ -42,7 +169,6 @@ export const MainNavbar: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const userId = user?.id || 5;
 
-  // Tải hộp thông báo khi vào trang. Làm mới thủ công khi mở chuông hoặc bấm refresh.
   useEffect(() => {
     dispatch(fetchNotificationInbox(userId));
   }, [dispatch, userId]);
@@ -57,8 +183,6 @@ export const MainNavbar: React.FC = () => {
     if (!notification.isRead) {
       dispatch(markNotificationAsRead({ notificationId: notification.id, userId }));
     }
-    // Đóng popup và chuyển hướng tới thông tin đặt chỗ của thông báo
-    // (/driver/history?booking=<id|code>, BookingHistoryPage sẽ highlight đúng vé).
     setIsNotificationOpen(false);
     navigate(notificationTargetRoute(notification.dataJson));
   };
@@ -69,77 +193,56 @@ export const MainNavbar: React.FC = () => {
     }
   };
 
-  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const role = e.target.value as UserRole;
-    dispatch(switchRole(role));
-    if (role === 'Driver') navigate('/driver/vehicles');
-    else if (role === 'Owner') navigate('/owner');
-    else if (role === 'Staff') navigate('/gate');
-    else if (role === 'Admin') navigate('/admin');
-  };
-
-  const navItems = [
-    { label: 'Trang chủ', path: '/driver' },
-    { label: 'Bãi đỗ & Sơ đồ', path: '/driver/parking-lots' },
-    { label: 'Xe của tôi', path: '/driver/vehicles' },
-    { label: 'Lịch sử đặt', path: '/driver/history' },
-    { label: 'Hỗ trợ', path: '/driver/support' },
-  ];
-
   return (
-    <header className="bg-white border-b border-gray-100 sticky top-0 z-50 w-full shadow-xs">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Brand Logo */}
-        <div className="flex items-center gap-6">
-          <NavLink to="/driver" className="flex items-center gap-2">
-            <div className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-xs">
+    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-xs">
+      {/* ===== TẦNG 1: BRAND LOGO + TRUY CẬP NHANH CÁC ROLE QUA URL + USER PROFILE ===== */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        {/* Brand Logo & Tiêu đề phân hệ theo vai trò */}
+        <div className="flex items-center gap-4 shrink-0">
+          <NavLink to={activePortal.path} className="flex items-center gap-2.5 group">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-xs group-hover:scale-105 transition-transform">
               P
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-slate-900 text-lg leading-tight tracking-tight">ParkMaster</span>
-              <span className="text-[10px] text-slate-500 font-medium tracking-wider uppercase">SMART PARKING SYSTEM</span>
+              <span className="font-extrabold text-slate-900 text-lg leading-tight tracking-tight group-hover:text-blue-600 transition-colors">
+                ParkMaster
+              </span>
+              <span className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
+                {activePortal.subtitle}
+              </span>
             </div>
           </NavLink>
+        </div>
 
-          {/* Navigation Links for Driver Portal */}
-          <nav className="hidden lg:flex items-center gap-1 ml-4">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
+        {/* CHUYỂN PHÂN HỆ: Chỉ hiển thị các phân hệ mà tài khoản có quyền truy cập */}
+        {authorizedPortals.length > 1 && (
+          <nav className="hidden lg:flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 gap-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase px-2">Phân hệ:</span>
+            {authorizedPortals.map((portal) => {
+              const isActive = portal.id === activeRole;
               return (
                 <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={`font-medium px-3.5 py-1.5 transition-colors rounded-lg text-sm ${
+                  key={portal.id}
+                  to={portal.path}
+                  onClick={() => dispatch(switchRole(portal.id))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     isActive
-                      ? 'bg-blue-50 text-blue-700 font-semibold shadow-xs'
-                      : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50'
+                      ? portal.activeTabClass
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
                   }`}
+                  title={`Chuyển sang phân hệ ${portal.label}`}
                 >
-                  {item.label}
+                  <span className="material-symbols-outlined text-[15px]">{portal.icon}</span>
+                  <span>{portal.label}</span>
                 </NavLink>
               );
             })}
           </nav>
-        </div>
+        )}
 
-        {/* Right Action: Portal Switcher + Notification + Profile */}
-        <div className="flex items-center gap-4">
-          {/* Quick Portal Switcher (Sprint Demo Feature for 4 areas) */}
-          <div className="hidden md:flex items-center gap-1.5 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-            <span className="text-xs text-slate-500 font-medium">Phân hệ:</span>
-            <select
-              value={user?.role || 'Driver'}
-              onChange={handleRoleChange}
-              className="text-xs font-semibold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer"
-            >
-              <option value="Driver">🚗 /driver (Tài xế)</option>
-              <option value="Owner">🏢 /owner (Chủ bãi)</option>
-              <option value="Staff">🚧 /gate (Soát vé)</option>
-              <option value="Admin">⚙️ /admin (Quản trị)</option>
-            </select>
-          </div>
-
-          {/* Notifications – hộp thư thật từ NotificationService (GET /api/v1/notifications) */}
+        {/* Right Section: Notification + User Profile + Logout */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Notifications */}
           <div className="relative">
             <button
               onClick={handleToggleNotifications}
@@ -237,27 +340,167 @@ export const MainNavbar: React.FC = () => {
 
                 <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-center">
                   <span className="text-[10px] text-slate-400 font-medium">
-                    Đồng bộ với NotificationService (TV6) qua Gateway :5000
+                    Đồng bộ thông báo hệ thống thời gian thực qua Gateway :5000
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* User Profile Info */}
-          <div className="flex items-center gap-2.5 pl-2 border-l border-slate-200">
+          {/* User Profile Badge (Hiển thị đúng tài khoản tương ứng của phân hệ) */}
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
             <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-sm font-semibold text-slate-900">{user?.fullName || 'Nguyễn Văn An'}</span>
+              <span className="text-xs font-bold text-slate-900 truncate max-w-[150px]">
+                {user?.fullName || 'Khách'}
+              </span>
               <div className="flex items-center gap-1">
-                <span className="text-[11px] font-bold text-emerald-600 tracking-wider">• THÀNH VIÊN VIP</span>
+                <span className={`text-[10px] font-bold tracking-wider ${ROLE_BADGE_META[activeRole].color}`}>
+                  {ROLE_BADGE_META[activeRole].label}
+                </span>
               </div>
             </div>
-            <div className="w-9 h-9 rounded-full bg-blue-700 flex items-center justify-center text-white font-semibold text-sm shadow-xs">
-              <span className="material-symbols-outlined text-[20px]">person</span>
+            <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+              <span className="material-symbols-outlined text-[20px]">{activePortal.icon}</span>
             </div>
+          </div>
+
+          {/* Logout Action */}
+          <button
+            type="button"
+            disabled={loggingOut}
+            className="text-xs font-semibold text-slate-500 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
+            onClick={async () => {
+              setLogoutError('');
+              setLoggingOut(true);
+              try {
+                await logoutSession();
+                dispatch(logout());
+                navigate('/login', { replace: true });
+              } catch (error) {
+                setLogoutError(error instanceof Error ? error.message : 'Đăng xuất thất bại.');
+              } finally {
+                setLoggingOut(false);
+              }
+            }}
+            title="Đăng xuất và vào trang Login"
+          >
+            {loggingOut ? 'Đang thoát…' : 'Đăng xuất'}
+          </button>
+          {logoutError && <span role="alert" className="text-xs text-red-600">{logoutError}</span>}
+
+          {/* Mobile Menu Hamburger */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+            aria-label="Mở menu"
+          >
+            <span className="material-symbols-outlined text-[24px]">
+              {isMobileMenuOpen ? 'close' : 'menu'}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* ===== TẦNG 2: MENU CHỨC NĂNG DÀNH RIÊNG CHO PHÂN HỆ CỦA TÀI KHOẢN ===== */}
+      <div className="bg-slate-50/90 border-t border-slate-200/80 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto h-11 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden sm:inline-flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">subdirectory_arrow_right</span>
+              {activePortal.label}:
+            </span>
+            {currentSubNavs.map((sub) => {
+              const isSubActive =
+                location.pathname === sub.path ||
+                (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
+
+              return (
+                <NavLink
+                  key={sub.path}
+                  to={sub.path}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0 ${
+                    isSubActive
+                      ? activePortal.subActiveClass
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">{sub.icon}</span>
+                  <span>{sub.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+
+          <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-400 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>URL Trực tiếp:</span>
+            <span className="font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
+              {location.pathname}
+            </span>
           </div>
         </div>
       </div>
+
+      {/* ===== MENU MOBILE: HIỂN THỊ CÁC CHỨC NĂNG CỦA TÀI KHOẢN ===== */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-4 space-y-4 shadow-xl">
+          {authorizedPortals.length > 1 && (
+            <>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
+                Chuyển phân hệ:
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {authorizedPortals.map((portal) => {
+                  const isCurrent = portal.id === activeRole;
+                  return (
+                    <NavLink
+                      key={portal.id}
+                      to={portal.path}
+                      onClick={() => {
+                        dispatch(switchRole(portal.id));
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
+                        isCurrent
+                          ? `${portal.badgeClass} border-transparent font-bold`
+                          : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{portal.icon}</span>
+                      <span>{portal.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 pt-2 border-t border-slate-100">
+            Menu chức năng của {activePortal.label}:
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {currentSubNavs.map((sub) => {
+              const isSubActive = location.pathname === sub.path;
+              return (
+                <NavLink
+                  key={sub.path}
+                  to={sub.path}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 ${
+                    isSubActive
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">{sub.icon}</span>
+                  <span className="truncate">{sub.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </header>
   );
 };

@@ -1,19 +1,11 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 import type { AuthState, AuthUser, UserRole } from '@/types/auth';
 
-const initialUser: AuthUser = {
-  id: 5, // Nguyễn Văn An (Driver trong DB seed có id = 5)
-  fullName: 'Nguyễn Văn An',
-  phone: '0900000005',
-  email: 'driver1@smartparking.vn',
-  role: 'Driver',
-};
-
 const initialState: AuthState = {
-  user: initialUser,
-  token: localStorage.getItem('parkmaster_token'),
-  isAuthenticated: true,
-  isLoading: false,
+  user: null,
+  token: sessionStorage.getItem('parkmaster_token'),
+  isAuthenticated: false,
+  isLoading: !!sessionStorage.getItem('parkmaster_token'),
   error: null,
 };
 
@@ -21,6 +13,7 @@ export const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
+    setLoading: (state, action: PayloadAction<boolean>) => { state.isLoading = action.payload; },
     setUser: (state, action: PayloadAction<AuthUser | null>) => {
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
@@ -28,24 +21,30 @@ export const authSlice = createSlice({
     setToken: (state, action: PayloadAction<string | null>) => {
       state.token = action.payload;
       if (action.payload) {
-        localStorage.setItem('parkmaster_token', action.payload);
+        sessionStorage.setItem('parkmaster_token', action.payload);
       } else {
-        localStorage.removeItem('parkmaster_token');
+        sessionStorage.removeItem('parkmaster_token');
       }
     },
     switchRole: (state, action: PayloadAction<UserRole>) => {
+      const targetRole = action.payload;
       if (state.user) {
-        state.user.role = action.payload;
+        // Chỉ cho phép chuyển vai trò nếu tài khoản thực sự sở hữu vai trò đó trong user.roles (hoặc là Admin)
+        const canSwitch =
+          state.user.roles?.includes(targetRole) || state.user.roles?.includes('Admin');
+        if (canSwitch) {
+          state.user.role = targetRole;
+        }
       }
     },
     logout: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
-      localStorage.removeItem('parkmaster_token');
+      sessionStorage.removeItem('parkmaster_token');
     },
   },
 });
 
-export const { setUser, setToken, switchRole, logout } = authSlice.actions;
+export const { setLoading, setUser, setToken, switchRole, logout } = authSlice.actions;
 export default authSlice.reducer;
