@@ -48,6 +48,10 @@ public sealed record ComplaintOwnerResponded(int ComplaintId, string Code, int U
 /// <summary>US-089 AC2: quá 48 giờ chủ bãi không phản hồi → chuyển nền tảng (Supervisor/Admin) xử lý.</summary>
 public sealed record ComplaintEscalated(int ComplaintId, string Code, int UserId, int ParkingLotId, int? OwnerProfileId, string Reason) : IntegrationEvent;
 public sealed record ReviewCreated(int ReviewId, int ParkingLotId, byte Rating) : IntegrationEvent;
+/// <summary>US-094 AC1: chủ bãi phản hồi đánh giá → báo cho người viết đánh giá (UserId).</summary>
+public sealed record ReviewOwnerReplied(int ReviewId, int ParkingLotId, int UserId) : IntegrationEvent;
+/// <summary>US-094 AC2: Admin gỡ đánh giá → ParkingService trừ đánh giá này khỏi điểm xếp hạng của bãi.</summary>
+public sealed record ReviewHidden(int ReviewId, int ParkingLotId, byte Rating) : IntegrationEvent;
 
 // ===== Mọi service → AdminService =====
 public sealed record AuditRecorded(string SourceService, int? UserId, string Action, string EntityName, string? EntityId,

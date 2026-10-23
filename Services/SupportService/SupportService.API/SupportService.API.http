@@ -96,6 +96,39 @@ Content-Type: application/json
 GET {{gateway}}/api/v1/complaints/payout-holds
 Authorization: Bearer {{ownerToken}}
 
+### US-094 · Chủ bãi phản hồi công khai 1 lần cho đánh giá về bãi mình (review 1 thuộc bãi Vincom) → 200; lần 2 → 409
+POST {{gateway}}/api/v1/reviews/1/owner-reply
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "reply": "Cảm ơn anh đã tin dùng, bãi sẽ tiếp tục giữ chất lượng phục vụ." }
+
+### US-094 · Chủ bãi khiếu nại đánh giá → chờ Admin xem xét (chủ bãi không tự gỡ được)
+POST {{gateway}}/api/v1/reviews/1/report
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "reason": "Tài xế không đỗ tại bãi vào ngày được đánh giá." }
+
+### US-094 · Admin: hàng chờ đánh giá bị khiếu nại (cần JWT role Admin)
+@adminToken = DAN_ACCESS_TOKEN_ADMIN_VAO_DAY
+GET {{gateway}}/api/v1/reviews/reported
+Authorization: Bearer {{adminToken}}
+
+### US-094 · Admin gỡ đánh giá → ẩn khỏi trang bãi + ghi audit log
+POST {{gateway}}/api/v1/reviews/1/hide
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Nội dung sai sự thật, đã đối chiếu log cổng." }
+
+### US-094 · Admin bác khiếu nại, giữ nguyên đánh giá
+POST {{gateway}}/api/v1/reviews/1/dismiss-report
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Đánh giá đúng với trải nghiệm thực tế của tài xế." }
+
 ### US-093 · Các API đánh giá cần JWT của tài xế: userId lấy từ claim "sub", không gửi trong body/query.
 # Lấy token bằng POST {{gateway}}/api/v1/auth/login (tài khoản tài xế demo) rồi dán accessToken vào @driverToken.
 @driverToken = DAN_ACCESS_TOKEN_VAO_DAY

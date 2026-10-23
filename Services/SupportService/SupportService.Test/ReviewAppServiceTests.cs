@@ -173,5 +173,14 @@ public class ReviewAppServiceTests
             Saved.Add(review);
             return Task.CompletedTask;
         }
+
+        // US-094 – không dùng trong test tạo đánh giá.
+        public Task<Review?> FindByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult<Review?>(null);
+
+        public Task UpdateAsync(Review review, IReadOnlyCollection<ParkingManagement.SharedKernel.Contracts.IntegrationEvent> events,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<IReadOnlyList<ModeratedReviewDto>> ListReportedAsync(int take, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ModeratedReviewDto>>([]);
     }
 }
