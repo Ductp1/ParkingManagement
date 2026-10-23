@@ -79,11 +79,17 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EntityName", "EntityId");
+                    b.HasIndex("Action", "CreatedAtUtc");
+
+                    b.HasIndex("CreatedAtUtc", "Id");
 
                     b.HasIndex("OwnerProfileId", "CreatedAtUtc");
 
+                    b.HasIndex("SourceService", "CreatedAtUtc");
+
                     b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.HasIndex("EntityName", "EntityId", "CreatedAtUtc");
 
                     b.ToTable("AuditLogs", (string)null);
                 });

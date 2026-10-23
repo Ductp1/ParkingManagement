@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
@@ -38,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<ILotContractRepository, LotContractRepository>();
         services.AddScoped<IContractTemplateQueries, ContractTemplateQueries>();             // US-116: mẫu hợp đồng bãi
         services.AddScoped<IContractTemplateRepository, ContractTemplateRepository>();
+        services.AddScoped<IAuditLogQueries, AuditLogQueries>();                             // US-100: tra cứu audit log
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 
