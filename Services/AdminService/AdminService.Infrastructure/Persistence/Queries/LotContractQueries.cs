@@ -55,7 +55,10 @@ public sealed class LotContractQueries(AdminDbContext db) : ILotContractQueries
                 c.Versions.OrderByDescending(v => v.Version)
                     .Select(v => new LotContractVersionDto(v.Id, v.Version, v.TemplateVersion, v.CommissionRate, v.EffectiveFrom,
                         v.EffectiveTo, v.TermMonths, v.FileContentType, v.FileSha256, v.Status.ToString(), v.RevisionReason,
-                        v.CreatedAtUtc, v.CreatedByAdminId))
+                        v.CreatedAtUtc, v.CreatedByAdminId, v.SpecialTerms, v.TemplateId,
+                        db.ContractTemplates.Where(t => t.Version == v.TemplateVersion).Select(t => t.Name).FirstOrDefault(),
+                        db.ContractTemplates.Where(t => t.Version == v.TemplateVersion).Select(t => t.Kind.ToString()).FirstOrDefault(),
+                        db.ContractTemplates.Where(t => t.Version == v.TemplateVersion).Select(t => t.Status.ToString()).FirstOrDefault()))
                     .ToList()))
             .FirstOrDefaultAsync(cancellationToken);
 

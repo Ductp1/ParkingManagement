@@ -17,7 +17,7 @@ import { formatDateTimeIct, orEmpty } from '../../../utils/format';
 import { ownerLabel } from '../kyb/kybFormat';
 import { ContractTermsDialog, SignContractDialog } from './LotContractDialogs';
 import { LotContractVersions } from './LotContractVersions';
-import { bankText, percentText } from './lotContractFormat';
+import { bankText, percentText, templateKindLabel } from './lotContractFormat';
 
 type Dialog = 'create' | 'revise' | 'sign' | 'cancel' | null;
 
@@ -40,6 +40,8 @@ export const LotContractPanel: React.FC<LotContractPanelProps> = ({ kyb, summary
   const contract = detail.data;
   const underReview = kyb.status === KybStatus.UnderReview;
   const pending = contract?.status === LotContractStatus.Pending;
+  /** Phiên bản mới nhất (danh sách sắp xếp mới nhất trước). */
+  const latest = contract?.versions[0];
 
   const done = (saved: LotContractDetailDto, title: string) => {
     toast.show({ type: 'success', title, message: `${saved.contractNumber} · ${saved.lotName}` });
@@ -100,11 +102,22 @@ export const LotContractPanel: React.FC<LotContractPanelProps> = ({ kyb, summary
             {pending && kyb.status === KybStatus.NeedsMoreInfo && (
               <Banner tone="info">Waiting for the owner to resubmit KYB; the contract stays pending.</Banner>
             )}
+            {pending && latest && latest.templateStatus === 'Retired' && (
+              <Banner tone="info">
+                {`Contract type "${latest.templateName ?? `#${latest.templateVersion}`}" is retired – revise the contract and choose another type.`}
+              </Banner>
+            )}
             <DetailList>
               <DetailRow label="Contract">
                 {contract.contractNumber} <StatusIndicator value={contract.status} />
               </DetailRow>
-              <DetailRow label="Platform fee">{percentText(contract.versions[0]?.commissionRate ?? null)}</DetailRow>
+              <DetailRow label="Contract type">
+                {latest ? `${latest.templateName ?? `#${latest.templateVersion}`} · ${templateKindLabel(latest.templateKind)}` : '—'}
+              </DetailRow>
+              <DetailRow label="Platform fee">{percentText(latest?.commissionRate ?? null)}</DetailRow>
+              <DetailRow label="Special terms">
+                {latest?.specialTerms ? <span className="whitespace-pre-line">{latest.specialTerms}</span> : 'None'}
+              </DetailRow>
               <DetailRow label="Party B">{`${contract.businessName} · MST ${contract.taxCode}`}</DetailRow>
               <DetailRow label="Payout account">{bankText(contract.bank)}</DetailRow>
               {contract.signedAtUtc && <DetailRow label="Signed">{formatDateTimeIct(contract.signedAtUtc)}</DetailRow>}

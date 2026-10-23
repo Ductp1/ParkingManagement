@@ -10,6 +10,8 @@ import { PartnerDetailPage } from './pages/operations/partner/PartnerDetailPage'
 import { ParkingLotDetailPage } from './pages/operations/lots/ParkingLotDetailPage';
 import { KybListPage } from './pages/operations/kyb/KybListPage';
 import { KybDetailPage } from './pages/operations/kyb/KybDetailPage';
+import { ContractTemplateEditorPage } from './pages/operations/contract-templates/ContractTemplateEditorPage';
+import { ContractTemplateListPage } from './pages/operations/contract-templates/ContractTemplateListPage';
 import { LotContractListPage } from './pages/operations/lot-contracts/LotContractListPage';
 import { UsersListPage } from './pages/operations/users/UsersListPage';
 import { UserDetailPage } from './pages/operations/users/UserDetailPage';
@@ -57,6 +59,8 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/kyb-review" element={<KybListPage />} />
         <Route path="operations/kyb-review/:id" element={<KybDetailPage />} />
         <Route path="operations/lot-contracts" element={<LotContractListPage />} />
+        <Route path="operations/contract-templates" element={<ContractTemplateListPage />} />
+        <Route path="operations/contract-templates/:id" element={<ContractTemplateEditorPage />} />
         <Route path="operations/users" element={<UsersListPage />} />
         <Route path="operations/users/:id" element={<UserDetailPage />} />
         <Route path="operations/bookings" element={unavailable('bookings')} />

@@ -12,10 +12,14 @@ public sealed record LotContractSummaryDto(int Id, string ContractNumber, string
     string LotName, string LotCity, int OwnerProfileId, string BusinessName, int? LatestVersion, decimal? CommissionRate,
     DateOnly? EffectiveFrom, DateOnly? EffectiveTo, DateTime CreatedAtUtc, DateTime? UpdatedAtUtc);
 
-/// <summary>Một phiên bản hợp đồng bãi (v1 khi lập, v+1 khi sửa).</summary>
-public sealed record LotContractVersionDto(int Id, int Version, int TemplateVersion, decimal CommissionRate, DateOnly EffectiveFrom,
-    DateOnly EffectiveTo, int TermMonths, string FileContentType, string FileSha256, string Status, string? RevisionReason,
-    DateTime CreatedAtUtc, int CreatedByAdminId);
+/// <summary>
+/// Một phiên bản hợp đồng bãi (v1 khi lập, v+1 khi sửa). SpecialTerms = thỏa thuận riêng in trong phiên bản này.
+/// TemplateName / TemplateKind / TemplateStatus = loại hợp đồng đã dùng; ngày hiệu lực, thời hạn null với hợp đồng theo file DOCX gốc.
+/// </summary>
+public sealed record LotContractVersionDto(int Id, int Version, int TemplateVersion, decimal CommissionRate, DateOnly? EffectiveFrom,
+    DateOnly? EffectiveTo, int? TermMonths, string FileContentType, string FileSha256, string Status, string? RevisionReason,
+    DateTime CreatedAtUtc, int CreatedByAdminId, string? SpecialTerms, int? TemplateId, string? TemplateName, string? TemplateKind,
+    string? TemplateStatus);
 
 /// <summary>Chi tiết hợp đồng bãi (L0b): ảnh chụp bãi + Bên B lúc lập, trạng thái ký, các phiên bản (mới nhất trước).</summary>
 public sealed record LotContractDetailDto(
@@ -67,8 +71,11 @@ public interface ILotContractRepository
     /// <summary>Số hợp đồng đã lập cho bãi (kể cả đã hủy) – để đặt hậu tố số hợp đồng khi lập lại.</summary>
     Task<int> CountForLotAsync(int parkingLotId, CancellationToken cancellationToken);
 
-    /// <summary>Mẫu hợp đồng đang áp dụng (IsActive), null nếu chưa có.</summary>
-    Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken);
+    /// <summary>Mẫu hợp đồng theo Id (không tracking), null nếu không có.</summary>
+    Task<ContractTemplate?> GetTemplateAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>Các mẫu đang Active (loại hợp đồng chọn được), theo tên.</summary>
+    Task<IReadOnlyList<ContractTemplate>> ListActiveTemplatesAsync(CancellationToken cancellationToken);
 
     void Add(LotContract contract);
 

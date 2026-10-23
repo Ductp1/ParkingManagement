@@ -96,24 +96,104 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ActivatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("text");
 
+                    b.Property<string>("ChangeNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ContentJson")
+                        .HasMaxLength(500)
+                        .HasColumnType("jsonb");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByAdminId")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("EffectiveFromUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                    b.Property<string>("ImportNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("text");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PlatformAddress")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PlatformEmail")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PlatformName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PlatformPhone")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PlatformRepresentativeName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PlatformRepresentativePosition")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("PlatformTaxCode")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SourceFileKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("SourceFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("SourceFileSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int?>("SourceTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -123,10 +203,7 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IsActive")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ContractTemplates_SingleActive")
-                        .HasFilter("\"IsActive\" = TRUE");
+                    b.HasIndex("Status");
 
                     b.HasIndex("Version")
                         .IsUnique();
@@ -423,10 +500,10 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.Property<int>("CreatedByAdminId")
                         .HasColumnType("integer");
 
-                    b.Property<DateOnly>("EffectiveFrom")
+                    b.Property<DateOnly?>("EffectiveFrom")
                         .HasColumnType("date");
 
-                    b.Property<DateOnly>("EffectiveTo")
+                    b.Property<DateOnly?>("EffectiveTo")
                         .HasColumnType("date");
 
                     b.Property<string>("FileContentType")
@@ -451,15 +528,22 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<string>("SpecialTerms")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<int?>("TemplateId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TemplateVersion")
                         .HasColumnType("integer");
 
-                    b.Property<int>("TermMonths")
+                    b.Property<int?>("TermMonths")
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
@@ -474,6 +558,8 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_LotContractVersions_SingleCurrent")
                         .HasFilter("\"Status\" = 'Current'");
+
+                    b.HasIndex("TemplateId");
 
                     b.HasIndex("LotContractId", "Version")
                         .IsUnique();

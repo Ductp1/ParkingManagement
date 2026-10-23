@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
@@ -49,6 +50,21 @@ public static class DependencyInjection
         services.AddScoped<IReviseLotContractUseCase, ReviseLotContractUseCase>();
         services.AddScoped<ISignLotContractUseCase, SignLotContractUseCase>();
         services.AddScoped<ICancelLotContractUseCase, CancelLotContractUseCase>();
+        // US-116: mẫu hợp đồng bãi (loại hợp đồng) – tạo / nhập DOCX, form, xem trước, áp dụng, đổi tên, thôi áp dụng
+        services.AddScoped<LotContractDocumentBuilder>();
+        services.AddScoped<IListContractTemplatesUseCase, ListContractTemplatesUseCase>();
+        services.AddScoped<IGetContractTemplateUseCase, GetContractTemplateUseCase>();
+        services.AddScoped<IGetContractPlaceholdersUseCase, GetContractPlaceholdersUseCase>();
+        services.AddScoped<IPreviewContractTemplateUseCase, PreviewContractTemplateUseCase>();
+        services.AddScoped<ICreateContractTemplateUseCase, CreateContractTemplateUseCase>();
+        services.AddScoped<IImportContractTemplateUseCase, ImportContractTemplateUseCase>();
+        services.AddScoped<IRenameContractTemplateUseCase, RenameContractTemplateUseCase>();
+        services.AddScoped<IRetireContractTemplateUseCase, RetireContractTemplateUseCase>();
+        services.AddScoped<IConvertContractTemplateUseCase, ConvertContractTemplateUseCase>();
+        services.AddScoped<IGetContractTemplateSourceFileUseCase, GetContractTemplateSourceFileUseCase>();
+        services.AddScoped<IUpdateContractTemplateDraftUseCase, UpdateContractTemplateDraftUseCase>();
+        services.AddScoped<IActivateContractTemplateUseCase, ActivateContractTemplateUseCase>();
+        services.AddScoped<IDiscardContractTemplateDraftUseCase, DiscardContractTemplateDraftUseCase>();
         return services;
     }
 }

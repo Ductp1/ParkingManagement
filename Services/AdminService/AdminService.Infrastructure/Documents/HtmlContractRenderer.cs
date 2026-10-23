@@ -16,6 +16,8 @@ namespace AdminService.Infrastructure.Documents;
 /// <c>|| nhãn: || giá trị</c> (bảng thông tin 2 cột) · <c>!! trái !! phải</c> (khối 2 cột căn giữa, dòng đầu đậm – quốc hiệu, chữ ký) ·
 /// <c>#| cột 1 | cột 2 | …</c> dòng tiêu đề + <c>| ô 1 | ô 2 | …</c> dòng dữ liệu (bảng có khung) · <c>---</c> sang trang ·
 /// dòng trống = khoảng cách · dòng bắt đầu "1.2." = khoản (thụt lề) · dòng khác = đoạn văn. Trong dòng: <c>**chữ đậm**</c>.
+/// Dòng chỉ có <c>{{Key}}</c> = khối chèn nhiều dòng (xem <see cref="AppendInserted"/>).
+/// Dòng bắt đầu bằng <c>\</c> = đoạn văn nguyên văn (không đọc cú pháp đầu dòng) – dùng cho chữ Admin nhập trên form.
 /// </para>
 /// </summary>
 public sealed partial class HtmlContractRenderer : IContractRenderer
@@ -34,6 +36,15 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         foreach (var raw in templateBody.Replace("\r\n", "\n").Split('\n'))
         {
             var line = raw.TrimEnd();
+            if (StandalonePlaceholder().Match(line) is { Success: true } inserted
+                && values.TryGetValue(inserted.Groups[1].Value, out var insertedText))
+            {
+                Close(html, open);
+                open = Block.None;
+                AppendInserted(html, insertedText);
+                continue;
+            }
+
             var block = KindOf(line);
             var group = block == Block.GridHeader ? Block.Grid : block;
             if (group != open)
@@ -87,6 +98,9 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
                     break;
                 case Block.Grid:
                     AppendRow(html, line[1..].Split('|'), "td", values);
+                    break;
+                case Block.Literal:
+                    html.Append("<p>").Append(Fill(line[1..], values)).Append("</p>\n");
                     break;
                 case Block.Clause:
                     html.Append("<p class=\"clause\">").Append(Fill(line, values)).Append("</p>\n");
@@ -149,7 +163,7 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         return new RenderedContract(Encoding.UTF8.GetBytes(document), ContentType, ".html");
     }
 
-    private enum Block { None, Blank, PageBreak, Title, Article, Section, Center, Italic, List, Table, Sign, GridHeader, Grid, Clause, Paragraph }
+    private enum Block { None, Blank, PageBreak, Title, Article, Section, Center, Italic, List, Table, Sign, GridHeader, Grid, Clause, Literal, Paragraph }
 
     private static Block KindOf(string line) => line switch
     {
@@ -165,6 +179,7 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         _ when line.StartsWith("||", StringComparison.Ordinal) => Block.Table,
         _ when line.StartsWith("!!", StringComparison.Ordinal) => Block.Sign,
         _ when line.StartsWith('|') => Block.Grid,
+        _ when line.StartsWith('\\') => Block.Literal,
         _ when ClausePrefix().IsMatch(line) => Block.Clause,
         _ => Block.Paragraph,
     };
@@ -175,6 +190,24 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
         foreach (var cell in cells)
             html.Append('<').Append(tag).Append('>').Append(Fill(cell.Trim(), values)).Append("</").Append(tag).Append('>');
         html.Append("</tr>\n");
+    }
+
+    /// <summary>
+    /// Khối chèn (dòng mẫu chỉ có <c>{{Key}}</c>, VD thỏa thuận riêng): mỗi dòng của giá trị là một đoạn, dòng "1.2." thụt lề như khoản.
+    /// Chỉ encode, không đọc cú pháp mẫu – chữ Admin nhập không tạo được tiêu đề, bảng hay chữ đậm.
+    /// </summary>
+    private static void AppendInserted(StringBuilder html, string text)
+    {
+        foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0)
+            {
+                html.Append("<div class=\"gap\"></div>\n");
+                continue;
+            }
+            html.Append(ClausePrefix().IsMatch(line) ? "<p class=\"clause\">" : "<p>").Append(Encoder.Encode(line)).Append("</p>\n");
+        }
     }
 
     private static void Close(StringBuilder html, Block open)
@@ -199,6 +232,9 @@ public sealed partial class HtmlContractRenderer : IContractRenderer
 
     [GeneratedRegex(@"\{\{([A-Za-z]+)\}\}")]
     private static partial Regex Placeholder();
+
+    [GeneratedRegex(@"^\s*\{\{([A-Za-z]+)\}\}$")]
+    private static partial Regex StandalonePlaceholder();
 
     [GeneratedRegex(@"\*\*(.+?)\*\*")]
     private static partial Regex Bold();

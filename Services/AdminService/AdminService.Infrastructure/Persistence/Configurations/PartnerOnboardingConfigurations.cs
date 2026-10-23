@@ -1,5 +1,6 @@
 using AdminService.Domain.Entities;
 using AdminService.Domain.Enums;
+using AdminService.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -39,7 +40,7 @@ internal sealed class PartnerApplicationConfiguration : IEntityTypeConfiguration
     }
 }
 
-/// <summary>US-116: mẫu hợp đồng – mỗi Version một dòng, tối đa một mẫu đang dùng.</summary>
+/// <summary>US-116: mẫu hợp đồng (loại hợp đồng có tên) – mỗi Version một dòng; nhiều mẫu Active cùng lúc; Bên A theo từng mẫu.</summary>
 internal sealed class ContractTemplateConfiguration : IEntityTypeConfiguration<ContractTemplate>
 {
     public void Configure(EntityTypeBuilder<ContractTemplate> e)
@@ -48,8 +49,26 @@ internal sealed class ContractTemplateConfiguration : IEntityTypeConfiguration<C
         e.Property(x => x.Name).HasMaxLength(200).IsRequired();
         // Văn bản thường có placeholder, không phải JSON → text (IsMaxText() của ServiceDefaults là jsonb).
         e.Property(x => x.Body).HasColumnType("text").IsRequired();
+        e.Property(x => x.ChangeNote).HasMaxLength(1000);
+        // Nội dung form (TemplateContent) dạng JSON thật → jsonb.
+        e.Property(x => x.ContentJson).HasColumnType("jsonb");
+        e.Property(x => x.SourceFileKey).HasMaxLength(300);
+        e.Property(x => x.SourceFileName).HasMaxLength(260);
+        e.Property(x => x.SourceFileSha256).HasMaxLength(64);
+        e.Property(x => x.ImportNotes).HasColumnType("text");
+        e.Property(x => x.PlatformName).HasMaxLength(300).IsRequired();
+        e.Property(x => x.PlatformAddress).HasMaxLength(300).IsRequired();
+        e.Property(x => x.PlatformTaxCode).HasMaxLength(300).IsRequired();
+        e.Property(x => x.PlatformPhone).HasMaxLength(300).IsRequired();
+        e.Property(x => x.PlatformEmail).HasMaxLength(300).IsRequired();
+        e.Property(x => x.PlatformRepresentativeName).HasMaxLength(300).IsRequired();
+        e.Property(x => x.PlatformRepresentativePosition).HasMaxLength(300).IsRequired();
+        e.Property(x => x.RowVersion).IsConcurrencyToken();
+        e.Ignore(x => x.IsActive);
+        e.Ignore(x => x.Platform);
+        e.Ignore(x => x.SourceFile);
         e.HasIndex(x => x.Version).IsUnique();
-        e.HasIndex(x => x.IsActive).IsUnique().HasFilter("\"IsActive\" = TRUE").HasDatabaseName("IX_ContractTemplates_SingleActive");
+        e.HasIndex(x => x.Status);
     }
 }
 
@@ -108,6 +127,8 @@ internal sealed class LotContractVersionConfiguration : IEntityTypeConfiguration
         e.Property(x => x.FileContentType).HasMaxLength(100).IsRequired();
         e.Property(x => x.FileSha256).HasMaxLength(64).IsRequired();
         e.Property(x => x.RevisionReason).HasMaxLength(1000);
+        e.Property(x => x.SpecialTerms).HasMaxLength(ContractTerms.MaxSpecialTermsLength);
+        e.HasIndex(x => x.TemplateId);
         e.HasIndex(x => new { x.LotContractId, x.Version }).IsUnique();
         e.HasIndex(x => x.LotContractId).IsUnique()
             .HasFilter($"\"Status\" = '{nameof(LotContractVersionStatus.Current)}'")

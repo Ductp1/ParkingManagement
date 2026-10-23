@@ -13,7 +13,8 @@ export const LotContractVersions: React.FC<{ contract: LotContractDetailDto; onE
   const download = async (v: LotContractVersionDto) => {
     setDownloading(v.version);
     try {
-      saveFile(await adminLotContractsApi.versionFile(contract.id, v.version), `${contract.contractNumber}-v${v.version}.html`);
+      const ext = v.fileContentType.includes('wordprocessingml') ? 'docx' : 'html';
+      saveFile(await adminLotContractsApi.versionFile(contract.id, v.version), `${contract.contractNumber}-v${v.version}.${ext}`);
     } catch (err: unknown) {
       onError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -22,9 +23,27 @@ export const LotContractVersions: React.FC<{ contract: LotContractDetailDto; onE
   };
 
   const columns: DataTableColumn<LotContractVersionDto>[] = [
-    { key: 'version', header: 'Version', width: 80, render: (v) => <CellText>{`v${v.version}`}</CellText> },
+    {
+      key: 'version',
+      header: 'Version',
+      width: 190,
+      render: (v) => <CellTwoLine primary={`v${v.version}`} secondary={v.templateName ?? `Template #${v.templateVersion}`} />,
+    },
     { key: 'status', header: 'Status', width: 110, render: (v) => <CellStatus value={v.status} /> },
     { key: 'terms', header: 'Terms', render: (v) => <CellTwoLine primary={percentText(v.commissionRate)} secondary={termText(v)} /> },
+    {
+      key: 'special',
+      header: 'Special terms',
+      width: 200,
+      render: (v) =>
+        v.specialTerms ? (
+          <span title={v.specialTerms} className="adm-type-body-default line-clamp-2 whitespace-pre-line text-(--admin-text-primary)">
+            {v.specialTerms}
+          </span>
+        ) : (
+          <CellText>—</CellText>
+        ),
+    },
     {
       key: 'created',
       header: 'Created',
@@ -37,7 +56,7 @@ export const LotContractVersions: React.FC<{ contract: LotContractDetailDto; onE
       width: 110,
       render: (v) => (
         <AdminButton variant="ghost" icon="download" onClick={() => download(v)} disabled={downloading !== null}>
-          {downloading === v.version ? 'Loading…' : 'Download'}
+          {downloading === v.version ? 'Loading…' : v.fileContentType.includes('wordprocessingml') ? 'DOCX' : 'Download'}
         </AdminButton>
       ),
     },

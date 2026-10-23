@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Domain.Entities;
 using AdminService.Domain.Enums;
@@ -11,14 +12,21 @@ namespace AdminService.Application.Features.LotContracts;
 
 // ===== REQUEST (người thao tác lấy từ JWT) =====
 
-/// <summary>L1 / L1p: lập hợp đồng cho bãi có KYB đã duyệt. CommissionRate theo % (7.5 = 7,5%).</summary>
-public sealed record CreateLotContractRequest(int? KybApplicationId, decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths);
+/// <summary>
+/// L1 / L1p: lập hợp đồng cho bãi có KYB đang thẩm định. CommissionRate theo % (7.5 = 7,5%).
+/// SpecialTerms = thỏa thuận riêng của bãi (tùy chọn, mỗi dòng một khoản, ≤ 4000 ký tự / 40 dòng).
+/// TemplateId = loại hợp đồng (mẫu Active); mẫu DOCX gốc chỉ cần CommissionRate (ngày hiệu lực, thời hạn nằm trong file).
+/// </summary>
+public sealed record CreateLotContractRequest(int? KybApplicationId, decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths,
+    string? SpecialTerms = null, int? TemplateId = null);
 
 /// <summary>L2p: xem trước phiên bản sửa.</summary>
-public sealed record LotContractTermsRequest(decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths);
+public sealed record LotContractTermsRequest(decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths, string? SpecialTerms = null,
+    int? TemplateId = null);
 
 /// <summary>L2: điều khoản mới + lý do sửa.</summary>
-public sealed record ReviseLotContractRequest(decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths, string? Reason);
+public sealed record ReviseLotContractRequest(decimal? CommissionRate, DateOnly? EffectiveFrom, int? TermMonths, string? Reason,
+    string? SpecialTerms = null, int? TemplateId = null);
 
 /// <summary>L3 (multipart): bản scan đã ký + phiên bản Admin xác nhận đã ký + ghi chú duyệt KYB (tùy chọn, ≤ 1000).</summary>
 public sealed record SignLotContractRequest(int? ConfirmedVersion, UploadedFile? SignedFile, string? Note = null);
@@ -85,12 +93,36 @@ internal static class LotContractSupport
             ? "24/7"
             : $"{open:HH\\:mm} – {close:HH\\:mm}";
 
-    public static async Task<ContractTemplate> ActiveTemplateAsync(ILotContractRepository repository, CancellationToken ct)
-        => await repository.GetActiveTemplateAsync(ct)
-           ?? throw new ConflictException("Chưa có mẫu hợp đồng đang áp dụng, chưa thể sinh hợp đồng.");
+    /// <summary>
+    /// Loại hợp đồng (mẫu) phải đang Active. templateId bỏ trống → mẫu của phiên bản đang chờ ký (khi sửa) hoặc mẫu Active duy nhất.
+    /// </summary>
+    public static async Task<ContractTemplate> TemplateAsync(ILotContractRepository repository, int? templateId, int? fallbackTemplateId,
+        CancellationToken ct)
+    {
+        if (templateId is <= 0) throw new ValidationException("templateId phải là số nguyên dương.");
+        if ((templateId ?? fallbackTemplateId) is { } id)
+        {
+            var template = await repository.GetTemplateAsync(id, ct) ?? throw new NotFoundException("Mẫu hợp đồng", id);
+            if (template.Status != ContractTemplateStatus.Active)
+                throw new ConflictException(
+                    $"Mẫu hợp đồng \"{template.Name}\" không còn áp dụng (trạng thái {template.Status}), hãy chọn loại hợp đồng khác.");
+            return template;
+        }
+        var active = await repository.ListActiveTemplatesAsync(ct);
+        return active.Count switch
+        {
+            0 => throw new ConflictException("Chưa có mẫu hợp đồng đang áp dụng, chưa thể sinh hợp đồng."),
+            1 => active[0],
+            _ => throw new ValidationException("Hãy chọn loại hợp đồng (templateId) để lập hợp đồng."),
+        };
+    }
 
-    public static ContractTerms Terms(decimal? rate, DateOnly? from, int? months, DateTime nowUtc)
-        => ContractTerms.Create(rate, from, months, ContractSupport.TodayInVietnam(nowUtc));
+    /// <summary>Mẫu DOCX gốc: chỉ phí nền tảng; mẫu form / markup: phí, ngày hiệu lực, thời hạn, thỏa thuận riêng.</summary>
+    public static ContractTerms Terms(ContractTemplate template, decimal? rate, DateOnly? from, int? months, string? specialTerms,
+        DateTime nowUtc)
+        => template.Kind == ContractTemplateKind.Document
+            ? ContractTerms.FeeOnly(rate)
+            : ContractTerms.Create(rate, from, months, ContractSupport.TodayInVietnam(nowUtc), specialTerms);
 
     /// <summary>
     /// Kiểm tra và dựng hợp đồng mới trong bộ nhớ (chưa lưu) cho L1p / L1:
@@ -114,8 +146,8 @@ internal static class LotContractSupport
                       ?? throw new ConflictException(
                           $"Chủ bãi (OwnerProfile #{kyb.OwnerProfileId}) chưa có hồ sơ đối tác đã cấp tài khoản, chưa thể lập hợp đồng.");
 
-        var terms = Terms(request.CommissionRate, request.EffectiveFrom, request.TermMonths, nowUtc);
-        var template = await ActiveTemplateAsync(repository, ct);
+        var template = await TemplateAsync(repository, request.TemplateId, null, ct);
+        var terms = Terms(template, request.CommissionRate, request.EffectiveFrom, request.TermMonths, request.SpecialTerms, nowUtc);
         var number = ContractNumber(nowUtc.Year, kyb.ParkingLotId, await repository.CountForLotAsync(kyb.ParkingLotId, ct));
         var lot = new LotSnapshot(kyb.ParkingLotId, kyb.KybApplicationId, kyb.OwnerProfileId, kyb.LotName, kyb.LotAddress, kyb.LotCity,
             kyb.LotDistrict, kyb.TotalSlots, OpeningHours(kyb.OpenTime, kyb.CloseTime));
@@ -123,7 +155,8 @@ internal static class LotContractSupport
     }
 
     /// <summary>Giá trị placeholder của mẫu hợp đồng bãi (định dạng kiểu Việt Nam).</summary>
-    public static IReadOnlyDictionary<string, string> Values(LotContract c, int version, ContractTerms terms, DateTime nowUtc)
+    public static IReadOnlyDictionary<string, string> Values(LotContract c, int version, ContractTerms terms, PlatformParty platform,
+        DateTime nowUtc)
     {
         static string Date(DateOnly d) => d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
         var today = ContractSupport.TodayInVietnam(nowUtc);
@@ -133,7 +166,8 @@ internal static class LotContractSupport
             : $"Phiên bản {version} – thay thế phiên bản {previous.Version} ngày {Date(ContractSupport.TodayInVietnam(previous.CreatedAtUtc))}";
         var lotAddress = string.Join(", ", new[] { c.LotAddress, c.LotDistrict, c.LotCity }
             .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct());
-        var words = terms.TermMonths < TermWords.Length ? TermWords[terms.TermMonths] : string.Empty;
+        var months = terms.TermMonths?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        var words = terms.TermMonths is { } m && m < TermWords.Length ? TermWords[m] : string.Empty;
 
         return new Dictionary<string, string>
         {
@@ -155,29 +189,23 @@ internal static class LotContractSupport
             ["LotCapacity"] = $"{c.LotTotalSlots.ToString("N0", CultureInfo.InvariantCulture).Replace(',', '.')} chỗ",
             ["LotOpeningHours"] = c.LotOpeningHours,
             ["CommissionRate"] = terms.CommissionRate.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ','),
-            ["TermMonths"] = terms.TermMonths.ToString(CultureInfo.InvariantCulture),
-            ["TermMonthsText"] = words.Length > 0 ? $"{terms.TermMonths} ({words})" : terms.TermMonths.ToString(CultureInfo.InvariantCulture),
-            ["EffectiveFrom"] = Date(terms.EffectiveFrom),
-            ["EffectiveTo"] = Date(terms.EffectiveTo),
+            ["TermMonths"] = months,
+            ["TermMonthsText"] = words.Length > 0 ? $"{months} ({words})" : months,
+            ["EffectiveFrom"] = terms.EffectiveFrom is { } from ? Date(from) : string.Empty,
+            ["EffectiveTo"] = terms.EffectiveTo is { } to ? Date(to) : string.Empty,
             ["BankBin"] = c.BankBin,
             ["BankName"] = c.BankName,
             ["BankAccountNumber"] = c.BankAccountNumber,
             ["BankAccountName"] = c.BankAccountName,
+            ["PlatformName"] = platform.Name,
+            ["PlatformAddress"] = platform.Address,
+            ["PlatformTaxCode"] = platform.TaxCode,
+            ["PlatformPhone"] = platform.Phone,
+            ["PlatformEmail"] = platform.Email,
+            ["PlatformRepresentativeName"] = platform.RepresentativeName,
+            ["PlatformRepresentativePosition"] = platform.RepresentativePosition,
+            ["SpecialTerms"] = terms.SpecialTerms ?? ContractPlaceholders.NoSpecialTerms,
         };
-    }
-
-    public static RenderedContract Render(IContractRenderer renderer, ContractTemplate template, LotContract c, int version,
-        ContractTerms terms, DateTime nowUtc, bool preview)
-        => renderer.Render(template.Body, template.Version, Values(c, version, terms, nowUtc), preview);
-
-    public static async Task<StoredFile> RenderAndStoreAsync(IContractRenderer renderer, IFileStorage storage, ContractTemplate template,
-        LotContract c, ContractTerms terms, DateTime nowUtc, CancellationToken ct)
-    {
-        var version = c.NextVersion;
-        var file = Render(renderer, template, c, version, terms, nowUtc, preview: false);
-        var key = ContractKey(c.ContractNumber, version, file.FileExtension);
-        await storage.SaveAsync(key, file.Content, ct);
-        return new StoredFile(key, file.ContentType, ContractSupport.Sha256Hex(file.Content));
     }
 
     public static async Task SaveOrDeleteAsync(ILotContractRepository repository, IFileStorage storage, string fileKey, AuditLog auditLog,
@@ -271,8 +299,8 @@ public interface IPreviewNewLotContractUseCase
 }
 
 /// <summary>US-116 (L1p): sinh thử hợp đồng v1 cho bãi (có dấu "BẢN XEM TRƯỚC"), không lưu file, không đổi dữ liệu.</summary>
-public sealed class PreviewNewLotContractUseCase(ILotContractRepository repository, IParkingServiceClient parking, IContractRenderer renderer,
-    TimeProvider timeProvider) : IPreviewNewLotContractUseCase
+public sealed class PreviewNewLotContractUseCase(ILotContractRepository repository, IParkingServiceClient parking,
+    LotContractDocumentBuilder builder, TimeProvider timeProvider) : IPreviewNewLotContractUseCase
 {
     public async Task<ContractFileResult> ExecuteAsync(CreateLotContractRequest request, int performedByUserId,
         CancellationToken cancellationToken = default)
@@ -280,7 +308,7 @@ public sealed class PreviewNewLotContractUseCase(ILotContractRepository reposito
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var (contract, terms, template) =
             await LotContractSupport.PrepareNewAsync(request, performedByUserId, repository, parking, now, cancellationToken);
-        var file = LotContractSupport.Render(renderer, template, contract, 1, terms, now, preview: true);
+        var file = await builder.BuildAsync(template, contract, 1, terms, now, preview: true, cancellationToken);
         return new ContractFileResult(file.Content, file.ContentType, $"{contract.ContractNumber}-v1-preview{file.FileExtension}");
     }
 }
@@ -291,8 +319,8 @@ public interface IPreviewLotContractRevisionUseCase
 }
 
 /// <summary>US-116 (L2p): sinh thử phiên bản v+1 với điều khoản mới, không lưu.</summary>
-public sealed class PreviewLotContractRevisionUseCase(ILotContractRepository repository, IContractRenderer renderer, TimeProvider timeProvider)
-    : IPreviewLotContractRevisionUseCase
+public sealed class PreviewLotContractRevisionUseCase(ILotContractRepository repository, LotContractDocumentBuilder builder,
+    TimeProvider timeProvider) : IPreviewLotContractRevisionUseCase
 {
     public async Task<ContractFileResult> ExecuteAsync(int id, LotContractTermsRequest request, CancellationToken cancellationToken = default)
     {
@@ -301,10 +329,12 @@ public sealed class PreviewLotContractRevisionUseCase(ILotContractRepository rep
         if (contract.Status != LotContractStatus.Pending)
             throw new ConflictException($"Không thể sửa hợp đồng {contract.ContractNumber} đang ở trạng thái {contract.Status}.");
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var terms = LotContractSupport.Terms(request.CommissionRate, request.EffectiveFrom, request.TermMonths, now);
-        var template = await LotContractSupport.ActiveTemplateAsync(repository, cancellationToken);
+        var template = await LotContractSupport.TemplateAsync(repository, request.TemplateId, contract.CurrentVersion?.TemplateId,
+            cancellationToken);
+        var terms = LotContractSupport.Terms(template, request.CommissionRate, request.EffectiveFrom, request.TermMonths, request.SpecialTerms,
+            now);
         var version = contract.NextVersion;
-        var file = LotContractSupport.Render(renderer, template, contract, version, terms, now, preview: true);
+        var file = await builder.BuildAsync(template, contract, version, terms, now, preview: true, cancellationToken);
         return new ContractFileResult(file.Content, file.ContentType, $"{contract.ContractNumber}-v{version}-preview{file.FileExtension}");
     }
 }
@@ -321,7 +351,7 @@ public interface ICreateLotContractUseCase
 /// sinh file từ mẫu đang áp dụng + SHA-256. Hợp đồng + phiên bản + AuditLog cùng 1 SaveChanges; lưu lỗi thì xóa file.
 /// </summary>
 public sealed class CreateLotContractUseCase(ILotContractRepository repository, ILotContractQueries queries, IParkingServiceClient parking,
-    IContractRenderer renderer, IFileStorage storage, TimeProvider timeProvider) : ICreateLotContractUseCase
+    LotContractDocumentBuilder builder, IFileStorage storage, TimeProvider timeProvider) : ICreateLotContractUseCase
 {
     public async Task<LotContractDetailDto> ExecuteAsync(CreateLotContractRequest request, int performedByUserId,
         CancellationToken cancellationToken = default)
@@ -331,8 +361,8 @@ public sealed class CreateLotContractUseCase(ILotContractRepository repository, 
         var (contract, terms, template) =
             await LotContractSupport.PrepareNewAsync(request, performedByUserId, repository, parking, now, cancellationToken);
 
-        var stored = await LotContractSupport.RenderAndStoreAsync(renderer, storage, template, contract, terms, now, cancellationToken);
-        contract.AddFirstVersion(performedByUserId, terms, template.Version, stored);
+        var stored = await builder.BuildAndStoreAsync(template, contract, terms, now, cancellationToken);
+        contract.AddFirstVersion(performedByUserId, terms, template.Version, stored, template.Id);
         repository.Add(contract);
         await LotContractSupport.SaveOrDeleteAsync(repository, storage, stored.Key,
             LotContractAudit.Build(contract, "Created", performedByUserId, null, null), cancellationToken);
@@ -347,7 +377,7 @@ public interface IReviseLotContractUseCase
 }
 
 /// <summary>US-116 (L2): phiên bản v+1 cùng số hợp đồng, bản đang chờ ký → Superseded; lý do bắt buộc.</summary>
-public sealed class ReviseLotContractUseCase(ILotContractRepository repository, ILotContractQueries queries, IContractRenderer renderer,
+public sealed class ReviseLotContractUseCase(ILotContractRepository repository, ILotContractQueries queries, LotContractDocumentBuilder builder,
     IFileStorage storage, TimeProvider timeProvider) : IReviseLotContractUseCase
 {
     public async Task<LotContractDetailDto> ExecuteAsync(int id, ReviseLotContractRequest request, int performedByUserId,
@@ -360,11 +390,13 @@ public sealed class ReviseLotContractUseCase(ILotContractRepository repository, 
             throw new ConflictException($"Không thể sửa hợp đồng {contract.ContractNumber} đang ở trạng thái {contract.Status}.");
         if (string.IsNullOrWhiteSpace(request.Reason)) throw new ValidationException("Lý do sửa hợp đồng không được để trống.");
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var terms = LotContractSupport.Terms(request.CommissionRate, request.EffectiveFrom, request.TermMonths, now);
-        var template = await LotContractSupport.ActiveTemplateAsync(repository, cancellationToken);
+        var template = await LotContractSupport.TemplateAsync(repository, request.TemplateId, contract.CurrentVersion?.TemplateId,
+            cancellationToken);
+        var terms = LotContractSupport.Terms(template, request.CommissionRate, request.EffectiveFrom, request.TermMonths, request.SpecialTerms,
+            now);
 
-        var stored = await LotContractSupport.RenderAndStoreAsync(renderer, storage, template, contract, terms, now, cancellationToken);
-        var version = contract.Revise(performedByUserId, terms, template.Version, stored, request.Reason);
+        var stored = await builder.BuildAndStoreAsync(template, contract, terms, now, cancellationToken);
+        var version = contract.Revise(performedByUserId, terms, template.Version, stored, request.Reason, template.Id);
         await LotContractSupport.SaveOrDeleteAsync(repository, storage, stored.Key,
             LotContractAudit.Build(contract, "Revised", performedByUserId, before, version.RevisionReason), cancellationToken);
         return await LotContractSupport.ReloadAsync(queries, id, cancellationToken);
@@ -438,5 +470,38 @@ public sealed class CancelLotContractUseCase(ILotContractRepository repository, 
         await repository.SaveWithAuditAsync(LotContractAudit.Build(contract, "Cancelled", performedByUserId, before, contract.CancelReason),
             cancellationToken);
         return await LotContractSupport.ReloadAsync(queries, id, cancellationToken);
+    }
+}
+
+/// <summary>
+/// US-116 v11: sinh file một phiên bản hợp đồng bãi theo loại mẫu – mẫu form / markup → HTML (renderer, có watermark khi xem trước);
+/// mẫu DOCX gốc → bản sao file DOCX đã thay placeholder (SHA-256 file gốc được kiểm tra lại trước khi dùng).
+/// </summary>
+public sealed class LotContractDocumentBuilder(IContractRenderer renderer, IFileStorage storage, IDocxDocumentService docx)
+{
+    public async Task<RenderedContract> BuildAsync(ContractTemplate template, LotContract contract, int version, ContractTerms terms,
+        DateTime nowUtc, bool preview, CancellationToken ct)
+    {
+        var values = LotContractSupport.Values(contract, version, terms, template.Platform, nowUtc);
+        if (template.Kind != ContractTemplateKind.Document) return renderer.Render(template.Body, template.Version, values, preview);
+
+        var source = template.SourceFile
+                     ?? throw new ConflictException($"Mẫu hợp đồng \"{template.Name}\" chưa có file DOCX gốc.");
+        var original = await storage.ReadAsync(source.Key, ct)
+                       ?? throw new ConflictException($"Không tìm thấy file DOCX gốc của mẫu \"{template.Name}\".");
+        if (!string.Equals(ContractSupport.Sha256Hex(original), source.Sha256, StringComparison.OrdinalIgnoreCase))
+            throw new ConflictException($"File DOCX gốc của mẫu \"{template.Name}\" không còn toàn vẹn (SHA-256 không khớp).");
+        return new RenderedContract(docx.FillPlaceholders(original, values), IDocxDocumentService.ContentType, ".docx");
+    }
+
+    /// <summary>Sinh file phiên bản kế tiếp (không watermark) và lưu kèm SHA-256.</summary>
+    public async Task<StoredFile> BuildAndStoreAsync(ContractTemplate template, LotContract contract, ContractTerms terms, DateTime nowUtc,
+        CancellationToken ct)
+    {
+        var version = contract.NextVersion;
+        var file = await BuildAsync(template, contract, version, terms, nowUtc, preview: false, ct);
+        var key = LotContractSupport.ContractKey(contract.ContractNumber, version, file.FileExtension);
+        await storage.SaveAsync(key, file.Content, ct);
+        return new StoredFile(key, file.ContentType, ContractSupport.Sha256Hex(file.Content));
     }
 }

@@ -5,9 +5,15 @@ import { formatDate, formatNumber } from '../../../utils/format';
 /** "7.5%" – phí nền tảng theo %. */
 export const percentText = (rate: number | null) => (rate === null ? '—' : `${formatNumber(rate)}%`);
 
-/** "01/11/2026 – 31/10/2027 (12 months)". */
+/** "01/11/2026 – 31/10/2027 (12 months)"; hợp đồng theo file DOCX gốc: "Dates in the document". */
 export const termText = (v: Pick<LotContractVersionDto, 'effectiveFrom' | 'effectiveTo' | 'termMonths'>) =>
-  `${formatDate(v.effectiveFrom)} – ${formatDate(v.effectiveTo)} (${v.termMonths} months)`;
+  v.effectiveFrom === null
+    ? 'Dates in the document'
+    : `${formatDate(v.effectiveFrom)} – ${formatDate(v.effectiveTo)} (${v.termMonths ?? '—'} months)`;
+
+/** Nhãn loại mẫu hợp đồng. */
+export const templateKindLabel = (kind: string | null | undefined) =>
+  kind === 'Document' ? 'DOCX file' : kind === 'Markup' ? 'Legacy markup' : kind === 'Structured' ? 'Form' : '—';
 
 /** "Vietcombank (970436) · 0011000000099 · CONG TY …". */
 export const bankText = (b: PartnerBankAccountDto) => `${b.name} (${b.bin}) · ${b.accountNumber} · ${b.accountName}`;

@@ -45,7 +45,7 @@ public sealed class AdminLotContractsController(
     public async Task<ActionResult<LotContractDetailDto>> GetById(int id, CancellationToken cancellationToken)
         => Ok(await getContract.ExecuteAsync(id, cancellationToken));
 
-    /// <summary>POST /api/v1/admin/lot-contracts/preview { kybApplicationId, commissionRate, effectiveFrom, termMonths } (L1p) – HTML, không lưu.</summary>
+    /// <summary>POST /api/v1/admin/lot-contracts/preview { kybApplicationId, commissionRate, effectiveFrom, termMonths, specialTerms } (L1p) – HTML, không lưu.</summary>
     [HttpPost("preview")]
     [Produces("text/html", "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -58,7 +58,7 @@ public sealed class AdminLotContractsController(
             ? ContractFile(await previewNew.ExecuteAsync(request, adminId, cancellationToken), asAttachment: false)
             : Unauthorized();
 
-    /// <summary>POST /api/v1/admin/lot-contracts { kybApplicationId, commissionRate, effectiveFrom, termMonths } (L1) – lập hợp đồng v1.</summary>
+    /// <summary>POST /api/v1/admin/lot-contracts { kybApplicationId, commissionRate, effectiveFrom, termMonths, specialTerms } (L1) – lập hợp đồng v1.</summary>
     [HttpPost]
     [ProducesResponseType<LotContractDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -68,7 +68,7 @@ public sealed class AdminLotContractsController(
     public Task<ActionResult<LotContractDetailDto>> Create([FromBody] CreateLotContractRequest request, CancellationToken cancellationToken)
         => AsAdmin(adminId => create.ExecuteAsync(request, adminId, cancellationToken));
 
-    /// <summary>POST /api/v1/admin/lot-contracts/5/preview { commissionRate, effectiveFrom, termMonths } (L2p) – xem trước v+1.</summary>
+    /// <summary>POST /api/v1/admin/lot-contracts/5/preview { commissionRate, effectiveFrom, termMonths, specialTerms } (L2p) – xem trước v+1.</summary>
     [HttpPost("{id:int}/preview")]
     [Produces("text/html", "application/problem+json")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -78,7 +78,7 @@ public sealed class AdminLotContractsController(
     public async Task<IActionResult> PreviewRevision(int id, [FromBody] LotContractTermsRequest request, CancellationToken cancellationToken)
         => ContractFile(await previewRevision.ExecuteAsync(id, request, cancellationToken), asAttachment: false);
 
-    /// <summary>POST /api/v1/admin/lot-contracts/5/revise { commissionRate, effectiveFrom, termMonths, reason } (L2).</summary>
+    /// <summary>POST /api/v1/admin/lot-contracts/5/revise { commissionRate, effectiveFrom, termMonths, reason, specialTerms } (L2).</summary>
     [HttpPost("{id:int}/revise")]
     [ProducesResponseType<LotContractDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -141,13 +141,7 @@ public sealed class AdminLotContractsController(
         CancellationToken cancellationToken)
         => AsAdmin(adminId => cancel.ExecuteAsync(id, request, adminId, cancellationToken));
 
-    /// <summary>File hợp đồng HTML: chặn script / tài nguyên ngoài và không cho trình duyệt đoán lại kiểu nội dung.</summary>
-    private FileContentResult ContractFile(ContractFileResult file, bool asAttachment)
-    {
-        Response.Headers.ContentSecurityPolicy = "default-src 'none'; style-src 'unsafe-inline'";
-        Response.Headers.XContentTypeOptions = "nosniff";
-        return asAttachment ? File(file.Content, file.ContentType, file.FileName) : File(file.Content, file.ContentType);
-    }
+    private FileContentResult ContractFile(ContractFileResult file, bool asAttachment) => ContractFileResults.Build(this, file, asAttachment);
 
     private async Task<ActionResult<LotContractDetailDto>> AsAdmin(Func<int, Task<LotContractDetailDto>> action)
         => currentUser.UserId is { } adminUserId ? Ok(await action(adminUserId)) : Unauthorized();

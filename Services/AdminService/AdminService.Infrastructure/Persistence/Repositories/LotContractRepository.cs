@@ -25,8 +25,12 @@ public sealed class LotContractRepository(AdminDbContext db) : ILotContractRepos
     public Task<int> CountForLotAsync(int parkingLotId, CancellationToken cancellationToken)
         => db.LotContracts.CountAsync(c => c.ParkingLotId == parkingLotId, cancellationToken);
 
-    public Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken)
-        => db.ContractTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.IsActive, cancellationToken);
+    public Task<ContractTemplate?> GetTemplateAsync(int id, CancellationToken cancellationToken)
+        => db.ContractTemplates.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<ContractTemplate>> ListActiveTemplatesAsync(CancellationToken cancellationToken)
+        => await db.ContractTemplates.AsNoTracking().Where(t => t.Status == ContractTemplateStatus.Active).OrderBy(t => t.Name)
+            .ToListAsync(cancellationToken);
 
     public void Add(LotContract contract) => db.LotContracts.Add(contract);
 

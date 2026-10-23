@@ -49,3 +49,22 @@ public enum LotContractVersionStatus
     /// <summary>Phiên bản đã được ký.</summary>
     Signed = 2,
 }
+
+/// <summary>[AdminService] Vòng đời mẫu hợp đồng bãi: chỉ Draft sửa được; các mẫu Active chọn được khi lập / sửa hợp đồng.</summary>
+public enum ContractTemplateStatus
+{
+    Draft = 0,
+    Active = 1,
+    Retired = 2,
+}
+
+/// <summary>[AdminService] Cách mẫu hợp đồng được soạn (US-116 v11).</summary>
+public enum ContractTemplateKind
+{
+    /// <summary>Mẫu cũ: Body gõ tay theo cú pháp markup (v1–v4).</summary>
+    Markup = 0,
+    /// <summary>Soạn bằng form (đầu trang, căn cứ, điều / khoản, phụ lục…); Body sinh tự động.</summary>
+    Structured = 1,
+    /// <summary>File DOCX gốc; hợp đồng bãi = bản sao file, thay placeholder nếu có.</summary>
+    Document = 2,
+}

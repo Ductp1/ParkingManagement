@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Domain.Entities;
@@ -17,7 +18,7 @@ using ParkingManagement.SharedKernel.Exceptions;
 namespace AdminService.Test;
 
 // US-116 (L0–L4, mục 14): hợp đồng theo từng bãi – lập sau KYB, xem trước, sửa, tải file, ký (kích hoạt bãi bên ParkingService), hủy
-// (fake repository / queries / storage / ParkingService, renderer HTML thật, mẫu v3 thật).
+// (fake repository / queries / storage / ParkingService, renderer HTML thật, mẫu v4 thật).
 public class LotContractTests
 {
     private const int AdminId = 1;
@@ -28,11 +29,29 @@ public class LotContractTests
     private static readonly DateTime Now = new(2026, 10, 20, 2, 0, 0, DateTimeKind.Utc);   // 09:00 20/10/2026 giờ VN
     private static readonly DateOnly Today = new(2026, 10, 20);
 
-    private static readonly ContractTemplate Template = new()
+    private static readonly ContractTemplate Template = ActiveV4();
+
+    /// <summary>Mẫu v4 seed (markup, Bên A giả định) ở trạng thái Active, Id 4.</summary>
+    private static ContractTemplate ActiveV4()
     {
-        Version = PartnerContractTemplates.V3Version, Name = PartnerContractTemplates.V3Name, Body = PartnerContractTemplates.V3Body,
-        IsActive = true,
-    };
+        var t = WithId(ContractTemplate.CreateDraft(PartnerContractTemplates.V4Version, PartnerContractTemplates.V4Name,
+            ContractTemplateKind.Markup, AdminId), 4);
+        t.UpdateDraft(t.Name, null, ContractTemplateKind.Markup, PartnerContractTemplates.V4Body, null, PartnerContractTemplates.V4Platform);
+        t.Activate(Now.AddDays(-1));
+        return t;
+    }
+
+    /// <summary>Mẫu loại Document (Id 9) – file DOCX gốc đã lưu trong storage của fixture.</summary>
+    private static ContractTemplate DocxTemplate(FakeStorage storage, byte[] docx, bool active = true)
+    {
+        var t = WithId(ContractTemplate.CreateDraft(9, "Hợp đồng Vincom (DOCX)", ContractTemplateKind.Document, AdminId), 9);
+        const string key = "contract-templates/source-vincom.docx";
+        storage.Files[key] = docx;
+        t.SetSourceFile(new TemplateSourceFile(key, "vincom.docx", Sha(docx)));
+        t.UpdateDraft(t.Name, null, ContractTemplateKind.Document, "", null, PartnerContractTemplates.V4Platform);
+        if (active) t.Activate(Now.AddDays(-1));
+        return t;
+    }
 
     private static T WithId<T>(T entity, int id) where T : BaseEntity
     {
@@ -62,8 +81,9 @@ public class LotContractTests
         "Bãi xe Tân Bình 1", "125 Cộng Hòa", "TP. Hồ Chí Minh", "Tân Bình", 240, new TimeOnly(5, 0), new TimeOnly(23, 0), lotStatus,
         OwnerProfileId);
 
-    private static CreateLotContractRequest Create(decimal? rate = 7.5m, int? kybId = KybId, int? months = 12)
-        => new(kybId, rate, new DateOnly(2026, 11, 1), months);
+    private static CreateLotContractRequest Create(decimal? rate = 7.5m, int? kybId = KybId, int? months = 12, string? specialTerms = null,
+        int? templateId = null, DateOnly? from = null)
+        => new(kybId, rate, from ?? new DateOnly(2026, 11, 1), months, specialTerms, templateId);
 
     /// <summary>Hợp đồng đã lập (Id 5) với các phiên bản v1..vN, phiên bản cuối là Current.</summary>
     private static LotContract Contract(int versions = 1)
@@ -89,6 +109,8 @@ public class LotContractTests
         public FakeStorage Storage { get; } = new();
         public FixedTimeProvider Time { get; } = new(new DateTimeOffset(Now));
         public HtmlContractRenderer Renderer { get; } = new();
+        public DocxDocumentService Docx { get; } = new();
+        public LotContractDocumentBuilder Builder => new(Renderer, Storage, Docx);
 
         public Fixture(LotContract? contract = null, PartnerApplication? partner = null)
         {
@@ -96,10 +118,10 @@ public class LotContractTests
             Queries = new FakeQueries(Repository);
         }
 
-        public CreateLotContractUseCase Create() => new(Repository, Queries, Parking, Renderer, Storage, Time);
-        public PreviewNewLotContractUseCase PreviewNew() => new(Repository, Parking, Renderer, Time);
-        public PreviewLotContractRevisionUseCase PreviewRevision() => new(Repository, Renderer, Time);
-        public ReviseLotContractUseCase Revise() => new(Repository, Queries, Renderer, Storage, Time);
+        public CreateLotContractUseCase Create() => new(Repository, Queries, Parking, Builder, Storage, Time);
+        public PreviewNewLotContractUseCase PreviewNew() => new(Repository, Parking, Builder, Time);
+        public PreviewLotContractRevisionUseCase PreviewRevision() => new(Repository, Builder, Time);
+        public ReviseLotContractUseCase Revise() => new(Repository, Queries, Builder, Storage, Time);
         public GetLotContractFileUseCase File() => new(Queries, Storage);
         public SignLotContractUseCase Sign() => new(Repository, Queries, Parking, Storage, Time);
         public CancelLotContractUseCase Cancel() => new(Repository, Queries);
@@ -143,7 +165,7 @@ public class LotContractTests
         Assert.Equal(("Bãi xe Tân Bình 1", 240, "05:00 – 23:00"), (c.LotName, c.LotTotalSlots, c.LotOpeningHours));
         Assert.Equal(("Công ty TNHH Bãi xe Tân Bình", "0987654321", "000000004521"), (c.BusinessName, c.TaxCode, c.BankAccountNumber));
         var v1 = Assert.Single(c.Versions);
-        Assert.Equal((1, 3, 7.5m, LotContractVersionStatus.Current), (v1.Version, v1.TemplateVersion, v1.CommissionRate, v1.Status));
+        Assert.Equal((1, 4, 7.5m, LotContractVersionStatus.Current), (v1.Version, v1.TemplateVersion, v1.CommissionRate, v1.Status));
         Assert.Equal("lot-contracts/hd-sp-2026-0007/contract-v1.html", v1.FileKey);
         Assert.Equal(Sha(fx.Storage.Files[v1.FileKey]), v1.FileSha256);
         var html = Text(fx.Storage.Files[v1.FileKey]);
@@ -277,7 +299,7 @@ public class LotContractTests
     // ==================== L1p / L2p xem trước ====================
 
     [Fact]
-    public async Task Preview_new_renders_full_v3_contract_with_watermark_and_saves_nothing()
+    public async Task Preview_new_renders_full_v4_contract_with_watermark_and_saves_nothing()
     {
         var fx = new Fixture();
 
@@ -294,7 +316,11 @@ public class LotContractTests
         Assert.Contains("Phí nền tảng: <strong>7,5%</strong>", html);
         Assert.Contains("<strong>12 (mười hai) tháng</strong>", html);
         Assert.Contains("đến hết ngày <strong>31/10/2027</strong>", html);
-        Assert.Contains("<h2>ĐIỀU 12. ĐIỀU KHOẢN CHUNG</h2>", html);
+        Assert.Contains("<h2>BÊN A: CÔNG TY CỔ PHẦN CÔNG NGHỆ SMART PARKING (TÊN GIẢ ĐỊNH)</h2>", html);
+        Assert.Contains("<tr><td><strong>Tổng Giám đốc</strong></td><td><strong>Giám đốc</strong></td></tr>", html);
+        Assert.Contains("<h2>ĐIỀU 12. THỎA THUẬN RIÊNG</h2>", html);
+        Assert.Contains($"<p>{ContractPlaceholders.NoSpecialTerms}</p>", html);
+        Assert.Contains("<h2>ĐIỀU 13. ĐIỀU KHOẢN CHUNG</h2>", html);
         Assert.Contains("<td>Bãi xe Tân Bình 1</td><td>125 Cộng Hòa, Tân Bình, TP. Hồ Chí Minh</td><td>240 chỗ</td><td>05:00 – 23:00</td>", html);
         Assert.Contains("<td>000000004521</td>", html);
         Assert.Empty(fx.Storage.Files);
@@ -314,6 +340,129 @@ public class LotContractTests
         Assert.Contains("(Phiên bản 2 – thay thế phiên bản 1 ngày", html);
         Assert.Contains("<strong>6%</strong>", html);
         Assert.Contains("<strong>24 (hai mươi bốn) tháng</strong>", html);
+    }
+
+    // ==================== Thỏa thuận riêng (Điều 12 mẫu v4) ====================
+
+    [Fact]
+    public async Task Special_terms_are_stored_on_version_and_printed_as_plain_paragraphs()
+    {
+        var fx = new Fixture();
+        const string special = "  12.1. Miễn phí nền tảng tháng đầu.\r\n\r\n## không phải tiêu đề <script>\n  ";
+
+        var detail = await fx.Create().ExecuteAsync(Create(specialTerms: special), AdminId);
+
+        var v1 = fx.Repository.Contract!.CurrentVersion!;
+        Assert.Equal("12.1. Miễn phí nền tảng tháng đầu.\n\n## không phải tiêu đề <script>", v1.SpecialTerms);
+        Assert.Equal(v1.SpecialTerms, detail.Versions.Single().SpecialTerms);
+        Assert.Equal((4, PartnerContractTemplates.V4Name), (detail.Versions.Single().TemplateId, detail.Versions.Single().TemplateName));
+        var html = Text(fx.Storage.Files[v1.FileKey]);
+        Assert.Contains("<p class=\"clause\">12.1. Miễn phí nền tảng tháng đầu.</p>\n<div class=\"gap\"></div>\n"
+                        + "<p>## không phải tiêu đề &lt;script&gt;</p>", html);
+        Assert.DoesNotContain(ContractPlaceholders.NoSpecialTerms, html);
+    }
+
+    [Fact]
+    public async Task Preview_new_prints_special_terms()
+    {
+        var html = Text((await new Fixture().PreviewNew().ExecuteAsync(Create(specialTerms: "12.1. Hỗ trợ lắp camera."), AdminId)).Content);
+
+        Assert.Contains("<h2>ĐIỀU 12. THỎA THUẬN RIÊNG</h2>", html);
+        Assert.Contains("<p class=\"clause\">12.1. Hỗ trợ lắp camera.</p>", html);
+    }
+
+    [Fact]
+    public async Task Revise_replaces_special_terms_and_blank_clears_them()
+    {
+        var fx = new Fixture(Contract(versions: 1));
+
+        await fx.Revise().ExecuteAsync(5, new ReviseLotContractRequest(7.5m, new DateOnly(2026, 11, 1), 12, "Thêm ưu đãi", "12.1. Ưu đãi."),
+            AdminId);
+        Assert.Equal("12.1. Ưu đãi.", fx.Repository.Contract!.CurrentVersion!.SpecialTerms);
+
+        await fx.Revise().ExecuteAsync(5, new ReviseLotContractRequest(7.5m, new DateOnly(2026, 11, 1), 12, "Bỏ ưu đãi", "  \n "), AdminId);
+        Assert.Null(fx.Repository.Contract!.CurrentVersion!.SpecialTerms);
+    }
+
+    [Fact]
+    public async Task Special_terms_over_limits_are_rejected()
+    {
+        var fx = new Fixture();
+
+        var tooLong = await Assert.ThrowsAsync<ValidationException>(() =>
+            fx.Create().ExecuteAsync(Create(specialTerms: new string('x', ContractTerms.MaxSpecialTermsLength + 1)), AdminId));
+        var tooManyLines = await Assert.ThrowsAsync<ValidationException>(() =>
+            fx.Create().ExecuteAsync(Create(specialTerms: string.Join('\n', Enumerable.Repeat("x", ContractTerms.MaxSpecialTermsLines + 1))),
+                AdminId));
+
+        Assert.Equal("Thỏa thuận riêng tối đa 4000 ký tự.", tooLong.Message);
+        Assert.Equal("Thỏa thuận riêng tối đa 40 dòng.", tooManyLines.Message);
+        Assert.Empty(fx.Storage.Files);
+    }
+
+    // ==================== Loại hợp đồng (mẫu) – v11 ====================
+
+    [Fact]
+    public async Task Create_with_docx_template_copies_file_fills_placeholders_and_needs_only_fee()
+    {
+        var fx = new Fixture();
+        var docx = DocxTestFiles.Create(["Hợp đồng số ", "{{Contract", "Number}}"], ["Bên B: {{BusinessName}} – phí {{CommissionRate}}%"]);
+        fx.Repository.Templates.Add(DocxTemplate(fx.Storage, docx));
+
+        var detail = await fx.Create().ExecuteAsync(Create(templateId: 9, months: null, from: DateOnly.MinValue), AdminId);
+
+        var v1 = fx.Repository.Contract!.CurrentVersion!;
+        Assert.Equal((9, (DateOnly?)null, (int?)null, IDocxDocumentService.ContentType), (v1.TemplateId!.Value, v1.EffectiveFrom, v1.TermMonths, v1.FileContentType));
+        Assert.EndsWith("contract-v1.docx", v1.FileKey);
+        var text = string.Join("\n", fx.Docx.ReadParagraphs(fx.Storage.Files[v1.FileKey]).Select(p => p.Text));
+        Assert.Contains("Hợp đồng số HD-SP-2026-0007", text);   // placeholder bị tách qua 3 run vẫn được thay
+        Assert.Contains("Bên B: Công ty TNHH Bãi xe Tân Bình – phí 7,5%", text);
+        Assert.Equal("Document", detail.Versions.Single().TemplateKind);
+    }
+
+    [Fact]
+    public async Task Docx_template_still_requires_platform_fee()
+        => Assert.StartsWith("Tỷ lệ hoa hồng", (await Assert.ThrowsAsync<ValidationException>(() =>
+        {
+            var fx = new Fixture();
+            fx.Repository.Templates.Add(DocxTemplate(fx.Storage, DocxTestFiles.FromLines("x")));
+            return fx.Create().ExecuteAsync(Create(rate: null, templateId: 9), AdminId);
+        })).Message);
+
+    [Fact]
+    public async Task Create_with_retired_template_is_conflict()
+    {
+        var fx = new Fixture();
+        var t = DocxTemplate(fx.Storage, DocxTestFiles.FromLines("x"));
+        t.Retire();
+        fx.Repository.Templates.Add(t);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => fx.Create().ExecuteAsync(Create(templateId: 9), AdminId));
+
+        Assert.Contains("không còn áp dụng", ex.Message);
+        Assert.Empty(fx.Storage.Files.Keys.Where(k => k.StartsWith("lot-contracts/")));
+    }
+
+    [Fact]
+    public async Task Several_active_templates_require_choosing_one()
+    {
+        var fx = new Fixture();
+        fx.Repository.Templates.Add(DocxTemplate(fx.Storage, DocxTestFiles.FromLines("x")));
+
+        Assert.Equal("Hãy chọn loại hợp đồng (templateId) để lập hợp đồng.",
+            (await Assert.ThrowsAsync<ValidationException>(() => fx.Create().ExecuteAsync(Create(), AdminId))).Message);
+    }
+
+    [Fact]
+    public async Task Revise_keeps_template_of_current_version_when_none_is_given()
+    {
+        var fx = new Fixture(Contract(versions: 1));
+        fx.Repository.Contract!.Versions.Single().TemplateId = 4;
+        fx.Repository.Templates.Add(DocxTemplate(fx.Storage, DocxTestFiles.FromLines("x")));
+
+        await fx.Revise().ExecuteAsync(5, new ReviseLotContractRequest(6m, new DateOnly(2026, 12, 1), 24, "Giảm phí"), AdminId);
+
+        Assert.Equal(4, fx.Repository.Contract.CurrentVersion!.TemplateId);
     }
 
     // ==================== L2 sửa ====================
@@ -559,6 +708,31 @@ public class LotContractTests
             Text(new HtmlContractRenderer().Render("Nội dung", 3, new Dictionary<string, string>(), true).Content));
 
     [Fact]
+    public void Renderer_expands_standalone_placeholder_into_encoded_paragraphs()
+    {
+        const string body = "- a\n  {{S}}\n{{Missing}}\nX {{S}}";
+        var values = new Dictionary<string, string> { ["S"] = "1.1. **k** <i>\n\n|| không phải bảng" };
+
+        var html = Text(new HtmlContractRenderer().Render(body, 4, values, false).Content);
+
+        Assert.Contains("<ul>\n<li>a</li>\n</ul>\n<p class=\"clause\">1.1. **k** &lt;i&gt;</p>\n<div class=\"gap\"></div>\n"
+                        + "<p>|| không phải bảng</p>\n", html);
+        Assert.Contains("<p>{{Missing}}</p>", html);   // không có giá trị → giữ nguyên để dễ phát hiện mẫu sai
+        Assert.Contains("<p>X 1.1. **k** &lt;i&gt;", html);   // giữa dòng → chèn như giá trị thường (một đoạn)
+    }
+
+    [Fact]
+    public void Seed_v4_has_every_required_placeholder_and_no_unknown_one()
+    {
+        Assert.Empty(ContractPlaceholders.MissingRequired(PartnerContractTemplates.V4Body));
+        Assert.Empty(ContractPlaceholders.Unknown(PartnerContractTemplates.V4Body));
+    }
+
+    [Fact]
+    public void Placeholder_catalog_matches_values_given_to_renderer()
+        => Assert.Equal(ContractPlaceholders.Keys.Order(), ContractPlaceholders.SampleValues(PartnerContractTemplates.V4Platform, Now).Keys.Order());
+
+    [Fact]
     public async Task Local_storage_saves_overwrites_reads_and_deletes()
     {
         var root = Path.Combine(Path.GetTempPath(), "pm-admin-storage-" + Guid.NewGuid().ToString("N"));
@@ -602,7 +776,18 @@ public class LotContractTests
     private sealed class FakeRepository(LotContract? contract, PartnerApplication? partner) : ILotContractRepository
     {
         public PartnerApplication? Partner { get; set; } = partner;
-        public ContractTemplate? Template { get; set; } = LotContractTests.Template;
+        public List<ContractTemplate> Templates { get; } = [LotContractTests.Template];
+
+        /// <summary>Mẫu đầu tiên (gán null = không có mẫu nào).</summary>
+        public ContractTemplate? Template
+        {
+            get => Templates.FirstOrDefault();
+            set
+            {
+                Templates.Clear();
+                if (value is not null) Templates.Add(value);
+            }
+        }
         public bool HasOpen { get; set; }
         public int ExistingCount { get; set; }
         public bool Concurrency { get; set; }
@@ -618,7 +803,11 @@ public class LotContractTests
 
         public Task<bool> HasOpenContractAsync(int parkingLotId, CancellationToken cancellationToken) => Task.FromResult(HasOpen);
         public Task<int> CountForLotAsync(int parkingLotId, CancellationToken cancellationToken) => Task.FromResult(ExistingCount);
-        public Task<ContractTemplate?> GetActiveTemplateAsync(CancellationToken cancellationToken) => Task.FromResult(Template);
+        public Task<ContractTemplate?> GetTemplateAsync(int id, CancellationToken cancellationToken)
+            => Task.FromResult(Templates.FirstOrDefault(t => t.Id == id));
+
+        public Task<IReadOnlyList<ContractTemplate>> ListActiveTemplatesAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<ContractTemplate>>(Templates.Where(t => t.Status == ContractTemplateStatus.Active).ToList());
 
         public void Add(LotContract contract) => Added.Add(contract);
 
@@ -646,7 +835,14 @@ public class LotContractTests
                 c.OwnerProfileId, c.PartnerApplicationId, c.ApplicationCode, c.BusinessName, c.TaxCode, c.BusinessAddress,
                 c.LegalRepresentativeName, c.LegalRepresentativePosition, c.Email, c.Phone,
                 new PartnerBankAccountDto(c.BankBin, c.BankName, c.BankAccountNumber, c.BankAccountName), c.SignedFileContentType,
-                c.SignedFileSha256, c.SignedAtUtc, c.CancelReason, c.CreatedByAdminId, c.CreatedAtUtc, c.UpdatedAtUtc, []));
+                c.SignedFileSha256, c.SignedAtUtc, c.CancelReason, c.CreatedByAdminId, c.CreatedAtUtc, c.UpdatedAtUtc,
+                c.Versions.OrderByDescending(v => v.Version).Select(v =>
+                {
+                    var t = repository.Templates.FirstOrDefault(x => x.Version == v.TemplateVersion);
+                    return new LotContractVersionDto(v.Id, v.Version, v.TemplateVersion, v.CommissionRate, v.EffectiveFrom, v.EffectiveTo,
+                        v.TermMonths, v.FileContentType, v.FileSha256, v.Status.ToString(), v.RevisionReason, v.CreatedAtUtc, v.CreatedByAdminId,
+                        v.SpecialTerms, v.TemplateId, t?.Name, t?.Kind.ToString(), t?.Status.ToString());
+                }).ToList()));
         }
 
         public Task<LotContractVersionFileInfo?> GetVersionFileAsync(int id, int version, CancellationToken cancellationToken)

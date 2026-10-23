@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
@@ -35,11 +36,17 @@ public static class DependencyInjection
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
         services.AddScoped<ILotContractRepository, LotContractRepository>();
+        services.AddScoped<IContractTemplateQueries, ContractTemplateQueries>();             // US-116: mẫu hợp đồng bãi
+        services.AddScoped<IContractTemplateRepository, ContractTemplateRepository>();
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 
         // US-116: hợp đồng tự sinh dạng HTML + lưu file local (đường dẫn tương đối tính từ thư mục gốc của API).
         services.AddSingleton<IContractRenderer, HtmlContractRenderer>();
+        // US-116 v11: đọc / điền file DOCX (không package Office) + AI đọc hợp đồng nhập từ file (Claude, tùy chọn).
+        services.AddSingleton<IDocxDocumentService, DocxDocumentService>();
+        services.AddSingleton<IContractDocumentAnalyzer>(sp => new ClaudeContractDocumentAnalyzer(configuration,
+            sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<ClaudeContractDocumentAnalyzer>>()));
         services.AddSingleton<IFileStorage>(sp => new LocalFileStorage(Path.GetFullPath(
             configuration[StorageRootKey] ?? "App_Data/files", sp.GetRequiredService<IHostEnvironment>().ContentRootPath)));
 

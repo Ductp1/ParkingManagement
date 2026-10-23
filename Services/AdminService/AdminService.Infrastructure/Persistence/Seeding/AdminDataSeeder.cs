@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AdminService.Application.Features.ContractTemplates;
 using AdminService.Domain.Entities;
 using AdminService.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -21,23 +22,40 @@ public sealed class AdminDataSeeder(ILogger<AdminDataSeeder> logger) : IDataSeed
     }
 
     /// <summary>
-    /// US-116 (dev): bảo đảm mẫu hợp đồng bãi v3 (theo bản mẫu HD-SP-2026-052) tồn tại và đang áp dụng.
-    /// Mẫu cũ (v1, v2) thôi áp dụng trong cùng SaveChanges – hợp đồng đã sinh vẫn giữ TemplateVersion cũ.
+    /// US-116 (dev): bảo đảm có mẫu hợp đồng bãi v4 (markup, theo bản mẫu HD-SP-2026-052) và mẫu chuẩn dạng form
+    /// "Hợp đồng hợp tác khai thác bãi đỗ xe – chuẩn" (đọc từ v4). Khi thêm mẫu chuẩn lần đầu, mẫu markup đang Active thôi áp dụng
+    /// để danh sách loại hợp đồng không có hai mẫu trùng nội dung. Hợp đồng đã sinh giữ TemplateVersion cũ; mẫu Admin tạo không bị ghi đè.
     /// </summary>
     private static async Task SeedContractTemplateAsync(AdminDbContext db, CancellationToken cancellationToken)
     {
-        if (await db.ContractTemplates.AnyAsync(t => t.Version == PartnerContractTemplates.V3Version, cancellationToken)) return;
-
-        foreach (var active in await db.ContractTemplates.Where(t => t.IsActive).ToListAsync(cancellationToken))
-            active.IsActive = false;
-        db.ContractTemplates.Add(new ContractTemplate
+        var now = DateTime.UtcNow;
+        if (!await db.ContractTemplates.AnyAsync(t => t.Version == PartnerContractTemplates.V4Version, cancellationToken))
         {
-            Version = PartnerContractTemplates.V3Version,
-            Name = PartnerContractTemplates.V3Name,
-            Body = PartnerContractTemplates.V3Body,
-            EffectiveFromUtc = DateTime.UtcNow,
-            IsActive = true,
-        });
+            foreach (var active in await db.ContractTemplates.Where(t => t.Status == ContractTemplateStatus.Active).ToListAsync(cancellationToken))
+                active.Retire();
+            var v4 = ContractTemplate.CreateDraft(PartnerContractTemplates.V4Version, PartnerContractTemplates.V4Name,
+                ContractTemplateKind.Markup, adminUserId: 1);
+            v4.CreatedByAdminId = null;
+            v4.UpdateDraft(v4.Name, PartnerContractTemplates.V4ChangeNote, ContractTemplateKind.Markup, PartnerContractTemplates.V4Body, null,
+                PartnerContractTemplates.V4Platform);
+            v4.Activate(now);
+            db.ContractTemplates.Add(v4);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (await db.ContractTemplates.AnyAsync(t => t.Kind == ContractTemplateKind.Structured, cancellationToken)) return;
+        var content = ContractMarkupParser.Parse(PartnerContractTemplates.V4Body);
+        var version = await db.ContractTemplates.MaxAsync(t => t.Version, cancellationToken) + 1;
+        var standard = ContractTemplate.CreateDraft(version, PartnerContractTemplates.StandardName, ContractTemplateKind.Structured,
+            adminUserId: 1);
+        standard.CreatedByAdminId = null;
+        standard.UpdateDraft(standard.Name, "Mẫu chuẩn soạn bằng form (đọc từ mẫu v4).", ContractTemplateKind.Structured,
+            ContractTemplateComposer.ToMarkup(content), TemplateContentJson.Serialize(content), PartnerContractTemplates.V4Platform);
+        standard.Activate(now);
+        foreach (var markup in await db.ContractTemplates
+                     .Where(t => t.Status == ContractTemplateStatus.Active && t.Kind == ContractTemplateKind.Markup).ToListAsync(cancellationToken))
+            markup.Retire();
+        db.ContractTemplates.Add(standard);
         await db.SaveChangesAsync(cancellationToken);
     }
 

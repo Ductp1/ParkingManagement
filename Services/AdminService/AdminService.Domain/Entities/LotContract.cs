@@ -105,20 +105,22 @@ public class LotContract : BaseEntity
     }
 
     /// <summary>L1: phiên bản v1 (Current).</summary>
-    public LotContractVersion AddFirstVersion(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file)
+    public LotContractVersion AddFirstVersion(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file,
+        int? templateId = null)
     {
         if (Versions.Count > 0) throw new ConflictException($"Hợp đồng {ContractNumber} đã có phiên bản, hãy dùng chức năng sửa hợp đồng.");
-        return AddVersion(adminUserId, terms, templateVersion, file, revisionReason: null);
+        return AddVersion(adminUserId, terms, templateVersion, file, revisionReason: null, templateId);
     }
 
     /// <summary>L2: phiên bản v+1 cùng số hợp đồng; bản đang chờ ký → Superseded; lý do bắt buộc.</summary>
-    public LotContractVersion Revise(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file, string reason)
+    public LotContractVersion Revise(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file, string reason,
+        int? templateId = null)
     {
         EnsurePending("sửa");
         var text = Required(reason, "Lý do sửa hợp đồng");
         foreach (var current in Versions.Where(v => v.Status == LotContractVersionStatus.Current))
             current.Status = LotContractVersionStatus.Superseded;
-        return AddVersion(adminUserId, terms, templateVersion, file, text);
+        return AddVersion(adminUserId, terms, templateVersion, file, text, templateId);
     }
 
     /// <summary>Trước khi gọi ParkingService (L3): đang Pending, có phiên bản Current và Admin xác nhận đúng phiên bản đó.</summary>
@@ -158,7 +160,8 @@ public class LotContract : BaseEntity
         Status = LotContractStatus.Cancelled;
     }
 
-    private LotContractVersion AddVersion(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file, string? revisionReason)
+    private LotContractVersion AddVersion(int adminUserId, ContractTerms terms, int templateVersion, StoredFile file, string? revisionReason,
+        int? templateId)
     {
         if (adminUserId <= 0) throw new ArgumentOutOfRangeException(nameof(adminUserId), "Admin không hợp lệ.");
         var version = new LotContractVersion
@@ -166,10 +169,12 @@ public class LotContract : BaseEntity
             LotContract = this,
             Version = NextVersion,
             TemplateVersion = templateVersion,
+            TemplateId = templateId,
             CommissionRate = terms.CommissionRate,
             EffectiveFrom = terms.EffectiveFrom,
             EffectiveTo = terms.EffectiveTo,
             TermMonths = terms.TermMonths,
+            SpecialTerms = terms.SpecialTerms,
             FileKey = file.Key,
             FileContentType = file.ContentType,
             FileSha256 = file.Sha256,
@@ -202,12 +207,17 @@ public class LotContractVersion : BaseEntity
     public int LotContractId { get; set; }
     public int Version { get; set; }
     public int TemplateVersion { get; set; }
+    /// <summary>Mẫu hợp đồng (loại hợp đồng) đã dùng để sinh phiên bản này; null với dữ liệu trước v11 chưa được gán.</summary>
+    public int? TemplateId { get; set; }
 
     /// <summary>Phí nền tảng (%), 0–100.</summary>
     public decimal CommissionRate { get; set; }
-    public DateOnly EffectiveFrom { get; set; }
-    public DateOnly EffectiveTo { get; set; }
-    public int TermMonths { get; set; }
+    /// <summary>Null khi hợp đồng theo file DOCX gốc (ngày hiệu lực, thời hạn nằm trong file).</summary>
+    public DateOnly? EffectiveFrom { get; set; }
+    public DateOnly? EffectiveTo { get; set; }
+    public int? TermMonths { get; set; }
+    /// <summary>Thỏa thuận riêng của bãi này (mỗi dòng một khoản), in vào điều "Thỏa thuận riêng" của mẫu; null = không có.</summary>
+    public string? SpecialTerms { get; set; }
 
     public string FileKey { get; set; } = string.Empty;
     public string FileContentType { get; set; } = string.Empty;

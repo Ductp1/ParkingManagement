@@ -29,15 +29,23 @@ export interface LotContractVersionDto {
   version: number;
   templateVersion: number;
   commissionRate: number;
-  effectiveFrom: string;
-  effectiveTo: string;
-  termMonths: number;
+  /** Null với hợp đồng theo file DOCX gốc (ngày, thời hạn nằm trong file). */
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  termMonths: number | null;
   fileContentType: string;
   fileSha256: string;
   status: LotContractVersionStatus | string;
   revisionReason: string | null;
   createdAtUtc: string;
   createdByAdminId: number;
+  /** Thỏa thuận riêng in trong phiên bản này (mỗi dòng một khoản), null = không có. */
+  specialTerms: string | null;
+  /** Loại hợp đồng (mẫu) đã dùng. */
+  templateId: number | null;
+  templateName: string | null;
+  templateKind: string | null;
+  templateStatus: string | null;
 }
 
 /** Chi tiết: ảnh chụp bãi + Bên B lúc lập hợp đồng, trạng thái ký, các phiên bản (mới nhất trước). */
@@ -84,12 +92,21 @@ export interface LotContractListQuery {
   pageSize?: number;
 }
 
-/** Điều khoản: commissionRate > 0, ≤ 100, 2 chữ số thập phân; effectiveFrom ≥ hôm nay; termMonths 12 / 24 / 36. */
+/**
+ * Điều khoản: commissionRate > 0, ≤ 100, 2 chữ số thập phân; effectiveFrom ≥ hôm nay; termMonths 12 / 24 / 36;
+ * specialTerms tùy chọn (≤ 4000 ký tự, ≤ 40 dòng) – in vào điều "Thỏa thuận riêng" của mẫu.
+ * templateId = loại hợp đồng (mẫu Active); mẫu DOCX gốc chỉ cần commissionRate.
+ */
 export interface LotContractTermsRequest {
   commissionRate: number;
-  effectiveFrom: string;
-  termMonths: number;
+  effectiveFrom?: string;
+  termMonths?: number;
+  specialTerms?: string;
+  templateId?: number;
 }
+
+export const SPECIAL_TERMS_MAX_LENGTH = 4000;
+export const SPECIAL_TERMS_MAX_LINES = 40;
 
 /** L1 / L1p: lập hợp đồng cho hồ sơ KYB đã duyệt. */
 export interface CreateLotContractRequest extends LotContractTermsRequest {
