@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
+using ParkingService.Application.Features.Layouts;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.Slots;
@@ -53,6 +54,9 @@ public static class DependencyInjection
         services.AddScoped<IUpdateSlotUseCase, UpdateSlotUseCase>();
         services.AddScoped<IDeleteSlotUseCase, DeleteSlotUseCase>();
         services.AddScoped<IGetSlotsByFloorUseCase, GetSlotsByFloorUseCase>();
+
+        // Layouts (T-502, US-059)
+        services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();
 
         return services;
     }
