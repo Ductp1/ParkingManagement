@@ -41,9 +41,37 @@ public class Complaint : BaseEntity
     public decimal? ResolvedRefundAmount { get; set; }
     public int? ResolvedByUserId { get; set; }
     public DateTime? ResolvedAtUtc { get; set; }
-    /// <summary>Đang giữ tiền quyết toán của chủ bãi cho tới khi xử lý xong.</summary>
+    /// <summary>
+    /// Đang giữ tiền quyết toán của chủ bãi cho tới khi có phán quyết (US-089 AC3).
+    /// Chỉ giữ khi biết chủ bãi; tự hết giữ khi ticket đóng (<see cref="Close"/>). DB có CHECK constraint bảo đảm 2 điều này.
+    /// </summary>
     public bool PayoutHeld { get; set; }
+
+    /// <summary>
+    /// Optimistic concurrency: worker escalate và chủ bãi phản hồi có thể cập nhật cùng ticket cùng lúc –
+    /// bên lưu sau bị từ chối thay vì ghi đè trạng thái của bên kia. PostgreSQL: ServiceDbContext tự đóng dấu ở SaveChanges.
+    /// </summary>
+    public byte[] RowVersion { get; set; } = [];
 
     public ICollection<ComplaintMessage> Messages { get; set; } = new List<ComplaintMessage>();
 
+    /// <summary>
+    /// Đóng tranh chấp khi có phán quyết (US-090) và <b>giải phóng khoản tiền đang giữ</b> (US-089 AC3).
+    /// Mọi luồng kết thúc tranh chấp phải đi qua đây để không còn ticket đã đóng mà vẫn giữ tiền.
+    /// </summary>
+    public void Close(ComplaintStatus outcome, string resolution, decimal? refundAmount, int? resolvedByUserId, DateTime nowUtc)
+    {
+        if (outcome is not (ComplaintStatus.Resolved or ComplaintStatus.Rejected))
+            throw new ArgumentException("Tranh chấp chỉ đóng với trạng thái Resolved hoặc Rejected.", nameof(outcome));
+        if (Status is ComplaintStatus.Resolved or ComplaintStatus.Rejected)
+            throw new InvalidOperationException($"Tranh chấp {Code} đã được đóng trước đó.");
+        if (refundAmount < 0) throw new ArgumentOutOfRangeException(nameof(refundAmount), "Số tiền hoàn không được âm.");
+
+        Status = outcome;
+        Resolution = resolution;
+        ResolvedRefundAmount = refundAmount;
+        ResolvedByUserId = resolvedByUserId;
+        ResolvedAtUtc = nowUtc;
+        PayoutHeld = false;
+    }
 }

@@ -145,6 +145,11 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -172,7 +177,12 @@ namespace SupportService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AssignedTeam", "Priority", "Status");
 
-                    b.ToTable("Complaints", (string)null);
+                    b.ToTable("Complaints", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Complaints_PayoutHold_OnlyWhileOpen", "NOT \"PayoutHeld\" OR \"Status\" NOT IN ('Resolved', 'Rejected')");
+
+                            t.HasCheckConstraint("CK_Complaints_PayoutHold_RequiresOwner", "NOT \"PayoutHeld\" OR \"OwnerProfileId\" IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("SupportService.Domain.Entities.ComplaintMessage", b =>

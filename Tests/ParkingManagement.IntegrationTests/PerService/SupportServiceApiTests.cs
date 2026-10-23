@@ -426,6 +426,135 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
         }
     }
 
+    /// <summary>Tạo 1 tranh chấp riêng cho test (hạn còn 47 giờ để worker/test khác không đụng tới), trả Id.</summary>
+    private async Task<int> ArrangeDisputeAsync(string code)
+    {
+        await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var complaint = new SupportService.Domain.Entities.Complaint
+        {
+            Code = code, UserId = DemoIds.Driver1User, ParkingLotId = DemoIds.LotTsn, OwnerProfileId = DemoIds.OwnerTsn,
+            Category = ComplaintCategory.Overcharge, Description = "Tranh chấp cho test concurrency (US-089 review).",
+            RequestedAmount = 5000m, Status = ComplaintStatus.AwaitingOwner,
+            OwnerResponseDueAtUtc = DateTime.UtcNow.AddHours(47), PayoutHeld = true,
+        };
+        db.Complaints.Add(complaint);
+        await db.SaveChangesAsync();
+        return complaint.Id;
+    }
+
+    private async Task<List<string>> OutboxEventsForAsync(string code)
+    {
+        await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var payloads = await db.OutboxMessages.Select(o => new { o.EventType, o.PayloadJson }).ToListAsync();
+        // jsonb chuẩn hóa lại định dạng ("Code": "...") nên đọc bằng JSON parser thay vì so chuỗi.
+        return payloads
+            .Where(p => System.Text.Json.JsonDocument.Parse(p.PayloadJson).RootElement.TryGetProperty("Code", out var c) && c.GetString() == code)
+            .Select(p => p.EventType).ToList();
+    }
+
+    [Fact] // Review: worker đã nạp ticket nhưng chủ bãi phản hồi trước → lần lưu Escalated của worker bị RowVersion chặn.
+    public async Task Stale_escalation_cannot_overwrite_owner_response()
+    {
+        var id = await ArrangeDisputeAsync("CP-IT-RACE");
+        await using var workerScope = fixture.SupportFactory.Services.CreateAsyncScope();
+        await using var ownerScope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var workerRepo = workerScope.ServiceProvider.GetRequiredService<IComplaintRepository>();
+        var ownerRepo = ownerScope.ServiceProvider.GetRequiredService<IComplaintRepository>();
+
+        var staleForWorker = await workerRepo.FindByIdAsync(id);            // worker nạp trước
+        var forOwner = await ownerRepo.FindByIdAsync(id);
+
+        forOwner!.Status = ComplaintStatus.OwnerResponded;                   // chủ bãi lưu trước → thắng
+        forOwner.OwnerResponse = "Phản hồi của chủ bãi trước khi worker kịp lưu.";
+        await ownerRepo.UpdateAsync(forOwner, new ComplaintOwnerResponded(id, "CP-IT-RACE", DemoIds.Driver1User, DemoIds.LotTsn));
+
+        staleForWorker!.Status = ComplaintStatus.Escalated;                  // worker lưu bằng bản cũ → bị từ chối
+        await Assert.ThrowsAsync<ParkingManagement.SharedKernel.Exceptions.ConflictException>(() => workerRepo.UpdateAsync(staleForWorker,
+            new ComplaintEscalated(id, "CP-IT-RACE", DemoIds.Driver1User, DemoIds.LotTsn, DemoIds.OwnerTsn, "test")));
+
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+        var current = await owner.GetFromJsonAsync<OwnerComplaintJson>("/api/v1/complaints/CP-IT-RACE/owner-view");
+        Assert.Equal("OwnerResponded", current!.Status);                     // không bị ghi đè
+        Assert.Equal(["ComplaintOwnerResponded"], await OutboxEventsForAsync("CP-IT-RACE"));   // không có sự kiện Escalated
+    }
+
+    [Fact] // Review: 2 instance cùng escalate 1 ticket → chỉ 1 lần thành công, chỉ 1 sự kiện.
+    public async Task Two_instances_escalating_the_same_ticket_emit_one_event()
+    {
+        var id = await ArrangeDisputeAsync("CP-IT-DUP");
+        await using var scopeA = fixture.SupportFactory.Services.CreateAsyncScope();
+        await using var scopeB = fixture.SupportFactory.Services.CreateAsyncScope();
+        var repoA = scopeA.ServiceProvider.GetRequiredService<IComplaintRepository>();
+        var repoB = scopeB.ServiceProvider.GetRequiredService<IComplaintRepository>();
+        var a = await repoA.FindByIdAsync(id);
+        var b = await repoB.FindByIdAsync(id);
+
+        a!.Status = ComplaintStatus.Escalated;
+        await repoA.UpdateAsync(a, new ComplaintEscalated(id, "CP-IT-DUP", DemoIds.Driver1User, DemoIds.LotTsn, DemoIds.OwnerTsn, "A"));
+        b!.Status = ComplaintStatus.Escalated;
+        await Assert.ThrowsAsync<ParkingManagement.SharedKernel.Exceptions.ConflictException>(() =>
+            repoB.UpdateAsync(b, new ComplaintEscalated(id, "CP-IT-DUP", DemoIds.Driver1User, DemoIds.LotTsn, DemoIds.OwnerTsn, "B")));
+
+        Assert.Equal(["ComplaintEscalated"], await OutboxEventsForAsync("CP-IT-DUP"));
+    }
+
+    [Fact] // Review: worker chạy trên nhiều instance – instance đang giữ advisory lock thì instance khác bỏ qua lượt.
+    public async Task Escalation_worker_skips_run_while_another_instance_holds_the_lock()
+    {
+        var worker = fixture.SupportFactory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<SupportService.Infrastructure.Workers.ComplaintEscalationWorker>().Single();
+
+        await using var otherInstance = fixture.SupportFactory.Services.CreateAsyncScope();
+        var db = otherInstance.ServiceProvider.GetRequiredService<SupportDbContext>();
+        await db.Database.OpenConnectionAsync();
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_lock({SupportService.Infrastructure.Workers.ComplaintEscalationWorker.AdvisoryLockKey})");
+        try
+        {
+            Assert.False(await worker.RunOnceAsync());                       // instance khác đang chạy → bỏ qua
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_unlock({SupportService.Infrastructure.Workers.ComplaintEscalationWorker.AdvisoryLockKey})");
+            await db.Database.CloseConnectionAsync();
+        }
+        Assert.True(await worker.RunOnceAsync());                            // khóa đã nhả → chạy được
+    }
+
+    [Fact] // Review: DB chặn giữ tiền khi chưa biết chủ bãi, và ticket đã đóng mà vẫn giữ tiền.
+    public async Task Database_rejects_invalid_payout_holds()
+    {
+        static SupportService.Domain.Entities.Complaint Invalid(string code, int? owner, ComplaintStatus status) => new()
+        {
+            Code = code, UserId = DemoIds.Driver1User, ParkingLotId = DemoIds.LotTsn, OwnerProfileId = owner,
+            Category = ComplaintCategory.Overcharge, Description = "Dữ liệu sai cố ý để kiểm tra CHECK constraint.",
+            RequestedAmount = 5000m, Status = status, PayoutHeld = true,
+        };
+
+        foreach (var invalid in new[] { Invalid("CP-IT-NOOWNER", null, ComplaintStatus.Open), Invalid("CP-IT-CLOSED", DemoIds.OwnerTsn, ComplaintStatus.Resolved) })
+        {
+            await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            db.Complaints.Add(invalid);
+            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            Assert.Contains("CK_Complaints_PayoutHold", ex.InnerException!.Message);
+        }
+
+        // Đóng tranh chấp qua Complaint.Close → giải phóng khoản giữ → DB chấp nhận, không còn trong payout-holds.
+        var id = await ArrangeDisputeAsync("CP-IT-CLOSE");
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var complaint = await db.Complaints.SingleAsync(c => c.Id == id);
+            complaint.Close(ComplaintStatus.Resolved, "Hoàn 5.000đ cho tài xế.", 5000m, DemoIds.AdminUser, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        var holds = await fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn)
+            .GetFromJsonAsync<List<PayoutHoldJson>>("/api/v1/complaints/payout-holds");
+        Assert.DoesNotContain(holds!, h => h.ComplaintCode == "CP-IT-CLOSE");
+    }
+
     public sealed record OwnerComplaintJson(string Code, string Status, string AssignedTeam, bool PayoutHeld,
         DateTime? OwnerRespondedAtUtc, DateTime? EscalatedAtUtc, IReadOnlyList<MessageJson> Messages);
 

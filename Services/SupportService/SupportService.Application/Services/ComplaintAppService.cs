@@ -71,7 +71,7 @@ public sealed class ComplaintAppService(IComplaintRepository repository, IBookin
             Status = awaitOwner ? ComplaintStatus.AwaitingOwner : ComplaintStatus.Open,
             OwnerResponseDueAtUtc = awaitOwner ? now.AddHours(ReviewRules.OwnerResponseHours) : null,
             // US-089 AC3: giữ tiền quyết toán của chủ bãi cho tới khi có phán quyết.
-            PayoutHeld = ComplaintRules.ShouldHoldPayout(request.Category, request.RequestedAmount),
+            PayoutHeld = ComplaintRules.ShouldHoldPayout(request.Category, request.RequestedAmount, booking.OwnerProfileId),
         };
         complaint.Messages.Add(new ComplaintMessage
         {

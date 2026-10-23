@@ -25,10 +25,17 @@ public interface IComplaintRepository
     /// <summary>Chi tiết ticket cho chủ bãi (ẩn ghi chú nội bộ); null nếu không thuộc chủ bãi này.</summary>
     Task<ComplaintDetailDto?> GetForOwnerAsync(string code, int ownerProfileId, CancellationToken cancellationToken = default);
 
-    /// <summary>Ticket đang chờ chủ bãi mà đã quá hạn phản hồi (được EF theo dõi để chuyển Escalated).</summary>
-    Task<IReadOnlyList<Complaint>> ListOverdueAwaitingOwnerAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default);
+    /// <summary>Id các ticket đang chờ chủ bãi mà đã quá hạn phản hồi (không theo dõi – mỗi ticket được nạp lại khi xử lý).</summary>
+    Task<IReadOnlyList<int>> ListOverdueAwaitingOwnerIdsAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default);
 
-    /// <summary>Lưu thay đổi của ticket + sự kiện vào Outbox trong cùng 1 transaction.</summary>
+    /// <summary>Ticket theo Id (được EF theo dõi để cập nhật); null nếu không có.</summary>
+    Task<Complaint?> FindByIdAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lưu thay đổi của ticket + sự kiện vào Outbox trong cùng 1 transaction, có kiểm tra RowVersion.
+    /// Ticket đã bị bên khác cập nhật kể từ lúc nạp → <see cref="ParkingManagement.SharedKernel.Exceptions.ConflictException"/>,
+    /// không ghi gì (kể cả sự kiện).
+    /// </summary>
     Task UpdateAsync(Complaint complaint, IntegrationEvent integrationEvent, CancellationToken cancellationToken = default);
 
     /// <summary>Khoản tiền đang bị giữ vì tranh chấp chưa xong; null = mọi chủ bãi (Admin).</summary>

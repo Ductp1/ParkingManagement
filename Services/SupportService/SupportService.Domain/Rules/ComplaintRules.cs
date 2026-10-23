@@ -22,10 +22,10 @@ public static class ComplaintRules
 
     /// <summary>
     /// US-089 AC3: khiếu nại về bãi có đòi tiền → phong tỏa khoản quyết toán của chủ bãi (hold payout) đến khi có phán quyết.
-    /// Lỗi ứng dụng / khác do nền tảng xử lý nên không giữ tiền của chủ bãi.
+    /// Phải biết chủ bãi (khoản giữ gắn với chủ bãi nào); lỗi ứng dụng / khác do nền tảng xử lý nên không giữ tiền chủ bãi.
     /// </summary>
-    public static bool ShouldHoldPayout(ComplaintCategory category, decimal? requestedAmount)
-        => RequiresOwnerResponse(category) && requestedAmount > 0;
+    public static bool ShouldHoldPayout(ComplaintCategory category, decimal? requestedAmount, int? ownerProfileId)
+        => ownerProfileId is not null && RequiresOwnerResponse(category) && requestedAmount > 0;
 
     /// <summary>
     /// AC3: Low → Support; Medium (lỗi booking/thanh toán) → Support; High (mất tiền, không được phục vụ) → Supervisor.

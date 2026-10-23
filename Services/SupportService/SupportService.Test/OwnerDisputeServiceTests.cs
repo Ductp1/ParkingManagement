@@ -181,11 +181,93 @@ public class OwnerDisputeServiceTests
     [InlineData(ComplaintCategory.AppError, 10000, false)]   // lỗi app do nền tảng xử lý → không giữ tiền chủ bãi
     [InlineData(ComplaintCategory.Other, 10000, false)]
     public void Payout_is_held_only_for_lot_disputes_with_money(ComplaintCategory category, int amount, bool held)
-        => Assert.Equal(held, ComplaintRules.ShouldHoldPayout(category, amount));
+        => Assert.Equal(held, ComplaintRules.ShouldHoldPayout(category, amount, Owner));
 
     [Fact]
     public void No_requested_amount_means_no_hold()
-        => Assert.False(ComplaintRules.ShouldHoldPayout(ComplaintCategory.Overcharge, null));
+        => Assert.False(ComplaintRules.ShouldHoldPayout(ComplaintCategory.Overcharge, null, Owner));
+
+    [Fact] // Review: chưa biết chủ bãi thì khoản giữ không gắn với ai → không giữ.
+    public void Unknown_owner_means_no_hold()
+        => Assert.False(ComplaintRules.ShouldHoldPayout(ComplaintCategory.Overcharge, 10000, null));
+
+    // ===== Review: race giữa worker escalate và chủ bãi phản hồi =====
+
+    [Fact]
+    public async Task Escalation_skips_ticket_answered_after_the_overdue_list_was_read()
+    {
+        // Worker đọc danh sách quá hạn, nhưng chủ bãi phản hồi xong trước khi worker xử lý ticket.
+        var ticket = Ticket("CP-RACE", dueAt: Now.AddMinutes(-1));
+        var repo = new InMemoryComplaintRepository { BeforeFind = c => c.Status = ComplaintStatus.OwnerResponded };
+        repo.Saved.Add(ticket);
+
+        var count = await new ComplaintEscalationService(repo, new FixedClock(Now)).EscalateOverdueAsync();
+
+        Assert.Equal(0, count);
+        Assert.Equal(ComplaintStatus.OwnerResponded, ticket.Status);   // không bị ghi đè thành Escalated
+        Assert.Empty(repo.Events);
+    }
+
+    [Fact]
+    public async Task Escalation_conflict_is_skipped_without_duplicate_event_and_continues_with_others()
+    {
+        // RowVersion đổi (instance khác vừa escalate / chủ bãi vừa phản hồi) → bỏ qua ticket đó, xử lý tiếp ticket khác.
+        var repo = new InMemoryComplaintRepository();
+        repo.Saved.AddRange([Ticket("CP-A", dueAt: Now.AddMinutes(-2)), Ticket("CP-B", dueAt: Now.AddMinutes(-1))]);
+        repo.ConflictOnUpdate.Add("CP-A");
+
+        var count = await new ComplaintEscalationService(repo, new FixedClock(Now)).EscalateOverdueAsync();
+
+        Assert.Equal(1, count);
+        var evt = Assert.IsType<ComplaintEscalated>(Assert.Single(repo.Events));
+        Assert.Equal("CP-B", evt.Code);
+    }
+
+    [Fact]
+    public async Task Owner_response_losing_the_race_returns_conflict()
+    {
+        // Worker escalate trước → lần lưu của chủ bãi gặp xung đột RowVersion → 409, không phát sự kiện.
+        var (service, repo) = Create(Ticket());
+        repo.ConflictOnUpdate.Add("CP-1");
+
+        await Assert.ThrowsAsync<ConflictException>(() => service.RespondAsync(Owner, OwnerUser, "CP-1", Response()));
+        Assert.Empty(repo.Events);
+    }
+
+    // ===== Review: đóng tranh chấp phải giải phóng khoản giữ =====
+
+    [Theory]
+    [InlineData(ComplaintStatus.Resolved)]
+    [InlineData(ComplaintStatus.Rejected)]
+    public void Closing_a_dispute_releases_the_payout_hold(ComplaintStatus outcome)
+    {
+        var ticket = Ticket(status: ComplaintStatus.Escalated);
+
+        ticket.Close(outcome, "Đối soát log cổng: tính đúng giờ.", 0, resolvedByUserId: 1, Now);
+
+        Assert.False(ticket.PayoutHeld);
+        Assert.Equal(outcome, ticket.Status);
+        Assert.Equal(Now, ticket.ResolvedAtUtc);
+        Assert.Equal(1, ticket.ResolvedByUserId);
+    }
+
+    [Fact]
+    public async Task Closed_dispute_no_longer_appears_in_payout_holds()
+    {
+        var ticket = Ticket();
+        var (service, _) = Create(ticket);
+        ticket.Close(ComplaintStatus.Resolved, "Hoàn 10.000đ cho tài xế.", 10000, 1, Now);
+        Assert.Empty(await service.ListPayoutHoldsAsync(Owner));
+    }
+
+    [Fact]
+    public void Close_rejects_non_final_status_and_double_close()
+    {
+        Assert.Throws<ArgumentException>(() => Ticket().Close(ComplaintStatus.Escalated, "x", null, 1, Now));
+        var closed = Ticket();
+        closed.Close(ComplaintStatus.Rejected, "Không đủ căn cứ.", null, 1, Now);
+        Assert.Throws<InvalidOperationException>(() => closed.Close(ComplaintStatus.Resolved, "x", null, 1, Now));
+    }
 
     private sealed class FixedClock(DateTime utcNow) : TimeProvider
     {

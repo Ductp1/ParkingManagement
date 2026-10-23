@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Exceptions;
 using SupportService.Application.DTOs;
 using SupportService.Application.Interfaces;
 using SupportService.Application.Services;
@@ -74,13 +75,17 @@ public sealed class ComplaintRepository(SupportDbContext db) : IComplaintReposit
     public Task<Complaint?> FindForOwnerAsync(string code, int ownerProfileId, CancellationToken cancellationToken = default)
         => db.Complaints.FirstOrDefaultAsync(c => c.Code == code && c.OwnerProfileId == ownerProfileId, cancellationToken);
 
-    public async Task<IReadOnlyList<Complaint>> ListOverdueAwaitingOwnerAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<int>> ListOverdueAwaitingOwnerIdsAsync(DateTime nowUtc, int take, CancellationToken cancellationToken = default)
         // Dùng index (Status, OwnerResponseDueAtUtc) đã có cho job escalate.
-        => await db.Complaints
+        => await db.Complaints.AsNoTracking()
             .Where(c => c.Status == ComplaintStatus.AwaitingOwner && c.OwnerResponseDueAtUtc != null && c.OwnerResponseDueAtUtc < nowUtc)
             .OrderBy(c => c.OwnerResponseDueAtUtc)
             .Take(take)
+            .Select(c => c.Id)
             .ToListAsync(cancellationToken);
+
+    public Task<Complaint?> FindByIdAsync(int id, CancellationToken cancellationToken = default)
+        => db.Complaints.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     public async Task UpdateAsync(Complaint complaint, IntegrationEvent integrationEvent, CancellationToken cancellationToken = default)
     {
@@ -92,7 +97,18 @@ public sealed class ComplaintRepository(SupportDbContext db) : IComplaintReposit
             PayloadJson = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()),
             OccurredAtUtc = integrationEvent.OccurredAtUtc,
         });
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            // UPDATE "Complaints" ... WHERE "Id" = @id AND "RowVersion" = @original → 0 dòng nếu bên khác đã cập nhật trước.
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Transaction chưa commit sẽ rollback khi dispose: không ghi ticket, tin nhắn hay sự kiện.
+            // Bỏ các thay đổi đang treo để lần lưu sau trong cùng DbContext không gửi lại chúng.
+            db.ChangeTracker.Clear();
+            throw new ConflictException($"Tranh chấp {complaint.Code} vừa được cập nhật bởi thao tác khác (ví dụ đã chuyển nền tảng xử lý). Vui lòng tải lại.");
+        }
         await transaction.CommitAsync(cancellationToken);
     }
 

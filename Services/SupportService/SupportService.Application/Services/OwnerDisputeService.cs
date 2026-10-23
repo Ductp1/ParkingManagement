@@ -98,13 +98,15 @@ public sealed class ComplaintEscalationService(IComplaintRepository repository, 
     public async Task<int> EscalateOverdueAsync(CancellationToken cancellationToken = default)
     {
         var now = clock.GetUtcNow().UtcDateTime;
-        var overdue = await repository.ListOverdueAwaitingOwnerAsync(now, BatchSize, cancellationToken);
+        var overdueIds = await repository.ListOverdueAwaitingOwnerIdsAsync(now, BatchSize, cancellationToken);
         var escalated = 0;
 
-        foreach (var complaint in overdue)
+        foreach (var id in overdueIds)
         {
-            // Kiểm tra lại bằng quy tắc Domain (phòng dữ liệu đổi giữa lúc truy vấn và lúc xử lý).
-            if (!ReviewRules.ShouldEscalate(complaint.Status, complaint.OwnerResponseDueAtUtc, now)) continue;
+            // Nạp lại từng ticket ngay trước khi xử lý để có trạng thái + RowVersion mới nhất.
+            var complaint = await repository.FindByIdAsync(id, cancellationToken);
+            // Kiểm tra lại bằng quy tắc Domain: chủ bãi có thể vừa phản hồi giữa lúc truy vấn danh sách và lúc xử lý.
+            if (complaint is null || !ReviewRules.ShouldEscalate(complaint.Status, complaint.OwnerResponseDueAtUtc, now)) continue;
 
             complaint.Status = ComplaintStatus.Escalated;
             complaint.EscalatedAtUtc = now;
@@ -115,10 +117,17 @@ public sealed class ComplaintEscalationService(IComplaintRepository repository, 
                 Message = $"Chủ bãi không phản hồi trong {ReviewRules.OwnerResponseHours} giờ. Tranh chấp được chuyển cho nền tảng xử lý " +
                           "dựa trên bằng chứng hiện có, ưu tiên dữ liệu phiên đỗ (thiết bị tự động/LPR > GPS/biên lai > thao tác tay).",
             });
-            await repository.UpdateAsync(complaint,
-                new ComplaintEscalated(complaint.Id, complaint.Code, complaint.UserId, complaint.ParkingLotId, complaint.OwnerProfileId, Reason),
-                cancellationToken);
-            escalated++;
+            try
+            {
+                await repository.UpdateAsync(complaint,
+                    new ComplaintEscalated(complaint.Id, complaint.Code, complaint.UserId, complaint.ParkingLotId, complaint.OwnerProfileId, Reason),
+                    cancellationToken);
+                escalated++;
+            }
+            catch (ConflictException)
+            {
+                // RowVersion đã đổi: chủ bãi vừa phản hồi hoặc instance khác vừa escalate → không ghi đè, không phát sự kiện trùng.
+            }
         }
         return escalated;
     }

@@ -49,6 +49,15 @@ public class ComplaintAppServiceTests
     public async Task Payout_is_not_held_without_money_or_for_platform_issues(ComplaintCategory category, int? amount)
         => Assert.False((await Create(Booking()).Service.CreateAsync(Request(category, amount: amount))).PayoutHeld);
 
+    [Fact] // Review: booking chưa có chủ bãi → không giữ tiền (khoản giữ không gắn với ai).
+    public async Task Payout_is_not_held_when_lot_owner_is_unknown()
+    {
+        var (service, repo) = Create(Booking(ownerProfileId: null));
+        var result = await service.CreateAsync(Request(ComplaintCategory.Overcharge, amount: 10000));
+        Assert.False(result.PayoutHeld);
+        Assert.False(repo.Saved[0].PayoutHeld);
+    }
+
     [Fact]
     public async Task Creates_ticket_with_code_status_and_first_message()
     {
