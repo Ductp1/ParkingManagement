@@ -102,7 +102,8 @@ export function LoginPage() {
 
   const navigateToRoleDashboard = (authUser: AuthUser) => {
     // Nếu có redirect state từ URL trước đó, kiểm tra quyền trước khi redirect
-    const fromPath = (location.state as { from?: string })?.from;
+    const from = (location.state as { from?: { pathname?: string } | string })?.from;
+    const fromPath = typeof from === 'string' ? from : from?.pathname;
     const userRoles = authUser.roles && authUser.roles.length > 0 ? authUser.roles : [authUser.role];
 
     let targetRoute =
@@ -115,7 +116,7 @@ export function LoginPage() {
             : '/driver';
 
     if (fromPath) {
-      if (fromPath.startsWith('/admin') && (userRoles.includes('Admin'))) targetRoute = fromPath;
+      if (fromPath.startsWith('/admin') && userRoles.includes('Admin')) targetRoute = fromPath;
       else if (fromPath.startsWith('/owner') && (userRoles.includes('Owner') || userRoles.includes('Admin'))) targetRoute = fromPath;
       else if (fromPath.startsWith('/gate') && (userRoles.includes('Staff') || userRoles.includes('Admin'))) targetRoute = fromPath;
       else if (fromPath.startsWith('/driver') && (userRoles.includes('Driver') || userRoles.includes('Admin'))) targetRoute = fromPath;

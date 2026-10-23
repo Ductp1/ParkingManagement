@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { logoutSession } from '@/api/authApi';
-import { logout } from '@/store/slices/authSlice';
+import { logout, switchRole } from '@/store/slices/authSlice';
 import { fetchNotificationInbox, markNotificationAsRead } from '@/store/slices/notificationSlice';
 import { notificationTargetRoute } from '@/utils/notificationBooking';
 import type { NotificationDto } from '@/types/notification';
@@ -156,6 +156,12 @@ export const MainNavbar: React.FC = () => {
   const activePortal = ROLE_PORTALS.find((p) => p.id === activeRole) || ROLE_PORTALS[0];
   const currentSubNavs = PORTAL_SUB_NAVS[activeRole] || PORTAL_SUB_NAVS.Driver;
 
+  // Xác định các phân hệ mà tài khoản hiện tại được cấp quyền truy cập
+  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : []);
+  const authorizedPortals = ROLE_PORTALS.filter(
+    (portal) => userRoles.includes('Admin') || userRoles.includes(portal.id)
+  );
+
   // ===== Hộp thông báo (NotificationService – TV6) =====
   const { items: notifications, unreadCount, isLoading: isNotificationLoading } = useAppSelector(
     (state) => state.notification
@@ -208,28 +214,31 @@ export const MainNavbar: React.FC = () => {
           </NavLink>
         </div>
 
-        {/* BỘ CHUYỂN NHANH QUA URL: Cho phép click hoặc gõ thẳng URL để vào dashboard của role đó */}
-        <nav className="hidden lg:flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 gap-1">
-          <span className="text-[10px] text-slate-400 font-bold uppercase px-2">Truy cập URL:</span>
-          {ROLE_PORTALS.map((portal) => {
-            const isActive = portal.id === activeRole;
-            return (
-              <NavLink
-                key={portal.id}
-                to={portal.path}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all ${
-                  isActive
-                    ? portal.activeTabClass
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
-                }`}
-                title={`Truy cập trực tiếp ${portal.path} (${portal.label})`}
-              >
-                <span className="material-symbols-outlined text-[15px]">{portal.icon}</span>
-                <span>{portal.path}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
+        {/* CHUYỂN PHÂN HỆ: Chỉ hiển thị các phân hệ mà tài khoản có quyền truy cập */}
+        {authorizedPortals.length > 1 && (
+          <nav className="hidden lg:flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 gap-1">
+            <span className="text-[10px] text-slate-400 font-bold uppercase px-2">Phân hệ:</span>
+            {authorizedPortals.map((portal) => {
+              const isActive = portal.id === activeRole;
+              return (
+                <NavLink
+                  key={portal.id}
+                  to={portal.path}
+                  onClick={() => dispatch(switchRole(portal.id))}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    isActive
+                      ? portal.activeTabClass
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  }`}
+                  title={`Chuyển sang phân hệ ${portal.label}`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">{portal.icon}</span>
+                  <span>{portal.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Right Section: Notification + User Profile + Logout */}
         <div className="flex items-center gap-3 shrink-0">
@@ -436,32 +445,36 @@ export const MainNavbar: React.FC = () => {
       {/* ===== MENU MOBILE: HIỂN THỊ CÁC CHỨC NĂNG CỦA TÀI KHOẢN ===== */}
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-4 space-y-4 shadow-xl">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
-            Chuyển nhanh URL phân hệ:
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {ROLE_PORTALS.map((portal) => {
-              const isCurrent = portal.id === activeRole;
-              return (
-                <NavLink
-                  key={portal.id}
-                  to={portal.path}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`p-2.5 rounded-xl border flex items-center gap-2 font-mono text-xs ${
-                    isCurrent
-                      ? `${portal.activeTabClass} border-transparent`
-                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[18px]">{portal.icon}</span>
-                  <div className="min-w-0">
-                    <div className="font-bold">{portal.path}</div>
-                    <div className="text-[10px] opacity-75">{portal.label}</div>
-                  </div>
-                </NavLink>
-              );
-            })}
-          </div>
+          {authorizedPortals.length > 1 && (
+            <>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
+                Chuyển phân hệ:
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {authorizedPortals.map((portal) => {
+                  const isCurrent = portal.id === activeRole;
+                  return (
+                    <NavLink
+                      key={portal.id}
+                      to={portal.path}
+                      onClick={() => {
+                        dispatch(switchRole(portal.id));
+                        setIsMobileMenuOpen(false);
+                      }}
+                      className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
+                        isCurrent
+                          ? `${portal.badgeClass} border-transparent font-bold`
+                          : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{portal.icon}</span>
+                      <span>{portal.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 pt-2 border-t border-slate-100">
             Menu chức năng của {activePortal.label}:
