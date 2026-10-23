@@ -30,6 +30,11 @@ public static class DependencyInjection
             c.BaseAddress = new Uri(configuration["Services:BookingService"] ?? "http://localhost:5104/");
             c.Timeout = TimeSpan.FromSeconds(10);
         });
+        services.AddHttpClient<IOwnerLotLookup, ParkingServiceClient>(c =>   // US-094: xác minh bãi của chủ bãi
+        {
+            c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddScoped<IDataSeeder<SupportDbContext>, SupportDataSeeder>();
         return services;
     }

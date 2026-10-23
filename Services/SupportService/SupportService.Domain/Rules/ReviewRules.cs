@@ -17,6 +17,12 @@ public static class ReviewRules
     public const int MaxCommentLength = 2000;
     public const int MaxReviewerNameLength = 150;
 
+    /// <summary>US-094: phản hồi công khai của chủ bãi (cột OwnerReply 2000), lý do khiếu nại / gỡ (500).</summary>
+    public const int MinOwnerReplyLength = 5;
+    public const int MaxOwnerReplyLength = 2000;
+    public const int MinReasonLength = 10;
+    public const int MaxReasonLength = 500;
+
     /// <summary>Chỉ được đánh giá 1–5 sao, và chỉ khi booking đã Completed.</summary>
     public static bool CanReview(BookingStatus bookingStatus, int rating)
         => IsReviewable(bookingStatus) && IsValidRating(rating);

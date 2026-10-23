@@ -133,6 +133,8 @@ public sealed class SupportApiFixture : IAsyncLifetime
                     };
                     return new BookingServiceClient(http, sp.GetRequiredService<ILogger<BookingServiceClient>>());
                 });
+                // US-094: fixture không dựng ParkingService → tra bãi của chủ bãi bằng dữ liệu cố định.
+                services.AddScoped<IOwnerLotLookup, StubOwnerLots>();
             }).ConfigureTestServices(services =>
                 // Program.cs nạp Keys/public.key thật; test thay bằng public key của cặp khóa test để kiểm tra token tự mint.
                 services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -187,6 +189,18 @@ public sealed class SupportApiFixture : IAsyncLifetime
         catch { // best-effort
         }
     }
+}
+
+/// <summary>US-094: bãi của từng chủ bãi (thay cho ParkingService trong test) – TSN quản lý bãi TSN và Bến Thành.</summary>
+public sealed class StubOwnerLots : IOwnerLotLookup
+{
+    public Task<IReadOnlyCollection<int>> GetLotIdsAsync(int ownerProfileId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyCollection<int>>(ownerProfileId switch
+        {
+            DemoIds.OwnerVincom => [DemoIds.LotVincom],
+            DemoIds.OwnerTsn => [DemoIds.LotTsn, DemoIds.LotBenThanh],
+            _ => [],
+        });
 }
 
 /// <summary>Collection: SupportService (+ BookingService thật làm phụ thuộc) trên database pm_it_* riêng.</summary>
@@ -554,6 +568,73 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
             .GetFromJsonAsync<List<PayoutHoldJson>>("/api/v1/complaints/payout-holds");
         Assert.DoesNotContain(holds!, h => h.ComplaintCode == "CP-IT-CLOSE");
     }
+
+    [Fact] // US-094: chủ bãi phản hồi công khai 1 lần, khiếu nại đánh giá → Admin gỡ / bác; chỉ Admin được gỡ.
+    public async Task Owner_replies_and_reports_review_and_only_admin_can_hide_it()
+    {
+        // Arrange: 2 đánh giá ở bãi Bến Thành (chủ bãi TSN theo StubOwnerLots) – 1 đã lưu chủ bãi, 1 chưa (đối chiếu theo bãi).
+        int withOwner, withoutOwner;
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var a = new SupportService.Domain.Entities.Review { BookingId = 9_094_001, UserId = DemoIds.Driver1User, ReviewerName = "Tài xế IT",
+                ParkingLotId = DemoIds.LotBenThanh, OwnerProfileId = DemoIds.OwnerTsn, Rating = 3, Comment = "Lối vào hơi hẹp (IT US-094)." };
+            var b = new SupportService.Domain.Entities.Review { BookingId = 9_094_002, UserId = DemoIds.Driver2User, ReviewerName = "Tài xế IT 2",
+                ParkingLotId = DemoIds.LotBenThanh, OwnerProfileId = null, Rating = 1, Comment = "Nội dung sai sự thật cần gỡ (IT US-094)." };
+            db.Reviews.AddRange(a, b);
+            await db.SaveChangesAsync();
+            (withOwner, withoutOwner) = (a.Id, b.Id);
+        }
+        var reply = new { reply = "Cảm ơn góp ý, bãi đã mở rộng lối vào từ tuần này." };
+        var reason = new { reason = "Tài xế không đỗ tại bãi vào ngày được đánh giá." };
+
+        // Quyền: không token 401, tài xế 403, chủ bãi khác 404
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply)).StatusCode);
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply)).StatusCode);
+        var otherOwner = fixture.CreateOwnerClient(DemoIds.OwnerVincomUser, DemoIds.OwnerVincom);
+        await Asserts.NotFoundAsync(await otherOwner.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply));
+
+        // AC1: 1 phản hồi công khai; lần 2 → 409; hiện trên trang bãi (API công khai)
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+        var replied = await owner.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply);
+        Assert.Equal(HttpStatusCode.OK, replied.StatusCode);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply), "đã phản hồi");
+        var lotPage = await fixture.SupportClient.GetStringAsync($"/api/v1/reviews?parkingLotId={DemoIds.LotBenThanh}");
+        Assert.Contains("mở rộng lối vào", lotPage);
+
+        // AC2: chủ bãi khiếu nại (đánh giá chưa lưu chủ bãi → đối chiếu theo bãi); chủ bãi KHÔNG tự gỡ được
+        var report = await owner.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/report", reason);
+        Assert.Equal(HttpStatusCode.OK, report.StatusCode);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/report", reason), "chờ Admin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await owner.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/hide", reason)).StatusCode);
+
+        // Admin: hàng chờ có đánh giá bị khiếu nại → gỡ → biến khỏi trang bãi; bác khiếu nại khi không có khiếu nại → 409
+        var admin = fixture.CreateAuthenticatedClient(DemoIds.AdminUser, "Admin");
+        var queue = await admin.GetFromJsonAsync<List<ModeratedReviewJson>>("/api/v1/reviews/reported");
+        Assert.Contains(queue!, r => r.Id == withoutOwner && r.IsReported);
+        var hidden = await admin.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/hide", new { reason = "Nội dung sai sự thật, đã xác minh với log cổng." });
+        Assert.Equal(HttpStatusCode.OK, hidden.StatusCode);
+        Assert.DoesNotContain("Nội dung sai sự thật cần gỡ", await fixture.SupportClient.GetStringAsync($"/api/v1/reviews?parkingLotId={DemoIds.LotBenThanh}"));
+        await Asserts.ConflictAsync(await admin.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/dismiss-report", reason), "không có khiếu nại");
+
+        // DB: chủ bãi được bổ sung theo bãi; dữ liệu gỡ có người/thời điểm; Outbox có thông báo, sự kiện xếp hạng và audit
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var removed = await db.Reviews.SingleAsync(r => r.Id == withoutOwner);
+            Assert.Equal(DemoIds.OwnerTsn, removed.OwnerProfileId);
+            Assert.True(removed.IsHidden);
+            Assert.False(removed.IsFlagged);
+            Assert.Equal(DemoIds.AdminUser, removed.HiddenByUserId);
+            var types = await db.OutboxMessages.Select(o => o.EventType).ToListAsync();
+            Assert.Contains("ReviewOwnerReplied", types);
+            Assert.Contains("ReviewHidden", types);
+            Assert.Contains("AuditRecorded", types);
+        }
+    }
+
+    public sealed record ModeratedReviewJson(int Id, int ParkingLotId, int Rating, string? OwnerReply, bool IsReported, bool IsHidden);
 
     public sealed record OwnerComplaintJson(string Code, string Status, string AssignedTeam, bool PayoutHeld,
         DateTime? OwnerRespondedAtUtc, DateTime? EscalatedAtUtc, IReadOnlyList<MessageJson> Messages);
