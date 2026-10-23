@@ -27,6 +27,15 @@ public sealed class AuditLogQueries(AdminDbContext db) : IAuditLogQueries
             .Where(a => a.Id == id)
             .Select(AuditLogQueryFilter.ToRecord)
             .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task<AuditLogFacetCounts> CountByFacetAsync(CancellationToken cancellationToken)
+    {
+        var logs = db.AuditLogs.AsNoTracking();
+        var sourceServices = await AuditLogQueryFilter.CountBy(logs, a => a.SourceService).ToListAsync(cancellationToken);
+        var actions = await AuditLogQueryFilter.CountBy(logs, a => a.Action).ToListAsync(cancellationToken);
+        var entityNames = await AuditLogQueryFilter.CountBy(logs, a => a.EntityName).ToListAsync(cancellationToken);
+        return new AuditLogFacetCounts(sourceServices, actions, entityNames);
+    }
 }
 
 /// <summary>
@@ -64,6 +73,10 @@ public static class AuditLogQueryFilter
         }
         return query;
     }
+
+    /// <summary>GROUP BY một cột → (giá trị, số dòng).</summary>
+    public static IQueryable<AuditLogFacetDto> CountBy(IQueryable<AuditLog> query, Expression<Func<AuditLog, string>> key)
+        => query.GroupBy(key).Select(g => new AuditLogFacetDto(g.Key, g.Count()));
 
     /// <summary>Mới nhất trước; Id phá hòa khi trùng thời điểm để phân trang ổn định (index CreatedAtUtc, Id).</summary>
     public static IOrderedQueryable<AuditLog> NewestFirst(IQueryable<AuditLog> query)

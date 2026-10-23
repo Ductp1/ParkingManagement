@@ -235,4 +235,12 @@ internal sealed class InMemoryAuditLogQueries(IEnumerable<AuditLog> logs) : IAud
         Calls++;
         return Task.FromResult(logs.AsQueryable().Where(a => a.Id == id).Select(AuditLogQueryFilter.ToRecord).FirstOrDefault());
     }
+
+    public Task<AuditLogFacetCounts> CountByFacetAsync(CancellationToken cancellationToken)
+    {
+        Calls++;
+        var query = logs.AsQueryable();
+        return Task.FromResult(new AuditLogFacetCounts(AuditLogQueryFilter.CountBy(query, a => a.SourceService).ToList(),
+            AuditLogQueryFilter.CountBy(query, a => a.Action).ToList(), AuditLogQueryFilter.CountBy(query, a => a.EntityName).ToList()));
+    }
 }

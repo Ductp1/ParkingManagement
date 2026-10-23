@@ -69,6 +69,7 @@ public static class DependencyInjection
         // US-100: tra cứu audit log toàn hệ thống (chỉ đọc)
         services.AddScoped<IListAuditLogsUseCase, ListAuditLogsUseCase>();
         services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
+        services.AddScoped<IGetAuditLogFilterOptionsUseCase, GetAuditLogFilterOptionsUseCase>();
         return services;
     }
 }

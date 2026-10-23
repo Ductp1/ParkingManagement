@@ -27,6 +27,9 @@ public interface IAuditLogQueries
 
     /// <summary>Một dòng đầy đủ theo Id (JSON gốc, chưa che); null nếu không có.</summary>
     Task<AuditLogRecord?> FindByIdAsync(int id, CancellationToken cancellationToken);
+
+    /// <summary>Số dòng theo từng SourceService / Action / EntityName đang có (GROUP BY ở database, dùng index).</summary>
+    Task<AuditLogFacetCounts> CountByFacetAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>US-100: kiểm tra tham số lọc dùng chung cho danh sách và xuất CSV.</summary>
