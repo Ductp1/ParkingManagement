@@ -68,6 +68,7 @@ public static class DependencyInjection
         services.AddScoped<IDiscardContractTemplateDraftUseCase, DiscardContractTemplateDraftUseCase>();
         // US-100: tra cứu audit log toàn hệ thống (chỉ đọc)
         services.AddScoped<IListAuditLogsUseCase, ListAuditLogsUseCase>();
+        services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
         return services;
     }
 }

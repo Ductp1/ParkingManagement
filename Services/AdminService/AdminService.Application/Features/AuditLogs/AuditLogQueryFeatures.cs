@@ -24,6 +24,9 @@ public interface IAuditLogQueries
 {
     /// <summary>Lọc + đếm + phân trang ở database, mới nhất trước (CreatedAtUtc giảm dần, Id giảm dần).</summary>
     Task<PagedResult<AuditLogSummaryDto>> ListAsync(AuditLogFilter filter, int page, int pageSize, CancellationToken cancellationToken);
+
+    /// <summary>Một dòng đầy đủ theo Id (JSON gốc, chưa che); null nếu không có.</summary>
+    Task<AuditLogRecord?> FindByIdAsync(int id, CancellationToken cancellationToken);
 }
 
 /// <summary>US-100: kiểm tra tham số lọc dùng chung cho danh sách và xuất CSV.</summary>

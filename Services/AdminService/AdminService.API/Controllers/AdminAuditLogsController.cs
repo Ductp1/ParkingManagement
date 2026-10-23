@@ -12,7 +12,7 @@ namespace AdminService.API.Controllers;
 [ApiController]
 [Route("api/v1/admin/audit-logs")]
 [Authorize(Policy = "RequireAdmin")]
-public sealed class AdminAuditLogsController(IListAuditLogsUseCase listAuditLogs) : ControllerBase
+public sealed class AdminAuditLogsController(IListAuditLogsUseCase listAuditLogs, IGetAuditLogUseCase getAuditLog) : ControllerBase
 {
     /// <summary>
     /// GET /api/v1/admin/audit-logs?from=2026-10-01T00:00:00Z&amp;to=2026-10-24T00:00:00Z&amp;sourceService=AdminService&amp;action=Owner.Locked
@@ -29,4 +29,12 @@ public sealed class AdminAuditLogsController(IListAuditLogsUseCase listAuditLogs
         => Ok(await listAuditLogs.ExecuteAsync(
             new AuditLogListQuery(from, to, sourceService, auditAction, entityName, entityId, userId, ownerProfileId, q),
             page, pageSize, cancellationToken));
+
+    /// <summary>GET /api/v1/admin/audit-logs/18240 – giá trị cũ/mới đã che dữ liệu nhạy cảm + danh sách trường thay đổi.</summary>
+    [HttpGet("{id:int}")]
+    [ProducesResponseType<AuditLogDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<AuditLogDetailDto>> GetById(int id, CancellationToken cancellationToken)
+        => Ok(await getAuditLog.ExecuteAsync(id, cancellationToken));
 }

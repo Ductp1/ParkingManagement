@@ -21,6 +21,12 @@ public sealed class AuditLogQueries(AdminDbContext db) : IAuditLogQueries
             .ToListAsync(cancellationToken);
         return new PagedResult<AuditLogSummaryDto>(items, page, pageSize, total);
     }
+
+    public Task<AuditLogRecord?> FindByIdAsync(int id, CancellationToken cancellationToken)
+        => db.AuditLogs.AsNoTracking()
+            .Where(a => a.Id == id)
+            .Select(AuditLogQueryFilter.ToRecord)
+            .FirstOrDefaultAsync(cancellationToken);
 }
 
 /// <summary>
@@ -31,6 +37,10 @@ public static class AuditLogQueryFilter
 {
     public static readonly Expression<Func<AuditLog, AuditLogSummaryDto>> ToSummary = a => new AuditLogSummaryDto(a.Id, a.CreatedAtUtc,
         a.SourceService, a.UserId, a.OwnerProfileId, a.Action, a.EntityName, a.EntityId, a.Reason);
+
+    public static readonly Expression<Func<AuditLog, AuditLogRecord?>> ToRecord = a => new AuditLogRecord(a.Id, a.CreatedAtUtc,
+        a.SourceService, a.UserId, a.OwnerProfileId, a.Action, a.EntityName, a.EntityId, a.OldValuesJson, a.NewValuesJson, a.Reason,
+        a.IpAddress);
 
     public static IQueryable<AuditLog> Apply(IQueryable<AuditLog> query, AuditLogFilter filter)
     {

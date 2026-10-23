@@ -184,24 +184,6 @@ public class AuditLogQueryTests
         Assert.Equal((3, 10), queries.LastPaging);
     }
 
-    /// <summary>Fake port: chạy đúng AuditLogQueryFilter (biểu thức EF dùng) trên danh sách in-memory.</summary>
-    private sealed class InMemoryAuditLogQueries(IEnumerable<AuditLog> logs) : IAuditLogQueries
-    {
-        public int Calls { get; private set; }
-        public AuditLogFilter? LastFilter { get; private set; }
-        public (int Page, int PageSize) LastPaging { get; private set; }
-
-        public Task<PagedResult<AuditLogSummaryDto>> ListAsync(AuditLogFilter filter, int page, int pageSize, CancellationToken cancellationToken)
-        {
-            Calls++;
-            LastFilter = filter;
-            LastPaging = (page, pageSize);
-            var query = AuditLogQueryFilter.Apply(logs.AsQueryable(), filter);
-            var items = AuditLogQueryFilter.NewestFirst(query).Skip((page - 1) * pageSize).Take(pageSize)
-                .Select(AuditLogQueryFilter.ToSummary).ToList();
-            return Task.FromResult(new PagedResult<AuditLogSummaryDto>(items, page, pageSize, query.Count()));
-        }
-    }
 }
 
 /// <summary>Dựng AuditLog cho test: Id và CreatedAtUtc của BaseEntity chỉ có setter protected (do database cấp).</summary>
@@ -227,5 +209,30 @@ internal static class AuditLogs
         typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id))!.SetValue(log, id);
         typeof(BaseEntity).GetProperty(nameof(BaseEntity.CreatedAtUtc))!.SetValue(log, createdAtUtc);
         return log;
+    }
+}
+
+/// <summary>Fake port: chạy đúng AuditLogQueryFilter (biểu thức EF dùng) trên danh sách in-memory.</summary>
+internal sealed class InMemoryAuditLogQueries(IEnumerable<AuditLog> logs) : IAuditLogQueries
+{
+    public int Calls { get; private set; }
+    public AuditLogFilter? LastFilter { get; private set; }
+    public (int Page, int PageSize) LastPaging { get; private set; }
+
+    public Task<PagedResult<AuditLogSummaryDto>> ListAsync(AuditLogFilter filter, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        Calls++;
+        LastFilter = filter;
+        LastPaging = (page, pageSize);
+        var query = AuditLogQueryFilter.Apply(logs.AsQueryable(), filter);
+        var items = AuditLogQueryFilter.NewestFirst(query).Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(AuditLogQueryFilter.ToSummary).ToList();
+        return Task.FromResult(new PagedResult<AuditLogSummaryDto>(items, page, pageSize, query.Count()));
+    }
+
+    public Task<AuditLogRecord?> FindByIdAsync(int id, CancellationToken cancellationToken)
+    {
+        Calls++;
+        return Task.FromResult(logs.AsQueryable().Where(a => a.Id == id).Select(AuditLogQueryFilter.ToRecord).FirstOrDefault());
     }
 }
