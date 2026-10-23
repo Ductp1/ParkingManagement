@@ -36,6 +36,13 @@ public sealed class AuditLogQueries(AdminDbContext db) : IAuditLogQueries
         var entityNames = await AuditLogQueryFilter.CountBy(logs, a => a.EntityName).ToListAsync(cancellationToken);
         return new AuditLogFacetCounts(sourceServices, actions, entityNames);
     }
+
+    public async Task<IReadOnlyList<AuditLogExportRow>> ListForExportAsync(AuditLogFilter filter, int maxRows,
+        CancellationToken cancellationToken)
+        => await AuditLogQueryFilter.NewestFirst(AuditLogQueryFilter.Apply(db.AuditLogs.AsNoTracking(), filter))
+            .Take(maxRows)
+            .Select(AuditLogQueryFilter.ToExportRow)
+            .ToListAsync(cancellationToken);
 }
 
 /// <summary>
@@ -46,6 +53,9 @@ public static class AuditLogQueryFilter
 {
     public static readonly Expression<Func<AuditLog, AuditLogSummaryDto>> ToSummary = a => new AuditLogSummaryDto(a.Id, a.CreatedAtUtc,
         a.SourceService, a.UserId, a.OwnerProfileId, a.Action, a.EntityName, a.EntityId, a.Reason);
+
+    public static readonly Expression<Func<AuditLog, AuditLogExportRow>> ToExportRow = a => new AuditLogExportRow(a.Id, a.CreatedAtUtc,
+        a.SourceService, a.UserId, a.OwnerProfileId, a.Action, a.EntityName, a.EntityId, a.Reason, a.IpAddress);
 
     public static readonly Expression<Func<AuditLog, AuditLogRecord?>> ToRecord = a => new AuditLogRecord(a.Id, a.CreatedAtUtc,
         a.SourceService, a.UserId, a.OwnerProfileId, a.Action, a.EntityName, a.EntityId, a.OldValuesJson, a.NewValuesJson, a.Reason,

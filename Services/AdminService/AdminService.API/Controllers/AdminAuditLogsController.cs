@@ -13,7 +13,7 @@ namespace AdminService.API.Controllers;
 [Route("api/v1/admin/audit-logs")]
 [Authorize(Policy = "RequireAdmin")]
 public sealed class AdminAuditLogsController(IListAuditLogsUseCase listAuditLogs, IGetAuditLogUseCase getAuditLog,
-    IGetAuditLogFilterOptionsUseCase getFilterOptions) : ControllerBase
+    IGetAuditLogFilterOptionsUseCase getFilterOptions, IExportAuditLogsUseCase exportAuditLogs) : ControllerBase
 {
     /// <summary>
     /// GET /api/v1/admin/audit-logs?from=2026-10-01T00:00:00Z&amp;to=2026-10-24T00:00:00Z&amp;sourceService=AdminService&amp;action=Owner.Locked
@@ -44,4 +44,18 @@ public sealed class AdminAuditLogsController(IListAuditLogsUseCase listAuditLogs
     [ProducesResponseType<AuditLogFilterOptionsDto>(StatusCodes.Status200OK)]
     public async Task<ActionResult<AuditLogFilterOptionsDto>> FilterOptions(CancellationToken cancellationToken)
         => Ok(await getFilterOptions.ExecuteAsync(cancellationToken));
+
+    /// <summary>GET /api/v1/admin/audit-logs/export?(cùng tham số lọc của danh sách) – file CSV, tối đa 10.000 dòng.</summary>
+    [HttpGet("export")]
+    [Produces("text/csv", "application/problem+json")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Export([FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] string? sourceService,
+        [FromQuery(Name = "action")] string? auditAction, [FromQuery] string? entityName, [FromQuery] string? entityId,
+        [FromQuery] int? userId, [FromQuery] int? ownerProfileId, [FromQuery] string? q, CancellationToken cancellationToken)
+    {
+        var file = await exportAuditLogs.ExecuteAsync(
+            new AuditLogListQuery(from, to, sourceService, auditAction, entityName, entityId, userId, ownerProfileId, q), cancellationToken);
+        return File(file.Content, AuditLogCsvFile.ContentType, file.FileName);
+    }
 }

@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddScoped<IListAuditLogsUseCase, ListAuditLogsUseCase>();
         services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
         services.AddScoped<IGetAuditLogFilterOptionsUseCase, GetAuditLogFilterOptionsUseCase>();
+        services.AddScoped<IExportAuditLogsUseCase, ExportAuditLogsUseCase>();
         return services;
     }
 }

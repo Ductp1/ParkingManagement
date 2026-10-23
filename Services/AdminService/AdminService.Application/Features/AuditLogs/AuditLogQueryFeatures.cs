@@ -30,6 +30,9 @@ public interface IAuditLogQueries
 
     /// <summary>Số dòng theo từng SourceService / Action / EntityName đang có (GROUP BY ở database, dùng index).</summary>
     Task<AuditLogFacetCounts> CountByFacetAsync(CancellationToken cancellationToken);
+
+    /// <summary>Tối đa maxRows dòng theo bộ lọc, mới nhất trước (xuất CSV).</summary>
+    Task<IReadOnlyList<AuditLogExportRow>> ListForExportAsync(AuditLogFilter filter, int maxRows, CancellationToken cancellationToken);
 }
 
 /// <summary>US-100: kiểm tra tham số lọc dùng chung cho danh sách và xuất CSV.</summary>

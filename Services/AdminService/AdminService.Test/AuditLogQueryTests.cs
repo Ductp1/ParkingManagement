@@ -243,4 +243,13 @@ internal sealed class InMemoryAuditLogQueries(IEnumerable<AuditLog> logs) : IAud
         return Task.FromResult(new AuditLogFacetCounts(AuditLogQueryFilter.CountBy(query, a => a.SourceService).ToList(),
             AuditLogQueryFilter.CountBy(query, a => a.Action).ToList(), AuditLogQueryFilter.CountBy(query, a => a.EntityName).ToList()));
     }
+
+    public Task<IReadOnlyList<AuditLogExportRow>> ListForExportAsync(AuditLogFilter filter, int maxRows, CancellationToken cancellationToken)
+    {
+        Calls++;
+        LastFilter = filter;
+        IReadOnlyList<AuditLogExportRow> rows = AuditLogQueryFilter.NewestFirst(AuditLogQueryFilter.Apply(logs.AsQueryable(), filter))
+            .Take(maxRows).Select(AuditLogQueryFilter.ToExportRow).ToList();
+        return Task.FromResult(rows);
+    }
 }
