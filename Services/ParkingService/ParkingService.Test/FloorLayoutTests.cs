@@ -275,6 +275,325 @@ public class FloorLayoutTests
         Assert.Equal("T2-01", result.Cells[0].Code);
     }
 
+    // ==================== NEW TESTS ADDRESSING REVIEW COMMENTS ====================
+
+    [Fact]
+    public async Task GetFloorLayout_WhenSlotInDbIsInactive_SetsStateToUnavailable()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new GetFloorLayoutUseCase(floorRepo, layoutRepo, slotRepo, NullLogger<GetFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 20, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Slot A-01 trong DB bị inactive (IsActive = false)
+        var inactiveSlot = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "A-01",
+            GridX = 0,
+            GridY = 0,
+            State = SlotState.Available, // dù State là Available nhưng IsActive = false
+            IsActive = false
+        }, 101);
+        await slotRepo.AddAsync(inactiveSlot);
+
+        var layoutJson = JsonSerializer.Serialize(new
+        {
+            columns = 20,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 0, y = 0, type = "slot", code = "A-01" }
+            }
+        });
+
+        var layoutVersion = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            LayoutJson = layoutJson
+        }, 1);
+        await layoutRepo.AddAsync(layoutVersion);
+
+        var result = await useCase.ExecuteAsync(1);
+
+        var cell = result.Cells.FirstOrDefault(c => c.Code == "A-01");
+        Assert.NotNull(cell);
+        Assert.Equal("Unavailable", cell.State); // Tuyệt đối không được là Available
+    }
+
+    [Fact]
+    public async Task GetFloorLayout_WhenCellHasNoMatchingDbSlot_SetsStateToUnavailable()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new GetFloorLayoutUseCase(floorRepo, layoutRepo, slotRepo, NullLogger<GetFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 20, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Không có slot nào trong DB cả, nhưng layout JSON có 1 cell slot "PHANTOM-99"
+        var layoutJson = JsonSerializer.Serialize(new
+        {
+            columns = 20,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 5, y = 5, type = "slot", code = "PHANTOM-99" }
+            }
+        });
+
+        var layoutVersion = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            LayoutJson = layoutJson
+        }, 1);
+        await layoutRepo.AddAsync(layoutVersion);
+
+        var result = await useCase.ExecuteAsync(1);
+
+        var cell = result.Cells.FirstOrDefault(c => c.Code == "PHANTOM-99");
+        Assert.NotNull(cell);
+        Assert.Equal("Unavailable", cell.State); // Phantom slot phải là Unavailable
+    }
+
+    [Fact]
+    public async Task GetFloorLayout_WhenSlotCellLacksCode_DoesNotMatchByCoordinatesAndSetsUnavailable()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new GetFloorLayoutUseCase(floorRepo, layoutRepo, slotRepo, NullLogger<GetFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 20, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Trong DB có slot "REAL-01" tại tọa độ (0, 0)
+        var realSlot = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "REAL-01",
+            GridX = 0,
+            GridY = 0,
+            State = SlotState.Occupied,
+            IsActive = true
+        }, 101);
+        await slotRepo.AddAsync(realSlot);
+
+        // Bản vẽ có 1 cell slot tại (0, 0) nhưng code = null hoặc rỗng
+        var layoutJson = JsonSerializer.Serialize(new
+        {
+            columns = 20,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 0, y = 0, type = "slot", code = (string?)null }
+            }
+        });
+
+        var layoutVersion = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            LayoutJson = layoutJson
+        }, 1);
+        await layoutRepo.AddAsync(layoutVersion);
+
+        var result = await useCase.ExecuteAsync(1);
+
+        // Cell tại (0, 0) không được tự ý gán code "REAL-01"
+        var cellAtZero = result.Cells.FirstOrDefault(c => c.X == 0 && c.Y == 0 && c.Code == null);
+        Assert.NotNull(cellAtZero);
+        Assert.Null(cellAtZero.Code);
+        Assert.Equal("Unavailable", cellAtZero.State);
+
+        // Do "REAL-01" trong DB chưa được map bởi layout cell nào, stale layout handler tự động append nó
+        var realCell = result.Cells.FirstOrDefault(c => c.Code == "REAL-01");
+        Assert.NotNull(realCell);
+        Assert.Equal("Occupied", realCell.State);
+    }
+
+    [Fact]
+    public async Task GetFloorLayout_WhenSingleCellIsMalformed_PreservesOtherCellsAndLayoutStructure()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new GetFloorLayoutUseCase(floorRepo, layoutRepo, slotRepo, NullLogger<GetFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 20, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        var validSlot = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "GOOD-01",
+            GridX = 1,
+            GridY = 1,
+            State = SlotState.Available,
+            IsActive = true
+        }, 101);
+        await slotRepo.AddAsync(validSlot);
+
+        // LayoutJson có 1 cell hợp lệ GOOD-01, 1 cell road hợp lệ, 1 cell exit hợp lệ, và 1 cell malformed (không phải object)
+        var layoutJson = """
+        {
+            "columns": 20,
+            "rows": 10,
+            "cells": [
+                { "x": 1, "y": 1, "type": "slot", "code": "GOOD-01" },
+                "MALFORMED_NON_OBJECT_CELL",
+                { "x": 0, "y": 2, "type": "road" },
+                { "x": 19, "y": 9, "type": "exit" }
+            ]
+        }
+        """;
+
+        var layoutVersion = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 2,
+            IsPublished = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            LayoutJson = layoutJson
+        }, 1);
+        await layoutRepo.AddAsync(layoutVersion);
+
+        var result = await useCase.ExecuteAsync(1);
+
+        // Không bị ném lỗi, không bị vứt bỏ bản vẽ về VersionNo = 0
+        Assert.Equal(2, result.VersionNo);
+        Assert.True(result.IsPublished);
+        Assert.Equal(3, result.Cells.Count); // 3 cells hợp lệ được giữ nguyên vẹn
+
+        Assert.Contains(result.Cells, c => c.Code == "GOOD-01" && c.State == "Available");
+        Assert.Contains(result.Cells, c => c.Type == "road");
+        Assert.Contains(result.Cells, c => c.Type == "exit");
+    }
+
+    [Fact]
+    public async Task GetFloorLayout_WhenPublishedLayoutIsStale_AppendsUnmappedActiveSlots()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new GetFloorLayoutUseCase(floorRepo, layoutRepo, slotRepo, NullLogger<GetFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 20, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Slot A-01 có trong layout
+        var slot1 = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "A-01",
+            GridX = 0,
+            GridY = 0,
+            State = SlotState.Available,
+            IsActive = true
+        }, 101);
+
+        // Slot B-01 mới thêm vào DB sau khi publish (stale layout)
+        var slot2 = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "B-01",
+            GridX = 2,
+            GridY = 3,
+            SlotType = SlotType.EvCharging,
+            MaxVehicleType = VehicleType.Suv,
+            State = SlotState.Occupied,
+            IsActive = true
+        }, 102);
+
+        await slotRepo.AddAsync(slot1);
+        await slotRepo.AddAsync(slot2);
+
+        // Layout chỉ vẽ A-01
+        var layoutJson = JsonSerializer.Serialize(new
+        {
+            columns = 20,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 0, y = 0, type = "slot", code = "A-01" }
+            }
+        });
+
+        var layoutVersion = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            LayoutJson = layoutJson
+        }, 1);
+        await layoutRepo.AddAsync(layoutVersion);
+
+        var result = await useCase.ExecuteAsync(1);
+
+        Assert.Equal(2, result.Cells.Count);
+        var cellA01 = result.Cells.FirstOrDefault(c => c.Code == "A-01");
+        var cellB01 = result.Cells.FirstOrDefault(c => c.Code == "B-01");
+
+        Assert.NotNull(cellA01);
+        Assert.NotNull(cellB01);
+        Assert.Equal("Occupied", cellB01.State);
+        Assert.Equal("EvCharging", cellB01.SlotType);
+        Assert.Equal(2, cellB01.X);
+        Assert.Equal(3, cellB01.Y);
+    }
+
+    [Fact]
+    public async Task GetFloorLayout_WhenCellsExceedDeclaredBounds_ClampsColumnsAndRowsToEncompassAllCells()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new GetFloorLayoutUseCase(floorRepo, layoutRepo, slotRepo, NullLogger<GetFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng B1", Level = -1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Layout khai báo columns = 10, rows = 10, nhưng cell lại đặt ở x = 15, y = 12 với width = 2, height = 1
+        var layoutJson = JsonSerializer.Serialize(new
+        {
+            columns = 10,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 15, y = 12, widthCells = 2, heightCells = 1, type = "road" }
+            }
+        });
+
+        var layoutVersion = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            PublishedAtUtc = DateTime.UtcNow,
+            LayoutJson = layoutJson
+        }, 1);
+        await layoutRepo.AddAsync(layoutVersion);
+
+        var result = await useCase.ExecuteAsync(1);
+
+        // Clamping: columns phải ít nhất là 15 + 2 = 17, rows ít nhất là 12 + 1 = 13
+        Assert.True(result.Columns >= 17, $"Columns ({result.Columns}) phải >= 17");
+        Assert.True(result.Rows >= 13, $"Rows ({result.Rows}) phải >= 13");
+    }
+
     // ==================== FAKE REPOSITORIES FOR TESTING ====================
 
     private sealed class FakeLayoutVersionRepo : ILayoutVersionRepository
