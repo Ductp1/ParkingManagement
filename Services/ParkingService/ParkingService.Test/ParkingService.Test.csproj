@@ -10,9 +10,14 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ParkingService.Application\ParkingService.Application.csproj" />
+    <!-- US-055: kiểm tra cấu hình JWT của API (Program.cs, Keys/public.key) và controller công khai không bị khóa. -->
+    <ProjectReference Include="..\ParkingService.API\ParkingService.API.csproj" />
   </ItemGroup>
 </Project>

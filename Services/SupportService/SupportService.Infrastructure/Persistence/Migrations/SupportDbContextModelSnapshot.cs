@@ -145,6 +145,11 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -172,7 +177,12 @@ namespace SupportService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("AssignedTeam", "Priority", "Status");
 
-                    b.ToTable("Complaints", (string)null);
+                    b.ToTable("Complaints", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Complaints_PayoutHold_OnlyWhileOpen", "NOT \"PayoutHeld\" OR \"Status\" NOT IN ('Resolved', 'Rejected')");
+
+                            t.HasCheckConstraint("CK_Complaints_PayoutHold_RequiresOwner", "NOT \"PayoutHeld\" OR \"OwnerProfileId\" IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("SupportService.Domain.Entities.ComplaintMessage", b =>
@@ -294,6 +304,22 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<DateTime?>("FlaggedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("FlaggedByOwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("HiddenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("HiddenByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("HiddenReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -324,6 +350,11 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -335,10 +366,18 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.HasIndex("BookingId")
                         .IsUnique();
 
+                    b.HasIndex("FlaggedAtUtc")
+                        .HasDatabaseName("IX_Reviews_Flagged_Queue")
+                        .HasFilter("\"IsFlagged\"");
+
                     b.HasIndex("ParkingLotId", "IsHidden", "CreatedAtUtc");
 
                     b.ToTable("Reviews", null, t =>
                         {
+                            t.HasCheckConstraint("CK_Reviews_Hidden_HasAudit", "NOT \"IsHidden\" OR (\"HiddenAtUtc\" IS NOT NULL AND \"HiddenByUserId\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Reviews_Hidden_NotFlagged", "NOT (\"IsHidden\" AND \"IsFlagged\")");
+
                             t.HasCheckConstraint("CK_Reviews_Rating", "\"Rating\" BETWEEN 1 AND 5");
                         });
                 });

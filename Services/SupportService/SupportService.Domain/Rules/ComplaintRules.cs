@@ -15,6 +15,18 @@ public static class ComplaintRules
     public const int MinDescriptionLength = 10;
     public const int MaxDescriptionLength = 4000;
 
+    /// <summary>US-089: phản hồi của chủ bãi (cột OwnerResponse 4000 ký tự) và tối đa 10 bằng chứng (log check-in/out, ảnh camera...).</summary>
+    public const int MinOwnerResponseLength = 10;
+    public const int MaxOwnerResponseLength = 4000;
+    public const int MaxOwnerEvidenceFiles = 10;
+
+    /// <summary>
+    /// US-089 AC3: khiếu nại về bãi có đòi tiền → phong tỏa khoản quyết toán của chủ bãi (hold payout) đến khi có phán quyết.
+    /// Phải biết chủ bãi (khoản giữ gắn với chủ bãi nào); lỗi ứng dụng / khác do nền tảng xử lý nên không giữ tiền chủ bãi.
+    /// </summary>
+    public static bool ShouldHoldPayout(ComplaintCategory category, decimal? requestedAmount, int? ownerProfileId)
+        => ownerProfileId is not null && RequiresOwnerResponse(category) && requestedAmount > 0;
+
     /// <summary>
     /// AC3: Low → Support; Medium (lỗi booking/thanh toán) → Support; High (mất tiền, không được phục vụ) → Supervisor.
     /// </summary>

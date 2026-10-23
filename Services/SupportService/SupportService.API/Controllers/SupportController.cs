@@ -10,8 +10,58 @@ namespace SupportService.API.Controllers;
 
 [ApiController]
 [Route("api/v1/complaints")]
-public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwner, IComplaintService complaintService) : ControllerBase
+public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwner, IComplaintService complaintService,
+    IOwnerDisputeService ownerDisputes, ICurrentUser currentUser) : ControllerBase
 {
+    /// <summary>GET /api/v1/complaints/payout-holds – Khoản quyết toán đang bị phong tỏa vì tranh chấp (US-089 AC3).</summary>
+    /// <remarks>Chủ bãi chỉ thấy khoản của mình (lấy từ JWT); Admin xem tất cả hoặc lọc bằng <paramref name="ownerProfileId"/>.</remarks>
+    [HttpGet("payout-holds")]
+    [Authorize(Roles = "LotOwner,Admin")]
+    [ProducesResponseType<IReadOnlyList<PayoutHoldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<PayoutHoldDto>>> PayoutHolds([FromQuery] int? ownerProfileId, CancellationToken cancellationToken)
+    {
+        if (currentUser.Roles.Contains("Admin"))
+            return Ok(await ownerDisputes.ListPayoutHoldsAsync(ownerProfileId, cancellationToken));
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.ListPayoutHoldsAsync(owner, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/complaints/CP-0001/owner-view – Chủ bãi xem tranh chấp về bãi của mình (US-089 AC1).</summary>
+    [HttpGet("{code}/owner-view")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<ComplaintDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ComplaintDetailDto>> OwnerView([FromRoute] string code, CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.GetAsync(owner, code, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/complaints/CP-0001/owner-response – Chủ bãi phản hồi tranh chấp trong 48 giờ kèm bằng chứng (US-089 AC1).</summary>
+    [HttpPost("{code}/owner-response")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<ComplaintDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ComplaintDetailDto>> OwnerRespond([FromRoute] string code, [FromBody] OwnerResponseRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.RespondAsync(owner, currentUser.UserId, code, request, cancellationToken));
+    }
+
+    /// <summary>Token có vai trò LotOwner nhưng không gắn 1 hồ sơ chủ bãi (claim "OwnerProfileId").</summary>
+    private ObjectResult OwnerProfileMissing()
+        => Problem(statusCode: StatusCodes.Status403Forbidden, title: "Không có quyền",
+            detail: "Tài khoản chưa gắn với một hồ sơ chủ bãi.");
+
     /// <summary>GET /api/complaints?ownerProfileId=1&amp;status=AwaitingOwner – Hộp tranh chấp của chủ bãi (UC-38).</summary>
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ComplaintDto>>> ListForOwner(
@@ -45,9 +95,76 @@ public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwne
 
 [ApiController]
 [Route("api/v1/reviews")]
-public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews, IReviewService reviewService, ICurrentUser currentUser)
-    : ControllerBase
+public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews, IReviewService reviewService,
+    IReviewModerationService moderation, ICurrentUser currentUser) : ControllerBase
 {
+    /// <summary>POST /api/v1/reviews/5/owner-reply – Chủ bãi viết 1 phản hồi công khai cho đánh giá về bãi mình (US-094 AC1).</summary>
+    [HttpPost("{id:int}/owner-reply")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ModeratedReviewDto>> OwnerReply([FromRoute] int id, [FromBody] OwnerReplyRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await moderation.ReplyAsync(owner, id, request, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/reviews/5/report – Chủ bãi khiếu nại đánh giá, chuyển Admin xem xét (US-094 AC2).</summary>
+    [HttpPost("{id:int}/report")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ModeratedReviewDto>> Report([FromRoute] int id, [FromBody] ReviewReasonRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await moderation.ReportAsync(owner, id, request, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/reviews/reported – Hàng chờ Admin: đánh giá đang bị chủ bãi khiếu nại (US-094 AC2).</summary>
+    [HttpGet("reported")]
+    [Authorize(Policy = "RequireAdmin")]
+    public async Task<ActionResult<IReadOnlyList<ModeratedReviewDto>>> Reported(CancellationToken cancellationToken)
+        => Ok(await moderation.ListReportedAsync(cancellationToken));
+
+    /// <summary>POST /api/v1/reviews/5/hide – Chỉ Admin được gỡ đánh giá; ghi audit log (US-094 AC2).</summary>
+    [HttpPost("{id:int}/hide")]
+    [Authorize(Policy = "RequireAdmin")]
+    [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ModeratedReviewDto>> Hide([FromRoute] int id, [FromBody] ReviewReasonRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is not { } admin) return Unauthorized();
+        return Ok(await moderation.HideAsync(admin, id, request, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/reviews/5/dismiss-report – Admin bác khiếu nại, giữ nguyên đánh giá; ghi audit log (US-094 AC2).</summary>
+    [HttpPost("{id:int}/dismiss-report")]
+    [Authorize(Policy = "RequireAdmin")]
+    [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<ModeratedReviewDto>> DismissReport([FromRoute] int id, [FromBody] ReviewReasonRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is not { } admin) return Unauthorized();
+        return Ok(await moderation.DismissReportAsync(admin, id, request, cancellationToken));
+    }
+
+    private ObjectResult OwnerProfileMissing()
+        => Problem(statusCode: StatusCodes.Status403Forbidden, title: "Không có quyền",
+            detail: "Tài khoản chưa gắn với một hồ sơ chủ bãi.");
+
     /// <summary>POST /api/v1/reviews – Tài xế đang đăng nhập đánh giá bãi 1–5 sao sau khi booking hoàn tất, mỗi booking 1 lần (US-093).</summary>
     [HttpPost]
     [Authorize(Policy = "RequireDriver")]

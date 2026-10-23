@@ -11,7 +11,12 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users")]
 [Authorize]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class UsersController(IGetUserByIdUseCase getUserById, IListUsersUseCase listUsers, ICurrentUser currentUser) : ControllerBase
+public sealed class UsersController(
+    IGetUserByIdUseCase getUserById,
+    IListUsersUseCase listUsers,
+    ILockOwnerProfileUseCase lockOwnerProfile,
+    IUnlockOwnerProfileUseCase unlockOwnerProfile,
+    ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>GET /api/users/{id} – Hồ sơ người dùng kèm vai trò và hồ sơ chủ bãi (nếu có).</summary>
     [HttpGet("{id:int}")]
@@ -31,4 +36,46 @@ public sealed class UsersController(IGetUserByIdUseCase getUserById, IListUsersU
     [HttpGet("me")]
     public async Task<ActionResult<UserDto>> Me(CancellationToken ct)
         => currentUser.UserId is { } id ? Ok(await getUserById.ExecuteAsync(id, ct)) : Unauthorized();
+
+    /// <summary>POST /api/v1/users/owner-profiles/{ownerProfileId}/lock – Khóa chủ bãi (chỉ Admin).</summary>
+    [HttpPost("owner-profiles/{ownerProfileId:int}/lock")]
+    [Authorize(Policy = "RequireAdmin")]
+    public async Task<IActionResult> LockOwnerProfile(
+        [FromRoute] int ownerProfileId,
+        [FromBody] LockOwnerProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await lockOwnerProfile.ExecuteAsync(ownerProfileId, request, cancellationToken);
+        if (result is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "OwnerProfileNotFound",
+                detail: $"Hồ sơ chủ bãi với ID {ownerProfileId} không tồn tại.",
+                instance: Request.Path);
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>POST /api/v1/users/owner-profiles/{ownerProfileId}/unlock – Mở khóa chủ bãi (chỉ Admin).</summary>
+    [HttpPost("owner-profiles/{ownerProfileId:int}/unlock")]
+    [Authorize(Policy = "RequireAdmin")]
+    public async Task<IActionResult> UnlockOwnerProfile(
+        [FromRoute] int ownerProfileId,
+        [FromBody] UnlockOwnerProfileRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await unlockOwnerProfile.ExecuteAsync(ownerProfileId, request, cancellationToken);
+        if (result is null)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "OwnerProfileNotFound",
+                detail: $"Hồ sơ chủ bãi với ID {ownerProfileId} không tồn tại.",
+                instance: Request.Path);
+        }
+
+        return Ok(result);
+    }
 }

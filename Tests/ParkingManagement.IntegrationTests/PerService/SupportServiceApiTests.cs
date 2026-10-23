@@ -50,6 +50,15 @@ public sealed class SupportApiFixture : IAsyncLifetime
         return client;
     }
 
+    /// <summary>Client của chủ bãi: token có role LotOwner + claim OwnerProfileId (giống token UserService phát hành).</summary>
+    public HttpClient CreateOwnerClient(int ownerUserId, int ownerProfileId)
+    {
+        var client = SupportFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", Keys.MintToken(ownerUserId, $"owner{ownerUserId}@it.test", null,
+            [new System.Security.Claims.Claim("OwnerProfileId", ownerProfileId.ToString())], "LotOwner"));
+        return client;
+    }
+
     public IServiceProvider BookingServices => BookingFactory.Services;
     public IServiceProvider SupportServices => SupportFactory.Services;
 
@@ -124,6 +133,8 @@ public sealed class SupportApiFixture : IAsyncLifetime
                     };
                     return new BookingServiceClient(http, sp.GetRequiredService<ILogger<BookingServiceClient>>());
                 });
+                // US-094: fixture không dựng ParkingService → tra bãi của chủ bãi bằng dữ liệu cố định.
+                services.AddScoped<IOwnerLotLookup, StubOwnerLots>();
             }).ConfigureTestServices(services =>
                 // Program.cs nạp Keys/public.key thật; test thay bằng public key của cặp khóa test để kiểm tra token tự mint.
                 services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -136,7 +147,33 @@ public sealed class SupportApiFixture : IAsyncLifetime
 
         using var supportHealth = await SupportClient.GetAsync("/health");
         Assert.True(supportHealth.IsSuccessStatusCode, $"SupportService không start được trên {SupportDbName}.");
+
+        // ----- 4. Arrange US-089: 2 tranh chấp của chủ bãi TSN đang giữ tiền – 1 còn hạn 48h, 1 đã quá hạn -----
+        // (BookingService chưa trả OwnerProfileId nên chưa tạo được ticket AwaitingOwner qua API → ghi thẳng vào pm_it_support.)
+        await using (var scope = SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            db.Complaints.AddRange(
+                OwnerDispute("CP-IT-OWNER", DateTime.UtcNow.AddHours(47), 20000m),
+                OwnerDispute("CP-IT-LATE", DateTime.UtcNow.AddHours(-1), 15000m));
+            await db.SaveChangesAsync();
+        }
     }
+
+    private static SupportService.Domain.Entities.Complaint OwnerDispute(string code, DateTime dueAtUtc, decimal amount) => new()
+    {
+        Code = code,
+        UserId = DemoIds.Driver1User,
+        BookingCode = "BK-IT-REVIEW",
+        ParkingLotId = DemoIds.LotTsn,
+        OwnerProfileId = DemoIds.OwnerTsn,
+        Category = ComplaintCategory.Overcharge,
+        Description = "Bị tính thừa block cuối (integration test US-089).",
+        RequestedAmount = amount,
+        Status = ComplaintStatus.AwaitingOwner,
+        OwnerResponseDueAtUtc = dueAtUtc,
+        PayoutHeld = true,
+    };
 
     public async Task DisposeAsync()
     {
@@ -152,6 +189,18 @@ public sealed class SupportApiFixture : IAsyncLifetime
         catch { // best-effort
         }
     }
+}
+
+/// <summary>US-094: bãi của từng chủ bãi (thay cho ParkingService trong test) – TSN quản lý bãi TSN và Bến Thành.</summary>
+public sealed class StubOwnerLots : IOwnerLotLookup
+{
+    public Task<IReadOnlyCollection<int>> GetLotIdsAsync(int ownerProfileId, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyCollection<int>>(ownerProfileId switch
+        {
+            DemoIds.OwnerVincom => [DemoIds.LotVincom],
+            DemoIds.OwnerTsn => [DemoIds.LotTsn, DemoIds.LotBenThanh],
+            _ => [],
+        });
 }
 
 /// <summary>Collection: SupportService (+ BookingService thật làm phụ thuộc) trên database pm_it_* riêng.</summary>
@@ -325,6 +374,272 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
         Assert.Equal(1, lot!.ReviewCount);
         Assert.Equal(4, lot.AverageRating);
     }
+
+    [Fact] // US-089: chủ bãi phản hồi tranh chấp bằng JWT; quá 48h → Escalated; tiền tranh chấp bị phong tỏa.
+    public async Task Owner_responds_to_dispute_within_48_hours_and_overdue_is_escalated()
+    {
+        const string url = "/api/v1/complaints/CP-IT-OWNER";
+        var reply = new
+        {
+            response = "Log cổng cho thấy xe ra lúc 11:52, đúng giờ tính phí; đính kèm log và ảnh camera.",
+            evidenceUrls = new[] { "https://evidence.it.test/gate-log.pdf", "https://evidence.it.test/camera-1152.jpg" },
+        };
+
+        // Không đăng nhập → 401; tài xế → 403; chủ bãi khác (Vincom) → 404 (không lộ tranh chấp của bãi khác)
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.GetAsync($"{url}/owner-view")).StatusCode);
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.PostAsJsonAsync($"{url}/owner-response", reply)).StatusCode);
+        var otherOwner = fixture.CreateOwnerClient(DemoIds.OwnerVincomUser, DemoIds.OwnerVincom);
+        await Asserts.NotFoundAsync(await otherOwner.GetAsync($"{url}/owner-view"));
+        await Asserts.NotFoundAsync(await otherOwner.PostAsJsonAsync($"{url}/owner-response", reply));
+
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+
+        // AC1: xem tranh chấp còn hạn, đang giữ tiền
+        var view = await owner.GetFromJsonAsync<OwnerComplaintJson>($"{url}/owner-view");
+        Assert.Equal("AwaitingOwner", view!.Status);
+        Assert.True(view.PayoutHeld);
+
+        // AC3: khoản tiền bị phong tỏa của chủ bãi TSN (lấy từ token, không truyền ownerProfileId)
+        var holds = await owner.GetFromJsonAsync<List<PayoutHoldJson>>("/api/v1/complaints/payout-holds");
+        Assert.Contains(holds!, h => h.ComplaintCode == "CP-IT-OWNER" && h.Amount == 20000m);
+        Assert.All(holds!, h => Assert.Equal(DemoIds.OwnerTsn, h.OwnerProfileId));
+
+        // AC1: phản hồi quá ngắn → 400; phản hồi hợp lệ → OwnerResponded + tin nhắn của chủ bãi; lần 2 → 409
+        await Asserts.BadRequestAsync(await owner.PostAsJsonAsync($"{url}/owner-response", new { response = "Sai" }), "Nội dung phản hồi");
+        var responded = await owner.PostAsJsonAsync($"{url}/owner-response", reply);
+        Assert.Equal(HttpStatusCode.OK, responded.StatusCode);
+        var afterReply = await responded.Content.ReadFromJsonAsync<OwnerComplaintJson>();
+        Assert.Equal("OwnerResponded", afterReply!.Status);
+        Assert.NotNull(afterReply.OwnerRespondedAtUtc);
+        Assert.True(afterReply.PayoutHeld);   // vẫn giữ tiền đến khi Admin phán quyết
+        Assert.Contains(afterReply.Messages, m => m.SenderParty == "LotOwner" && m.AttachmentUrls.Count == 2);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"{url}/owner-response", reply), "đã phản hồi");
+
+        // Tài xế thấy phản hồi của chủ bãi trong ticket của mình
+        var driverView = await fixture.SupportClient.GetFromJsonAsync<ComplaintDetailJson>($"{url}?userId={DemoIds.Driver1User}");
+        Assert.Equal("OwnerResponded", driverView!.Status);
+
+        // AC2: quá hạn 48h → phản hồi bị từ chối; lượt escalate chuyển Escalated, giao Supervisor
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync("/api/v1/complaints/CP-IT-LATE/owner-response", reply), "quá hạn");
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<IComplaintEscalationService>().EscalateOverdueAsync();
+        var late = await owner.GetFromJsonAsync<OwnerComplaintJson>("/api/v1/complaints/CP-IT-LATE/owner-view");
+        Assert.Equal("Escalated", late!.Status);
+        Assert.Equal("Supervisor", late.AssignedTeam);
+        Assert.NotNull(late.EscalatedAtUtc);
+        Assert.Contains(late.Messages, m => m.SenderParty == "System");
+
+        // Sự kiện đã vào Outbox để báo tài xế / Admin
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var types = await db.OutboxMessages.Select(o => o.EventType).ToListAsync();
+            Assert.Contains("ComplaintOwnerResponded", types);
+            Assert.Contains("ComplaintEscalated", types);
+        }
+    }
+
+    /// <summary>Tạo 1 tranh chấp riêng cho test (hạn còn 47 giờ để worker/test khác không đụng tới), trả Id.</summary>
+    private async Task<int> ArrangeDisputeAsync(string code)
+    {
+        await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var complaint = new SupportService.Domain.Entities.Complaint
+        {
+            Code = code, UserId = DemoIds.Driver1User, ParkingLotId = DemoIds.LotTsn, OwnerProfileId = DemoIds.OwnerTsn,
+            Category = ComplaintCategory.Overcharge, Description = "Tranh chấp cho test concurrency (US-089 review).",
+            RequestedAmount = 5000m, Status = ComplaintStatus.AwaitingOwner,
+            OwnerResponseDueAtUtc = DateTime.UtcNow.AddHours(47), PayoutHeld = true,
+        };
+        db.Complaints.Add(complaint);
+        await db.SaveChangesAsync();
+        return complaint.Id;
+    }
+
+    private async Task<List<string>> OutboxEventsForAsync(string code)
+    {
+        await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+        var payloads = await db.OutboxMessages.Select(o => new { o.EventType, o.PayloadJson }).ToListAsync();
+        // jsonb chuẩn hóa lại định dạng ("Code": "...") nên đọc bằng JSON parser thay vì so chuỗi.
+        return payloads
+            .Where(p => System.Text.Json.JsonDocument.Parse(p.PayloadJson).RootElement.TryGetProperty("Code", out var c) && c.GetString() == code)
+            .Select(p => p.EventType).ToList();
+    }
+
+    [Fact] // Review: worker đã nạp ticket nhưng chủ bãi phản hồi trước → lần lưu Escalated của worker bị RowVersion chặn.
+    public async Task Stale_escalation_cannot_overwrite_owner_response()
+    {
+        var id = await ArrangeDisputeAsync("CP-IT-RACE");
+        await using var workerScope = fixture.SupportFactory.Services.CreateAsyncScope();
+        await using var ownerScope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var workerRepo = workerScope.ServiceProvider.GetRequiredService<IComplaintRepository>();
+        var ownerRepo = ownerScope.ServiceProvider.GetRequiredService<IComplaintRepository>();
+
+        var staleForWorker = await workerRepo.FindByIdAsync(id);            // worker nạp trước
+        var forOwner = await ownerRepo.FindByIdAsync(id);
+
+        forOwner!.Status = ComplaintStatus.OwnerResponded;                   // chủ bãi lưu trước → thắng
+        forOwner.OwnerResponse = "Phản hồi của chủ bãi trước khi worker kịp lưu.";
+        await ownerRepo.UpdateAsync(forOwner, new ComplaintOwnerResponded(id, "CP-IT-RACE", DemoIds.Driver1User, DemoIds.LotTsn));
+
+        staleForWorker!.Status = ComplaintStatus.Escalated;                  // worker lưu bằng bản cũ → bị từ chối
+        await Assert.ThrowsAsync<ParkingManagement.SharedKernel.Exceptions.ConflictException>(() => workerRepo.UpdateAsync(staleForWorker,
+            new ComplaintEscalated(id, "CP-IT-RACE", DemoIds.Driver1User, DemoIds.LotTsn, DemoIds.OwnerTsn, "test")));
+
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+        var current = await owner.GetFromJsonAsync<OwnerComplaintJson>("/api/v1/complaints/CP-IT-RACE/owner-view");
+        Assert.Equal("OwnerResponded", current!.Status);                     // không bị ghi đè
+        Assert.Equal(["ComplaintOwnerResponded"], await OutboxEventsForAsync("CP-IT-RACE"));   // không có sự kiện Escalated
+    }
+
+    [Fact] // Review: 2 instance cùng escalate 1 ticket → chỉ 1 lần thành công, chỉ 1 sự kiện.
+    public async Task Two_instances_escalating_the_same_ticket_emit_one_event()
+    {
+        var id = await ArrangeDisputeAsync("CP-IT-DUP");
+        await using var scopeA = fixture.SupportFactory.Services.CreateAsyncScope();
+        await using var scopeB = fixture.SupportFactory.Services.CreateAsyncScope();
+        var repoA = scopeA.ServiceProvider.GetRequiredService<IComplaintRepository>();
+        var repoB = scopeB.ServiceProvider.GetRequiredService<IComplaintRepository>();
+        var a = await repoA.FindByIdAsync(id);
+        var b = await repoB.FindByIdAsync(id);
+
+        a!.Status = ComplaintStatus.Escalated;
+        await repoA.UpdateAsync(a, new ComplaintEscalated(id, "CP-IT-DUP", DemoIds.Driver1User, DemoIds.LotTsn, DemoIds.OwnerTsn, "A"));
+        b!.Status = ComplaintStatus.Escalated;
+        await Assert.ThrowsAsync<ParkingManagement.SharedKernel.Exceptions.ConflictException>(() =>
+            repoB.UpdateAsync(b, new ComplaintEscalated(id, "CP-IT-DUP", DemoIds.Driver1User, DemoIds.LotTsn, DemoIds.OwnerTsn, "B")));
+
+        Assert.Equal(["ComplaintEscalated"], await OutboxEventsForAsync("CP-IT-DUP"));
+    }
+
+    [Fact] // Review: worker chạy trên nhiều instance – instance đang giữ advisory lock thì instance khác bỏ qua lượt.
+    public async Task Escalation_worker_skips_run_while_another_instance_holds_the_lock()
+    {
+        var worker = fixture.SupportFactory.Services.GetServices<Microsoft.Extensions.Hosting.IHostedService>()
+            .OfType<SupportService.Infrastructure.Workers.ComplaintEscalationWorker>().Single();
+
+        await using var otherInstance = fixture.SupportFactory.Services.CreateAsyncScope();
+        var db = otherInstance.ServiceProvider.GetRequiredService<SupportDbContext>();
+        await db.Database.OpenConnectionAsync();
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_lock({SupportService.Infrastructure.Workers.ComplaintEscalationWorker.AdvisoryLockKey})");
+        try
+        {
+            Assert.False(await worker.RunOnceAsync());                       // instance khác đang chạy → bỏ qua
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_unlock({SupportService.Infrastructure.Workers.ComplaintEscalationWorker.AdvisoryLockKey})");
+            await db.Database.CloseConnectionAsync();
+        }
+        Assert.True(await worker.RunOnceAsync());                            // khóa đã nhả → chạy được
+    }
+
+    [Fact] // Review: DB chặn giữ tiền khi chưa biết chủ bãi, và ticket đã đóng mà vẫn giữ tiền.
+    public async Task Database_rejects_invalid_payout_holds()
+    {
+        static SupportService.Domain.Entities.Complaint Invalid(string code, int? owner, ComplaintStatus status) => new()
+        {
+            Code = code, UserId = DemoIds.Driver1User, ParkingLotId = DemoIds.LotTsn, OwnerProfileId = owner,
+            Category = ComplaintCategory.Overcharge, Description = "Dữ liệu sai cố ý để kiểm tra CHECK constraint.",
+            RequestedAmount = 5000m, Status = status, PayoutHeld = true,
+        };
+
+        foreach (var invalid in new[] { Invalid("CP-IT-NOOWNER", null, ComplaintStatus.Open), Invalid("CP-IT-CLOSED", DemoIds.OwnerTsn, ComplaintStatus.Resolved) })
+        {
+            await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            db.Complaints.Add(invalid);
+            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+            Assert.Contains("CK_Complaints_PayoutHold", ex.InnerException!.Message);
+        }
+
+        // Đóng tranh chấp qua Complaint.Close → giải phóng khoản giữ → DB chấp nhận, không còn trong payout-holds.
+        var id = await ArrangeDisputeAsync("CP-IT-CLOSE");
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var complaint = await db.Complaints.SingleAsync(c => c.Id == id);
+            complaint.Close(ComplaintStatus.Resolved, "Hoàn 5.000đ cho tài xế.", 5000m, DemoIds.AdminUser, DateTime.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        var holds = await fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn)
+            .GetFromJsonAsync<List<PayoutHoldJson>>("/api/v1/complaints/payout-holds");
+        Assert.DoesNotContain(holds!, h => h.ComplaintCode == "CP-IT-CLOSE");
+    }
+
+    [Fact] // US-094: chủ bãi phản hồi công khai 1 lần, khiếu nại đánh giá → Admin gỡ / bác; chỉ Admin được gỡ.
+    public async Task Owner_replies_and_reports_review_and_only_admin_can_hide_it()
+    {
+        // Arrange: 2 đánh giá ở bãi Bến Thành (chủ bãi TSN theo StubOwnerLots) – 1 đã lưu chủ bãi, 1 chưa (đối chiếu theo bãi).
+        int withOwner, withoutOwner;
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var a = new SupportService.Domain.Entities.Review { BookingId = 9_094_001, UserId = DemoIds.Driver1User, ReviewerName = "Tài xế IT",
+                ParkingLotId = DemoIds.LotBenThanh, OwnerProfileId = DemoIds.OwnerTsn, Rating = 3, Comment = "Lối vào hơi hẹp (IT US-094)." };
+            var b = new SupportService.Domain.Entities.Review { BookingId = 9_094_002, UserId = DemoIds.Driver2User, ReviewerName = "Tài xế IT 2",
+                ParkingLotId = DemoIds.LotBenThanh, OwnerProfileId = null, Rating = 1, Comment = "Nội dung sai sự thật cần gỡ (IT US-094)." };
+            db.Reviews.AddRange(a, b);
+            await db.SaveChangesAsync();
+            (withOwner, withoutOwner) = (a.Id, b.Id);
+        }
+        var reply = new { reply = "Cảm ơn góp ý, bãi đã mở rộng lối vào từ tuần này." };
+        var reason = new { reason = "Tài xế không đỗ tại bãi vào ngày được đánh giá." };
+
+        // Quyền: không token 401, tài xế 403, chủ bãi khác 404
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply)).StatusCode);
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply)).StatusCode);
+        var otherOwner = fixture.CreateOwnerClient(DemoIds.OwnerVincomUser, DemoIds.OwnerVincom);
+        await Asserts.NotFoundAsync(await otherOwner.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply));
+
+        // AC1: 1 phản hồi công khai; lần 2 → 409; hiện trên trang bãi (API công khai)
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+        var replied = await owner.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply);
+        Assert.Equal(HttpStatusCode.OK, replied.StatusCode);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/owner-reply", reply), "đã phản hồi");
+        var lotPage = await fixture.SupportClient.GetStringAsync($"/api/v1/reviews?parkingLotId={DemoIds.LotBenThanh}");
+        Assert.Contains("mở rộng lối vào", lotPage);
+
+        // AC2: chủ bãi khiếu nại (đánh giá chưa lưu chủ bãi → đối chiếu theo bãi); chủ bãi KHÔNG tự gỡ được
+        var report = await owner.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/report", reason);
+        Assert.Equal(HttpStatusCode.OK, report.StatusCode);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/report", reason), "chờ Admin");
+        Assert.Equal(HttpStatusCode.Forbidden, (await owner.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/hide", reason)).StatusCode);
+
+        // Admin: hàng chờ có đánh giá bị khiếu nại → gỡ → biến khỏi trang bãi; bác khiếu nại khi không có khiếu nại → 409
+        var admin = fixture.CreateAuthenticatedClient(DemoIds.AdminUser, "Admin");
+        var queue = await admin.GetFromJsonAsync<List<ModeratedReviewJson>>("/api/v1/reviews/reported");
+        Assert.Contains(queue!, r => r.Id == withoutOwner && r.IsReported);
+        var hidden = await admin.PostAsJsonAsync($"/api/v1/reviews/{withoutOwner}/hide", new { reason = "Nội dung sai sự thật, đã xác minh với log cổng." });
+        Assert.Equal(HttpStatusCode.OK, hidden.StatusCode);
+        Assert.DoesNotContain("Nội dung sai sự thật cần gỡ", await fixture.SupportClient.GetStringAsync($"/api/v1/reviews?parkingLotId={DemoIds.LotBenThanh}"));
+        await Asserts.ConflictAsync(await admin.PostAsJsonAsync($"/api/v1/reviews/{withOwner}/dismiss-report", reason), "không có khiếu nại");
+
+        // DB: chủ bãi được bổ sung theo bãi; dữ liệu gỡ có người/thời điểm; Outbox có thông báo, sự kiện xếp hạng và audit
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var removed = await db.Reviews.SingleAsync(r => r.Id == withoutOwner);
+            Assert.Equal(DemoIds.OwnerTsn, removed.OwnerProfileId);
+            Assert.True(removed.IsHidden);
+            Assert.False(removed.IsFlagged);
+            Assert.Equal(DemoIds.AdminUser, removed.HiddenByUserId);
+            var types = await db.OutboxMessages.Select(o => o.EventType).ToListAsync();
+            Assert.Contains("ReviewOwnerReplied", types);
+            Assert.Contains("ReviewHidden", types);
+            Assert.Contains("AuditRecorded", types);
+        }
+    }
+
+    public sealed record ModeratedReviewJson(int Id, int ParkingLotId, int Rating, string? OwnerReply, bool IsReported, bool IsHidden);
+
+    public sealed record OwnerComplaintJson(string Code, string Status, string AssignedTeam, bool PayoutHeld,
+        DateTime? OwnerRespondedAtUtc, DateTime? EscalatedAtUtc, IReadOnlyList<MessageJson> Messages);
+
+    public sealed record PayoutHoldJson(string ComplaintCode, string Status, int ParkingLotId, int? OwnerProfileId, decimal Amount);
 
     public sealed record EligibilityJson(string BookingCode, bool CanReview, string? Reason, int? ReviewId);
 

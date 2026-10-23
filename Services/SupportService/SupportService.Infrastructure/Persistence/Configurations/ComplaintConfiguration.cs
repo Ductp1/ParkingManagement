@@ -10,7 +10,13 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
 {
     public void Configure(EntityTypeBuilder<Complaint> e)
     {
-        e.ToTable("Complaints");
+        e.ToTable("Complaints", t =>
+        {
+            // US-089 AC3 – bảo vệ ở tầng DB: không giữ tiền khi chưa biết chủ bãi, và ticket đã đóng thì không còn giữ tiền.
+            t.HasCheckConstraint("CK_Complaints_PayoutHold_RequiresOwner", "NOT \"PayoutHeld\" OR \"OwnerProfileId\" IS NOT NULL");
+            t.HasCheckConstraint("CK_Complaints_PayoutHold_OnlyWhileOpen", "NOT \"PayoutHeld\" OR \"Status\" NOT IN ('Resolved', 'Rejected')");
+        });
+        e.Property(x => x.RowVersion).IsConcurrencyToken();   // PostgreSQL: tự đóng dấu ở SaveChanges (giống Booking, Slot)
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.BookingCode).HasMaxLength(30);
         e.Property(x => x.Description).HasMaxLength(4000).IsRequired();
