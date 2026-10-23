@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from './layout/AdminLayout';
 import { SignedOutPage } from './layout/SignedOutPage';
 import { UnavailableListScreen, type UnavailableListSpec } from './components/UnavailableListScreen';
@@ -37,6 +37,15 @@ const unavailable = (key: keyof typeof U, extra?: Partial<UnavailableListSpec>) 
   <UnavailableListScreen key={key} spec={{ ...U[key], ...extra }} />
 );
 
+/** Đường dẫn admin cũ (menu MainNavbar) → tab mới. */
+const LEGACY_PATHS: Array<[string, string]> = [
+  ['users', 'operations/users'],
+  ['kyb-approvals', 'operations/kyb-review'],
+  ['parameters', 'access/system-settings'],
+  ['toggles', 'access/feature-flags'],
+  ['settlements', 'finance/settlements'],
+];
+
 /**
  * Cây route /admin/* (gắn trong src/routes/AppRoutes.tsx, bảo vệ role Admin bằng ProtectedRoute).
  * IA theo Figma "Admin Portal v1": /admin/{section}/{tab}[/:id]. AdminLayout chuyển /admin, /admin/{section}
@@ -46,6 +55,10 @@ export const AdminRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="signed-out" element={<SignedOutPage />} />
+      {/* Đường dẫn cũ của menu MainNavbar (/admin/users, /admin/kyb-approvals…) → tab tương ứng của cổng admin. */}
+      {LEGACY_PATHS.map(([from, to]) => (
+        <Route key={from} path={from} element={<Navigate to={`/admin/${to}`} replace />} />
+      ))}
       <Route element={<AdminLayout />}>
         {/* Overview */}
         <Route path="overview/dashboard" element={<DashboardPage />} />

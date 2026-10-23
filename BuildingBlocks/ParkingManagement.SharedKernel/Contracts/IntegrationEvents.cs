@@ -43,6 +43,10 @@ public sealed record RefundIssued(int RefundId, int PaymentId, int? BookingId, d
 // ===== SupportService =====
 /// <summary>OwnerProfileId = null khi chưa xác định được chủ bãi → chỉ thông báo cho đội Support.</summary>
 public sealed record ComplaintCreated(int ComplaintId, string Code, int ParkingLotId, int? OwnerProfileId) : IntegrationEvent;
+/// <summary>US-089: chủ bãi đã phản hồi tranh chấp → báo cho tài xế (UserId).</summary>
+public sealed record ComplaintOwnerResponded(int ComplaintId, string Code, int UserId, int ParkingLotId) : IntegrationEvent;
+/// <summary>US-089 AC2: quá 48 giờ chủ bãi không phản hồi → chuyển nền tảng (Supervisor/Admin) xử lý.</summary>
+public sealed record ComplaintEscalated(int ComplaintId, string Code, int UserId, int ParkingLotId, int? OwnerProfileId, string Reason) : IntegrationEvent;
 public sealed record ReviewCreated(int ReviewId, int ParkingLotId, byte Rating) : IntegrationEvent;
 
 // ===== Mọi service → AdminService =====
