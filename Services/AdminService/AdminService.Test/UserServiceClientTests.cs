@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.Users;
 using AdminService.Infrastructure;
 using AdminService.Infrastructure.Integrations;
@@ -381,7 +382,97 @@ public class UserServiceClientTests
         using var scope = provider.CreateScope();
 
         Assert.IsType<UserServiceClient>(scope.ServiceProvider.GetRequiredService<IUserServiceClient>());
+        Assert.IsType<UserServiceClient>(scope.ServiceProvider.GetRequiredService<IOwnerAccountClient>());   // US-116
     }
+
+    // ==================== US-116: U2 tạo tài khoản chủ bãi / U3 gửi lại link kích hoạt ====================
+
+    private static readonly IssueOwnerAccountCommand IssueCommand = new(12, "Nguyễn Thị Lan",
+        "lan.nguyen@thuducparking.vn", "0903456789", "Công ty CP Bãi xe Thủ Đức", "0316789012", "216 Võ Văn Ngân", "970436",
+        "Vietcombank", "0011000000099", "CONG TY CP BAI XE THU DUC");
+
+    [Fact]
+    public async Task Issue_owner_account_posts_command_with_idempotency_key()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.Created, """{ "userId": 41, "ownerProfileId": 9 }"""));
+
+        var result = await CreateClient(handler).IssueOwnerAccountAsync(IssueCommand, "partner-application-12", CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://gateway.test/api/v1/users/owner-profiles", request.RequestUri!.ToString());
+        Assert.Equal("partner-application-12", request.Headers.GetValues("Idempotency-Key").Single());
+        var body = JsonDocument.Parse(handler.Bodies.Single()!).RootElement;
+        Assert.Equal(12, body.GetProperty("partnerApplicationId").GetInt32());
+        Assert.Equal("0316789012", body.GetProperty("taxCode").GetString());
+        Assert.Equal("0011000000099", body.GetProperty("bankAccountNumber").GetString());
+        Assert.False(body.TryGetProperty("commissionRateOverride", out _));   // hoa hồng theo từng bãi, không gửi khi tạo tài khoản
+        Assert.Equal(new IssuedOwnerAccountDto(41, 9), result);
+    }
+
+    [Fact]
+    public async Task Issue_owner_account_duplicate_is_conflict()
+    {
+        var handler = new FakeHandler(_ => Json(HttpStatusCode.Conflict, """{ "status": 409, "detail": "Email đã tồn tại" }"""));
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => CreateClient(handler).IssueOwnerAccountAsync(IssueCommand, "partner-application-12", CancellationToken.None));
+        Assert.Equal("Email, số điện thoại hoặc mã số thuế của đối tác đã thuộc một tài khoản khác bên UserService.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, false)]          // UserService chưa có endpoint U2
+    [InlineData(HttpStatusCode.NotFound, true)]
+    [InlineData(HttpStatusCode.InternalServerError, true)]
+    [InlineData(HttpStatusCode.BadRequest, true)]
+    public async Task Issue_owner_account_other_failures_are_user_service_unavailable(HttpStatusCode status, bool withProblemBody)
+    {
+        var handler = new FakeHandler(_ => withProblemBody
+            ? Json(status, """{ "status": 0, "title": "x" }""")
+            : new HttpResponseMessage(status));
+
+        var ex = await Assert.ThrowsAsync<DependencyUnavailableException>(
+            () => CreateClient(handler).IssueOwnerAccountAsync(IssueCommand, "partner-application-12", CancellationToken.None));
+        Assert.Equal(UnavailableMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task Issue_owner_account_rejected_token_is_unauthenticated()
+        => await Assert.ThrowsAsync<AuthenticationException>(() => CreateClient(
+                new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)))
+            .IssueOwnerAccountAsync(IssueCommand, "partner-application-12", CancellationToken.None));
+
+    [Theory]
+    [InlineData(HttpStatusCode.NoContent)]
+    [InlineData(HttpStatusCode.OK)]
+    public async Task Resend_activation_posts_without_reading_response(HttpStatusCode status)
+    {
+        var handler = new FakeHandler(_ => new HttpResponseMessage(status));
+
+        await CreateClient(handler).ResendActivationAsync(9, CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, request.Method);
+        Assert.Equal("http://gateway.test/api/v1/users/owner-profiles/9/activation-link", request.RequestUri!.ToString());
+    }
+
+    [Fact]
+    public async Task Resend_activation_missing_owner_is_not_found()
+        => await Assert.ThrowsAsync<NotFoundException>(() => CreateClient(
+                new FakeHandler(_ => Json(HttpStatusCode.NotFound, """{ "status": 404 }""")))
+            .ResendActivationAsync(9, CancellationToken.None));
+
+    [Fact]
+    public async Task Resend_activation_without_endpoint_is_user_service_unavailable()
+        => await Assert.ThrowsAsync<DependencyUnavailableException>(() => CreateClient(
+                new FakeHandler(_ => new HttpResponseMessage(HttpStatusCode.NotFound)))
+            .ResendActivationAsync(9, CancellationToken.None));
+
+    [Fact]
+    public async Task Resend_activation_connection_failure_is_user_service_unavailable()
+        => await Assert.ThrowsAsync<DependencyUnavailableException>(() => CreateClient(
+                new FakeHandler(_ => throw new HttpRequestException("Connection refused")))
+            .ResendActivationAsync(9, CancellationToken.None));
 
     [Theory]
     [InlineData(null)]

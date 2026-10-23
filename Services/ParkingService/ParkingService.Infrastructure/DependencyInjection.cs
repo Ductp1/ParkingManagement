@@ -4,6 +4,7 @@ using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Application.Abstractions;
 using ParkingService.Infrastructure.Persistence;
+using ParkingService.Infrastructure.Persistence.Queries;
 using ParkingService.Infrastructure.Persistence.Repositories;
 using ParkingService.Infrastructure.Persistence.Seeding;
 
@@ -20,6 +21,8 @@ public static class DependencyInjection
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
+        services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
+        services.AddScoped<IAdminKybQueries, AdminKybQueries>();               // US-055 (đọc)
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
         return services;
     }
