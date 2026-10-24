@@ -3,8 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using PaymentService.Application.Features;
+using PaymentService.Application.Interfaces;
 using PaymentService.Infrastructure.Persistence;
 using PaymentService.Infrastructure.Persistence.Queries;
+using PaymentService.Infrastructure.Persistence.Repositories;
 using PaymentService.Infrastructure.Persistence.Seeding;
 using PaymentService.Infrastructure.Vnpay;
 
@@ -20,6 +22,8 @@ public static class DependencyInjection
         services.AddScoped<IHolidayRepository, HolidayRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IVnpayGateway, VnpayGateway>();
         return services;
     }
 }
