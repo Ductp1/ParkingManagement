@@ -18,9 +18,28 @@ export const DriverHomePage: React.FC = () => {
   const [coords, setCoords] = useState<{ lat: number; lng: number }>({ lat: 10.7769, lng: 106.7009 });
   const [isLocating, setIsLocating] = useState(false);
   const [isHeightFilterEnabled, setIsHeightFilterEnabled] = useState(true);
+  const [filterEv, setFilterEv] = useState(false);
+  const [filterRoof, setFilterRoof] = useState(false);
+  const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const [filterAvailableOnly, setFilterAvailableOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'Distance' | 'AvailableSlots' | 'Rating'>('Distance');
 
   const performSearch = useCallback(
-    (lat: number, lng: number, radKm: number, heightCm?: number) => {
+    (
+      lat: number,
+      lng: number,
+      radKm: number,
+      heightCm?: number,
+      ev?: boolean,
+      roof?: boolean,
+      openNow?: boolean,
+      availableOnly?: boolean,
+      sort?: string
+    ) => {
+      const amenitiesList: string[] = [];
+      if (ev) amenitiesList.push('EV');
+      if (roof) amenitiesList.push('COVERED');
+
       dispatch(
         searchParkingLots({
           lat,
@@ -28,15 +47,52 @@ export const DriverHomePage: React.FC = () => {
           radiusKm: radKm,
           vehicleHeightCm: heightCm,
           limit: 20,
+          amenities: amenitiesList.length > 0 ? amenitiesList.join(',') : undefined,
+          openNowOnly: openNow,
+          hasAvailableSlotsOnly: availableOnly,
+          sortBy: sort || 'Distance',
         })
       );
     },
     [dispatch]
   );
 
+  const triggerSearch = useCallback(
+    (overrides?: {
+      rad?: string;
+      height?: boolean;
+      ev?: boolean;
+      roof?: boolean;
+      openNow?: boolean;
+      available?: boolean;
+      sort?: 'Distance' | 'AvailableSlots' | 'Rating';
+    }) => {
+      const r = overrides?.rad !== undefined ? overrides.rad : radius;
+      const hEnabled = overrides?.height !== undefined ? overrides.height : isHeightFilterEnabled;
+      const ev = overrides?.ev !== undefined ? overrides.ev : filterEv;
+      const roof = overrides?.roof !== undefined ? overrides.roof : filterRoof;
+      const openNow = overrides?.openNow !== undefined ? overrides.openNow : filterOpenNow;
+      const avail = overrides?.available !== undefined ? overrides.available : filterAvailableOnly;
+      const s = overrides?.sort !== undefined ? overrides.sort : sortBy;
+
+      performSearch(
+        coords.lat,
+        coords.lng,
+        Number(r),
+        hEnabled ? vehicleHeight : undefined,
+        ev,
+        roof,
+        openNow,
+        avail,
+        s
+      );
+    },
+    [coords.lat, coords.lng, radius, isHeightFilterEnabled, vehicleHeight, filterEv, filterRoof, filterOpenNow, filterAvailableOnly, sortBy, performSearch]
+  );
+
   const handleGetCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      performSearch(coords.lat, coords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
+      triggerSearch();
       return;
     }
 
@@ -47,13 +103,13 @@ export const DriverHomePage: React.FC = () => {
         setCoords(nextCoords);
         setLocationInput('Vị trí GPS của bạn');
         setIsLocating(false);
-        performSearch(nextCoords.lat, nextCoords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
+        triggerSearch();
       },
       (err) => {
         console.warn('Lỗi định vị GPS hoặc bị từ chối:', err.message);
         setIsLocating(false);
         setLocationInput('Trung tâm TP.HCM (Mặc định)');
-        performSearch(coords.lat, coords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
+        triggerSearch();
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
@@ -65,7 +121,7 @@ export const DriverHomePage: React.FC = () => {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    performSearch(coords.lat, coords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
+    triggerSearch();
   };
 
 
@@ -172,14 +228,14 @@ export const DriverHomePage: React.FC = () => {
               </button>
             </form>
 
-            {/* Quick Filter Chips */}
+            {/* Quick Filter Chips (US-015, US-016) */}
             <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs">
               <button
                 type="button"
                 onClick={() => {
                   const nextState = !isHeightFilterEnabled;
                   setIsHeightFilterEnabled(nextState);
-                  performSearch(coords.lat, coords.lng, Number(radius), nextState ? vehicleHeight : undefined);
+                  triggerSearch({ height: nextState });
                 }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer shadow-xs ${
                   isHeightFilterEnabled
@@ -191,27 +247,69 @@ export const DriverHomePage: React.FC = () => {
                 <i className="fa-solid fa-shield-halved text-[10px]"></i>
                 <span>
                   {isHeightFilterEnabled
-                    ? `🛡️ Chống cạ trần (${vehicleHeight} cm + 10cm an toàn)`
-                    : 'Chống cạ trần (Đang tắt)'}
+                    ? `🛡️ Chống cạ trần (${vehicleHeight} cm)`
+                    : 'Chống cạ trần (Tắt)'}
                 </span>
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-amber-300 shadow-xs hover:bg-amber-50 transition-all font-semibold text-[11px]"
+                onClick={() => {
+                  const nextState = !filterEv;
+                  setFilterEv(nextState);
+                  triggerSearch({ ev: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterEv
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white text-slate-800 border-amber-300 hover:bg-amber-50'
+                }`}
               >
-                <span className="text-amber-500 font-black text-xs">⚡</span> Có sạc EV
+                <span className="text-xs">⚡</span> Có sạc EV
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-blue-200 shadow-xs hover:bg-blue-50 transition-all font-semibold text-[11px]"
+                onClick={() => {
+                  const nextState = !filterRoof;
+                  setFilterRoof(nextState);
+                  triggerSearch({ roof: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterRoof
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-slate-800 border-indigo-200 hover:bg-indigo-50'
+                }`}
               >
-                <i className="fa-solid fa-warehouse text-blue-600 text-[10px]"></i> Hầm có mái
+                <i className="fa-solid fa-warehouse text-[10px]"></i> Hầm có mái
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-emerald-200 shadow-xs hover:bg-emerald-50 transition-all font-semibold text-[11px]"
+                onClick={() => {
+                  const nextState = !filterAvailableOnly;
+                  setFilterAvailableOnly(nextState);
+                  triggerSearch({ available: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterAvailableOnly
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-800 border-emerald-200 hover:bg-emerald-50'
+                }`}
               >
-                <i className="fa-solid fa-video text-emerald-600 text-[10px]"></i> Camera 24/7
+                <i className="fa-solid fa-square-check text-[10px]"></i> Còn chỗ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !filterOpenNow;
+                  setFilterOpenNow(nextState);
+                  triggerSearch({ openNow: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterOpenNow
+                    ? 'bg-sky-600 text-white border-sky-600'
+                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <i className="fa-regular fa-clock text-[10px]"></i> Đang mở cửa
               </button>
             </div>
           </div>
@@ -389,11 +487,27 @@ export const DriverHomePage: React.FC = () => {
 
       {/* Recommended Parking Section */}
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 my-6 relative z-10 flex-1">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100"></span>
             <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Đề xuất tối ưu &amp; Bãi đỗ gần bạn</h2>
-            {searchResults.length > 0 && <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold shadow-xs">{searchResults.length} bãi gần nhất</span>}
+            {searchResults.length > 0 && <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold shadow-xs">{searchResults.length} bãi</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sắp xếp:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                const s = e.target.value as 'Distance' | 'AvailableSlots' | 'Rating';
+                setSortBy(s);
+                triggerSearch({ sort: s });
+              }}
+              className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-hidden focus:border-blue-500 cursor-pointer"
+            >
+              <option value="Distance">📍 Gần nhất</option>
+              <option value="AvailableSlots">🟢 Nhiều chỗ trống nhất</option>
+              <option value="Rating">⭐ Đánh giá cao nhất</option>
+            </select>
           </div>
           <button
             onClick={() => navigate('/driver/parking-lots')}

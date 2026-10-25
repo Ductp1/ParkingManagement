@@ -219,6 +219,81 @@ public class ParkingLotTests
         await Assert.ThrowsAsync<ValidationException>(() =>
             useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, VehicleHeightCm: vehicleHeight, Limit: limit)));
     }
+
+
+
+    [Fact] // US-016: Loc theo tien ich (Amenities)
+    public async Task Search_WithAmenitiesFilter_MatchesLotsWithRequestedAmenities()
+    {
+        var lot1 = Lot(1, ParkingLotStatus.Active, 10.7781, 106.7019);
+        lot1.Amenities.Add(new LotAmenity { ParkingLotId = 1, Code = "EV", Name = "Trụ sạc xe điện" });
+
+        var lot2 = Lot(2, ParkingLotStatus.Active, 10.7782, 106.7018);
+        lot2.Amenities.Add(new LotAmenity { ParkingLotId = 2, Code = "ROOF", Name = "Mái che" });
+
+        var lot3 = Lot(3, ParkingLotStatus.Active, 10.7783, 106.7017);
+        lot3.Amenities.Add(new LotAmenity { ParkingLotId = 3, Code = "EV", Name = "Trụ sạc xe điện" });
+        lot3.Amenities.Add(new LotAmenity { ParkingLotId = 3, Code = "ROOF", Name = "Mái che" });
+
+        var repo = new FakeRepo([lot1, lot2, lot3]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        // Lọc 1 tiện ích EV -> Trả về lot1 và lot3
+        var resEv = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, Amenities: "EV"));
+        Assert.Equal([1, 3], resEv.Select(x => x.Id));
+
+        // Lọc cả 2 tiện ích EV và ROOF -> Chỉ lot3 đáp ứng
+        var resBoth = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, Amenities: "EV,ROOF"));
+        Assert.Equal([3], resBoth.Select(x => x.Id));
+    }
+
+    [Fact] // US-016: Loc bai dang mo cua va bai con cho trong
+    public async Task Search_WithOpenNowAndAvailableSlotsFilter_FiltersCorrectly()
+    {
+        var lotOpenWithSlots = new ParkingLot(1, "Bãi mở còn chỗ", "Đ/c 1", 10.7781, 106.7019, 100, 10, 210, new TimeOnly(0, 0), new TimeOnly(23, 59), ParkingLotStatus.Active);
+        var lotClosed = new ParkingLot(2, "Bãi đóng", "Đ/c 2", 10.7782, 106.7018, 100, 10, 210, new TimeOnly(1, 0), new TimeOnly(2, 0), ParkingLotStatus.Active);
+        var lotFull = new ParkingLot(3, "Bãi hết chỗ", "Đ/c 3", 10.7783, 106.7017, 100, 0, 210, new TimeOnly(0, 0), new TimeOnly(23, 59), ParkingLotStatus.Active);
+
+        var repo = new FakeRepo([lotOpenWithSlots, lotClosed, lotFull]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        // Lọc chỉ bãi còn chỗ
+        var resAvailable = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, HasAvailableSlotsOnly: true));
+        Assert.DoesNotContain(resAvailable, x => x.Id == 3);
+
+        // Lọc cả mở cửa và còn chỗ
+        var resBoth = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, OpenNowOnly: true, HasAvailableSlotsOnly: true));
+        Assert.Single(resBoth);
+        Assert.Equal(1, resBoth[0].Id);
+    }
+
+    [Fact] // US-016: Sap xep theo so cho trong va theo danh gia
+    public async Task Search_WithSortBy_OrdersCorrectly()
+    {
+        var lotNearFewSlots = new ParkingLot(1, "Bãi gần ít chỗ", "Đ/c 1", 10.7771, 106.7011, 100, 2, 210, new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active);
+        var lotFarManySlots = new ParkingLot(2, "Bãi xa nhiều chỗ", "Đ/c 2", 10.7900, 106.7100, 100, 80, 210, new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active);
+
+        var repo = new FakeRepo([lotNearFewSlots, lotFarManySlots]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        // Mặc định sắp theo khoảng cách: lot 1 gần hơn -> lot 1 trước
+        var resDistance = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, SortBy: "Distance"));
+        Assert.Equal(1, resDistance[0].Id);
+
+        // Sắp theo AvailableSlots: lot 2 (80 chỗ) > lot 1 (2 chỗ) -> lot 2 trước
+        var resSlots = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, SortBy: "AvailableSlots"));
+        Assert.Equal(2, resSlots[0].Id);
+    }
+
+    [Fact] // US-016: Validation SortBy khong hop le
+    public async Task Search_WithInvalidSortBy_ThrowsValidationException()
+    {
+        var repo = new FakeRepo([]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, SortBy: "InvalidCriteria")));
+    }
 
     private sealed class FakeRepo(List<ParkingLot> lots) : IParkingLotRepository
     {
