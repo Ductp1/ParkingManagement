@@ -164,6 +164,62 @@ public class ParkingLotTests
             useCase.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm)));
     }
 
+
+    [Theory] // US-015: TC-SEARCH-02 Hard Height Clearance - xe cao H cm thi tran phai >= H + 10 cm
+    [InlineData(220, false)] // Ford Transit 220 cm + 10 margin = 230 > tran ham 210 -> Bi loai (HARD-BLOCK)
+    [InlineData(201, false)] // 201 cm + 10 margin = 211 > tran ham 210 -> Bi loai
+    [InlineData(200, true)]  // 200 cm + 10 margin = 210 <= tran ham 210 -> Xuat hien hop le
+    [InlineData(145, true)]  // Sedan 145 cm + 10 margin = 155 <= tran ham 210 -> Xuat hien hop le
+    public async Task Search_WithVehicleHeight_AppliesHardHeightClearanceRule(int vehicleHeightCm, bool shouldAppear)
+    {
+        var lot = Lot(1, ParkingLotStatus.Active, 10.7781, 106.7019, height: 210); // Tran ham 210 cm
+        var repo = new FakeRepo([lot]);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, VehicleHeightCm: vehicleHeightCm));
+
+        if (shouldAppear)
+        {
+            Assert.Single(result);
+            Assert.Equal(1, result[0].Id);
+        }
+        else
+        {
+            Assert.Empty(result);
+        }
+    }
+
+    [Fact] // US-015: Top-N Limit - lay dung so luong limit toi da
+    public async Task Search_Respects_Limit_Parameter()
+    {
+        var lots = new List<ParkingLot>
+        {
+            Lot(1, ParkingLotStatus.Active, 10.7781, 106.7019),
+            Lot(2, ParkingLotStatus.Active, 10.7782, 106.7018),
+            Lot(3, ParkingLotStatus.Active, 10.7783, 106.7017),
+            Lot(4, ParkingLotStatus.Active, 10.7784, 106.7016),
+            Lot(5, ParkingLotStatus.Active, 10.7785, 106.7015),
+        };
+        var repo = new FakeRepo(lots);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, Limit: 3));
+
+        Assert.Equal(3, result.Count);
+    }
+
+    [Theory] // US-015: Validation cho chieu cao xe va limit
+    [InlineData(40, 20)]   // Chieu cao < 50 cm
+    [InlineData(550, 20)]  // Chieu cao > 500 cm
+    [InlineData(150, 0)]   // Limit <= 0
+    [InlineData(150, 105)] // Limit > 100
+    public async Task Search_WithInvalidVehicleHeightOrLimit_ThrowsValidationException(int vehicleHeight, int limit)
+    {
+        var repo = new FakeRepo([]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, VehicleHeightCm: vehicleHeight, Limit: limit)));
+    }
+
     private sealed class FakeRepo(List<ParkingLot> lots) : IParkingLotRepository
     {
         public Task<ParkingLot?> GetByIdAsync(int id, CancellationToken cancellationToken = default)

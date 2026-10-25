@@ -18,6 +18,7 @@ export const parkingApi = {
     lng: number;
     radiusKm?: number;
     vehicleHeightCm?: number;
+    limit?: number;
   }): Promise<ParkingLotSearchItemDto[]> => {
     const response = await apiClient.get<ParkingLotSearchItemDto[]>('/api/v1/parking-lots/search', {
       params,

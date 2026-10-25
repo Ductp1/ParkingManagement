@@ -57,8 +57,9 @@ public sealed class ParkingLotsController(
     [ProducesResponseType<IReadOnlyList<ParkingLotSearchItemDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ParkingLotSearchItemDto>>> Search(
         [FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusKm = 5, [FromQuery] int? vehicleHeightCm = null,
+        [FromQuery] int limit = 20,
         CancellationToken cancellationToken = default)
-        => Ok(await searchParkingLots.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm, vehicleHeightCm), cancellationToken));
+        => Ok(await searchParkingLots.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm, vehicleHeightCm, limit), cancellationToken));
 
     /// <summary>POST /api/v1/parking-lots – Đăng ký bãi đỗ xe mới (US-053).</summary>
     [HttpPost]

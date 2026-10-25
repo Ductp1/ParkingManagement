@@ -7,23 +7,36 @@ export const DriverHomePage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { searchResults, isLoading } = useAppSelector((state) => state.parking);
+  const { vehicles } = useAppSelector((state) => state.vehicle);
+
+  const activeVehicle = vehicles.find((v) => v.isDefault) || vehicles[0];
+  const vehicleHeight = activeVehicle?.heightCm || 145; // Mặc định Sedan 145 cm
 
   const [selectedLotPopup, setSelectedLotPopup] = useState(true);
   const [locationInput, setLocationInput] = useState('Vị trí hiện tại (GPS)');
   const [radius, setRadius] = useState('5');
   const [coords, setCoords] = useState<{ lat: number; lng: number }>({ lat: 10.7769, lng: 106.7009 });
   const [isLocating, setIsLocating] = useState(false);
+  const [isHeightFilterEnabled, setIsHeightFilterEnabled] = useState(true);
 
   const performSearch = useCallback(
-    (lat: number, lng: number, radKm: number) => {
-      dispatch(searchParkingLots({ lat, lng, radiusKm: radKm }));
+    (lat: number, lng: number, radKm: number, heightCm?: number) => {
+      dispatch(
+        searchParkingLots({
+          lat,
+          lng,
+          radiusKm: radKm,
+          vehicleHeightCm: heightCm,
+          limit: 20,
+        })
+      );
     },
     [dispatch]
   );
 
   const handleGetCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      performSearch(coords.lat, coords.lng, Number(radius));
+      performSearch(coords.lat, coords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
       return;
     }
 
@@ -34,13 +47,13 @@ export const DriverHomePage: React.FC = () => {
         setCoords(nextCoords);
         setLocationInput('Vị trí GPS của bạn');
         setIsLocating(false);
-        performSearch(nextCoords.lat, nextCoords.lng, Number(radius));
+        performSearch(nextCoords.lat, nextCoords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
       },
       (err) => {
         console.warn('Lỗi định vị GPS hoặc bị từ chối:', err.message);
         setIsLocating(false);
         setLocationInput('Trung tâm TP.HCM (Mặc định)');
-        performSearch(coords.lat, coords.lng, Number(radius));
+        performSearch(coords.lat, coords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
       },
       { timeout: 8000, enableHighAccuracy: true }
     );
@@ -52,7 +65,7 @@ export const DriverHomePage: React.FC = () => {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    performSearch(coords.lat, coords.lng, Number(radius));
+    performSearch(coords.lat, coords.lng, Number(radius), isHeightFilterEnabled ? vehicleHeight : undefined);
   };
 
 
@@ -160,7 +173,28 @@ export const DriverHomePage: React.FC = () => {
             </form>
 
             {/* Quick Filter Chips */}
-            <div className="flex items-center justify-center gap-2 mt-3 text-xs">
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !isHeightFilterEnabled;
+                  setIsHeightFilterEnabled(nextState);
+                  performSearch(coords.lat, coords.lng, Number(radius), nextState ? vehicleHeight : undefined);
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer shadow-xs ${
+                  isHeightFilterEnabled
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+                title="Quy tắc an toàn TC-SEARCH-02: Ẩn bãi có trần < Chiều cao xe + 10cm"
+              >
+                <i className="fa-solid fa-shield-halved text-[10px]"></i>
+                <span>
+                  {isHeightFilterEnabled
+                    ? `🛡️ Chống cạ trần (${vehicleHeight} cm + 10cm an toàn)`
+                    : 'Chống cạ trần (Đang tắt)'}
+                </span>
+              </button>
               <button
                 type="button"
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-amber-300 shadow-xs hover:bg-amber-50 transition-all font-semibold text-[11px]"
@@ -336,7 +370,9 @@ export const DriverHomePage: React.FC = () => {
             <div className="text-left md:text-right">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Xe đang liên kết</span>
               <span className="text-xs font-black text-slate-800 tracking-wide">
-                51K-889.32 <span className="font-medium text-slate-500">(Mercedes C300)</span>
+                {activeVehicle
+                  ? `${activeVehicle.plateDisplay || activeVehicle.plateNumber} (${activeVehicle.brand || ''} ${activeVehicle.model || 'Xe'} - Cao ${activeVehicle.heightCm} cm)`
+                  : '51K-889.32 (Mercedes C300 - Cao 145 cm)'}
               </span>
             </div>
             <button
@@ -461,7 +497,11 @@ export const DriverHomePage: React.FC = () => {
                       <div className="flex items-start justify-between gap-1 mb-0.5">
                         <h3 className="font-extrabold text-slate-900 text-sm truncate" title={lot.name}>{lot.name}</h3>
                       </div>
-                      <p className="text-slate-500 text-[11px] mb-3 truncate" title={lot.address}>{lot.address}</p>
+                      <p className="text-slate-500 text-[11px] mb-1.5 truncate" title={lot.address}>{lot.address}</p>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-3">
+                        <i className="fa-solid fa-arrow-down-up-across-line text-blue-500 text-[10px]"></i>
+                        <span>Trần tối đa: <strong className="text-slate-700 font-bold">{lot.maxHeightCm} cm</strong></span>
+                      </div>
 
                       <div className="flex items-center justify-between text-center py-2 px-2 bg-blue-50/60 rounded-xl text-slate-700 mb-3 border border-blue-100">
                         <div className="flex-1">

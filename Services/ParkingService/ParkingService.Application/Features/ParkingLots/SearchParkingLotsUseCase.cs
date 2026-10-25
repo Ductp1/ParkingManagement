@@ -5,7 +5,7 @@ using ParkingService.Domain.Services;
 namespace ParkingService.Application.Features.ParkingLots;
 
 /// <summary>Input tìm bãi (UC-08): vị trí tài xế, bán kính, chiều cao xe (tùy chọn).</summary>
-public sealed record SearchParkingLotsQuery(double Latitude, double Longitude, double RadiusKm = 5, int? VehicleHeightCm = null);
+public sealed record SearchParkingLotsQuery(double Latitude, double Longitude, double RadiusKm = 5, int? VehicleHeightCm = null, int Limit = 20);
 
 public interface ISearchParkingLotsUseCase
 {
@@ -26,10 +26,14 @@ public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, T
             throw new ValidationException("Tọa độ GPS không hợp lệ.");
         if (query.RadiusKm is <= 0 or > 50)
             throw new ValidationException("Bán kính tìm kiếm phải trong khoảng (0, 50] km.");
+        if (query.VehicleHeightCm is { } h && h is < 50 or > 500)
+            throw new ValidationException("Chiều cao xe phải trong khoảng [50, 500] cm.");
+        if (query.Limit is <= 0 or > 100)
+            throw new ValidationException("Giới hạn kết quả (limit) phải trong khoảng [1, 100].");
 
         var box = GeoDistance.BoundingBox(query.Latitude, query.Longitude, query.RadiusKm);
         // Xe cao + 10 cm phải ≤ trần bãi → trần tối thiểu = chiều cao xe + 10
-        var minHeight = query.VehicleHeightCm is { } h ? h + 10 : 0;
+        var minHeight = query.VehicleHeightCm.HasValue ? query.VehicleHeightCm.Value + 10 : 0;
 
         var candidates = await repository.FindActiveInBoxAsync(box.MinLat, box.MaxLat, box.MinLng, box.MaxLng, minHeight, cancellationToken);
         var nowVn = TimeOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime.AddHours(7));
@@ -39,6 +43,7 @@ public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, T
             .Where(x => x.Distance <= query.RadiusKm)
             .OrderBy(x => x.Distance)
             .ThenByDescending(x => x.Lot.AvailableSlots)
+            .Take(query.Limit)
             .Select(x => new ParkingLotSearchItemDto(
                 x.Lot.Id,
                 x.Lot.Name,
