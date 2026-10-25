@@ -40,8 +40,21 @@ public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, T
             .OrderBy(x => x.Distance)
             .ThenByDescending(x => x.Lot.AvailableSlots)
             .Select(x => new ParkingLotSearchItemDto(
-                x.Lot.Id, x.Lot.Name, x.Lot.Address, Math.Round(x.Distance, 2),
-                x.Lot.AvailableSlots, x.Lot.TotalSlots, x.Lot.MaxHeightCm, x.Lot.IsOpenAt(nowVn)))
+                x.Lot.Id,
+                x.Lot.Name,
+                x.Lot.Address,
+                x.Lot.Latitude,
+                x.Lot.Longitude,
+                Math.Round(x.Distance, 2),
+                Math.Max(1, (int)Math.Round(x.Distance / 25.0 * 60.0)),
+                x.Lot.AvailableSlots,
+                x.Lot.TotalSlots,
+                x.Lot.MaxHeightCm,
+                x.Lot.IsOpenAt(nowVn),
+                x.Lot.CoverImageUrl,
+                x.Lot.RatingAverage,
+                x.Lot.RatingCount,
+                x.Lot.Amenities?.Select(a => a.Name).ToList() ?? []))
             .ToList();
     }
 }

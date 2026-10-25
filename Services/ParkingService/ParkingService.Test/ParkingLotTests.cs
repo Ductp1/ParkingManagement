@@ -110,6 +110,59 @@ public class ParkingLotTests
 
         Assert.Equal([1, 4], result.Select(r => r.Id));
     }
+    [Fact] // US-014: AC1 & AC2 - Tra ve day du thong tin toa do, khoang cach, thoi gian du kien va tien ich
+    public async Task Search_Returns_Complete_Details_For_Nearby_Active_Lot()
+    {
+        var lot = new ParkingLot(1, "Bai xe Vincom Dong Khoi", "72 Le Thanh Ton", 10.7781, 106.7019, 100, 42, 210,
+            new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active, 1, IntegrationTier.PmsApi,
+            "Mo ta bai Vincom", "02838000001");
+        lot.Amenities.Add(new LotAmenity { ParkingLotId = 1, Code = "EV", Name = "Tru sac xe dien" });
+
+        var repo = new FakeRepo([lot]);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5));
+
+        Assert.Single(result);
+        var item = result[0];
+        Assert.Equal(1, item.Id);
+        Assert.Equal("Bai xe Vincom Dong Khoi", item.Name);
+        Assert.Equal("72 Le Thanh Ton", item.Address);
+        Assert.Equal(10.7781, item.Latitude);
+        Assert.Equal(106.7019, item.Longitude);
+        Assert.InRange(item.DistanceKm, 0.1, 0.2);
+        Assert.True(item.EstimatedTravelTimeMinutes >= 1);
+        Assert.Equal(42, item.AvailableSlots);
+        Assert.Equal(100, item.TotalSlots);
+        Assert.Equal(210, item.MaxHeightCm);
+        Assert.True(item.IsOpenNow);
+        Assert.Contains("Tru sac xe dien", item.Amenities!);
+    }
+
+    [Fact] // US-014: AC4 - Khong co bai trong ban kinh tra ve danh sach rong
+    public async Task Search_When_No_Lots_In_Radius_Returns_Empty_List()
+    {
+        var repo = new FakeRepo([Lot(2, ParkingLotStatus.Active, 10.8136, 106.6621)]);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 2));
+
+        Assert.Empty(result);
+    }
+
+    [Theory] // US-014: Validation toa do va ban kinh
+    [InlineData(95, 106, 5)]
+     [InlineData(-95, 106, 5)]
+    [InlineData(10, 185, 5)]
+     [InlineData(10, -185, 5)]
+    [InlineData(10, 106, 0)]
+     [InlineData(10, 106, 55)]
+    public async Task Search_With_Invalid_Params_Throws_ValidationException(double lat, double lng, double radiusKm)
+    {
+        var repo = new FakeRepo([]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm)));
+    }
 
     private sealed class FakeRepo(List<ParkingLot> lots) : IParkingLotRepository
     {

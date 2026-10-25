@@ -25,9 +25,16 @@ export interface ParkingLotSearchItemDto {
   id: number;
   name: string;
   address: string;
+  latitude: number;
+  longitude: number;
   distanceKm: number;
+  estimatedTravelTimeMinutes: number;
   availableSlots: number;
   totalSlots: number;
   maxHeightCm: number;
   isOpenNow: boolean;
+  coverImageUrl?: string | null;
+  ratingAverage?: number;
+  ratingCount?: number;
+  amenities?: string[];
 }
