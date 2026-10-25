@@ -14,6 +14,7 @@ import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 
 import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
 import { SupportPage } from '@/areas/driver/pages/SupportPage';
+import { KycPage } from '@/areas/driver/pages/KycPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -33,6 +34,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="parking-lots/:id" element={<LotDetailPage />} />
             <Route path="history" element={<BookingHistoryPage />} />
             <Route path="support" element={<SupportPage />} />
+            <Route path="kyc" element={<KycPage />} />
           </Route>
         </Route>
 

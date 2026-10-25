@@ -100,6 +100,7 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Trang chủ', path: '/driver', icon: 'home' },
     { label: 'Bãi đỗ & Sơ đồ', path: '/driver/parking-lots', icon: 'local_parking' },
     { label: 'Xe của tôi', path: '/driver/vehicles', icon: 'directions_car' },
+    { label: 'Xác minh KYC', path: '/driver/kyc', icon: 'verified_user' },
     { label: 'Lịch sử đặt', path: '/driver/history', icon: 'receipt_long' },
     { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
   ],
