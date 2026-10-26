@@ -440,16 +440,16 @@ export const BookingHistoryPage: React.FC = () => {
         {/* 5. Booking Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[1100px]">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-6">Mã đặt chỗ & Xe</th>
-                  <th className="py-3.5 px-6">Bãi đỗ & Vị trí</th>
-                  <th className="py-3.5 px-6">Thời gian</th>
-                  <th className="py-3.5 px-6">Dịch vụ</th>
-                  <th className="py-3.5 px-6">Tổng tiền</th>
-                  <th className="py-3.5 px-6">Trạng thái</th>
-                  <th className="py-3.5 px-6 text-right">Thao tác</th>
+                  <th className="py-3.5 px-6 min-w-[320px] whitespace-nowrap">Mã đặt chỗ & Xe</th>
+                  <th className="py-3.5 px-6 min-w-[220px]">Bãi đỗ & Vị trí</th>
+                  <th className="py-3.5 px-6 min-w-[180px]">Thời gian</th>
+                  <th className="py-3.5 px-6 min-w-[160px]">Dịch vụ</th>
+                  <th className="py-3.5 px-6 min-w-[140px]">Tổng tiền</th>
+                  <th className="py-3.5 px-6 min-w-[140px]">Trạng thái</th>
+                  <th className="py-3.5 px-6 text-right min-w-[150px]">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -474,31 +474,31 @@ export const BookingHistoryPage: React.FC = () => {
                             : `hover:bg-slate-50/80 ${isUpcoming ? 'bg-blue-50/30' : ''}`
                         }`}
                       >
-                        <td className="py-4 px-6 relative">
+                        <td className="py-4 px-6 relative whitespace-nowrap">
                           {isUpcoming && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>}
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`font-bold ${isUpcoming ? 'text-blue-600 text-sm' : isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                          <div className="flex flex-col gap-1.5 min-w-[300px]">
+                            <div className="flex items-center gap-2 flex-nowrap">
+                              <span className={`font-bold font-mono tracking-tight whitespace-nowrap ${isUpcoming ? 'text-blue-600 text-sm' : isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                                 {b.code}
                               </span>
                               {isUpcoming && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">
-                                  <span className="material-symbols-outlined text-[12px]">camera</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold whitespace-nowrap shrink-0">
+                                  <span className="material-symbols-outlined text-[13px]">camera</span>
                                   ANPR
                                 </span>
                               )}
                               {b.id === '6' && isUpcoming && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
-                                  <span className="material-symbols-outlined text-[12px]">timer</span>
-                                  Cận giờ &lt; 1h
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-extrabold whitespace-nowrap shrink-0 border border-amber-300 shadow-2xs">
+                                  <span className="material-symbols-outlined text-[13px] text-amber-600">timer</span>
+                                  <span>Cận giờ &lt; 1h</span>
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-slate-500 text-xs">
-                              <span className="material-symbols-outlined text-[16px]">directions_car</span>
+                            <div className="flex items-center gap-1.5 text-slate-500 text-xs whitespace-nowrap">
+                              <span className="material-symbols-outlined text-[16px] text-slate-400">directions_car</span>
                               <span className="font-semibold text-slate-800">{b.plate}</span>
                               <span className="text-slate-300">·</span>
-                              <span>{b.carModel}</span>
+                              <span className="text-slate-600">{b.carModel}</span>
                             </div>
                           </div>
                         </td>
