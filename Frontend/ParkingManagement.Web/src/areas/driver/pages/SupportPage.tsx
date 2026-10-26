@@ -210,29 +210,58 @@ export const SupportPage: React.FC = () => {
     }, 800);
   };
 
-  const handleSendChatMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputChat.trim()) return;
+  const getBotResponse = (raw: string): string => {
+    const q = raw.toLowerCase().trim();
 
-    const userMsg = inputChat;
+    if (q.includes('chào') || q.includes('hi') || q.includes('hello') || q.includes('alo') || q.includes('ơi')) {
+      return 'Dạ em chào anh/chị! Em là trợ lý thông minh ParkMaster AI. Anh/chị đang cần hỗ trợ về việc nhận diện camera barie, sạc xe điện EV, chính sách hủy hoàn tiền hay thanh toán ạ?';
+    }
+
+    if (q.includes('barie') || q.includes('cổng') || q.includes('kẹt') || q.includes('không mở') || q.includes('anpr') || q.includes('biển số')) {
+      return 'Nếu camera ANPR chưa tự động mở barie, anh/chị có thể:\n1. Mở mục "Lịch sử đặt" lấy mã QR đưa vào trụ quét của cổng.\n2. Bấm nút "Gọi hỗ trợ tại cổng" trên màn hình cảm ứng barie, kỹ thuật viên trực ban sẽ mở cổng từ xa trong vòng 15 giây ạ.';
+    }
+
+    if (q.includes('hủy') || q.includes('hoàn tiền') || q.includes('trả lại') || q.includes('cận giờ') || q.includes('refund')) {
+      return 'Chính sách hoàn tiền tự động (UI-10) của ParkMaster:\n• Hủy trước giờ đỗ ≥ 1 tiếng: Được HOÀN TIỀN 100% vào Ví ngay lập tức.\n• Hủy cận giờ (< 1 tiếng trước giờ đỗ): Áp dụng phí giữ chỗ 30%, số tiền hoàn lại là 70% ạ.';
+    }
+
+    if (q.includes('giá') || q.includes('phí') || q.includes('bao nhiêu') || q.includes('tiền') || q.includes('bảng giá')) {
+      return 'Bảng giá đỗ xe được tính lũy tiến theo block giờ và loại xe (ô tô thường, xe điện EV hoặc xe quá khổ). Anh/chị có thể xem chi tiết bảng giá từng bãi đỗ tại mục "Bãi đỗ & Sơ đồ" ạ.';
+    }
+
+    if (q.includes('sạc') || q.includes('ev') || q.includes('pin') || q.includes('điện')) {
+      return 'Trạm sạc xe điện EV hỗ trợ cổng Type 2 (AC 11kW/22kW) và CCS2 (DC sạc nhanh 60kW - 120kW). Khi đặt chỗ, anh/chị chỉ cần chọn ô đỗ có biểu tượng sạc màu xanh lá (như ô B-04).';
+    }
+
+    if (q.includes('vnpay') || q.includes('momo') || q.includes('thanh toán') || q.includes('ví')) {
+      return 'ParkMaster hỗ trợ thanh toán trực tuyến qua Ví ParkMaster, Ví MoMo AutoPay, VNPAY-QR Sandbox và tài khoản VETC/ePass. Giao dịch được mã hóa an toàn theo tiêu chuẩn PCI-DSS Level 1.';
+    }
+
+    if (q.includes('tìm') || q.includes('gần') || q.includes('vị trí') || q.includes('đâu')) {
+      return 'Anh/chị vào trang "Tìm bãi đỗ gần tôi" và bật quyền định vị GPS, hệ thống sẽ tự động quét các bãi xe còn chỗ trống trong bán kính 2km - 10km gần vị trí hiện tại của anh/chị nhất ạ.';
+    }
+
+    if (q.includes('hotline') || q.includes('số điện thoại') || q.includes('tổng đài') || q.includes('sdt') || q.includes('liên hệ')) {
+      return 'Tổng đài hỗ trợ khẩn cấp 24/7 của ParkMaster là: 1900 6868 (Miễn phí cước gọi) hoặc email hotro@parkmaster.vn ạ.';
+    }
+
+    return `Dạ em đã ghi nhận câu hỏi: "${raw}". Em đã chuyển thông tin tới đội ngũ kỹ thuật viên trực ban 24/7. Anh/chị cũng có thể gửi phiếu hỗ trợ ở tab "Gửi phiếu hỗ trợ" để được xử lý trực tiếp trong 15 phút ạ!`;
+  };
+
+  const handleSendChatMessage = (e?: React.FormEvent, customMsg?: string) => {
+    if (e) e.preventDefault();
+    const msgToSend = customMsg !== undefined ? customMsg : inputChat;
+    if (!msgToSend.trim()) return;
+
     const nowTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-    setChatMessages((prev) => [...prev, { sender: 'user', text: userMsg, time: nowTime }]);
-    setInputChat('');
+    setChatMessages((prev) => [...prev, { sender: 'user', text: msgToSend, time: nowTime }]);
+    if (customMsg === undefined) setInputChat('');
 
     setTimeout(() => {
-      let botReply =
-        'Cảm ơn anh/chị. Em đã ghi nhận yêu cầu. Đội ngũ kỹ thuật viên đang trực 24/7 sẽ hỗ trợ anh/chị ngay.';
-      if (userMsg.toLowerCase().includes('barie') || userMsg.toLowerCase().includes('cổng')) {
-        botReply =
-          'Nếu barie chưa mở, anh/chị vui lòng đưa mã QR trong mục "Vé / QR Vào bãi" vào trụ cảm biến hoặc camera ANPR sẽ tự động nhận diện lại trong 5 giây.';
-      } else if (userMsg.toLowerCase().includes('hoàn tiền') || userMsg.toLowerCase().includes('hủy')) {
-        botReply =
-          'Theo chính sách hoàn tiền 1 giờ (UI-10), nếu anh/chị hủy trước giờ hẹn từ 1 tiếng trở lên, 100% tiền cọc sẽ được hoàn về Ví ParkMaster ngay lập tức ạ.';
-      }
-
+      const botReply = getBotResponse(msgToSend);
       setChatMessages((prev) => [...prev, { sender: 'bot', text: botReply, time: nowTime }]);
-    }, 600);
+    }, 500);
   };
 
   const filteredTickets = tickets.filter((t) => {
@@ -789,21 +818,43 @@ export const SupportPage: React.FC = () => {
               ))}
             </div>
 
-            <form onSubmit={handleSendChatMessage} className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
-              <input
-                type="text"
-                value={inputChat}
-                onChange={(e) => setInputChat(e.target.value)}
-                placeholder="Nhập câu hỏi cần hỗ trợ..."
-                className="flex-1 h-10 px-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-blue-500/20"
-              />
-              <button
-                type="submit"
-                className="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0 shadow-xs cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[18px]">send</span>
-              </button>
-            </form>
+            <div className="p-3 bg-white border-t border-slate-200 flex flex-col gap-2">
+              {/* Quick Suggestion Chips */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+                {[
+                  '❓ Barie không mở',
+                  '⏱ Chính sách hoàn tiền',
+                  '⚡ Sạc xe điện EV',
+                  '💰 Bảng giá đỗ xe',
+                  '📞 Hotline CSKH',
+                ].map((chip, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSendChatMessage(undefined, chip)}
+                    className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-600 whitespace-nowrap transition-colors cursor-pointer shrink-0 border border-slate-200/60"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleSendChatMessage} className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={inputChat}
+                  onChange={(e) => setInputChat(e.target.value)}
+                  placeholder="Nhập câu hỏi bất kỳ (VD: giá đỗ, sạc xe, barie...)"
+                  className="flex-1 h-10 px-3 rounded-xl bg-slate-100 border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:bg-white focus:ring-2 focus:ring-blue-500/20"
+                />
+                <button
+                  type="submit"
+                  className="w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shrink-0 shadow-xs cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">send</span>
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}
