@@ -15,6 +15,7 @@ import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
 import { SupportPage } from '@/areas/driver/pages/SupportPage';
 import { KycPage } from '@/areas/driver/pages/KycPage';
+import { PaymentResultPage } from '@/areas/driver/pages/PaymentResultPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -23,6 +24,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>
 
         {/* 🚗 1. Driver Portal (/driver/*) */}
@@ -35,6 +37,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="history" element={<BookingHistoryPage />} />
             <Route path="support" element={<SupportPage />} />
             <Route path="kyc" element={<KycPage />} />
+            <Route path="payment-result" element={<PaymentResultPage />} />
           </Route>
         </Route>
 
