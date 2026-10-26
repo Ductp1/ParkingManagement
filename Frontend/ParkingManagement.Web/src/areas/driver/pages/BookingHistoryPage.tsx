@@ -440,16 +440,16 @@ export const BookingHistoryPage: React.FC = () => {
         {/* 5. Booking Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1100px]">
+            <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-6 min-w-[320px] whitespace-nowrap">Mã đặt chỗ & Xe</th>
-                  <th className="py-3.5 px-6 min-w-[220px]">Bãi đỗ & Vị trí</th>
-                  <th className="py-3.5 px-6 min-w-[180px]">Thời gian</th>
-                  <th className="py-3.5 px-6 min-w-[160px]">Dịch vụ</th>
-                  <th className="py-3.5 px-6 min-w-[140px]">Tổng tiền</th>
-                  <th className="py-3.5 px-6 min-w-[140px]">Trạng thái</th>
-                  <th className="py-3.5 px-6 text-right min-w-[150px]">Thao tác</th>
+                  <th className="py-3 px-3 sm:px-4">Mã đặt chỗ & Xe</th>
+                  <th className="py-3 px-3 sm:px-4">Bãi đỗ & Vị trí</th>
+                  <th className="py-3 px-3 sm:px-4">Thời gian</th>
+                  <th className="py-3 px-3 sm:px-4">Dịch vụ</th>
+                  <th className="py-3 px-2 sm:px-3">Tổng tiền</th>
+                  <th className="py-3 px-2 sm:px-3">Trạng thái</th>
+                  <th className="py-3 px-3 sm:px-4 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-xs">
@@ -474,43 +474,43 @@ export const BookingHistoryPage: React.FC = () => {
                             : `hover:bg-slate-50/80 ${isUpcoming ? 'bg-blue-50/30' : ''}`
                         }`}
                       >
-                        <td className="py-4 px-6 relative whitespace-nowrap">
+                        <td className="py-3 px-3 sm:px-4 relative">
                           {isUpcoming && <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>}
-                          <div className="flex flex-col gap-1.5 min-w-[300px]">
-                            <div className="flex items-center gap-2 flex-nowrap">
-                              <span className={`font-bold font-mono tracking-tight whitespace-nowrap ${isUpcoming ? 'text-blue-600 text-sm' : isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`font-bold font-mono text-xs ${isUpcoming ? 'text-blue-600' : isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
                                 {b.code}
                               </span>
                               {isUpcoming && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold whitespace-nowrap shrink-0">
-                                  <span className="material-symbols-outlined text-[13px]">camera</span>
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">
+                                  <span className="material-symbols-outlined text-[12px]">camera</span>
                                   ANPR
                                 </span>
                               )}
-                              {b.id === '6' && isUpcoming && (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-extrabold whitespace-nowrap shrink-0 border border-amber-300 shadow-2xs">
-                                  <span className="material-symbols-outlined text-[13px] text-amber-600">timer</span>
-                                  <span>Cận giờ &lt; 1h</span>
-                                </span>
-                              )}
                             </div>
-                            <div className="flex items-center gap-1.5 text-slate-500 text-xs whitespace-nowrap">
-                              <span className="material-symbols-outlined text-[16px] text-slate-400">directions_car</span>
+                            {b.id === '6' && isUpcoming && (
+                              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[10px] font-bold border border-amber-200 w-fit">
+                                <span className="material-symbols-outlined text-[12px] text-amber-600">timer</span>
+                                <span>Cận giờ &lt; 1h</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-slate-500 text-[11px]">
+                              <span className="material-symbols-outlined text-[13px] text-slate-400">directions_car</span>
                               <span className="font-semibold text-slate-800">{b.plate}</span>
                               <span className="text-slate-300">·</span>
-                              <span className="text-slate-600">{b.carModel}</span>
+                              <span className="text-slate-600 truncate max-w-[110px]">{b.carModel}</span>
                             </div>
                           </div>
                         </td>
 
-                        <td className="py-4 px-6">
+                        <td className="py-3 px-3 sm:px-4">
                           <div className="flex flex-col gap-0.5 min-w-0">
                             <span className="font-bold text-slate-900 truncate">{b.location}</span>
                             <span className="text-[11px] text-slate-500 truncate">{b.spot}</span>
                           </div>
                         </td>
 
-                        <td className="py-4 px-6">
+                        <td className="py-3 px-3 sm:px-4">
                           <div className="flex flex-col gap-0.5 min-w-0">
                             <div className="flex items-center gap-1.5 font-semibold text-slate-800">
                               <span className="material-symbols-outlined text-[15px] text-blue-600">calendar_today</span>
@@ -523,7 +523,7 @@ export const BookingHistoryPage: React.FC = () => {
                           </div>
                         </td>
 
-                        <td className="py-4 px-6">
+                        <td className="py-3 px-3 sm:px-4">
                           <div className="flex flex-wrap gap-1.5 max-w-xs">
                             {b.services.map((srv, idx) => (
                               <span
@@ -539,7 +539,7 @@ export const BookingHistoryPage: React.FC = () => {
                           </div>
                         </td>
 
-                        <td className="py-4 px-6">
+                        <td className="py-3 px-3 sm:px-4">
                           <div className="flex flex-col gap-0.5">
                             <span className="font-bold text-slate-900">
                               {b.totalPrice > 0 ? `${b.totalPrice.toLocaleString('vi-VN')} đ` : '0 đ'}
@@ -548,7 +548,7 @@ export const BookingHistoryPage: React.FC = () => {
                           </div>
                         </td>
 
-                        <td className="py-4 px-6">
+                        <td className="py-3 px-3 sm:px-4">
                           {isUpcoming && (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[11px] font-bold">
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
@@ -569,7 +569,7 @@ export const BookingHistoryPage: React.FC = () => {
                           )}
                         </td>
 
-                        <td className="py-4 px-6 text-right">
+                        <td className="py-3 px-3 sm:px-4 text-right">
                           <div className="inline-flex items-center gap-2 justify-end">
                             {isUpcoming ? (
                               <>
