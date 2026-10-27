@@ -57,6 +57,11 @@ public static class DependencyInjection
 
         // Layouts (T-502, US-059)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();
+        services.AddScoped<IGetFloorLayoutDraftUseCase, GetFloorLayoutDraftUseCase>();
+        services.AddScoped<ISaveFloorLayoutDraftUseCase, SaveFloorLayoutDraftUseCase>();
+        services.AddScoped<IPublishFloorLayoutUseCase, PublishFloorLayoutUseCase>();
+        services.AddScoped<IGetFloorLayoutVersionsUseCase, GetFloorLayoutVersionsUseCase>();
+        services.AddScoped<IGetFloorLayoutByVersionUseCase, GetFloorLayoutByVersionUseCase>();
 
         return services;
     }

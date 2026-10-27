@@ -1,16 +1,25 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingService.Application.Features.Layouts;
 
 namespace ParkingService.API.Controllers;
 
 /// <summary>
 /// Controller quản lý sơ đồ lưới mặt bằng 2D của tầng (T-502, US-059).
-/// Phục vụ component LayoutRenderer (SVG) cho Driver, Owner dashboard và Gate console.
+/// Phục vụ component LayoutRenderer (SVG) cho Driver, Owner dashboard, Gate console
+/// và công cụ Layout Configurator (Draft, Publish, Version History).
 /// </summary>
 [ApiController]
 [Route("api/v1/parking-lots")]
-public sealed class FloorLayoutsController(IGetFloorLayoutUseCase getFloorLayout) : ControllerBase
+public sealed class FloorLayoutsController(
+    IGetFloorLayoutUseCase getFloorLayout,
+    IGetFloorLayoutDraftUseCase getFloorLayoutDraft,
+    ISaveFloorLayoutDraftUseCase saveFloorLayoutDraft,
+    IPublishFloorLayoutUseCase publishFloorLayout,
+    IGetFloorLayoutVersionsUseCase getFloorLayoutVersions,
+    IGetFloorLayoutByVersionUseCase getFloorLayoutByVersion,
+    ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>
     /// GET /api/v1/parking-lots/floors/{floorId}/layout
@@ -35,6 +44,113 @@ public sealed class FloorLayoutsController(IGetFloorLayoutUseCase getFloorLayout
     public async Task<ActionResult<FloorLayoutDto>> GetLayout(int floorId, CancellationToken cancellationToken)
     {
         var layout = await getFloorLayout.ExecuteAsync(floorId, cancellationToken);
+        return Ok(layout);
+    }
+
+    /// <summary>
+    /// GET /api/v1/parking-lots/floors/{floorId}/layout/draft
+    /// Lấy bản nháp sơ đồ mặt bằng (Draft) để mở trong công cụ Layout Configurator (US-059).
+    /// Nếu tầng chưa có bản nháp, tự động tổng hợp từ bản vẽ xuất bản hiện tại hoặc từ danh sách ô đỗ hiện có.
+    /// </summary>
+    [HttpGet("floors/{floorId:int}/layout/draft")]
+    [Authorize]
+    [ProducesResponseType<FloorLayoutDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<FloorLayoutDto>> GetDraft(int floorId, CancellationToken cancellationToken)
+    {
+        var draft = await getFloorLayoutDraft.ExecuteAsync(floorId, cancellationToken);
+        return Ok(draft);
+    }
+
+    /// <summary>
+    /// POST /api/v1/parking-lots/floors/{floorId}/layout/draft
+    /// Lưu bản nháp sơ đồ mặt bằng vào CSDL mà không làm thay đổi trạng thái và dữ liệu ô đỗ vật lý (US-059).
+    /// </summary>
+    [HttpPost("floors/{floorId:int}/layout/draft")]
+    [Authorize]
+    [ProducesResponseType<FloorLayoutDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<FloorLayoutDto>> SaveDraft(
+        int floorId,
+        [FromBody] SaveFloorLayoutDraftRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new SaveFloorLayoutDraftCommand(
+            floorId,
+            request.Columns,
+            request.Rows,
+            request.Cells,
+            request.ChangeNote,
+            currentUser.UserId ?? 0);
+
+        var result = await saveFloorLayoutDraft.ExecuteAsync(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// POST /api/v1/parking-lots/floors/{floorId}/layout/publish
+    /// Xuất bản phiên bản sơ đồ mới và tự động kích hoạt engine đồng bộ hóa ô đỗ vật lý (Slots) (US-059).
+    /// Chặn và báo lỗi 409 Conflict nếu có ô đỗ đang có xe (Occupied) hoặc giữ chỗ (Reserved) bị xóa khỏi bản vẽ.
+    /// </summary>
+    [HttpPost("floors/{floorId:int}/layout/publish")]
+    [Authorize]
+    [ProducesResponseType<FloorLayoutDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<FloorLayoutDto>> Publish(
+        int floorId,
+        [FromBody] PublishFloorLayoutRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new PublishFloorLayoutCommand(
+            floorId,
+            request.Columns,
+            request.Rows,
+            request.Cells,
+            request.ChangeNote,
+            currentUser.UserId ?? 0);
+
+        var result = await publishFloorLayout.ExecuteAsync(command, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/parking-lots/floors/{floorId}/layout/versions
+    /// Lấy danh sách lịch sử các phiên bản sơ đồ mặt bằng của tầng (US-059).
+    /// </summary>
+    [HttpGet("floors/{floorId:int}/layout/versions")]
+    [Authorize]
+    [ProducesResponseType<IReadOnlyList<LayoutVersionSummaryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<LayoutVersionSummaryDto>>> GetVersions(
+        int floorId,
+        CancellationToken cancellationToken)
+    {
+        var versions = await getFloorLayoutVersions.ExecuteAsync(floorId, cancellationToken);
+        return Ok(versions);
+    }
+
+    /// <summary>
+    /// GET /api/v1/parking-lots/floors/{floorId}/layout/versions/{versionNo:int}
+    /// Lấy chi tiết sơ đồ của một phiên bản lịch sử cụ thể theo VersionNo (US-059).
+    /// </summary>
+    [HttpGet("floors/{floorId:int}/layout/versions/{versionNo:int}")]
+    [Authorize]
+    [ProducesResponseType<FloorLayoutDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<FloorLayoutDetailDto>> GetVersionByNo(
+        int floorId,
+        int versionNo,
+        CancellationToken cancellationToken)
+    {
+        var layout = await getFloorLayoutByVersion.ExecuteAsync(floorId, versionNo, cancellationToken);
         return Ok(layout);
     }
 }
