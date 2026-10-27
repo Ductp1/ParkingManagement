@@ -55,7 +55,8 @@ public interface ICheckInUseCase
 /// UC-21/US-044: booking phải ở trạng thái Confirmed (BookingService là nguồn chân lý);
 /// đến trễ ≤ CheckInGracePeriodMinutes (15') → vào bình thường, phí vẫn tính từ giờ đã đặt;
 /// trễ hơn → vẫn cho vào khi staff xác nhận nhưng ghi cảnh báo vào audit (hủy no-show là UC-24 sau 30').
-/// Sau khi tạo lượt, đồng bộ booking → CheckedIn qua BookingService (idempotent cho phép retry).
+/// Sau khi tạo lượt, đồng bộ booking → CheckedIn qua BookingService; booking đã có lượt thì bị chặn 409
+/// (hợp đồng TV7: mọi nhảy trạng thái trái phép bị từ chối phía BookingService và GateService).
 /// </summary>
 public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrTokenValidator qrTokens,
     IGateBookingClient bookings, IParkingSessionWriter writer, IGateEventWriter gateEvents,
@@ -103,18 +104,11 @@ public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrT
                 throw new ConflictException(
                     $"Booking {bookingCode} ở trạng thái {booking.Status} – chỉ booking Confirmed mới được check-in (UC-21).");
 
-            // Đã có lượt của booking này? → có thể là retry sau khi đồng bộ booking gặp lỗi mạng:
-            // thử sync lại và trả lượt hiện có (idempotent), tránh tạo lượt thứ hai (unique index cũng chặn).
-            // (Kiểm tra TRƯỚC guard biển số đang đỗ vì lượt retry chính là lượt đang đỗ của xe này.)
-            if (await writer.FindByBookingCodeAsync(bookingCode, cancellationToken) is { } existing)
-            {
-                await bookings.SyncCheckInAsync(bookingCode, command.StaffUserId, cancellationToken);
-                return ParkingSessionMapper.ToDto(existing, now);
-            }
-
             lateMinutes = (int)Math.Floor((now - booking.StartAtUtc).TotalMinutes);
         }
-        // T-704: 1 booking chỉ sinh đúng 1 lượt gửi xe – race còn bị unique index chặn ở writer.
+        // T-704: 1 booking chỉ sinh đúng 1 lượt gửi xe – chặn tại đây, race còn bị unique index chặn ở writer.
+        if (bookingCode is not null && await writer.FindByBookingCodeAsync(bookingCode, cancellationToken) is not null)
+            throw new ConflictException($"Booking {bookingCode} đã được check-in trước đó, không thể tạo lượt gửi xe lần hai.");
         if (await writer.FindActiveTrackedAsync(command.ParkingLotId, recognized.PlateNumber, cancellationToken) is not null)
             throw new ConflictException($"Xe {recognized.PlateDisplay} đang có lượt gửi chưa kết thúc tại bãi này.");
 
@@ -156,8 +150,8 @@ public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrT
             recognized.PlateNumber, command.StaffUserId, note),
             cancellationToken);
 
-        // Đồng bộ booking → CheckedIn (UC-21). Lỗi hạ tầng → 503; client retry sẽ đi nhánh idempotent
-        // phía trên (trả lại lượt vừa tạo thay vì tạo lượt mới).
+        // Đồng bộ booking → CheckedIn (UC-21). Lỗi hạ tầng → 503; lượt đã được tạo an toàn nhờ
+        // unique index + guard phía trên nên thao tác lặp của staff bị chặn 409, không sinh lượt trùng.
         if (bookingCode is not null)
             await bookings.SyncCheckInAsync(bookingCode, command.StaffUserId, cancellationToken);
 

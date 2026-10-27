@@ -80,9 +80,10 @@ public class GateConsoleFeeTests
     }
 
     [Fact]
-    public async Task CheckIn_retry_after_partial_booking_sync_returns_existing_session()
+    public async Task CheckIn_second_time_for_same_booking_conflicts_even_if_booking_still_confirmed()
     {
-        // Lượt đã tạo nhưng lần sync booking trước bị lỗi → retry phải trả lại lượt hiện có (idempotent), không tạo lượt 2.
+        // T-704 + hợp đồng TV7: 1 booking chỉ sinh đúng 1 lượt gửi — kể cả khi booking chưa kịp sync
+        // (sync lỗi mạng) thì thao tác check-in lặp vẫn bị chặn 409, không bao giờ tạo lượt thứ hai.
         var bookings = new FakeBookings();
         var writer = new FakeWriter();
         var existing = new ParkingSession
@@ -93,12 +94,13 @@ public class GateConsoleFeeTests
         };
         writer.Sessions.Add(existing);
 
-        var dto = await NewCheckIn(new FakeRecognizer(), writer, new FakeGateEvents(), bookings)
-            .ExecuteAsync(new CheckInCommand(2, GateMethod.BookingCode, "51F-123.45", BookingCode: "BK-0002", StaffUserId: 4));
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => NewCheckIn(new FakeRecognizer(), writer,
+            new FakeGateEvents(), bookings).ExecuteAsync(
+            new CheckInCommand(2, GateMethod.BookingCode, "51F-123.45", BookingCode: "BK-0002", StaffUserId: 4)));
 
-        Assert.Equal("PS-EXIST", dto.Code);
-        Assert.Single(writer.Sessions);                      // Không tạo lượt mới
-        Assert.Equal(["BK-0002"], bookings.CheckInCalls);    // Đã thử sync lại
+        Assert.Contains("đã được check-in trước đó", ex.Message);
+        Assert.Single(writer.Sessions);                 // Không tạo lượt mới
+        Assert.Empty(bookings.CheckInCalls);            // Chặn trước khi đồng bộ booking
     }
 
     // ===== UC-22 / US-045 → 047: Check-out & chốt phí =====
