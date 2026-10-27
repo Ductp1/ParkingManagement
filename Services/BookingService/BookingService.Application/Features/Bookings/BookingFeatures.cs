@@ -506,12 +506,6 @@ public sealed class GateBookingActionsUseCase(
         var booking = await repository.GetEntityByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
 
-        // Idempotent cho retry của GateService (T-702): xe đã sync check-in rồi → trả lại trạng thái hiện tại
-        // thay vì 409, để cổng bấm lại sau lỗi mạng không bị kẹt.
-        if (booking.Status == BookingStatus.CheckedIn)
-            return await queries.GetByCodeAsync(code, cancellationToken)
-                ?? throw new NotFoundException("Booking", code);
-
         var now = timeProvider.GetUtcNow().UtcDateTime;
         booking.CheckIn(now, command.StaffUserId, command.GateDeviceId);
 
