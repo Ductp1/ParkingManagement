@@ -1,3 +1,4 @@
+using AdminService.API.Security;
 using AdminService.Application;
 using AdminService.Infrastructure;
 using AdminService.Infrastructure.Persistence;
@@ -12,6 +13,7 @@ builder.Services.AddJwtAuth(Path.GetFullPath(
     builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
 builder.Services.AddAdminApplication();                                  // Application: Use Case
 builder.Services.AddAdminInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
+builder.Services.AddInternalEventReceiver();                             // T-802: khóa nội bộ cho /internal/v1/events
 
 var app = builder.Build();
 
