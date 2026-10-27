@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
@@ -29,6 +30,8 @@ public static class DependencyInjection
         // US-096: khóa / mở khóa chủ bãi
         services.AddScoped<ILockOwnerUseCase, LockOwnerUseCase>();
         services.AddScoped<IUnlockOwnerUseCase, UnlockOwnerUseCase>();
+        // T-802: nhận sự kiện AuditRecorded của service khác (endpoint nội bộ /internal/v1/events)
+        services.AddScoped<IRecordAuditEventUseCase, RecordAuditEventUseCase>();
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
         services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
         services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();

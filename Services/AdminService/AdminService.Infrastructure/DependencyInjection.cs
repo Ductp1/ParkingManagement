@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
@@ -33,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
+        services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
         services.AddScoped<ILotContractRepository, LotContractRepository>();

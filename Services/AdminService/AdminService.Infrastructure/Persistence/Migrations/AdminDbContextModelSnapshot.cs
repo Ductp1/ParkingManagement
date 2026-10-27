@@ -1239,6 +1239,20 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.ToTable("SystemConfigChanges", (string)null);
                 });
 
+            modelBuilder.Entity("ParkingManagement.ServiceDefaults.Messaging.InboxReceipt", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("InboxReceipts", (string)null);
+                });
+
             modelBuilder.Entity("ParkingManagement.SharedKernel.Domain.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")

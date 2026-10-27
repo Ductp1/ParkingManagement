@@ -176,14 +176,14 @@ public sealed class InternalEventsEndpointTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.False(response.Headers.Contains("WWW-Authenticate"));     // không có challenge của JwtBearer
-        Assert.Empty(logs.Entries.Where(e => e.Level >= LogLevel.Error));
+        Assert.DoesNotContain(logs.Entries, e => e.Level >= LogLevel.Error);
         // TestServer không hỗ trợ IHttpMaxRequestBodySizeFeature nên RequestSizeLimit ghi warning riêng (Kestrel thì có);
         // phần xác thực (JwtBearer) và ExceptionHandlingMiddleware không được ghi gì từ mức Warning.
-        Assert.Empty(logs.Entries.Where(e => e.Level >= LogLevel.Warning
+        Assert.DoesNotContain(logs.Entries, e => e.Level >= LogLevel.Warning
             && (e.Category.StartsWith("Microsoft.AspNetCore.Authentication", StringComparison.Ordinal)
                 || e.Category.StartsWith("Microsoft.AspNetCore.Authorization", StringComparison.Ordinal)
                 || e.Category.StartsWith("ParkingManagement", StringComparison.Ordinal)
-                || e.Category.StartsWith("AdminService", StringComparison.Ordinal))));
+                || e.Category.StartsWith("AdminService", StringComparison.Ordinal)));
         Assert.Contains(logs.Entries, e => e.Category.StartsWith("Microsoft.AspNetCore.Authentication", StringComparison.Ordinal));   // JwtBearer có chạy
         Assert.DoesNotContain(logs.Entries, e => e.Message.Contains(ParkingKey, StringComparison.Ordinal));   // không log khóa
     }
