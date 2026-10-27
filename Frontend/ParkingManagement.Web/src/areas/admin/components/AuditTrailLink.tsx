@@ -10,7 +10,7 @@ import { ADMIN_ICONS } from './adminIcons';
 export const AuditTrailLink: React.FC<{ to: string; label?: string }> = ({ to, label = 'Audit log' }) => (
   <Link
     to={to}
-    className="adm-type-body-strong inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[2px] border border-(--admin-text-on-navy) px-3 whitespace-nowrap text-(--admin-text-on-navy) transition-colors duration-150 hover:bg-(--admin-brand-navy-900)"
+    className="adm-type-body-strong inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-[2px] border border-(--admin-text-on-navy) px-3 whitespace-nowrap text-(--admin-text-on-navy) adm-tr-colors hover:bg-(--admin-brand-navy-900)"
   >
     <AdminIcon icon={ADMIN_ICONS.clock} />
     {label}

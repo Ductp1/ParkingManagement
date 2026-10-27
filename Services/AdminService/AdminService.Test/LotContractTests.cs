@@ -874,6 +874,9 @@ public class LotContractTests
             Approvals.Add((kybApplicationId, contractNumber, note));
             return Task.CompletedTask;
         }
+
+        public Task<int> CountKybApplicationsAsync(string status, CancellationToken cancellationToken)
+            => throw new NotSupportedException("Hợp đồng bãi không đếm hồ sơ KYB.");
     }
 
     private sealed class FakeStorage : IFileStorage

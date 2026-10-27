@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { setToken } from '@/store/slices/authSlice';
@@ -8,6 +8,7 @@ import type { NotificationDto } from '@/types/notification';
 import { ADMIN_HOME_PATH, resolveAdminLocation } from '../navigation';
 import type { AdminOutletContext } from '../hooks/useAdminBreadcrumb';
 import { useAdminQuery } from '../hooks/useAdminQuery';
+import { usePageEnter } from '../hooks/usePageEnter';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminToastProvider } from '../components/AdminToastProvider';
@@ -27,6 +28,9 @@ export const AdminLayout: React.FC = () => {
   const storeUser = useAppSelector((state) => state.auth.user);
   const [detailLabel, setDetailLabel] = useState<string | null>(null);
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  // Chuyển trang: nội dung chính fade + dịch lên, shell đứng yên (WAAPI, không remount màn).
+  usePageEnter(mainRef, pathname);
 
   const me = useAdminQuery(() => adminUsersApi.getCurrentUser(), []);
   const userId = me.data?.id ?? storeUser?.id ?? null;
@@ -69,7 +73,7 @@ export const AdminLayout: React.FC = () => {
             profile={{ name, email, roles, profilePath: userId ? `/admin/operations/users/${userId}` : null }}
             onSignOut={() => setSignOutOpen(true)}
           />
-          <main className="flex min-w-0 flex-1 flex-col gap-4 p-4">
+          <main ref={mainRef} className="flex min-w-0 flex-1 flex-col gap-4 p-4">
             <Outlet context={outletContext} />
           </main>
         </div>

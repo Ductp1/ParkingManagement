@@ -1,6 +1,7 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
+using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
@@ -30,6 +31,7 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<AdminDbContext>(configuration);
         services.AddScoped<ISettingsQueries, SettingsQueries>();
+        services.AddScoped<IDashboardQueries, DashboardQueries>();                           // US-081: số liệu dashboard
         services.AddScoped<ISystemConfigChangeQueries, SystemConfigChangeQueries>();
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116

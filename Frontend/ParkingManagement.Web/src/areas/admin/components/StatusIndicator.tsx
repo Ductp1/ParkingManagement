@@ -21,8 +21,8 @@ interface StatusIndicatorProps {
 export const StatusIndicator: React.FC<StatusIndicatorProps> = ({ value, label, tone }) => {
   const color = TONE_COLOR[tone ?? statusTone(value)];
   return (
-    <span className={`adm-type-status-label inline-flex items-center gap-1.5 whitespace-nowrap ${color.text}`}>
-      <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${color.dot}`} />
+    <span className={`adm-type-status-label adm-tr-colors inline-flex items-center gap-1.5 whitespace-nowrap ${color.text}`}>
+      <span aria-hidden="true" className={`adm-tr-colors size-2 shrink-0 rounded-full ${color.dot}`} />
       {label ?? humanizeEnum(value)}
     </span>
   );

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { StatusIndicator } from './StatusIndicator';
+import { useStaggerOnce } from '../hooks/useStaggerOnce';
+import { animate, motionMs, motionVar } from '../utils/motion';
 
 export interface DataTableColumn<T> {
   key: string;
@@ -22,13 +24,18 @@ interface DataTableProps<T> {
   footer?: React.ReactNode;
   /** Bỏ viền ngoài khi bảng nằm trong Panel. */
   bare?: boolean;
-  /** Dòng mới hiện dần (so le ~18ms/dòng) + hover chuyển màu mượt. Opt-in theo màn. */
+  /**
+   * Motion (mặc định bật): lần hiển thị đầu 8 dòng đầu hiện so le (--stagger-step); sau đó đổi dữ liệu (refetch, phân trang,
+   * lọc, sort) chỉ crossfade thân bảng. false = tắt hẳn.
+   */
   animateRows?: boolean;
   /** Đang tải lại: giữ dữ liệu cũ, làm mờ nhẹ + thanh tiến trình trên header thay vì nháy skeleton. */
   busy?: boolean;
+  /** Dòng vừa được cập nhật sau một thao tác: nền nháy highlight một lần (~1 s). */
+  highlightKey?: string | number | null;
 }
 
-const MAX_STAGGER_ROWS = 12;
+const MAX_STAGGER_ROWS = 8;
 
 /**
  * Shell/Table (Figma): header nền table/header chữ trắng, dòng 44px (52 khi two-line), xen kẽ row-alt,
@@ -43,66 +50,86 @@ export const DataTable = <T,>({
   placeholder,
   footer,
   bare,
-  animateRows,
+  animateRows = true,
   busy,
-}: DataTableProps<T>) => (
-  <div
-    className={`relative flex min-w-0 flex-col bg-(--admin-surface-card) ${bare ? '' : 'border border-(--admin-border-default)'}`}
-    aria-busy={busy || undefined}
-  >
-    {busy && <span className="adm-progress z-10" aria-hidden="true" />}
-    <div className={`overflow-x-auto ${animateRows ? 'adm-motion-dim' : ''} ${busy ? 'opacity-60' : ''}`}>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                scope="col"
-                style={{ width: col.width }}
-                className={`adm-type-table-header h-7 border-r border-(--admin-table-header-border) bg-(--admin-table-header) px-3 whitespace-nowrap uppercase text-(--admin-text-on-navy) last:border-r-0 ${
-                  col.align === 'right' ? 'text-right' : 'text-left'
-                }`}
-              >
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        {rows.length > 0 && (
-          <tbody>
-            {rows.map((row, index) => {
-              const key = rowKey(row);
-              const selected = selectedKey !== undefined && selectedKey === key;
-              return (
-                <tr
-                  key={key}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  style={animateRows ? ({ '--adm-delay': `${Math.min(index, MAX_STAGGER_ROWS) * 18}ms` } as React.CSSProperties) : undefined}
-                  className={`h-11 border-b border-(--admin-border-default) ${animateRows ? 'adm-motion-rise adm-motion-row' : ''} ${
-                    selected
-                      ? 'bg-(--admin-surface-selected) shadow-[inset_2px_0_0_var(--admin-brand-navy-800)]'
-                      : index % 2 === 1
-                        ? 'bg-(--admin-surface-row-alt)'
-                        : 'bg-(--admin-surface-card)'
-                  } ${onRowClick ? 'cursor-pointer hover:bg-(--admin-surface-selected)' : ''}`}
+  highlightKey,
+}: DataTableProps<T>) => {
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const signature = rows.map((row) => String(rowKey(row))).join('|');
+  const stagger = useStaggerOnce(animateRows ? signature : '') && animateRows;
+  const shownSignature = useRef<string | null>(null);
+
+  // Sau lần hiển thị đầu: danh sách đổi → crossfade thân bảng (không stagger lại, không remount dòng).
+  useEffect(() => {
+    const body = bodyRef.current;
+    const previous = shownSignature.current;
+    shownSignature.current = signature;
+    if (!animateRows || !body || previous === null || previous === '' || previous === signature) return;
+    animate(body, [{ opacity: 0.35 }, { opacity: 1 }], { duration: motionMs('--dur-base', body), easing: motionVar('--ease-out', body) });
+  }, [signature, animateRows]);
+
+  return (
+    <div
+      className={`relative flex min-w-0 flex-col bg-(--admin-surface-card) ${bare ? '' : 'border border-(--admin-border-default)'}`}
+      aria-busy={busy || undefined}
+    >
+      {busy && <span className="adm-progress z-10" aria-hidden="true" />}
+      <div className={`adm-motion-dim overflow-x-auto ${busy ? 'opacity-60' : ''}`}>
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {columns.map((col) => (
+                <th
+                  key={col.key}
+                  scope="col"
+                  style={{ width: col.width }}
+                  className={`adm-type-table-header h-7 border-r border-(--admin-table-header-border) bg-(--admin-table-header) px-3 whitespace-nowrap uppercase text-(--admin-text-on-navy) last:border-r-0 ${
+                    col.align === 'right' ? 'text-right' : 'text-left'
+                  }`}
                 >
-                  {columns.map((col) => (
-                    <td key={col.key} className={`px-3 py-1.5 align-middle ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
-                      {col.render(row, index)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        )}
-      </table>
+                  {col.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          {rows.length > 0 && (
+            <tbody ref={bodyRef}>
+              {rows.map((row, index) => {
+                const key = rowKey(row);
+                const selected = selectedKey !== undefined && selectedKey === key;
+                const rise = stagger && index < MAX_STAGGER_ROWS;
+                return (
+                  <tr
+                    key={key}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    style={rise ? ({ '--adm-delay': `calc(var(--stagger-step) * ${index})` } as React.CSSProperties) : undefined}
+                    className={`h-11 border-b border-(--admin-border-default) ${animateRows ? 'adm-motion-row' : ''} ${rise ? 'adm-motion-rise' : ''} ${
+                      highlightKey !== undefined && highlightKey !== null && highlightKey === key ? 'adm-row-highlight' : ''
+                    } ${
+                      selected
+                        ? 'bg-(--admin-surface-selected) shadow-[inset_2px_0_0_var(--admin-brand-navy-800)]'
+                        : index % 2 === 1
+                          ? 'bg-(--admin-surface-row-alt)'
+                          : 'bg-(--admin-surface-card)'
+                    } ${onRowClick ? 'cursor-pointer hover:bg-(--admin-surface-selected)' : ''}`}
+                  >
+                    {columns.map((col) => (
+                      <td key={col.key} className={`px-3 py-1.5 align-middle ${col.align === 'right' ? 'text-right' : 'text-left'}`}>
+                        {col.render(row, index)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          )}
+        </table>
+      </div>
+      {rows.length === 0 && placeholder}
+      {footer}
     </div>
-    {rows.length === 0 && (animateRows ? <div className="adm-motion-fade">{placeholder}</div> : placeholder)}
-    {footer}
-  </div>
-);
+  );
+};
 
 /* ===== Shell/Table/Cell variants ===== */
 
@@ -134,7 +161,7 @@ export const CellAmount: React.FC<{ children: React.ReactNode }> = ({ children }
 );
 
 export const CellLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
-  <Link to={to} onClick={(e) => e.stopPropagation()} className="adm-type-link-default text-(--admin-brand-navy-900) hover:underline">
+  <Link to={to} onClick={(e) => e.stopPropagation()} className="adm-type-link-default adm-tr-colors text-(--admin-brand-navy-900) hover:underline">
     {children}
   </Link>
 );
@@ -148,7 +175,7 @@ export const CellView: React.FC<{ to: string; label?: string }> = ({ to, label =
   <Link
     to={to}
     onClick={(e) => e.stopPropagation()}
-    className="adm-type-body-strong inline-flex h-8 items-center rounded-[2px] px-3 text-(--admin-brand-navy-900) hover:bg-(--admin-surface-selected)"
+    className="adm-type-body-strong adm-press inline-flex h-8 items-center rounded-[2px] px-3 text-(--admin-brand-navy-900) hover:bg-(--admin-surface-selected)"
   >
     {label}
   </Link>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AdminIcon } from './AdminIcon';
 import { ADMIN_ICONS } from './adminIcons';
+import { motionMs, prefersReducedMotion } from '../utils/motion';
 
 interface AdminDrawerProps {
   open: boolean;
@@ -14,13 +15,11 @@ interface AdminDrawerProps {
   children: React.ReactNode;
 }
 
-/** Thời gian tối đa chờ animation đóng; quá hạn vẫn đóng (tab nền, trình duyệt bỏ animation). */
-const CLOSE_FALLBACK_MS = 240;
-
-const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+/** Chờ animation đóng tối đa --dur-exit + một khoảng an toàn; quá hạn vẫn đóng (tab nền, trình duyệt bỏ animation). */
+const CLOSE_GRACE_MS = 60;
 
 /**
- * Slide-over bên phải (cùng Shell/Dialog: surface/card, viền 1px, scrim overlay). Mở: trượt vào 260ms; đóng: trượt ra 180ms
+ * Slide-over bên phải (cùng Shell/Dialog: surface/card, viền 1px, scrim overlay). Mở: trượt vào --dur-slow; đóng: trượt ra --dur-exit
  * rồi mới gọi onClose. Esc / bấm nền để đóng; focus chuyển vào panel khi mở và trả lại phần tử trước đó khi đóng.
  */
 export const AdminDrawer: React.FC<AdminDrawerProps> = ({ open, title, description, actions, width = 520, onClose, children }) => {
@@ -46,7 +45,7 @@ export const AdminDrawer: React.FC<AdminDrawerProps> = ({ open, title, descripti
 
   useEffect(() => {
     if (!closing) return;
-    const handle = window.setTimeout(finishClose, CLOSE_FALLBACK_MS);
+    const handle = window.setTimeout(finishClose, motionMs('--dur-exit', panelRef.current) + CLOSE_GRACE_MS);
     return () => window.clearTimeout(handle);
   }, [closing, finishClose]);
 
@@ -95,7 +94,7 @@ export const AdminDrawer: React.FC<AdminDrawerProps> = ({ open, title, descripti
             type="button"
             aria-label="Close"
             onClick={requestClose}
-            className="text-(--admin-text-secondary) transition-colors duration-150 hover:text-(--admin-text-primary)"
+            className="text-(--admin-text-secondary) adm-tr-colors hover:text-(--admin-text-primary)"
           >
             <AdminIcon icon={ADMIN_ICONS.x} />
           </button>

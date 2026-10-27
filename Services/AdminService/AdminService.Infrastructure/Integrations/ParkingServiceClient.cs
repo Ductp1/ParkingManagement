@@ -37,6 +37,14 @@ public sealed class ParkingServiceClient(HttpClient http, ILogger<ParkingService
         if (!found) throw new NotFoundException("Hồ sơ KYB", kybApplicationId);
     }
 
+    public async Task<int> CountKybApplicationsAsync(string status, CancellationToken cancellationToken)
+    {
+        var path = $"{BasePath}?status={Uri.EscapeDataString(status)}&page=1&pageSize=1";
+        var (found, page) = await SendAsync<PagedCountJson>(HttpMethod.Get, path, body: null, cancellationToken);
+        if (!found || page is null) throw Unavailable($"ParkingService trả 404 khi đếm hồ sơ KYB ({path}).");
+        return page.TotalCount;
+    }
+
     /// <summary>
     /// 404 kèm ProblemDetails → Found = false (không có bản ghi); 401 / 403 → lỗi xác thực; 409 / 400 → ConflictException với thông điệp
     /// của ParkingService; 404 trống (chưa có route) và mọi lỗi khác → 503.
@@ -92,6 +100,8 @@ public sealed class ParkingServiceClient(HttpClient http, ILogger<ParkingService
     }
 
     private sealed record ProblemJson(string? Detail);
+
+    private sealed record PagedCountJson(int TotalCount);
 
     private sealed record KybDetailJson(int Id, string Status, KybLotJson? ParkingLot);
 

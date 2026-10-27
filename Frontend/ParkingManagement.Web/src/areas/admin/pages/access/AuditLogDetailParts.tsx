@@ -83,7 +83,7 @@ export const AuditChangesTable: React.FC<{ changes: AuditFieldChangeDto[] }> = (
               <tr
                 key={c.field}
                 className={`adm-motion-rise border-b border-(--admin-border-default) ${t.row}`}
-                style={{ '--adm-delay': `${Math.min(i, 12) * 18}ms` } as React.CSSProperties}
+                style={{ '--adm-delay': `calc(var(--stagger-step) * ${Math.min(i, 7)})` } as React.CSSProperties}
               >
                 <td className="adm-type-body-mono px-3 py-2 align-top break-all text-(--admin-text-primary)">{c.field}</td>
                 <td className="px-3 py-2 align-top whitespace-nowrap">

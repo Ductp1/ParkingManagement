@@ -44,7 +44,7 @@ const LINKED_FILTERS = [
 
 /** Ô chọn ngày cùng kiểu với SearchBox (32px, viền border/default). */
 const DayBox: React.FC<{ label: string; value: string; onChange: (value: string) => void }> = ({ label, value, onChange }) => (
-  <label className="flex h-8 items-center gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 text-(--admin-text-secondary) transition-colors duration-150 focus-within:border-(--admin-brand-navy-900)">
+  <label className="flex h-8 items-center gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 text-(--admin-text-secondary) adm-tr-colors focus-within:border-(--admin-brand-navy-900)">
     <span className="adm-type-body-regular-12">{label}</span>
     <input
       type="date"
@@ -57,13 +57,13 @@ const DayBox: React.FC<{ label: string; value: string; onChange: (value: string)
 );
 
 const FilterChip: React.FC<{ label: string; onRemove: () => void }> = ({ label, onRemove }) => (
-  <span className="adm-motion-fade adm-type-body-regular-12 inline-flex h-8 items-center gap-1.5 rounded-[2px] border border-(--admin-brand-navy-800) bg-(--admin-surface-selected) pr-1.5 pl-2.5 text-(--admin-brand-navy-900)">
+  <span className="adm-motion-pop adm-type-body-regular-12 inline-flex h-8 items-center gap-1.5 rounded-[2px] border border-(--admin-brand-navy-800) bg-(--admin-surface-selected) pr-1.5 pl-2.5 text-(--admin-brand-navy-900)">
     {label}
     <button
       type="button"
       aria-label={`Remove filter ${label}`}
       onClick={onRemove}
-      className="flex h-5 w-5 items-center justify-center rounded-[2px] transition-colors duration-150 hover:bg-(--admin-surface-card)"
+      className="flex h-5 w-5 items-center justify-center rounded-[2px] adm-tr-colors hover:bg-(--admin-surface-card)"
     >
       <AdminIcon icon={ADMIN_ICONS.x} />
     </button>
@@ -104,7 +104,7 @@ const AuditLogPreview: React.FC<{ id: number; onClose: () => void }> = ({ id, on
       actions={
         <Link
           to={`${AUDIT_LOG_BASE}/${id}`}
-          className="adm-type-link-default inline-flex h-8 items-center rounded-[2px] px-2 text-(--admin-brand-navy-900) transition-colors duration-150 hover:bg-(--admin-surface-selected)"
+          className="adm-type-link-default inline-flex h-8 items-center rounded-[2px] px-2 text-(--admin-brand-navy-900) adm-tr-colors hover:bg-(--admin-surface-selected)"
         >
           Open full page
         </Link>

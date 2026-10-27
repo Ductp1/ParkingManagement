@@ -1,5 +1,7 @@
 /* Font của Admin Portal (Figma: Be Vietnam Pro + JetBrains Mono cho body/mono) */
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+/* Motion token + keyframes (T-801) */
+@import './motion.css';
 
 /*
  * Design tokens Admin Portal – sinh từ Figma variable collection "Smart Parking / Admin" (23 màu, mode Light)
@@ -96,94 +98,5 @@
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
     mask-size: 100% 100%;
-  }
-
-  /*
-   * Motion – ngắn (≤ 260ms), ease-out khi vào, ease-in khi ra; chỉ dùng opacity/transform để không gây reflow.
-   * Bật theo từng màn (opt-in qua class), tắt hết khi người dùng chọn "giảm chuyển động".
-   */
-  .adm-motion-rise {
-    animation: adm-rise-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    animation-delay: var(--adm-delay, 0ms);
-  }
-  .adm-motion-fade {
-    animation: adm-fade-in 180ms ease-out both;
-  }
-  .adm-motion-dim {
-    transition: opacity 160ms ease-out;
-  }
-  .adm-motion-row {
-    transition: background-color 150ms ease-out;
-  }
-
-  .adm-drawer-scrim {
-    animation: adm-fade-in 200ms ease-out both;
-  }
-  .adm-drawer-scrim[data-state='closing'] {
-    animation: adm-fade-out 180ms ease-in both;
-  }
-  .adm-drawer-panel {
-    animation: adm-slide-in-right 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  }
-  .adm-drawer-panel[data-state='closing'] {
-    animation: adm-slide-out-right 180ms cubic-bezier(0.4, 0, 1, 1) both;
-  }
-
-  /* Thanh tiến trình mảnh trên đầu bảng khi đang tải lại (giữ dữ liệu cũ, không nháy skeleton). */
-  .adm-progress {
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 2px;
-    overflow: hidden;
-    pointer-events: none;
-  }
-  .adm-progress::after {
-    content: '';
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 40%;
-    background-color: var(--admin-brand-navy-800);
-    animation: adm-progress 1100ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
-  }
-
-  @keyframes adm-rise-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes adm-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  @keyframes adm-fade-out {
-    from { opacity: 1; }
-    to { opacity: 0; }
-  }
-  @keyframes adm-slide-in-right {
-    from { transform: translateX(100%); }
-    to { transform: none; }
-  }
-  @keyframes adm-slide-out-right {
-    from { transform: none; }
-    to { transform: translateX(100%); }
-  }
-  @keyframes adm-progress {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(250%); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .adm-motion-rise,
-    .adm-motion-fade,
-    .adm-drawer-scrim,
-    .adm-drawer-panel {
-      animation: none !important;
-    }
-    .adm-motion-dim,
-    .adm-motion-row {
-      transition: none !important;
-    }
-    .adm-progress::after {
-      animation-duration: 2400ms;
-    }
   }
 }
