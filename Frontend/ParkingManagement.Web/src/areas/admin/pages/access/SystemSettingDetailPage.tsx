@@ -5,6 +5,8 @@ import { SystemConfigChangeStatus } from '@/types/adminEnums';
 import type { SystemConfigChangeDto, SystemConfigDetailDto } from '@/types/adminSettings';
 import { AdminTitleBar } from '../../layout/AdminTitleBar';
 import { AdminButton } from '../../components/AdminButton';
+import { AuditTrailLink } from '../../components/AuditTrailLink';
+import { auditLogListLink } from './auditLogFormat';
 import { Banner } from '../../components/Banner';
 import { DetailColumns, QueryState } from '../../components/PageLayout';
 import { Panel } from '../../components/Panel';
@@ -179,7 +181,12 @@ export const SystemSettingDetailPage: React.FC = () => {
       <AdminTitleBar
         title={config.key}
         subtitle={`${config.dataType} · in effect ${config.value}${nextChange ? ` · next: ${nextChange.value} from ${formatDate(nextChange.effectiveFromUtc)}` : ''}`}
-        actions={<AdminButton onClick={() => setChangeOpen(true)}>Change value</AdminButton>}
+        actions={
+          <>
+            <AuditTrailLink to={auditLogListLink({ entity: 'SystemConfig', entityId: config.key })} />
+            <AdminButton onClick={() => setChangeOpen(true)}>Change value</AdminButton>
+          </>
+        }
       />
       <DetailColumns
         main={

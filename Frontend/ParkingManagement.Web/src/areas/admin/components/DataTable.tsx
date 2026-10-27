@@ -22,15 +22,36 @@ interface DataTableProps<T> {
   footer?: React.ReactNode;
   /** Bỏ viền ngoài khi bảng nằm trong Panel. */
   bare?: boolean;
+  /** Dòng mới hiện dần (so le ~18ms/dòng) + hover chuyển màu mượt. Opt-in theo màn. */
+  animateRows?: boolean;
+  /** Đang tải lại: giữ dữ liệu cũ, làm mờ nhẹ + thanh tiến trình trên header thay vì nháy skeleton. */
+  busy?: boolean;
 }
+
+const MAX_STAGGER_ROWS = 12;
 
 /**
  * Shell/Table (Figma): header nền table/header chữ trắng, dòng 44px (52 khi two-line), xen kẽ row-alt,
  * dòng chọn surface/selected + viền trái navy-800 2px. Không có cột trống ở đầu bảng.
  */
-export const DataTable = <T,>({ columns, rows, rowKey, onRowClick, selectedKey, placeholder, footer, bare }: DataTableProps<T>) => (
-  <div className={`flex min-w-0 flex-col bg-(--admin-surface-card) ${bare ? '' : 'border border-(--admin-border-default)'}`}>
-    <div className="overflow-x-auto">
+export const DataTable = <T,>({
+  columns,
+  rows,
+  rowKey,
+  onRowClick,
+  selectedKey,
+  placeholder,
+  footer,
+  bare,
+  animateRows,
+  busy,
+}: DataTableProps<T>) => (
+  <div
+    className={`relative flex min-w-0 flex-col bg-(--admin-surface-card) ${bare ? '' : 'border border-(--admin-border-default)'}`}
+    aria-busy={busy || undefined}
+  >
+    {busy && <span className="adm-progress z-10" aria-hidden="true" />}
+    <div className={`overflow-x-auto ${animateRows ? 'adm-motion-dim' : ''} ${busy ? 'opacity-60' : ''}`}>
       <table className="w-full border-collapse">
         <thead>
           <tr>
@@ -57,7 +78,8 @@ export const DataTable = <T,>({ columns, rows, rowKey, onRowClick, selectedKey, 
                 <tr
                   key={key}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={`h-11 border-b border-(--admin-border-default) ${
+                  style={animateRows ? ({ '--adm-delay': `${Math.min(index, MAX_STAGGER_ROWS) * 18}ms` } as React.CSSProperties) : undefined}
+                  className={`h-11 border-b border-(--admin-border-default) ${animateRows ? 'adm-motion-rise adm-motion-row' : ''} ${
                     selected
                       ? 'bg-(--admin-surface-selected) shadow-[inset_2px_0_0_var(--admin-brand-navy-800)]'
                       : index % 2 === 1
@@ -77,7 +99,7 @@ export const DataTable = <T,>({ columns, rows, rowKey, onRowClick, selectedKey, 
         )}
       </table>
     </div>
-    {rows.length === 0 && placeholder}
+    {rows.length === 0 && (animateRows ? <div className="adm-motion-fade">{placeholder}</div> : placeholder)}
     {footer}
   </div>
 );
