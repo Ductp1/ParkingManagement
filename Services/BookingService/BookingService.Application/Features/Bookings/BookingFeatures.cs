@@ -21,6 +21,13 @@ public sealed record PriceSnapshotDto(int RateCardId, decimal BaseAmount, decima
 
 public sealed record StatusLogDto(string? FromStatus, string ToStatus, int? ChangedByUserId, string? Reason, DateTime AtUtc);
 
+/// <summary>UC-20 (US-076): 1 dòng booking trong ca trực — chỉ biển số/thông tin vận hành, KHÔNG có SĐT/CCCD (quy tắc riêng tư).</summary>
+public sealed record GateBookingListItemDto(string Code, string PlateNumber, string VehicleType, string? SlotCode,
+    DateTime StartAtUtc, DateTime EndAtUtc, string Status, bool IsOverdue, decimal TotalAmount);
+
+/// <summary>Tham số list booking trong ca: grace dùng để tính cờ "Quá giờ" (US-044).</summary>
+public sealed record GateBookingListQuery(int ParkingLotId, DateTime FromUtc, DateTime ToUtc, string? Search, int GracePeriodMinutes = 15);
+
 public sealed record CancellationPreviewDto(string Code, bool CanCancel, string ResultStatus, int RefundPercent, decimal RefundAmount, string Reason);
 
 public sealed record CancellationResultDto(string Code, string Status, int RefundPercent, decimal RefundAmount, string Reason);
@@ -66,6 +73,10 @@ public interface IBookingQueries
 {
     Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken);
+
+    /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
+    Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken);
 }
 
 public interface IBookingRepository
@@ -495,6 +506,12 @@ public sealed class GateBookingActionsUseCase(
         var booking = await repository.GetEntityByCodeAsync(code.Trim().ToUpperInvariant(), cancellationToken)
             ?? throw new NotFoundException("Booking", code);
 
+        // Idempotent cho retry của GateService (T-702): xe đã sync check-in rồi → trả lại trạng thái hiện tại
+        // thay vì 409, để cổng bấm lại sau lỗi mạng không bị kẹt.
+        if (booking.Status == BookingStatus.CheckedIn)
+            return await queries.GetByCodeAsync(code, cancellationToken)
+                ?? throw new NotFoundException("Booking", code);
+
         var now = timeProvider.GetUtcNow().UtcDateTime;
         booking.CheckIn(now, command.StaffUserId, command.GateDeviceId);
 
@@ -527,5 +544,36 @@ public sealed class GateBookingActionsUseCase(
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
             ?? throw new NotFoundException("Booking", code);
+    }
+}
+
+// ===== UC-20 (US-076): Danh sách booking trong ca trực cho Staff App =====
+
+public interface IListGateBookingsUseCase
+{
+    Task<IReadOnlyList<GateBookingListItemDto>> ExecuteAsync(GateBookingListQuery query, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Staff xem booking của bãi được gán trong ca trực, tìm theo mã booking/biển số (UC-20).
+/// Gồm booking sắp đến (Confirmed trong khung giờ), xe đang trong bãi (CheckedIn/Parking) và No-show trong ca.
+/// Cờ IsOverdue = đến giờ + 15' ân hạn (US-044) mà khách chưa check-in → Staff chuẩn bị cảnh báo/hủy no-show.
+/// Kết quả KHÔNG chứa SĐT/CCCD của khách (quy tắc riêng tư UC-20).
+/// </summary>
+public sealed class ListGateBookingsUseCase(IBookingQueries queries, TimeProvider timeProvider) : IListGateBookingsUseCase
+{
+    private const int MaxWindowDays = 7;
+
+    public async Task<IReadOnlyList<GateBookingListItemDto>> ExecuteAsync(GateBookingListQuery query, CancellationToken cancellationToken = default)
+    {
+        if (query.ParkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
+        if (query.ToUtc <= query.FromUtc) throw new ValidationException("Khung giờ ca trực không hợp lệ (toUtc phải sau fromUtc).");
+        if ((query.ToUtc - query.FromUtc).TotalDays > MaxWindowDays)
+            throw new ValidationException($"Khung giờ tra cứu tối đa {MaxWindowDays} ngày.");
+        if (query.GracePeriodMinutes < 0) throw new ValidationException("gracePeriodMinutes không được âm.");
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        return await queries.ListForGateAsync(query.ParkingLotId, query.FromUtc, query.ToUtc, now,
+            query.GracePeriodMinutes, query.Search, cancellationToken);
     }
 }

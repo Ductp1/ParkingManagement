@@ -77,3 +77,116 @@ public sealed class GetPaymentsByBookingUseCase(IPaymentQueries queries) : IGetP
         return queries.ListByBookingAsync(bookingId, cancellationToken);
     }
 }
+
+// ===== UC-22 / US-045 → US-047: Chốt phí lượt gửi xe tại cổng ra =====
+
+public sealed record SessionFeeQuery(int ParkingLotId, string VehicleType, DateTime EntryAtUtc, DateTime ExitAtUtc,
+    DateTime? BookedEndAtUtc = null, int? BillingGracePeriodMinutes = null, decimal? OverstayMultiplier = null);
+
+public sealed record SessionFeeDto(int ParkingLotId, int RateCardId, string VehicleType, int DurationMinutes,
+    bool IsWithinBillingGrace, decimal BaseAmount, decimal Multiplier, int OverstayMinutes, decimal OverstayAmount,
+    decimal FinalAmount, IReadOnlyList<PriceLine> Lines);
+
+public interface IComputeSessionFeeUseCase
+{
+    Task<SessionFeeDto> ExecuteAsync(SessionFeeQuery query, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// UC-22 bước 2: tính tổng tiền khi xe ra cổng. Ưu tiên Price Lock của booking
+/// (BillingGracePeriodMinutes + OverstayMultiplier trong PriceSnapshot); biểu giá bậc lũy tiến
+/// lấy từ Rate Card hiệu lực của bãi tại thời điểm vào (snapshot JSON hiện chưa đủ cấu trúc để tái tạo RateCard).
+/// </summary>
+public sealed class ComputeSessionFeeUseCase(
+    IRateCardRepository rateCards,
+    IHolidayRepository holidayRepo) : IComputeSessionFeeUseCase
+{
+    public async Task<SessionFeeDto> ExecuteAsync(SessionFeeQuery query, CancellationToken cancellationToken = default)
+    {
+        if (query.ParkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
+        if (query.ExitAtUtc <= query.EntryAtUtc) throw new ValidationException("Giờ ra phải sau giờ vào.");
+        if (!Enum.TryParse<VehicleType>(query.VehicleType, ignoreCase: true, out var vehicleType))
+            throw new ValidationException($"Loại xe '{query.VehicleType}' không hợp lệ.");
+
+        var card = await rateCards.GetActiveAsync(query.ParkingLotId, query.EntryAtUtc, cancellationToken)
+            ?? throw new NotFoundException("Bảng giá của bãi", query.ParkingLotId);
+
+        var startVnDate = DateOnly.FromDateTime(query.EntryAtUtc.AddHours(7));
+        var endVnDate = DateOnly.FromDateTime(query.ExitAtUtc.AddHours(7));
+        var holidays = await holidayRepo.GetHolidaysInRangeAsync(startVnDate, endVnDate, cancellationToken);
+
+        var q = PriceCalculator.CalculateSession(card, vehicleType, query.EntryAtUtc, query.ExitAtUtc,
+            query.BookedEndAtUtc, query.BillingGracePeriodMinutes ?? PriceCalculator.DefaultGracePeriodMinutes,
+            query.OverstayMultiplier, holidays);
+
+        return new SessionFeeDto(query.ParkingLotId, card.Id, vehicleType.ToString(), q.DurationMinutes,
+            q.IsWithinBillingGrace, q.BaseAmount, q.Multiplier, q.OverstayMinutes, q.OverstayAmount, q.FinalAmount, q.Lines);
+    }
+}
+
+// ===== UC-22 bước 4 / UC-23 A2: Staff xác nhận thu tiền mặt tại cổng và ghi thanh toán =====
+
+/// <summary>Port ghi giao dịch thanh toán – Infrastructure cài bằng PaymentDbContext.</summary>
+public interface IPaymentWriter
+{
+    /// <summary>Tìm giao dịch theo khóa chống trừ tiền 2 lần (idempotent cho callback/thao tác lặp).</summary>
+    Task<Payment?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken);
+    Task AddAsync(Payment payment, CancellationToken cancellationToken);
+    Task SaveAsync(CancellationToken cancellationToken);
+}
+
+public sealed record GateSettlementCommand(string SessionCode, int ParkingSessionId, int ParkingLotId, int OwnerProfileId,
+    string? BookingCode, decimal Amount, string Method, int? ConfirmedByStaffId);
+
+public interface IRecordGateSettlementUseCase
+{
+    Task<PaymentDto> ExecuteAsync(GateSettlementCommand command, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Staff xác nhận đã thu tiền mặt/quét VietQR tại cổng ra (UC-22 A2, US-048 AC2) → ghi Payment Succeeded.
+/// Idempotent theo SessionCode: gọi lặp (mất mạng, bấm 2 lần) không tạo giao dịch trùng.
+/// </summary>
+public sealed class RecordGateSettlementUseCase(IPaymentWriter writer, TimeProvider timeProvider) : IRecordGateSettlementUseCase
+{
+    public async Task<PaymentDto> ExecuteAsync(GateSettlementCommand command, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(command.SessionCode)) throw new ValidationException("SessionCode không được để trống.");
+        if (command.ParkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
+        if (command.Amount < 0) throw new ValidationException("Số tiền thu tại cổng không được âm.");
+        if (!Enum.TryParse<PaymentMethod>(command.Method, ignoreCase: true, out var method))
+            throw new ValidationException($"Phương thức thu tại cổng '{command.Method}' không hợp lệ (Cash hoặc VietQr).");
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var idempotencyKey = $"gate-session:{command.SessionCode.Trim().ToUpperInvariant()}";
+
+        // Idempotent: thao tác lặp trả lại giao dịch đã ghi, không trừ/tạo lần 2.
+        var existing = await writer.FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
+        if (existing is not null)
+            return Map(existing);
+
+        var payment = new Payment
+        {
+            Code = $"PM-{now:yyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}",
+            ParkingSessionId = command.ParkingSessionId,
+            ParkingLotId = command.ParkingLotId,
+            OwnerProfileId = command.OwnerProfileId,
+            BookingCode = command.BookingCode,
+            Purpose = command.BookingCode is null ? PaymentPurpose.WalkIn : PaymentPurpose.Overstay,
+            Method = method,
+            Status = PaymentStatus.Succeeded,
+            Amount = command.Amount,
+            IdempotencyKey = idempotencyKey,
+            TransferContent = command.SessionCode,
+            PaidAtUtc = now,
+            ConfirmedByStaffId = command.ConfirmedByStaffId,
+        };
+
+        await writer.AddAsync(payment, cancellationToken);
+        await writer.SaveAsync(cancellationToken);
+        return Map(payment);
+    }
+
+    private static PaymentDto Map(Payment p) => new(p.Id, p.Code, p.BookingId, p.BookingCode, p.Method.ToString(),
+        p.Status.ToString(), p.Amount, p.RefundedAmount, p.ProviderTransactionId, p.PaidAtUtc, null);
+}
