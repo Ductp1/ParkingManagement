@@ -17,4 +17,17 @@ public sealed class AdminDbContext(DbContextOptions<AdminDbContext> options) : S
     public DbSet<ContractTemplate> ContractTemplates => Set<ContractTemplate>();
     public DbSet<LotContract> LotContracts => Set<LotContract>();
     public DbSet<LotContractVersion> LotContractVersions => Set<LotContractVersion>();
+
+    // US-100 AC2: AuditLogs chỉ thêm, không sửa / xóa.
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        AuditLogAppendOnlyGuard.Check(ChangeTracker);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        AuditLogAppendOnlyGuard.Check(ChangeTracker);
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
 }
