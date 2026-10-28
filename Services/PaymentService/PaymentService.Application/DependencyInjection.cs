@@ -11,6 +11,9 @@ public static class DependencyInjection
         services.AddScoped<IQuotePriceUseCase, QuotePriceUseCase>();
         services.AddScoped<IGetPaymentsByBookingUseCase, GetPaymentsByBookingUseCase>();
         services.AddScoped<ICreateVnpayPaymentUseCase, CreateVnpayPaymentUseCase>();
+        services.AddScoped<ICreateVietQrPaymentUseCase, CreateVietQrPaymentUseCase>();
+        services.AddScoped<IProcessVnpayReturnUseCase, ProcessVnpayReturnUseCase>();
+        services.AddScoped<IProcessVnpayIpnUseCase, ProcessVnpayIpnUseCase>();
         return services;
     }
 }

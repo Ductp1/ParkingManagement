@@ -33,7 +33,11 @@ public class CreateVnpayPaymentUseCaseTests
             return Task.FromResult(found);
         }
 
-        public Task UpdateAsync(Payment payment, CancellationToken cancellationToken = default)
+        public Task SaveCallbackResultAsync(
+            Payment? payment, 
+            PaymentCallbackLog callbackLog, 
+            ParkingManagement.SharedKernel.Domain.OutboxMessage? outboxMessage, 
+            CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }
@@ -57,7 +61,13 @@ public class CreateVnpayPaymentUseCaseTests
             LastGeneratedUrl = $"https://sandbox.vnpayment.vn/test?vnp_TxnRef={paymentCode}&vnp_Amount={amount * 100}";
             return LastGeneratedUrl;
         }
+
+        public bool ValidateCallbackSignature(IReadOnlyDictionary<string, string> parameters)
+        {
+            return true;
+        }
     }
+
 
     [Theory]
     [InlineData(0)]
