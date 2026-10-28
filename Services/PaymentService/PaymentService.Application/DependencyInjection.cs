@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using PaymentService.Application.Features;
+using PaymentService.Application.Features.Payments;
 
 namespace PaymentService.Application;
 
@@ -12,6 +13,7 @@ public static class DependencyInjection
         // UC-22: chốt phí lượt gửi tại cổng ra + ghi thanh toán tiền mặt do staff xác nhận.
         services.AddScoped<IComputeSessionFeeUseCase, ComputeSessionFeeUseCase>();
         services.AddScoped<IRecordGateSettlementUseCase, RecordGateSettlementUseCase>();
+        services.AddScoped<ICreateVnpayPaymentUseCase, CreateVnpayPaymentUseCase>();
         return services;
     }
 }
