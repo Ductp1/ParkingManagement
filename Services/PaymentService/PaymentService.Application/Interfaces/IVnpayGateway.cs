@@ -22,4 +22,12 @@ public interface IVnpayGateway
         string ipAddress,
         DateTime createdAtUtc,
         DateTime expiresAtUtc);
+
+    /// <summary>
+    /// Thẩm định tính hợp lệ của chữ ký số (vnp_SecureHash) do VNPAY trả về trong Callback/IPN (US-033).
+    /// </summary>
+    /// <param name="parameters">Tập hợp các tham số nhận được từ Query String của VNPAY.</param>
+    /// <returns>True nếu chữ ký hợp lệ và dữ liệu không bị can thiệp; False nếu sai chữ ký hoặc bị giả mạo.</returns>
+    bool ValidateCallbackSignature(IReadOnlyDictionary<string, string> parameters);
 }
+
