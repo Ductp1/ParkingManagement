@@ -10,6 +10,9 @@ public interface ILayoutVersionRepository
     /// <summary>Lấy phiên bản layout đã xuất bản (IsPublished = true) mới nhất của tầng.</summary>
     Task<LayoutVersion?> GetLatestPublishedByFloorIdAsync(int floorId, CancellationToken cancellationToken = default);
 
+    /// <summary>Lấy bản vẽ nháp (IsPublished = false) mới nhất của tầng nếu có.</summary>
+    Task<LayoutVersion?> GetLatestDraftByFloorIdAsync(int floorId, CancellationToken cancellationToken = default);
+
     /// <summary>Lấy phiên bản layout theo số phiên bản cụ thể của tầng.</summary>
     Task<LayoutVersion?> GetByFloorIdAndVersionAsync(int floorId, int versionNo, CancellationToken cancellationToken = default);
 
@@ -22,6 +25,8 @@ public interface ILayoutVersionRepository
     Task AddAsync(LayoutVersion layoutVersion, CancellationToken cancellationToken = default);
 
     Task UpdateAsync(LayoutVersion layoutVersion, CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(LayoutVersion layoutVersion, CancellationToken cancellationToken = default);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
