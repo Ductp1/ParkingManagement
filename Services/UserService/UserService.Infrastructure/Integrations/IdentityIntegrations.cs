@@ -1,12 +1,10 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.SharedKernel.Domain;
-using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using UserService.Application.Features.Identity;
 using UserService.Infrastructure.Persistence;
@@ -36,7 +34,7 @@ public sealed class OtpDeliveryConfiguration(IConfiguration config, IHostEnviron
 }
 
 public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfiguration config, IHostEnvironment environment,
-    ISecretCipher cipher, UserDbContext db, TimeProvider clock) : IOutboxTransport
+    ISecretCipher cipher, UserDbContext db, TimeProvider clock, RabbitMqOutboxTransport eventBus) : IOutboxTransport
 {
     public async Task DeliverAsync(OutboxMessage message, CancellationToken ct)
     {
@@ -59,10 +57,8 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
         }
         else
         {
-            url = OtpDeliveryConfiguration.Endpoint(config["EventBus:PublishUrl"], environment);
-            apiKey = config["EventBus:ApiKey"];
-            using var document = JsonDocument.Parse(message.PayloadJson);
-            payload = new { EventId = message.Id, message.EventType, message.OccurredAtUtc, Payload = document.RootElement.Clone() };
+            await eventBus.DeliverAsync(message, ct);
+            return;
         }
         using var requestMessage = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(payload) };
         requestMessage.Headers.Add("Idempotency-Key", message.Id.ToString());

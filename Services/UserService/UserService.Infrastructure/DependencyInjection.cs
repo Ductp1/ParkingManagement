@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
+using ParkingManagement.ServiceDefaults.Messaging;
 using UserService.Application.Features.Users;
 using UserService.Infrastructure.Persistence;
 using UserService.Infrastructure.Persistence.Queries;
@@ -28,6 +29,7 @@ public static class DependencyInjection
                 UserService.Infrastructure.Authentication.CaptchaOptions>>().Value.TimeoutSeconds));
         services.AddServiceDbContext<UserDbContext>(configuration);
         services.AddScoped<IUserQueries, UserQueries>();
+        services.AddScoped<IAvatarStorage, UserService.Infrastructure.Storage.LocalAvatarStorage>();
         services.AddScoped<IDataSeeder<UserDbContext>, UserDataSeeder>();
 
         // Đăng ký Auth services
@@ -44,6 +46,7 @@ public static class DependencyInjection
         services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<UserDbContext>>();
         services.AddHostedService<UserService.Infrastructure.Storage.IdentityRetentionWorker>();
         services.AddHttpClient("IdentityIntegrations", client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddRabbitMqEventBus(configuration);
         return services;
     }
 }

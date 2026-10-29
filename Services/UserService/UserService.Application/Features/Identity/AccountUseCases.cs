@@ -39,7 +39,7 @@ public sealed class AccountUseCases(IIdentityStore store, IPasswordHasher passwo
 
     public async Task RequestOtpAsync(OtpRequest request, CancellationToken ct)
     {
-        if (request.Purpose != OtpPurpose.Register) throw new ValidationException("Mục đích OTP không được hỗ trợ.");
+        if (request.Purpose is not (OtpPurpose.Register or OtpPurpose.ResetPassword)) throw new ValidationException("Mục đích OTP không được hỗ trợ.");
         var contact = IdentityRules.Contact(request.Contact);
         delivery.EnsureDestination(contact);
         delivery.EnsureAvailable();
@@ -50,7 +50,8 @@ public sealed class AccountUseCases(IIdentityStore store, IPasswordHasher passwo
         var now = clock.GetUtcNow().UtcDateTime;
         if (user.IsDeleted || user.LockedUntilUtc > now || user.Status is UserStatus.Banned or UserStatus.Locked
             || (request.Purpose == OtpPurpose.Register && user.Status != UserStatus.PendingVerification)
-)
+            || (request.Purpose == OtpPurpose.ResetPassword && (user.Status != UserStatus.Active
+                || !(contact.Contains('@') ? user.EmailConfirmed : user.PhoneConfirmed))))
         { await tx.CommitAsync(ct); return; }
         var latest = await store.LatestOtpAsync(user.Id, request.Purpose, ct);
         if (latest is not null && latest.ExpiresAtUtc > now.AddSeconds(240))
@@ -69,6 +70,22 @@ public sealed class AccountUseCases(IIdentityStore store, IPasswordHasher passwo
         if (user.Email is not null) user.EmailConfirmed = true; else user.PhoneConfirmed = true;
         user.LockedUntilUtc = null;
         user.LockReason = null;
+        await store.SaveAsync(ct);
+        await tx.CommitAsync(ct);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken ct)
+    {
+        IdentityRules.Password(request.NewPassword);
+        await using var tx = await store.BeginAsync(ct);
+        var user = await OtpUserAsync(request.Contact, ct);
+        IdentityRules.CanAuthenticate(user, clock.GetUtcNow().UtcDateTime);
+        await VerifyCodeAsync(user, request.Code, OtpPurpose.ResetPassword, tx, ct);
+        user.PasswordHash = passwords.Hash(request.NewPassword);
+        user.FailedLoginCount = 0;
+        var now = clock.GetUtcNow().UtcDateTime;
+        await store.RevokeSessionsAsync(user.Id, now, ct);
+        store.Add(new SecurityEvent { UserId = user.Id, EventType = SecurityEventType.PasswordChanged });
         await store.SaveAsync(ct);
         await tx.CommitAsync(ct);
     }

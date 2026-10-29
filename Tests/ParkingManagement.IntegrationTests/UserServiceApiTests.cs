@@ -75,6 +75,87 @@ public sealed class UserServiceApiTests(Tv1ApiFixture fixture)
     }
 
     public sealed record Tokens(string AccessToken,string RefreshToken);
+
+    [Tv1PostgresFact]
+    public async Task Reset_password_revokes_old_access_and_refresh_and_rejects_replay()
+    {
+        var session = await fixture.RegisterAsync();
+        using var client = fixture.Client();
+        Assert.Equal(HttpStatusCode.Accepted, (await client.PostAsJsonAsync("/api/v1/auth/password/forgot", new { session.Contact })).StatusCode);
+        var code = await fixture.CodeAsync(session.Contact, "ResetPassword");
+        var reset = new { session.Contact, Code = code, NewPassword = "NewPassword123" };
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsJsonAsync("/api/v1/auth/password/reset", reset)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/password/reset", reset)).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/v1/users/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/refresh", new { session.RefreshToken })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/v1/auth/login", new { EmailOrPhone = session.Contact, Password = "Password123", CaptchaToken = "integration-valid" })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/v1/auth/login", new { EmailOrPhone = session.Contact, Password = "NewPassword123", CaptchaToken = "integration-valid" })).StatusCode);
+    }
+
+    [Tv1PostgresFact]
+    public async Task Update_me_ignores_privileged_fields()
+    {
+        var session = await fixture.RegisterAsync();
+        using var client = fixture.Client();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.PutAsJsonAsync("/api/v1/users/me", new { FullName = "Anonymous" })).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PutAsJsonAsync("/api/v1/users/me", new { FullName = "Updated", AvatarUrl = "https://example.com/a.png", Roles = new[] { "Admin" }, Email = "attacker@example.com", Status = "Banned" })).StatusCode);
+        using var profile = JsonDocument.Parse(await client.GetStringAsync("/api/v1/users/me"));
+        Assert.Equal("Updated", profile.RootElement.GetProperty("fullName").GetString());
+        Assert.Equal(session.Contact, profile.RootElement.GetProperty("email").GetString());
+        Assert.Equal("Driver", profile.RootElement.GetProperty("roles")[0].GetString());
+        Assert.Equal(JsonValueKind.Null, profile.RootElement.GetProperty("avatarUrl").ValueKind);
+    }
+
+    [Tv1PostgresFact]
+    public async Task Avatar_upload_serves_normalized_image_replaces_and_removes_owned_files()
+    {
+        var session = await fixture.RegisterAsync();
+        using var client = fixture.Client();
+        using var image = new SkiaSharp.SKBitmap(800, 400);
+        using var encoded = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+        var bytes = encoded.ToArray();
+        MultipartFormDataContent Form(byte[] content)
+        {
+            var form = new MultipartFormDataContent();
+            form.Add(new ByteArrayContent(content), "file", "../../untrusted.png");
+            return form;
+        }
+        using (var form = Form(bytes))
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsync("/api/v1/users/me/avatar", form)).StatusCode);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", session.AccessToken);
+        using (var invalid = Form("not an image"u8.ToArray()))
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync("/api/v1/users/me/avatar", invalid)).StatusCode);
+        string? first = null;
+        string? second = null;
+        for (var i = 0; i < 2; i++)
+        {
+            using var form = Form(bytes);
+            var uploaded = await client.PostAsync("/api/v1/users/me/avatar", form);
+            Assert.Equal(HttpStatusCode.OK, uploaded.StatusCode);
+            using var result = JsonDocument.Parse(await uploaded.Content.ReadAsStringAsync());
+            var url = result.RootElement.GetProperty("avatarUrl").GetString()!;
+            if (i == 0) first = url; else second = url;
+            using var anonymous = fixture.Client();
+            var response = await anonymous.GetAsync(url);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("image/png", response.Content.Headers.ContentType!.MediaType);
+            using var normalized = SkiaSharp.SKBitmap.Decode(await response.Content.ReadAsByteArrayAsync());
+            Assert.Equal(512, normalized.Width); Assert.Equal(256, normalized.Height);
+        }
+        Assert.NotEqual(first, second);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(first)).StatusCode);
+        // Updating name must never clear or overwrite an uploaded avatar.
+        await client.PutAsJsonAsync("/api/v1/users/me", new { FullName = "Avatar user", AvatarUrl = "https://attacker.test/a.svg" });
+        using var me = JsonDocument.Parse(await client.GetStringAsync("/api/v1/users/me"));
+        Assert.Equal(second, me.RootElement.GetProperty("avatarUrl").GetString());
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/v1/users/me/avatar")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(second)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/v1/users/me/avatar")).StatusCode);
+    }
+
+
 }
 
 public sealed class Tv1ApiFixture : IDisposable
@@ -92,10 +173,11 @@ public sealed class Tv1ApiFixture : IDisposable
         Set("Jwt__PublicKeyPath",publicPath);Set("Jwt__PrivateKeyPath",privatePath);
         Set("Security__EncryptionKey",Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
         Set("Security__PrivateFilesPath",Path.Combine(root,"files"));Set("Database__SeedDemoData","false");
+        Set("Security__AvatarPath", Path.Combine(root, "avatars"));
         Set("Security__AuthRequestsPerMinute","200");
         Set("Captcha__SecretKey","integration-test-secret");
         Set("Database__ApplyMigrationsOnStartup","true");Set("EventBus__Enabled","true");
-        Set("Otp__Transport","Http");Set("Otp__DeliveryUrl","https://otp.test/delivery");Set("EventBus__PublishUrl","https://events.test/publish");
+        Set("Otp__Transport","Http");Set("Otp__DeliveryUrl","https://otp.test/delivery");
         if(Environment.GetEnvironmentVariable("TV1_TEST_DB") is {Length:>0} db)Set("ConnectionStrings__ServiceDb",db);
         factory=new ApiFactory(delivery);
     }
@@ -126,6 +208,7 @@ public sealed class Tv1ApiFixture : IDisposable
             services.AddScoped<UserService.Application.Interfaces.ICaptchaVerifier, TestCaptcha>();
             services.AddDataProtection().UseEphemeralDataProtectionProvider();
             services.AddHttpClient("IdentityIntegrations").ConfigurePrimaryHttpMessageHandler(()=>handler);
+            services.AddSingleton<ParkingManagement.ServiceDefaults.Messaging.IRabbitMqPublisher, TestEventPublisher>();
         });
     }
     private sealed class TestCaptcha : UserService.Application.Interfaces.ICaptchaVerifier
@@ -135,6 +218,11 @@ public sealed class Tv1ApiFixture : IDisposable
             if (token != "integration-valid") throw new UserService.Application.Interfaces.CaptchaException(false);
             return Task.CompletedTask;
         }
+    }
+    private sealed class TestEventPublisher : ParkingManagement.ServiceDefaults.Messaging.IRabbitMqPublisher
+    {
+        public Task PublishAsync(ParkingManagement.SharedKernel.Domain.OutboxMessage message, ReadOnlyMemory<byte> body, CancellationToken ct)
+            => Task.CompletedTask;
     }
     private sealed class DeliveryHandler:HttpMessageHandler
     {

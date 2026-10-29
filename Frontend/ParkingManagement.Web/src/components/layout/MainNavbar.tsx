@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { logoutSession } from '@/api/authApi';
+import { avatarSource, logoutSession } from '@/api/authApi';
 import { logout, switchRole } from '@/store/slices/authSlice';
 import { fetchNotificationInbox, markNotificationAsRead } from '@/store/slices/notificationSlice';
 import { notificationTargetRoute } from '@/utils/notificationBooking';
 import type { NotificationDto } from '@/types/notification';
 import type { UserRole } from '@/types/auth';
+import './navbar.css';
 
 /** Icon + màu theo loại thông báo (templateKey do NotificationService sinh ra). */
 const NOTIFICATION_ICONS: Record<string, { icon: string; color: string }> = {
@@ -34,10 +35,8 @@ interface RolePortalItem {
   id: UserRole;
   label: string;
   subtitle: string;
-  badge: string;
   path: string;
   icon: string;
-  activeTabClass: string;
   badgeClass: string;
   subActiveClass: string;
 }
@@ -47,10 +46,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Driver',
     label: 'Tài xế',
     subtitle: 'Cổng Dịch Vụ Khách Hàng',
-    badge: 'Tài xế',
     path: '/driver',
     icon: 'directions_car',
-    activeTabClass: 'bg-blue-600 text-white shadow-xs',
     badgeClass: 'bg-blue-100 text-blue-700',
     subActiveClass: 'bg-blue-50 text-blue-700 font-bold',
   },
@@ -58,10 +55,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Owner',
     label: 'Chủ bãi',
     subtitle: 'Cổng Đối Tác Chủ Bãi',
-    badge: 'Chủ bãi',
     path: '/owner',
     icon: 'domain',
-    activeTabClass: 'bg-indigo-600 text-white shadow-xs',
     badgeClass: 'bg-indigo-100 text-indigo-700',
     subActiveClass: 'bg-indigo-50 text-indigo-700 font-bold',
   },
@@ -69,10 +64,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Staff',
     label: 'Trực cổng',
     subtitle: 'Trạm Soát Vé Barie (Gate Console)',
-    badge: 'Nhân viên cổng',
     path: '/gate',
     icon: 'fence',
-    activeTabClass: 'bg-amber-600 text-white shadow-xs',
     badgeClass: 'bg-amber-100 text-amber-800',
     subActiveClass: 'bg-amber-50 text-amber-800 font-bold',
   },
@@ -80,10 +73,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Admin',
     label: 'Quản trị',
     subtitle: 'Hệ Thống Quản Trị Trung Tâm',
-    badge: 'Quản trị viên',
     path: '/admin',
     icon: 'admin_panel_settings',
-    activeTabClass: 'bg-purple-600 text-white shadow-xs',
     badgeClass: 'bg-purple-100 text-purple-700',
     subActiveClass: 'bg-purple-50 text-purple-700 font-bold',
   },
@@ -149,6 +140,7 @@ export const MainNavbar: React.FC = () => {
     if (pathname.startsWith('/admin')) return 'Admin';
     if (pathname.startsWith('/owner')) return 'Owner';
     if (pathname.startsWith('/gate')) return 'Staff';
+    if (pathname.startsWith('/account')) return user?.role ?? 'Driver';
     return 'Driver';
   };
 
@@ -194,54 +186,55 @@ export const MainNavbar: React.FC = () => {
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-xs">
+    <header className="pm-navbar bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-xs">
       {/* ===== TẦNG 1: BRAND LOGO + TRUY CẬP NHANH CÁC ROLE QUA URL + USER PROFILE ===== */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="pm-navbar-shell pm-navbar-top flex items-center justify-between">
         {/* Brand Logo & Tiêu đề phân hệ theo vai trò */}
-        <div className="flex items-center gap-4 shrink-0">
-          <NavLink to={activePortal.path} className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-xs group-hover:scale-105 transition-transform">
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <NavLink to={activePortal.path} className="pm-navbar-brand flex items-center gap-2.5 group">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-xs group-hover:scale-105 transition-transform">
               P
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-slate-900 text-lg leading-tight tracking-tight group-hover:text-blue-600 transition-colors">
+              <span className="font-extrabold text-slate-900 text-base sm:text-lg leading-tight tracking-tight group-hover:text-blue-600 transition-colors">
                 ParkMaster
               </span>
-              <span className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
+              <span className="hidden sm:inline text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
                 {activePortal.subtitle}
               </span>
             </div>
           </NavLink>
         </div>
 
-        {/* CHUYỂN PHÂN HỆ: Chỉ hiển thị các phân hệ mà tài khoản có quyền truy cập */}
-        {authorizedPortals.length > 1 && (
-          <nav className="hidden lg:flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 gap-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase px-2">Phân hệ:</span>
-            {authorizedPortals.map((portal) => {
-              const isActive = portal.id === activeRole;
+        <div className="pm-navbar-desktop-menu">
+          <nav aria-label={`Chức năng ${activePortal.label}`} className="pm-navbar-menu">
+
+            {currentSubNavs.map((sub) => {
+              const isSubActive =
+                location.pathname === sub.path ||
+                (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
+
               return (
                 <NavLink
-                  key={portal.id}
-                  to={portal.path}
-                  onClick={() => dispatch(switchRole(portal.id))}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    isActive
-                      ? portal.activeTabClass
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  key={sub.path}
+                  to={sub.path}
+                  end={sub.path === activePortal.path}
+                  className={`pm-navbar-menu-link flex items-center gap-2 px-3 rounded-lg text-xs transition-colors ${
+                    isSubActive
+                      ? activePortal.subActiveClass
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
                   }`}
-                  title={`Chuyển sang phân hệ ${portal.label}`}
                 >
-                  <span className="material-symbols-outlined text-[15px]">{portal.icon}</span>
-                  <span>{portal.label}</span>
+                  <span className="material-symbols-outlined text-[16px]">{sub.icon}</span>
+                  <span>{sub.label}</span>
                 </NavLink>
               );
             })}
           </nav>
-        )}
+        </div>
 
         {/* Right Section: Notification + User Profile + Logout */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="pm-navbar-actions flex items-center gap-1 sm:gap-3 shrink-0">
           {/* Notifications */}
           <div className="relative">
             <button
@@ -263,7 +256,7 @@ export const MainNavbar: React.FC = () => {
             )}
 
             {isNotificationOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+              <div className="pm-navbar-notifications absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-slate-900">Thông báo</h3>
@@ -348,7 +341,7 @@ export const MainNavbar: React.FC = () => {
           </div>
 
           {/* User Profile Badge (Hiển thị đúng tài khoản tương ứng của phân hệ) */}
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+          <NavLink to="/account/profile" aria-label="Mở hồ sơ cá nhân" className="flex items-center gap-2 pl-2 border-l border-slate-200 rounded-lg hover:bg-slate-100 focus-visible:outline-indigo-500">
             <div className="flex flex-col items-end hidden sm:flex">
               <span className="text-xs font-bold text-slate-900 truncate max-w-[150px]">
                 {user?.fullName || 'Khách'}
@@ -359,10 +352,11 @@ export const MainNavbar: React.FC = () => {
                 </span>
               </div>
             </div>
-            <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            <div className="relative w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-xs shadow-xs">
               <span className="material-symbols-outlined text-[20px]">{activePortal.icon}</span>
+              {user?.avatarUrl && <img key={user.avatarUrl} src={avatarSource(user.avatarUrl)} alt="" className="absolute inset-0 w-9 h-9 rounded-xl object-cover" referrerPolicy="no-referrer" onError={e => { e.currentTarget.style.display = 'none'; }} />}
             </div>
-          </div>
+          </NavLink>
 
           {/* Logout Action */}
           <button
@@ -383,8 +377,10 @@ export const MainNavbar: React.FC = () => {
               }
             }}
             title="Đăng xuất và vào trang Login"
+            aria-label={loggingOut ? 'Đang thoát…' : 'Đăng xuất'}
           >
-            {loggingOut ? 'Đang thoát…' : 'Đăng xuất'}
+            <span className="hidden sm:inline">{loggingOut ? 'Đang thoát…' : 'Đăng xuất'}</span>
+            <span className="sm:hidden"><span className="material-symbols-outlined text-[20px]">{loggingOut ? 'progress_activity' : 'logout'}</span></span>
           </button>
           {logoutError && <span role="alert" className="text-xs text-red-600">{logoutError}</span>}
 
@@ -392,8 +388,10 @@ export const MainNavbar: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
+            className={`${authorizedPortals.length > 1 ? "" : "lg:hidden "}p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer`}
             aria-label="Mở menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="navbar-mobile-menu"
           >
             <span className="material-symbols-outlined text-[24px]">
               {isMobileMenuOpen ? 'close' : 'menu'}
@@ -402,49 +400,9 @@ export const MainNavbar: React.FC = () => {
         </div>
       </div>
 
-      {/* ===== TẦNG 2: MENU CHỨC NĂNG DÀNH RIÊNG CHO PHÂN HỆ CỦA TÀI KHOẢN ===== */}
-      <div className="bg-slate-50/90 border-t border-slate-200/80 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto h-11 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden sm:inline-flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">subdirectory_arrow_right</span>
-              {activePortal.label}:
-            </span>
-            {currentSubNavs.map((sub) => {
-              const isSubActive =
-                location.pathname === sub.path ||
-                (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
-
-              return (
-                <NavLink
-                  key={sub.path}
-                  to={sub.path}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0 ${
-                    isSubActive
-                      ? activePortal.subActiveClass
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">{sub.icon}</span>
-                  <span>{sub.label}</span>
-                </NavLink>
-              );
-            })}
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-400 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>URL Trực tiếp:</span>
-            <span className="font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
-              {location.pathname}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* ===== MENU MOBILE: HIỂN THỊ CÁC CHỨC NĂNG CỦA TÀI KHOẢN ===== */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-4 space-y-4 shadow-xl">
+        <div id="navbar-mobile-menu" className="pm-navbar-shell bg-white border-t border-slate-200 py-4 space-y-4 shadow-xl">
           {authorizedPortals.length > 1 && (
             <>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
