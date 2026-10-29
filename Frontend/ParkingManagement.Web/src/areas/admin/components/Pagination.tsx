@@ -21,7 +21,7 @@ const pageItems = (page: number, totalPages: number): Array<number | 'gap'> => {
   return items;
 };
 
-const btn = 'adm-type-body-strong inline-flex h-8 min-w-8 items-center justify-center rounded-[2px] px-3';
+const btn = 'adm-type-body-strong adm-press inline-flex h-8 min-w-8 items-center justify-center rounded-[2px] px-3';
 
 /** Shell/Pagination: cao 48, viền trên, "Showing x–y of N" + Previous / số trang / Next. */
 export const Pagination: React.FC<PaginationProps> = ({ page, pageSize, totalCount, onPageChange }) => {

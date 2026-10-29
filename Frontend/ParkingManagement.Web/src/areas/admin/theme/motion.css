@@ -1,0 +1,334 @@
+/*
+ * Motion của Admin Portal (T-801). Figma (Admin Portal v1) chỉ có prototype "Instant" nên token do code định nghĩa.
+ * Quy tắc: chỉ animate transform / opacity (màu nền/viền/chữ chỉ transition, không đổi layout), thoát nhanh hơn vào,
+ * stagger tối đa 8 phần tử. Mọi duration / easing lấy từ token bên dưới – JS đọc cùng token qua utils/motion.ts.
+ * prefers-reduced-motion: quãng đường = 0, scale = 1, fade ≤ 100 ms, không rung / không count-up.
+ */
+@layer components {
+  .admin-portal,
+  .admin-scope {
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+    --dur-fast: 140ms;
+    --dur-base: 200ms;
+    --dur-slow: 260ms;
+    --dur-page: 280ms;
+    --dur-exit: 150ms;
+    --dur-shake: 280ms;
+    --dur-count: 700ms;
+    --dur-highlight: 1000ms;
+    --dur-shimmer: 1400ms;
+    --dur-spin: 800ms;
+    --stagger-step: 30ms;
+    --motion-distance: 10px;
+    --motion-scale-from: 0.96;
+    --motion-pop-from: 0.6;
+    --motion-press-scale: 0.98;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-portal,
+    .admin-scope {
+      --ease-spring: var(--ease-out);
+      --dur-fast: 80ms;
+      --dur-base: 100ms;
+      --dur-slow: 100ms;
+      --dur-page: 100ms;
+      --dur-exit: 80ms;
+      --dur-shake: 0ms;
+      --dur-count: 0ms;
+      --dur-highlight: 600ms;
+      --stagger-step: 0ms;
+      --motion-distance: 0px;
+      --motion-scale-from: 1;
+      --motion-pop-from: 1;
+      --motion-press-scale: 1;
+    }
+  }
+
+  /* ===== Transition tiện ích ===== */
+  .adm-tr-colors {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .adm-press {
+    transition-property: transform, color, background-color, border-color, box-shadow, opacity;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .adm-press:active:not(:disabled):not([aria-disabled='true']) {
+    transform: scale(var(--motion-press-scale));
+  }
+  .adm-motion-dim {
+    transition: opacity var(--dur-fast) var(--ease-out);
+  }
+  .adm-motion-row {
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  /* ===== Vào màn ===== */
+  .adm-motion-rise {
+    animation: adm-rise var(--dur-base) var(--ease-out) both;
+    animation-delay: var(--adm-delay, 0ms);
+  }
+  .adm-motion-fade {
+    animation: adm-fade-in var(--dur-base) var(--ease-out) both;
+  }
+  .adm-motion-crossfade {
+    animation: adm-fade-in var(--dur-fast) var(--ease-out) both;
+  }
+  .adm-motion-pop {
+    animation: adm-pop var(--dur-base) var(--ease-spring) both;
+    animation-delay: var(--adm-delay, 0ms);
+  }
+  .adm-motion-drop {
+    animation: adm-drop var(--dur-fast) var(--ease-out) both;
+  }
+
+  /* Con trực tiếp hiện so le (panel trong màn chi tiết, KPI tile): tối đa 8 phần tử, bước --stagger-step. */
+  .adm-stagger-children > * {
+    animation: adm-rise var(--dur-base) var(--ease-out) both;
+  }
+  .adm-stagger-children > :nth-child(2) { animation-delay: calc(var(--stagger-step) * 1); }
+  .adm-stagger-children > :nth-child(3) { animation-delay: calc(var(--stagger-step) * 2); }
+  .adm-stagger-children > :nth-child(4) { animation-delay: calc(var(--stagger-step) * 3); }
+  .adm-stagger-children > :nth-child(5) { animation-delay: calc(var(--stagger-step) * 4); }
+  .adm-stagger-children > :nth-child(6) { animation-delay: calc(var(--stagger-step) * 5); }
+  .adm-stagger-children > :nth-child(7) { animation-delay: calc(var(--stagger-step) * 6); }
+  .adm-stagger-children > :nth-child(n + 8) { animation-delay: calc(var(--stagger-step) * 7); }
+
+  /* Hàng vừa được cập nhật sau một thao tác: nền nháy một lần rồi về màu thường. */
+  .adm-row-highlight > td {
+    animation: adm-highlight var(--dur-highlight) var(--ease-out) both;
+  }
+
+  /* ===== Indicator trượt (sidebar, tab bar, sub-tab, cột lọc) – vị trí đặt bằng JS, chỉ đổi transform ===== */
+  .adm-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    transform-origin: 0 0;
+    opacity: 0;
+  }
+  .adm-indicator[data-visible='true'] {
+    opacity: 1;
+  }
+  .adm-indicator[data-ready='true'] {
+    transition:
+      transform var(--dur-slow) var(--ease-spring),
+      opacity var(--dur-fast) var(--ease-out);
+  }
+
+  /*
+   * Gạch chân tab (tab bar header + sub-tab): mỗi tab tự vẽ gạch chân 2px bằng ::after rộng đúng bằng chính nó, tab active
+   * (aria-current="page") mở rộng scaleX 0 → 1 từ giữa. Không đo DOM nên luôn khớp chữ ở mọi zoom / font / độ rộng màn hình.
+   */
+  .adm-tab {
+    position: relative;
+  }
+  .adm-tab::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background-color: var(--admin-brand-navy-900);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform var(--dur-base) var(--ease-out);
+    pointer-events: none;
+  }
+  .adm-tab[aria-current='page']::after {
+    transform: scaleX(1);
+  }
+
+  /* ===== Skeleton shimmer (dải sáng chạy ngang bằng transform) ===== */
+  .adm-skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--admin-surface-selected);
+  }
+  .adm-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.65), transparent);
+    transform: translateX(-100%);
+    animation: adm-shimmer var(--dur-shimmer) var(--ease-in-out) infinite;
+  }
+
+  /* ===== Tải lại: thanh tiến trình mảnh trên đầu bảng ===== */
+  .adm-progress {
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .adm-progress::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 40%;
+    background-color: var(--admin-brand-navy-800);
+    animation: adm-progress calc(var(--dur-page) * 4) var(--ease-in-out) infinite;
+  }
+
+  /* ===== Spinner của nút đang xử lý ===== */
+  .adm-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 9999px;
+    animation: adm-spin var(--dur-spin) linear infinite;
+  }
+
+  /* ===== Dialog (scale + fade bằng spring; đóng: bản sao mờ dần, xem utils/motion.ts) ===== */
+  .adm-dialog-scrim {
+    animation: adm-fade-in var(--dur-base) var(--ease-out) both;
+  }
+  .adm-dialog-panel {
+    animation: adm-scale-in var(--dur-slow) var(--ease-spring) both;
+  }
+
+  /* ===== Drawer (slide-over) ===== */
+  .adm-drawer-scrim {
+    animation: adm-fade-in var(--dur-base) var(--ease-out) both;
+  }
+  .adm-drawer-scrim[data-state='closing'] {
+    animation: adm-fade-out var(--dur-exit) var(--ease-in) both;
+  }
+  .adm-drawer-panel {
+    animation: adm-slide-in-right var(--dur-slow) var(--ease-out) both;
+  }
+  .adm-drawer-panel[data-state='closing'] {
+    animation: adm-slide-out-right var(--dur-exit) var(--ease-in) both;
+  }
+
+  /* ===== Dropdown (menu hồ sơ, panel thông báo) mở từ trên xuống ===== */
+  .adm-dropdown {
+    transform-origin: top right;
+    animation: adm-dropdown-in var(--dur-base) var(--ease-out) both;
+  }
+
+  /* ===== Toast ===== */
+  .adm-toast {
+    position: relative;
+    overflow: hidden;
+    animation: adm-toast-in var(--dur-slow) var(--ease-out) both;
+  }
+  .adm-toast[data-state='closing'] {
+    animation: adm-toast-out var(--dur-exit) var(--ease-in) both;
+  }
+  .adm-toast-progress {
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    transform-origin: left center;
+    animation: adm-shrink-x var(--toast-life, 6000ms) linear both;
+  }
+
+  /* ===== Timeline: vạch nối mọc từ trên xuống, mốc pop theo thứ tự ===== */
+  .adm-timeline-dot {
+    animation: adm-pop var(--dur-base) var(--ease-spring) both;
+    animation-delay: calc(var(--adm-index, 0) * var(--stagger-step) * 2);
+  }
+  .adm-timeline-line {
+    transform-origin: top center;
+    animation: adm-grow-y var(--dur-slow) var(--ease-out) both;
+    animation-delay: calc(var(--adm-index, 0) * var(--stagger-step) * 2 + var(--dur-fast));
+  }
+
+  /* ===== Keyframes ===== */
+  @keyframes adm-rise {
+    from { opacity: 0; transform: translateY(var(--motion-distance)); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes adm-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes adm-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes adm-pop {
+    from { opacity: 0; transform: scale(var(--motion-pop-from)); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes adm-scale-in {
+    from { opacity: 0; transform: scale(var(--motion-scale-from)); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes adm-drop {
+    from { opacity: 0; transform: translateY(calc(var(--motion-distance) * -0.4)); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes adm-dropdown-in {
+    from { opacity: 0; transform: scaleY(var(--motion-scale-from)) translateY(calc(var(--motion-distance) * -0.4)); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes adm-slide-in-right {
+    from { transform: translateX(100%); }
+    to { transform: none; }
+  }
+  @keyframes adm-slide-out-right {
+    from { transform: none; }
+    to { transform: translateX(100%); }
+  }
+  @keyframes adm-toast-in {
+    from { opacity: 0; transform: translateX(calc(var(--motion-distance) * 2)); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes adm-toast-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateX(calc(var(--motion-distance) * 2)); }
+  }
+  @keyframes adm-shrink-x {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+  }
+  @keyframes adm-grow-y {
+    from { transform: scaleY(0); }
+    to { transform: none; }
+  }
+  @keyframes adm-highlight {
+    from { background-color: color-mix(in srgb, var(--admin-status-warning) 22%, transparent); }
+    to { background-color: transparent; }
+  }
+  @keyframes adm-shimmer {
+    to { transform: translateX(100%); }
+  }
+  @keyframes adm-progress {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(250%); }
+  }
+  @keyframes adm-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* Giảm chuyển động: tắt các chuyển động vị trí lặp lại / chạy dài, giữ màu và fade ngắn. */
+  @media (prefers-reduced-motion: reduce) {
+    .adm-skeleton::after {
+      animation: none;
+      opacity: 0;
+    }
+    .adm-indicator[data-ready='true'] {
+      transition: opacity var(--dur-fast) var(--ease-out);
+    }
+    .adm-timeline-line {
+      animation: none;
+    }
+    .adm-tab::after {
+      transition: none;
+    }
+    .adm-progress::after {
+      animation-duration: calc(var(--dur-page) * 24);
+    }
+  }
+}

@@ -385,17 +385,6 @@ export const UNAVAILABLE_SCREENS = {
     missingEndpoint: 'GET/POST/DELETE /api/v1/holidays',
     actions: [{ label: 'Add holiday', dialog: addHoliday }],
   },
-  auditLog: {
-    title: 'Audit Log',
-    subtitle: 'AuditLogs · append-only',
-    filterGroups: [
-      { param: 'service', title: 'Source service', values: ['AdminService', 'UserService', 'ParkingService', 'BookingService', 'PaymentService'] },
-    ],
-    searchPlaceholder: 'Search action, entity, user…',
-    columns: ['At (ICT)', 'Service', 'User', 'Action', 'Entity', 'Entity ID', 'Reason'],
-    service: 'AdminService',
-    missingEndpoint: 'GET /api/v1/admin/audit-logs (consumer AuditRecorded – T-802)',
-  },
   dataRequests: {
     title: 'Security & Privacy',
     subtitle: 'DataSubjectRequests · SecurityEvents',

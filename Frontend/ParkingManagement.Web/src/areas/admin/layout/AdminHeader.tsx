@@ -49,12 +49,12 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
                 {activeTab.label}
               </Link>
               {separator}
-              <span className="adm-type-breadcrumb-current" aria-current="page">
+              <span key={detailLabel} className="adm-type-breadcrumb-current adm-motion-fade" aria-current="page">
                 {detailLabel}
               </span>
             </>
           ) : (
-            <span className="adm-type-breadcrumb-current" aria-current="page">
+            <span key={activeTab?.key ?? section.key} className="adm-type-breadcrumb-current adm-motion-fade" aria-current="page">
               {activeTab?.label ?? section.label}
             </span>
           )}
@@ -66,17 +66,20 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
             aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
             aria-expanded={open === 'bell'}
             onClick={() => setOpen((o) => (o === 'bell' ? null : 'bell'))}
-            className="relative flex size-8 items-center justify-center rounded-[2px] border border-(--admin-border-default) text-(--admin-text-nav) hover:bg-(--admin-surface-selected)"
+            className="adm-press relative flex size-8 items-center justify-center rounded-[2px] border border-(--admin-border-default) text-(--admin-text-nav) hover:bg-(--admin-surface-selected)"
           >
             <AdminIcon icon={{ src: iconBell, width: 16, height: 16 }} />
-            {unreadCount > 0 && <span className="absolute top-[4px] left-[19px] size-2 rounded-full bg-(--admin-status-danger)" />}
+            {/* key theo số chưa đọc: có thông báo mới thì chấm đỏ pop lại một lần */}
+            {unreadCount > 0 && (
+              <span key={unreadCount} className="adm-motion-pop absolute top-[4px] left-[19px] size-2 rounded-full bg-(--admin-status-danger)" />
+            )}
           </button>
           <button
             type="button"
             aria-label="Profile menu"
             aria-expanded={open === 'profile'}
             onClick={() => setOpen((o) => (o === 'profile' ? null : 'profile'))}
-            className="flex size-8 items-center justify-center rounded-full bg-(--admin-brand-navy-900) text-(--admin-text-on-navy)"
+            className="adm-press flex size-8 items-center justify-center rounded-full bg-(--admin-brand-navy-900) text-(--admin-text-on-navy)"
           >
             <AdminIcon icon={{ src: avatarUser, width: 12, height: 12 }} />
           </button>
@@ -102,10 +105,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
               key={tab.key}
               to={tab.path}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex h-[39px] shrink-0 items-center whitespace-nowrap ${
-                isActive
-                  ? 'adm-type-tab-active border-b-2 border-(--admin-brand-navy-900) text-(--admin-brand-navy-900)'
-                  : 'adm-type-tab-default text-(--admin-text-nav) hover:text-(--admin-brand-navy-900)'
+              className={`adm-tab adm-tr-colors flex h-[39px] shrink-0 items-center whitespace-nowrap ${
+                isActive ? 'adm-type-tab-active text-(--admin-brand-navy-900)' : 'adm-type-tab-default text-(--admin-text-nav) hover:text-(--admin-brand-navy-900)'
               }`}
             >
               {tab.label}

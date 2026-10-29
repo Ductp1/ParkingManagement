@@ -36,7 +36,7 @@ export const StateBlock: React.FC<StateBlockProps> = ({ type, title, message, on
     return (
       <div className={`flex flex-col gap-3 p-4 ${frame}`} aria-busy="true" aria-label="Loading">
         {['100%', '76%', '100%', '88%', '65%', '100%'].map((w, i) => (
-          <span key={i} className="block h-3.5 animate-pulse rounded-[2px] bg-(--admin-surface-selected)" style={{ width: w }} />
+          <span key={i} className="adm-skeleton block h-3.5 rounded-[2px]" style={{ width: w }} />
         ))}
       </div>
     );
@@ -45,7 +45,7 @@ export const StateBlock: React.FC<StateBlockProps> = ({ type, title, message, on
   const copy = DEFAULT_COPY[type];
   const icon = type === 'error' ? 'alert' : type === 'noPermission' ? 'ban' : 'inbox';
   return (
-    <div className={`flex min-h-[220px] flex-col items-center justify-center gap-2 px-6 py-8 text-center ${frame}`}>
+    <div className={`adm-motion-fade flex min-h-[220px] flex-col items-center justify-center gap-2 px-6 py-8 text-center ${frame}`}>
       <span className="text-(--admin-text-secondary)">
         <AdminIcon icon={scaleIcon(icon, 32)} />
       </span>

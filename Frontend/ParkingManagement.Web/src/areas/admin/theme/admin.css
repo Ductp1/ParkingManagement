@@ -1,5 +1,7 @@
 /* Font của Admin Portal (Figma: Be Vietnam Pro + JetBrains Mono cho body/mono) */
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
+/* Motion token + keyframes (T-801) */
+@import './motion.css';
 
 /*
  * Design tokens Admin Portal – sinh từ Figma variable collection "Smart Parking / Admin" (23 màu, mode Light)

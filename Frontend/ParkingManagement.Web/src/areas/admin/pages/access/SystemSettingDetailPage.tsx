@@ -5,6 +5,8 @@ import { SystemConfigChangeStatus } from '@/types/adminEnums';
 import type { SystemConfigChangeDto, SystemConfigDetailDto } from '@/types/adminSettings';
 import { AdminTitleBar } from '../../layout/AdminTitleBar';
 import { AdminButton } from '../../components/AdminButton';
+import { AuditTrailLink } from '../../components/AuditTrailLink';
+import { auditLogListLink } from './auditLogFormat';
 import { Banner } from '../../components/Banner';
 import { DetailColumns, QueryState } from '../../components/PageLayout';
 import { Panel } from '../../components/Panel';
@@ -146,6 +148,8 @@ export const SystemSettingDetailPage: React.FC = () => {
   const [historyPage, setHistoryPage] = useState(1);
   const [changeOpen, setChangeOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<SystemConfigChangeDto | null>(null);
+  /** Dòng lịch sử vừa tạo / vừa hủy: nháy highlight một lần sau khi bảng tải lại. */
+  const [highlightId, setHighlightId] = useState<number | null>(null);
 
   const query = useAdminQuery(key ? () => adminSettingsApi.getByKey(key) : null, [key]);
   const history = useAdminQuery(key ? () => adminSettingsApi.getHistory(key, historyPage, 20) : null, [key, historyPage], (d) => d.items.length === 0);
@@ -179,7 +183,12 @@ export const SystemSettingDetailPage: React.FC = () => {
       <AdminTitleBar
         title={config.key}
         subtitle={`${config.dataType} · in effect ${config.value}${nextChange ? ` · next: ${nextChange.value} from ${formatDate(nextChange.effectiveFromUtc)}` : ''}`}
-        actions={<AdminButton onClick={() => setChangeOpen(true)}>Change value</AdminButton>}
+        actions={
+          <>
+            <AuditTrailLink to={auditLogListLink({ entity: 'SystemConfig', entityId: config.key })} />
+            <AdminButton onClick={() => setChangeOpen(true)}>Change value</AdminButton>
+          </>
+        }
       />
       <DetailColumns
         main={
@@ -188,6 +197,7 @@ export const SystemSettingDetailPage: React.FC = () => {
               bare
               rows={history.status === 'ready' ? history.data?.items ?? [] : []}
               rowKey={(r) => r.id}
+              highlightKey={highlightId}
               columns={[
                 { key: 'id', header: '#', width: 50, render: (r) => <CellMono>{r.id}</CellMono> },
                 { key: 'value', header: 'Value', render: (r) => <CellText>{r.value}</CellText> },
@@ -252,6 +262,7 @@ export const SystemSettingDetailPage: React.FC = () => {
         onClose={() => setChangeOpen(false)}
         onDone={(change) => {
           toast.show({ type: 'success', title: 'Change scheduled', message: `${config.key} → ${change.value} from ${formatDateTimeIct(change.effectiveFromUtc)}.` });
+          setHighlightId(change.id);
           refresh();
         }}
       />
@@ -268,6 +279,7 @@ export const SystemSettingDetailPage: React.FC = () => {
           if (!cancelTarget) return;
           await adminSettingsApi.cancelChange(config.key, cancelTarget.id, { reason });
           toast.show({ type: 'success', title: 'Change cancelled', message: `Change #${cancelTarget.id} of ${config.key} was cancelled.` });
+          setHighlightId(cancelTarget.id);
           refresh();
         }}
       >

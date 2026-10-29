@@ -26,6 +26,8 @@ import { SystemSettingsListPage } from './pages/access/SystemSettingsListPage';
 import { SystemSettingDetailPage } from './pages/access/SystemSettingDetailPage';
 import { FeatureFlagsPage } from './pages/access/FeatureFlagsPage';
 import { RolesPermissionsPage } from './pages/access/RolesPermissionsPage';
+import { AuditLogListPage } from './pages/access/AuditLogListPage';
+import { AuditLogDetailPage } from './pages/access/AuditLogDetailPage';
 
 const SECURITY_TABS = [
   { label: 'Data subject requests', to: '/admin/access/security-privacy' },
@@ -119,7 +121,8 @@ export const AdminRoutes: React.FC = () => {
         <Route path="access/feature-flags" element={<FeatureFlagsPage />} />
         <Route path="access/roles-permissions" element={<RolesPermissionsPage />} />
         <Route path="access/holidays" element={unavailable('holidays')} />
-        <Route path="access/audit-log" element={unavailable('auditLog')} />
+        <Route path="access/audit-log" element={<AuditLogListPage />} />
+        <Route path="access/audit-log/:id" element={<AuditLogDetailPage />} />
         <Route path="access/security-privacy" element={unavailable('dataRequests', { subTabs: SECURITY_TABS })} />
         <Route path="access/security-privacy/security-events" element={unavailable('securityEvents', { subTabs: SECURITY_TABS })} />
 

@@ -53,6 +53,12 @@ public interface IParkingServiceClient
     /// vẫn thành công. Điều kiện duyệt chưa đạt (khảo sát, sơ đồ ô đỗ…) → ConflictException với thông điệp của ParkingService.
     /// </summary>
     Task ApproveKybAsync(int kybApplicationId, string contractNumber, string? note, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// US-081: số hồ sơ KYB theo trạng thái (Submitted / UnderReview / NeedsMoreInfo) – đọc TotalCount của danh sách admin (pageSize = 1).
+    /// Lỗi nguồn: AuthenticationException / ForbiddenException / DependencyUnavailableException như các lời gọi khác.
+    /// </summary>
+    Task<int> CountKybApplicationsAsync(string status, CancellationToken cancellationToken);
 }
 
 // ===== PORT (ghi) =====

@@ -24,7 +24,7 @@ export const Panel: React.FC<PanelProps> = ({ title, description, action, future
         {future && <FutureTag />}
       </h2>
       {action && (
-        <Link to={action.to} className="adm-type-link-small text-(--admin-brand-navy-900) hover:underline">
+        <Link to={action.to} className="adm-type-link-small adm-tr-colors text-(--admin-brand-navy-900) hover:underline">
           {action.label}
         </Link>
       )}

@@ -20,6 +20,9 @@ const shortFmt = new Intl.DateTimeFormat('en-GB', {
   hour12: false,
 });
 const numberFmt = new Intl.NumberFormat('vi-VN');
+const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false });
+/** en-CA cho ra YYYY-MM-DD – dùng cho tham số ngày (from / to) trên URL. */
+const isoDateFmt = new Intl.DateTimeFormat('en-CA', { timeZone: TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
 
 export const EMPTY = '—';
 
@@ -51,6 +54,18 @@ export const formatDate = (value: string | null | undefined): string => {
 export const formatShortDateTime = (value: string | null | undefined): string => {
   const d = parse(value);
   return d ? shortFmt.format(d).replace(',', '') : EMPTY;
+};
+
+/** 14:02 ICT */
+export const formatTimeIct = (value: string | null | undefined): string => {
+  const d = parse(value);
+  return d ? `${timeFmt.format(d)} ICT` : EMPTY;
+};
+
+/** Ngày theo giờ ICT dạng YYYY-MM-DD (tham số lọc ngày trên URL). */
+export const ictDateParam = (value: string | null | undefined): string | null => {
+  const d = parse(value);
+  return d ? isoDateFmt.format(d) : null;
 };
 
 /** ₫60.000 */
