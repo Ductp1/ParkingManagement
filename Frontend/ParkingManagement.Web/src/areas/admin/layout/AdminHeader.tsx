@@ -4,7 +4,6 @@ import type { AdminSection, AdminTab } from '../navigation';
 import type { NotificationDto, NotificationInboxDto } from '@/types/notification';
 import type { AdminQueryResult } from '../hooks/useAdminQuery';
 import { AdminIcon } from '../components/AdminIcon';
-import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
 import { NotificationPanel } from './NotificationPanel';
 import { ProfileMenu } from './ProfileMenu';
 import iconBell from '../assets/icons/icon-bell.svg';
@@ -26,10 +25,6 @@ interface AdminHeaderProps {
 export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, detailLabel, inbox, onReadNotification, onReadAll, profile, onSignOut }) => {
   const [open, setOpen] = useState<'bell' | 'profile' | null>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
-  const tabsRef = useRef<HTMLElement>(null);
-  const underlineRef = useRef<HTMLSpanElement>(null);
-  // Gạch chân 2px trượt theo tab active (đo lại khi đổi section vì danh sách tab khác nhau).
-  useSlidingIndicator(tabsRef, underlineRef, 'x', `${section.key}/${activeTab?.key ?? ''}`);
   const unreadCount = inbox.data?.unreadCount ?? 0;
   const separator = <span className="text-(--admin-border-default)">/</span>;
 
@@ -102,8 +97,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
         </div>
       </div>
 
-      <nav ref={tabsRef} aria-label={`${section.label} tabs`} className="relative flex h-10 items-start gap-4 overflow-x-auto border-b border-(--admin-border-default) px-4">
-        <span ref={underlineRef} aria-hidden="true" className="adm-indicator h-0.5 w-px bg-(--admin-brand-navy-900)" />
+      <nav aria-label={`${section.label} tabs`} className="flex h-10 items-start gap-4 overflow-x-auto border-b border-(--admin-border-default) px-4">
         {section.tabs.map((tab) => {
           const isActive = tab.key === activeTab?.key;
           return (
@@ -111,7 +105,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
               key={tab.key}
               to={tab.path}
               aria-current={isActive ? 'page' : undefined}
-              className={`adm-tr-colors flex h-[39px] shrink-0 items-center whitespace-nowrap ${
+              className={`adm-tab adm-tr-colors flex h-[39px] shrink-0 items-center whitespace-nowrap ${
                 isActive ? 'adm-type-tab-active text-(--admin-brand-navy-900)' : 'adm-type-tab-default text-(--admin-text-nav) hover:text-(--admin-brand-navy-900)'
               }`}
             >

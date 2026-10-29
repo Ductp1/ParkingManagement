@@ -199,10 +199,8 @@ public class DashboardOverviewTests
     {
         var parking = new FakeParking { Hang = true };
 
-        var started = DateTime.UtcNow;
         var overview = await CreateUseCase(new FakeQueries(), parking, timeout: TimeSpan.FromMilliseconds(80)).ExecuteAsync();
 
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(2));
         Assert.Equal(DashboardWidgetStatus.SourceError, overview.Queues.KybApplications.Reason);
         Assert.Contains("không phản hồi kịp", overview.Queues.KybApplications.Detail);
         Assert.True(parking.ObservedCancellation);
@@ -211,13 +209,13 @@ public class DashboardOverviewTests
     [Fact]
     public async Task Parking_calls_run_in_parallel()
     {
-        var parking = new FakeParking { Delay = TimeSpan.FromMilliseconds(150), Counts = { ["Submitted"] = 1, ["UnderReview"] = 1, ["NeedsMoreInfo"] = 1 } };
+        // Không đo thời gian thật (CI chậm, có coverage): mỗi lời gọi chờ tới khi đủ 3 lời gọi cùng đang chạy.
+        // Nếu use case gọi nối tiếp, lời gọi đầu chờ mãi → hết timeout → widget source_error và test fail.
+        var parking = new FakeParking { WaitForAll = 3, Counts = { ["Submitted"] = 1, ["UnderReview"] = 1, ["NeedsMoreInfo"] = 1 } };
 
-        var started = DateTime.UtcNow;
-        var overview = await CreateUseCase(new FakeQueries(), parking, timeout: TimeSpan.FromSeconds(5)).ExecuteAsync();
+        var overview = await CreateUseCase(new FakeQueries(), parking, timeout: TimeSpan.FromSeconds(10)).ExecuteAsync();
 
         Assert.Equal(DashboardWidgetStatus.Available, overview.Queues.KybApplications.Status);
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromMilliseconds(400), "3 lời gọi phải chạy song song, không nối tiếp.");
         Assert.Equal(3, parking.MaxConcurrent);
     }
 
@@ -377,7 +375,9 @@ public class DashboardOverviewTests
         public Exception? Failure { get; init; }
         public string? FailStatus { get; init; }
         public bool Hang { get; init; }
-        public TimeSpan Delay { get; init; }
+        /// <summary>Số lời gọi phải cùng đang chạy trước khi bất kỳ lời gọi nào trả kết quả (kiểm tra song song).</summary>
+        public int WaitForAll { get; init; }
+        private readonly TaskCompletionSource allStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public List<string> Requested { get; } = [];
         public bool ObservedCancellation { get; private set; }
         public int MaxConcurrent { get; private set; }
@@ -396,7 +396,11 @@ public class DashboardOverviewTests
                     try { await Task.Delay(Timeout.Infinite, cancellationToken); }
                     catch (OperationCanceledException) { ObservedCancellation = true; throw; }
                 }
-                if (Delay > TimeSpan.Zero) await Task.Delay(Delay, cancellationToken);
+                if (WaitForAll > 0)
+                {
+                    if (now >= WaitForAll) allStarted.TrySetResult();
+                    await allStarted.Task.WaitAsync(cancellationToken);
+                }
                 return Counts[status];
             }
             finally

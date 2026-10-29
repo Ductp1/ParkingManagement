@@ -123,6 +123,28 @@
       opacity var(--dur-fast) var(--ease-out);
   }
 
+  /*
+   * Gạch chân tab (tab bar header + sub-tab): mỗi tab tự vẽ gạch chân 2px bằng ::after rộng đúng bằng chính nó, tab active
+   * (aria-current="page") mở rộng scaleX 0 → 1 từ giữa. Không đo DOM nên luôn khớp chữ ở mọi zoom / font / độ rộng màn hình.
+   */
+  .adm-tab {
+    position: relative;
+  }
+  .adm-tab::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 2px;
+    background-color: var(--admin-brand-navy-900);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform var(--dur-base) var(--ease-out);
+    pointer-events: none;
+  }
+  .adm-tab[aria-current='page']::after {
+    transform: scaleX(1);
+  }
+
   /* ===== Skeleton shimmer (dải sáng chạy ngang bằng transform) ===== */
   .adm-skeleton {
     position: relative;
@@ -301,6 +323,9 @@
     }
     .adm-timeline-line {
       animation: none;
+    }
+    .adm-tab::after {
+      transition: none;
     }
     .adm-progress::after {
       animation-duration: calc(var(--dur-page) * 24);
