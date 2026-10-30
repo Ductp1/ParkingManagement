@@ -356,6 +356,27 @@ public class LotMisdeclarationTests
     }
 
     [Fact]
+    public async Task Open_MissingCategory_And_MissingFinding_HaveDistinctMessages()
+    {
+        var repo = new FakeRepo(Lot());
+        var noCategory = await Assert.ThrowsAsync<ValidationException>(() =>
+            OpenUseCase(repo).ExecuteAsync(LotId, new OpenLotMisdeclarationCaseRequest("Minor", null, "Sai số nhà"), AdminId));
+        var noFinding = await Assert.ThrowsAsync<ValidationException>(() =>
+            OpenUseCase(repo).ExecuteAsync(LotId, new OpenLotMisdeclarationCaseRequest("Minor", "Address", " "), AdminId));
+
+        Assert.Equal("Loại nội dung khai sai không được để trống.", noCategory.Message);
+        Assert.Equal("Nội dung khai sai không được để trống.", noFinding.Message);
+    }
+
+    [Fact]
+    public void Open_UndefinedCategoryValue_ThrowsValidation()
+    {
+        var ex = Assert.Throws<ValidationException>(() =>
+            LotMisdeclarationCase.Warn(Lot(), (MisdeclarationCategory)42, "Sai số nhà", 7, AdminId, Now));
+        Assert.Equal("Loại nội dung khai sai không hợp lệ.", ex.Message);
+    }
+
+    [Fact]
     public async Task Open_AcceptsCaseInsensitiveEnums()
     {
         var repo = new FakeRepo(Lot());

@@ -132,7 +132,7 @@ public class LotMisdeclarationCase : BaseEntity
         MisdeclarationCategory category, string finding, DateTime dueAtUtc, int adminUserId, DateTime nowUtc)
     {
         EnsureAdmin(adminUserId);
-        if (!Enum.IsDefined(category)) throw new ValidationException("Nội dung khai sai không hợp lệ.");
+        if (!Enum.IsDefined(category)) throw new ValidationException("Loại nội dung khai sai không hợp lệ.");
         return new LotMisdeclarationCase
         {
             ParkingLotId = lot.Id,

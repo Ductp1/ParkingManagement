@@ -23,7 +23,7 @@ public sealed class OpenLotMisdeclarationCaseUseCase(ILotMisdeclarationRepositor
     {
         MisdeclarationSupport.EnsureIds(lotId, performedByUserId);
         var severity = MisdeclarationSupport.ParseEnum<MisdeclarationSeverity>(request.Severity, "Mức độ khai sai");
-        var category = MisdeclarationSupport.ParseEnum<MisdeclarationCategory>(request.Category, "Nội dung khai sai");
+        var category = MisdeclarationSupport.ParseEnum<MisdeclarationCategory>(request.Category, "Loại nội dung khai sai");
         if (severity == MisdeclarationSeverity.Suspected && request.CorrectionDays is not null)
             throw new ValidationException("Tạm khóa có hạn giải trình cố định 24 giờ, không nhận số ngày hạn sửa.");
         var now = timeProvider.GetUtcNow().UtcDateTime;
