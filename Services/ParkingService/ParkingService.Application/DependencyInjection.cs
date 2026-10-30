@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
+using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.Slots;
@@ -35,6 +36,12 @@ public static class DependencyInjection
         services.AddScoped<IApproveKybApplicationUseCase, ApproveKybApplicationUseCase>();
         services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
         services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
+
+        // Khai báo sai – Admin (US-056)
+        services.AddScoped<IGetLotMisdeclarationUseCase, GetLotMisdeclarationUseCase>();
+        services.AddScoped<IOpenLotMisdeclarationCaseUseCase, OpenLotMisdeclarationCaseUseCase>();
+        services.AddScoped<IEscalateLotMisdeclarationCaseUseCase, EscalateLotMisdeclarationCaseUseCase>();
+        services.AddScoped<IResolveLotMisdeclarationCaseUseCase, ResolveLotMisdeclarationCaseUseCase>();
 
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();
