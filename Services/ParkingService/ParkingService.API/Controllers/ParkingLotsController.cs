@@ -56,9 +56,17 @@ public sealed class ParkingLotsController(
     [HttpGet("search")]
     [ProducesResponseType<IReadOnlyList<ParkingLotSearchItemDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ParkingLotSearchItemDto>>> Search(
-        [FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusKm = 5, [FromQuery] int? vehicleHeightCm = null,
+        [FromQuery] double lat,
+        [FromQuery] double lng,
+        [FromQuery] double radiusKm = 5,
+        [FromQuery] int? vehicleHeightCm = null,
+        [FromQuery] int limit = 20,
+        [FromQuery] string? amenities = null,
+        [FromQuery] bool openNowOnly = false,
+        [FromQuery] bool hasAvailableSlotsOnly = false,
+        [FromQuery] string? sortBy = "Distance",
         CancellationToken cancellationToken = default)
-        => Ok(await searchParkingLots.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm, vehicleHeightCm), cancellationToken));
+        => Ok(await searchParkingLots.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm, vehicleHeightCm, limit, amenities, openNowOnly, hasAvailableSlotsOnly, sortBy), cancellationToken));
 
     /// <summary>POST /api/v1/parking-lots – Đăng ký bãi đỗ xe mới (US-053).</summary>
     [HttpPost]

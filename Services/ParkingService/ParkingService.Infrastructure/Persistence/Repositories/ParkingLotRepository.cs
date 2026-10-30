@@ -19,6 +19,7 @@ public sealed class ParkingLotRepository(ParkingDbContext db) : IParkingLotRepos
         int minHeightCm, CancellationToken cancellationToken = default)
         // Dùng index (Latitude, Longitude) để lọc thô; Haversine chính xác tính ở Application.
         => await db.ParkingLots.AsNoTracking()
+            .Include(p => p.Amenities)
             .Where(p => p.Status == ParkingLotStatus.Active
                      && p.Latitude >= minLat && p.Latitude <= maxLat
                      && p.Longitude >= minLng && p.Longitude <= maxLng

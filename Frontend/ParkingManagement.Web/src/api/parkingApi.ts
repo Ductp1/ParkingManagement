@@ -18,6 +18,11 @@ export const parkingApi = {
     lng: number;
     radiusKm?: number;
     vehicleHeightCm?: number;
+    limit?: number;
+    amenities?: string;
+    openNowOnly?: boolean;
+    hasAvailableSlotsOnly?: boolean;
+    sortBy?: string;
   }): Promise<ParkingLotSearchItemDto[]> => {
     const response = await apiClient.get<ParkingLotSearchItemDto[]>('/api/v1/parking-lots/search', {
       params,

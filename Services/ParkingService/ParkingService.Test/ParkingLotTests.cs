@@ -110,7 +110,191 @@ public class ParkingLotTests
 
         Assert.Equal([1, 4], result.Select(r => r.Id));
     }
+    [Fact] // US-014: AC1 & AC2 - Tra ve day du thong tin toa do, khoang cach, thoi gian du kien va tien ich
+    public async Task Search_Returns_Complete_Details_For_Nearby_Active_Lot()
+    {
+        var lot = new ParkingLot(1, "Bai xe Vincom Dong Khoi", "72 Le Thanh Ton", 10.7781, 106.7019, 100, 42, 210,
+            new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active, 1, IntegrationTier.PmsApi,
+            "Mo ta bai Vincom", "02838000001");
+        lot.Amenities.Add(new LotAmenity { ParkingLotId = 1, Code = "EV", Name = "Tru sac xe dien" });
 
+        var repo = new FakeRepo([lot]);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5));
+
+        Assert.Single(result);
+        var item = result[0];
+        Assert.Equal(1, item.Id);
+        Assert.Equal("Bai xe Vincom Dong Khoi", item.Name);
+        Assert.Equal("72 Le Thanh Ton", item.Address);
+        Assert.Equal(10.7781, item.Latitude);
+        Assert.Equal(106.7019, item.Longitude);
+        Assert.InRange(item.DistanceKm, 0.1, 0.2);
+        Assert.True(item.EstimatedTravelTimeMinutes >= 1);
+        Assert.Equal(42, item.AvailableSlots);
+        Assert.Equal(100, item.TotalSlots);
+        Assert.Equal(210, item.MaxHeightCm);
+        Assert.True(item.IsOpenNow);
+        Assert.Contains("Tru sac xe dien", item.Amenities!);
+    }
+
+    [Fact] // US-014: AC4 - Khong co bai trong ban kinh tra ve danh sach rong
+    public async Task Search_When_No_Lots_In_Radius_Returns_Empty_List()
+    {
+        var repo = new FakeRepo([Lot(2, ParkingLotStatus.Active, 10.8136, 106.6621)]);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 2));
+
+        Assert.Empty(result);
+    }
+
+    [Theory] // US-014: Validation toa do va ban kinh
+    [InlineData(95, 106, 5)]
+     [InlineData(-95, 106, 5)]
+    [InlineData(10, 185, 5)]
+     [InlineData(10, -185, 5)]
+    [InlineData(10, 106, 0)]
+     [InlineData(10, 106, 55)]
+    public async Task Search_With_Invalid_Params_Throws_ValidationException(double lat, double lng, double radiusKm)
+    {
+        var repo = new FakeRepo([]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm)));
+    }
+
+
+    [Theory] // US-015: TC-SEARCH-02 Hard Height Clearance - xe cao H cm thi tran phai >= H + 10 cm
+    [InlineData(220, false)] // Ford Transit 220 cm + 10 margin = 230 > tran ham 210 -> Bi loai (HARD-BLOCK)
+    [InlineData(201, false)] // 201 cm + 10 margin = 211 > tran ham 210 -> Bi loai
+    [InlineData(200, true)]  // 200 cm + 10 margin = 210 <= tran ham 210 -> Xuat hien hop le
+    [InlineData(145, true)]  // Sedan 145 cm + 10 margin = 155 <= tran ham 210 -> Xuat hien hop le
+    public async Task Search_WithVehicleHeight_AppliesHardHeightClearanceRule(int vehicleHeightCm, bool shouldAppear)
+    {
+        var lot = Lot(1, ParkingLotStatus.Active, 10.7781, 106.7019, height: 210); // Tran ham 210 cm
+        var repo = new FakeRepo([lot]);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, VehicleHeightCm: vehicleHeightCm));
+
+        if (shouldAppear)
+        {
+            Assert.Single(result);
+            Assert.Equal(1, result[0].Id);
+        }
+        else
+        {
+            Assert.Empty(result);
+        }
+    }
+
+    [Fact] // US-015: Top-N Limit - lay dung so luong limit toi da
+    public async Task Search_Respects_Limit_Parameter()
+    {
+        var lots = new List<ParkingLot>
+        {
+            Lot(1, ParkingLotStatus.Active, 10.7781, 106.7019),
+            Lot(2, ParkingLotStatus.Active, 10.7782, 106.7018),
+            Lot(3, ParkingLotStatus.Active, 10.7783, 106.7017),
+            Lot(4, ParkingLotStatus.Active, 10.7784, 106.7016),
+            Lot(5, ParkingLotStatus.Active, 10.7785, 106.7015),
+        };
+        var repo = new FakeRepo(lots);
+        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+            .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, Limit: 3));
+
+        Assert.Equal(3, result.Count);
+    }
+
+    [Theory] // US-015: Validation cho chieu cao xe va limit
+    [InlineData(40, 20)]   // Chieu cao < 50 cm
+    [InlineData(550, 20)]  // Chieu cao > 500 cm
+    [InlineData(150, 0)]   // Limit <= 0
+    [InlineData(150, 105)] // Limit > 100
+    public async Task Search_WithInvalidVehicleHeightOrLimit_ThrowsValidationException(int vehicleHeight, int limit)
+    {
+        var repo = new FakeRepo([]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, VehicleHeightCm: vehicleHeight, Limit: limit)));
+    }
+
+
+
+    [Fact] // US-016: Loc theo tien ich (Amenities)
+    public async Task Search_WithAmenitiesFilter_MatchesLotsWithRequestedAmenities()
+    {
+        var lot1 = Lot(1, ParkingLotStatus.Active, 10.7781, 106.7019);
+        lot1.Amenities.Add(new LotAmenity { ParkingLotId = 1, Code = "EV", Name = "Trụ sạc xe điện" });
+
+        var lot2 = Lot(2, ParkingLotStatus.Active, 10.7782, 106.7018);
+        lot2.Amenities.Add(new LotAmenity { ParkingLotId = 2, Code = "ROOF", Name = "Mái che" });
+
+        var lot3 = Lot(3, ParkingLotStatus.Active, 10.7783, 106.7017);
+        lot3.Amenities.Add(new LotAmenity { ParkingLotId = 3, Code = "EV", Name = "Trụ sạc xe điện" });
+        lot3.Amenities.Add(new LotAmenity { ParkingLotId = 3, Code = "ROOF", Name = "Mái che" });
+
+        var repo = new FakeRepo([lot1, lot2, lot3]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        // Lọc 1 tiện ích EV -> Trả về lot1 và lot3
+        var resEv = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, Amenities: "EV"));
+        Assert.Equal([1, 3], resEv.Select(x => x.Id));
+
+        // Lọc cả 2 tiện ích EV và ROOF -> Chỉ lot3 đáp ứng
+        var resBoth = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, Amenities: "EV,ROOF"));
+        Assert.Equal([3], resBoth.Select(x => x.Id));
+    }
+
+    [Fact] // US-016: Loc bai dang mo cua va bai con cho trong
+    public async Task Search_WithOpenNowAndAvailableSlotsFilter_FiltersCorrectly()
+    {
+        var lotOpenWithSlots = new ParkingLot(1, "Bãi mở còn chỗ", "Đ/c 1", 10.7781, 106.7019, 100, 10, 210, new TimeOnly(0, 0), new TimeOnly(23, 59), ParkingLotStatus.Active);
+        var lotClosed = new ParkingLot(2, "Bãi đóng", "Đ/c 2", 10.7782, 106.7018, 100, 10, 210, new TimeOnly(1, 0), new TimeOnly(2, 0), ParkingLotStatus.Active);
+        var lotFull = new ParkingLot(3, "Bãi hết chỗ", "Đ/c 3", 10.7783, 106.7017, 100, 0, 210, new TimeOnly(0, 0), new TimeOnly(23, 59), ParkingLotStatus.Active);
+
+        var repo = new FakeRepo([lotOpenWithSlots, lotClosed, lotFull]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        // Lọc chỉ bãi còn chỗ
+        var resAvailable = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, HasAvailableSlotsOnly: true));
+        Assert.DoesNotContain(resAvailable, x => x.Id == 3);
+
+        // Lọc cả mở cửa và còn chỗ
+        var resBoth = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, OpenNowOnly: true, HasAvailableSlotsOnly: true));
+        Assert.Single(resBoth);
+        Assert.Equal(1, resBoth[0].Id);
+    }
+
+    [Fact] // US-016: Sap xep theo so cho trong va theo danh gia
+    public async Task Search_WithSortBy_OrdersCorrectly()
+    {
+        var lotNearFewSlots = new ParkingLot(1, "Bãi gần ít chỗ", "Đ/c 1", 10.7771, 106.7011, 100, 2, 210, new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active);
+        var lotFarManySlots = new ParkingLot(2, "Bãi xa nhiều chỗ", "Đ/c 2", 10.7900, 106.7100, 100, 80, 210, new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active);
+
+        var repo = new FakeRepo([lotNearFewSlots, lotFarManySlots]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        // Mặc định sắp theo khoảng cách: lot 1 gần hơn -> lot 1 trước
+        var resDistance = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, SortBy: "Distance"));
+        Assert.Equal(1, resDistance[0].Id);
+
+        // Sắp theo AvailableSlots: lot 2 (80 chỗ) > lot 1 (2 chỗ) -> lot 2 trước
+        var resSlots = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, SortBy: "AvailableSlots"));
+        Assert.Equal(2, resSlots[0].Id);
+    }
+
+    [Fact] // US-016: Validation SortBy khong hop le
+    public async Task Search_WithInvalidSortBy_ThrowsValidationException()
+    {
+        var repo = new FakeRepo([]);
+        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, SortBy: "InvalidCriteria")));
+    }
+
     private sealed class FakeRepo(List<ParkingLot> lots) : IParkingLotRepository
     {
         public Task<ParkingLot?> GetByIdAsync(int id, CancellationToken cancellationToken = default)

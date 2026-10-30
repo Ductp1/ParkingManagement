@@ -17,6 +17,8 @@ import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 
 import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
 import { SupportPage } from '@/areas/driver/pages/SupportPage';
+import { KycPage } from '@/areas/driver/pages/KycPage';
+import { PaymentResultPage } from '@/areas/driver/pages/PaymentResultPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -26,6 +28,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>
         <Route element={<ProtectedRoute />}>
           <Route path="/account/profile" element={<ProfilePage />} />
@@ -40,6 +43,8 @@ export const AppRoutes: React.FC = () => {
             <Route path="parking-lots/:id" element={<LotDetailPage />} />
             <Route path="history" element={<BookingHistoryPage />} />
             <Route path="support" element={<SupportPage />} />
+            <Route path="kyc" element={<KycPage />} />
+            <Route path="payment-result" element={<PaymentResultPage />} />
           </Route>
         </Route>
 

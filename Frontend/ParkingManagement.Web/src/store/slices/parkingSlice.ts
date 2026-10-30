@@ -31,7 +31,17 @@ export const fetchParkingLotById = createAsyncThunk(
 export const searchParkingLots = createAsyncThunk(
   'parking/searchLots',
   async (
-    params: { lat: number; lng: number; radiusKm?: number; vehicleHeightCm?: number },
+    params: {
+      lat: number;
+      lng: number;
+      radiusKm?: number;
+      vehicleHeightCm?: number;
+      limit?: number;
+      amenities?: string;
+      openNowOnly?: boolean;
+      hasAvailableSlotsOnly?: boolean;
+      sortBy?: string;
+    },
     { rejectWithValue }
   ) => {
     try {
