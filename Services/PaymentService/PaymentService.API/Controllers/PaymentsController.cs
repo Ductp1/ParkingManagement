@@ -82,8 +82,8 @@ public sealed class PricingController(
 [Route("api/v1/payments")]
 public sealed class PaymentsController(
     IGetPaymentsByBookingUseCase getByBooking,
-    ICreateVnpayPaymentUseCase createVnpayPayment,
-    IRecordGateSettlementUseCase gateSettlement) : ControllerBase
+    IRecordGateSettlementUseCase gateSettlement,
+    ICreateVnpayPaymentUseCase createVnpayPayment) : ControllerBase
 {
     /// <summary>
     /// POST /api/v1/payments/vnpay – Khởi tạo giao dịch và sinh URL thanh toán online qua VNPAY Sandbox (US-032).
