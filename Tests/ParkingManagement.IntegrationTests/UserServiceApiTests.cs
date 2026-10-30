@@ -209,6 +209,7 @@ public sealed class Tv1ApiFixture : IDisposable
             services.AddDataProtection().UseEphemeralDataProtectionProvider();
             services.AddHttpClient("IdentityIntegrations").ConfigurePrimaryHttpMessageHandler(()=>handler);
             services.AddSingleton<ParkingManagement.ServiceDefaults.Messaging.IRabbitMqPublisher, TestEventPublisher>();
+            MassTransit.DependencyInjectionRegistrationExtensions.RemoveMassTransitHostedService(services);
         });
     }
     private sealed class TestCaptcha : UserService.Application.Interfaces.ICaptchaVerifier
@@ -221,7 +222,7 @@ public sealed class Tv1ApiFixture : IDisposable
     }
     private sealed class TestEventPublisher : ParkingManagement.ServiceDefaults.Messaging.IRabbitMqPublisher
     {
-        public Task PublishAsync(ParkingManagement.SharedKernel.Domain.OutboxMessage message, ReadOnlyMemory<byte> body, CancellationToken ct)
+        public Task PublishAsync(ParkingManagement.ServiceDefaults.Messaging.IntegrationEventEnvelope envelope, CancellationToken ct)
             => Task.CompletedTask;
     }
     private sealed class DeliveryHandler:HttpMessageHandler

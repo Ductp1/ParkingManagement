@@ -1,7 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.Hosting;
 using ParkingManagement.SharedKernel.Exceptions;
-using RabbitMQ.Client;
 
 namespace ParkingManagement.ServiceDefaults.Messaging;
 
@@ -16,7 +15,7 @@ public sealed class RabbitMqOptions
     public bool UseTls { get; set; }
     public int OperationTimeoutSeconds { get; set; } = 10;
 
-    public ConnectionFactory CreateFactory(IHostEnvironment environment)
+    public void Validate(IHostEnvironment environment)
     {
         if (string.IsNullOrWhiteSpace(HostName) || Port is < 1 or > 65535 || string.IsNullOrWhiteSpace(VirtualHost)
             || string.IsNullOrWhiteSpace(UserName) || string.IsNullOrWhiteSpace(Password)
@@ -27,16 +26,6 @@ public sealed class RabbitMqOptions
             || (IPAddress.TryParse(HostName, out var ip) && IPAddress.IsLoopback(ip));
         if (!UseTls && !loopback && !environment.IsDevelopment())
             throw new DependencyUnavailableException("Kết nối RabbitMQ ngoài localhost phải bật TLS ở môi trường production.");
-        return new ConnectionFactory
-        {
-            HostName = HostName, Port = Port, VirtualHost = VirtualHost, UserName = UserName, Password = Password,
-            ClientProvidedName = $"ParkingManagement:{environment.ApplicationName}",
-            AutomaticRecoveryEnabled = false, // Outbox/consumer reconnect explicitly; never hide an uncertain publish.
-            RequestedConnectionTimeout = TimeSpan.FromSeconds(OperationTimeoutSeconds),
-            ContinuationTimeout = TimeSpan.FromSeconds(OperationTimeoutSeconds),
-            HandshakeContinuationTimeout = TimeSpan.FromSeconds(OperationTimeoutSeconds),
-            Ssl = new SslOption { Enabled = UseTls, ServerName = HostName }
-        };
     }
 }
 

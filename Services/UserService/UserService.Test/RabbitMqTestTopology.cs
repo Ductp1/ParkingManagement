@@ -1,8 +1,8 @@
 using RabbitMQ.Client;
 
-namespace ParkingManagement.ServiceDefaults.Messaging;
+namespace UserService.Test;
 
-public static class RabbitMqTopology
+internal static class RabbitMqTopology
 {
     public static async Task DeclareSubscriptionAsync(IChannel channel, string exchange, string queue,
         IReadOnlyList<string> routingKeys, CancellationToken ct)
