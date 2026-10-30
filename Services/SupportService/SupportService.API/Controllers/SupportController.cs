@@ -119,6 +119,8 @@ public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews, IRevi
     [Authorize(Policy = "RequireOwner")]
     [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ModeratedReviewDto>> Report([FromRoute] int id, [FromBody] ReviewReasonRequestDto request,

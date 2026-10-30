@@ -11,7 +11,9 @@ import { DriverHomePage } from '@/areas/driver/pages/DriverHomePage';
 import { VehiclesPage } from '@/areas/driver/pages/VehiclesPage';
 import { LotDetailPage } from '@/areas/driver/pages/LotDetailPage';
 import { OwnerHomePage } from '@/areas/owner/pages/OwnerHomePage';
+import { OwnerLotsPage } from '@/areas/owner/pages/OwnerLotsPage';
 import { OwnerKybPage } from '@/areas/owner/pages/OwnerKybPage';
+import { OwnerFeedbackPage } from '@/areas/owner/pages/OwnerFeedbackPage';
 import { GateConsolePage } from '@/areas/gate/pages/GateConsolePage';
 import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 
@@ -46,7 +48,9 @@ export const AppRoutes: React.FC = () => {
         {/* 🏢 2. Owner Portal (/owner/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Owner', 'Admin']} />}>
           <Route path="/owner" element={<OwnerHomePage />} />
+          <Route path="/owner/lots" element={<OwnerLotsPage />} />
           <Route path="/owner/kyb" element={<OwnerKybPage />} />
+          <Route path="/owner/feedback" element={<OwnerFeedbackPage />} />
           <Route path="/owner/*" element={<OwnerHomePage />} />
         </Route>
 
