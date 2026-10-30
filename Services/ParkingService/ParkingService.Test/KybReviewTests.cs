@@ -109,8 +109,52 @@ public class KybReviewTests
     [InlineData(KybStatus.Submitted, KybStatus.Approved, false)]
     [InlineData(KybStatus.Approved, KybStatus.Rejected, false)]
     [InlineData(KybStatus.Rejected, KybStatus.Approved, false)]
+    [InlineData(KybStatus.Draft, KybStatus.Rejected, true)]            // US-056: chỉ qua RejectByOwnerBan
+    [InlineData(KybStatus.Submitted, KybStatus.Rejected, true)]
+    [InlineData(KybStatus.NeedsMoreInfo, KybStatus.Rejected, true)]
+    [InlineData(KybStatus.Rejected, KybStatus.Rejected, false)]
     public void CanMove_FollowsTransitionTable(KybStatus from, KybStatus to, bool expected)
         => Assert.Equal(expected, KybApplication.CanMove(from, to));
+
+    [Theory]
+    [InlineData(KybStatus.Draft)]
+    [InlineData(KybStatus.Submitted)]
+    [InlineData(KybStatus.NeedsMoreInfo)]
+    public void AdminReject_StillOnlyFromUnderReview(KybStatus status)
+    {
+        var app = Kyb(status);
+        Assert.Throws<ConflictException>(() => app.Reject(AdminId, "Giấy phép hết hạn", Now));
+        Assert.Equal(status, app.Status);
+    }
+
+    [Theory]
+    [InlineData(KybStatus.Draft)]
+    [InlineData(KybStatus.Submitted)]
+    [InlineData(KybStatus.UnderReview)]
+    [InlineData(KybStatus.NeedsMoreInfo)]
+    public void RejectByOwnerBan_OpenApplication_RejectsWithFixedReason_OwnerCanStillResubmit(KybStatus status)
+    {
+        var app = Kyb(status);
+        Assert.True(app.IsOpen);
+
+        app.RejectByOwnerBan(AdminId, Now);
+
+        Assert.Equal(KybStatus.Rejected, app.Status);
+        Assert.Equal(KybApplication.OwnerBannedRejectReason, app.RejectReason);
+        Assert.Equal(AdminId, app.ReviewedByUserId);
+        Assert.Equal(Now, app.ReviewedAtUtc);
+        Assert.True(KybApplication.CanMove(app.Status, KybStatus.Submitted));   // US-054 giữ nguyên; bãi Suspended chặn duyệt
+    }
+
+    [Theory]
+    [InlineData(KybStatus.Approved)]
+    [InlineData(KybStatus.Rejected)]
+    public void RejectByOwnerBan_ClosedApplication_ThrowsConflict(KybStatus status)
+    {
+        var app = Kyb(status);
+        Assert.False(app.IsOpen);
+        Assert.Throws<ConflictException>(() => app.RejectByOwnerBan(AdminId, Now));
+    }
 
     [Theory]
     [InlineData(KybStatus.Draft)]

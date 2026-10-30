@@ -34,6 +34,7 @@ public static class KybMapper
             app.FieldSurveyNote,
             app.SubmittedAtUtc,
             app.ReviewedAtUtc,
-            app.RejectReason);
+            app.RejectReason,
+            app.ReviewNote);
     }
 }
