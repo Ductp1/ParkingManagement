@@ -72,6 +72,21 @@ public sealed class AuthController(ILoginUseCase loginUseCase, IRefreshSessionUs
     {
         await accounts.RequestOtpAsync(request, ct); return Accepted(new { Message = "Nếu tài khoản đủ điều kiện, mã xác minh sẽ được gửi." });
     }
+    [HttpPost("password/forgot")]
+    public async Task<IActionResult> ForgotPassword(OtpRequest request, CancellationToken ct)
+    {
+        await accounts.RequestOtpAsync(new(request.Contact, OtpPurpose.ResetPassword), ct);
+        return Accepted(new { Message = "Nếu tài khoản đủ điều kiện, mã xác minh sẽ được gửi." });
+    }
+
+    [HttpPost("password/reset")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        await accounts.ResetPasswordAsync(request, ct);
+        return NoContent();
+    }
+
     [HttpGet("session")]
     [DisableRateLimiting]
     public IActionResult Session()

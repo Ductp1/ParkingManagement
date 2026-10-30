@@ -1,5 +1,7 @@
 import { LoginPage } from '@/areas/auth/LoginPage';
 import { RegisterPage } from '@/areas/auth/RegisterPage';
+import { ForgotPasswordPage } from '@/areas/auth/ForgotPasswordPage';
+import { ProfilePage } from '@/areas/account/ProfilePage';
 import { LandingPage } from '@/areas/public/LandingPage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -23,7 +25,11 @@ export const AppRoutes: React.FC = () => {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route element={<AppLayout />}>
+        <Route element={<ProtectedRoute />}>
+          <Route path="/account/profile" element={<ProfilePage />} />
+        </Route>
 
         {/* 🚗 1. Driver Portal (/driver/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Driver', 'Admin']} />}>

@@ -6,6 +6,7 @@ using UserService.Application.Interfaces;
 using UserService.Domain.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using ParkingManagement.SharedKernel.Enums;
 
 namespace UserService.Infrastructure.Authentication;
 
@@ -16,6 +17,14 @@ public class JwtTokenGenerator(IConfiguration configuration, IHostEnvironment en
 
     public string GenerateToken(User user, IEnumerable<string> roles, string? sessionHash = null)
     {
+        var activeAssignments = user.StaffAssignments.Where(s => s.IsActive && !s.OwnerProfile.IsLocked
+            && s.OwnerProfile.Status == OwnerStatus.Active).ToArray();
+        var effectiveRoles = roles.Where(role => role switch
+        {
+            "Staff" => activeAssignments.Select(s => s.OwnerProfileId).Distinct().Count() == 1,
+            "LotOwner" => user.OwnerProfile is { IsLocked: false, Status: OwnerStatus.Active },
+            _ => true
+        }).ToArray();
         var claims = new List<Claim>
         {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
@@ -24,21 +33,20 @@ public class JwtTokenGenerator(IConfiguration configuration, IHostEnvironment en
         };
         if (sessionHash is not null) claims.Add(new Claim("sid", sessionHash));
 
-        if (user.OwnerProfile != null)
+        if (user.OwnerProfile != null && effectiveRoles.Contains("LotOwner"))
         {
             claims.Add(new Claim("OwnerProfileId", user.OwnerProfile.Id.ToString()));
         }
-        else
+        else if (effectiveRoles.Contains("Staff"))
         {
-            var tenants = user.StaffAssignments.Where(s => s.IsActive && !s.OwnerProfile.IsLocked
-                && s.OwnerProfile.Status == ParkingManagement.SharedKernel.Enums.OwnerStatus.Active)
+            var tenants = activeAssignments
                 .Select(s => s.OwnerProfileId).Distinct().ToArray();
             if (tenants.Length == 1) claims.Add(new Claim("OwnerProfileId", tenants[0].ToString()));
-            foreach (var lot in user.StaffAssignments.Where(s => s.IsActive).Select(s => s.ParkingLotId).Distinct())
+            foreach (var lot in activeAssignments.Select(s => s.ParkingLotId).Distinct())
                 claims.Add(new Claim("ParkingLotId", lot.ToString()));
         }
 
-        foreach (var role in roles)
+        foreach (var role in effectiveRoles)
         {
             claims.Add(new Claim("role", role));
         }
