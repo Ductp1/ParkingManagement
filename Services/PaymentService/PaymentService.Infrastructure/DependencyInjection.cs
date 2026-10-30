@@ -21,6 +21,8 @@ public static class DependencyInjection
         services.AddScoped<IRateCardRepository, RateCardRepository>();
         services.AddScoped<IHolidayRepository, HolidayRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
+        // UC-22: ghi thanh toán tiền mặt staff xác nhận tại cổng ra.
+        services.AddScoped<IPaymentWriter, PaymentWriter>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
         services.AddScoped<IVnpayGateway, VnpayGateway>();

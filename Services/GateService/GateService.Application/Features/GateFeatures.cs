@@ -6,7 +6,7 @@ namespace GateService.Application.Features;
 
 public sealed record ParkingSessionDto(int Id, string Code, int ParkingLotId, string PlateNumber, string PlateDisplay, bool IsWalkIn,
     string? BookingCode, string? SlotCode, string Status, DateTime EntryAtUtc, DateTime? ExitAtUtc, int MinutesParked,
-    string CheckInMethod, double? EntryOcrConfidence, decimal? Fee);
+    string CheckInMethod, double? EntryOcrConfidence, decimal? Fee, string VehicleType);
 
 public interface IParkingSessionQueries
 {

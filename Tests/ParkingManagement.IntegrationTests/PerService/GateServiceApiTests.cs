@@ -3,9 +3,11 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using GateService.API.Controllers;
+using GateService.Application.Features.GateConsole;
 using GateService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 
@@ -13,7 +15,31 @@ namespace ParkingManagement.IntegrationTests.PerService;
 
 /// <summary>Collection: GateService chạy host thật trên database pm_it_gate_* riêng của từng lần chạy.</summary>
 [CollectionDefinition("Gate API")]
-public sealed class GateApiCollection : ICollectionFixture<ServiceHostFixture<GateController, GateDbContext>>;
+public sealed class GateApiCollection : ICollectionFixture<GateServiceHostFixture>;
+
+/// <summary>
+/// Host GateService cho per-service test: BookingService (TV3) và PaymentService (TV4) KHÔNG chạy cùng
+/// host này, nên các port liên dịch vụ của UC-21/UC-22 được thay bằng stub trong bộ nhớ
+/// (booking stub luôn Confirmed, bắt đầu sau 1 tiếng → không kích hoạt nhánh grace/late note).
+/// </summary>
+public sealed class GateServiceHostFixture : ServiceHostFixture<GateController, GateDbContext>
+{
+    public GateServiceHostFixture()
+    {
+        ExtraServices = services =>
+        {
+            services.RemoveAll<IGateBookingClient>();
+            services.AddSingleton<StubGateBookingClient>();
+            services.AddSingleton<IGateBookingClient>(sp => sp.GetRequiredService<StubGateBookingClient>());
+
+            services.RemoveAll<IExitFeeCalculator>();
+            services.RemoveAll<IGateSettlementRecorder>();
+            services.AddSingleton<StubPaymentService>();
+            services.AddSingleton<IExitFeeCalculator>(sp => sp.GetRequiredService<StubPaymentService>());
+            services.AddSingleton<IGateSettlementRecorder>(sp => sp.GetRequiredService<StubPaymentService>());
+        };
+    }
+}
 
 /// <summary>
 /// Integration test GateService (TV7): cổng vào/ra T-702 và hợp đồng QR với BookingService T-704.
@@ -21,7 +47,7 @@ public sealed class GateApiCollection : ICollectionFixture<ServiceHostFixture<Ga
 /// HMAC-SHA256 Base64) bằng chính QRTOKEN_SECRET của host → xác thực thật qua BookingQrTokenValidator.
 /// </summary>
 [Collection("Gate API")]
-public class GateServiceApiTests(ServiceHostFixture<GateController, GateDbContext> fixture)
+public class GateServiceApiTests(GateServiceHostFixture fixture)
 {
     /// <summary>Mint token QR theo đúng hợp đồng T-704 với secret của host đang chạy.</summary>
     private static string MintQrToken(string bookingCode, string plate, int parkingLotId, DateTime expiresAtUtc)
@@ -160,13 +186,16 @@ public class GateServiceApiTests(ServiceHostFixture<GateController, GateDbContex
             $"/api/v1/parking-sessions?parkingLotId={DemoIds.LotVincom}&status=Active");
         Assert.Contains(active!, s => s.Code == session.Code);
 
-        // Ra bãi (biển nhập có dấu chấm vẫn chuẩn hóa được)
+        // Ra bãi (biển nhập có dấu chấm vẫn chuẩn hóa được) — response mới: CheckOutResultDto { session, fee, warning }.
+        // Walk-in không confirmFee → fee = null (hành vi cũ giữ nguyên).
         var checkOut = await fixture.Client.PostAsJsonAsync("/api/v1/gate/check-out",
             new { parkingLotId = DemoIds.LotVincom, plate = "51B-777.77", method = "Manual", staffUserId = DemoIds.StaffVincomUser });
         Assert.Equal(HttpStatusCode.OK, checkOut.StatusCode);
-        var completed = await checkOut.Content.ReadFromJsonAsync<SessionJson>();
-        Assert.Equal("Completed", completed!.Status);
-        Assert.NotNull(completed.ExitAtUtc);
+        var result = await checkOut.Content.ReadFromJsonAsync<CheckOutJson>();
+        Assert.Equal("Completed", result!.Session.Status);
+        Assert.NotNull(result.Session.ExitAtUtc);
+        Assert.Null(result.Fee);
+        Assert.Null(result.Warning);
 
         // Sau khi ra: tra cứu → 204 (NoContent), check-out lần nữa → 404
         Assert.Equal(HttpStatusCode.NoContent, (await fixture.Client.GetAsync(
@@ -204,6 +233,53 @@ public class GateServiceApiTests(ServiceHostFixture<GateController, GateDbContex
         bool IsWalkIn, string? BookingCode, string? SlotCode, string Status, DateTime EntryAtUtc, DateTime? ExitAtUtc,
         int MinutesParked, string CheckInMethod, double? EntryOcrConfidence, decimal? Fee);
 
+    public sealed record CheckOutJson(SessionJson Session, FeeJson? Fee, string? Warning);
+
+    public sealed record FeeJson(decimal SessionFee, decimal PrepaidAmount, decimal AdditionalDue,
+        bool IsWithinBillingGrace, int OverstayMinutes, decimal OverstayAmount);
+
     public sealed record DeviceJson(int Id, string Code, string Name, string DeviceType, string? Position, string Status,
         DateTime? LastSeenAtUtc);
+}
+
+/// <summary>Stub BookingService (TV3): mọi mã booking đều Confirmed, bắt đầu sau 1 tiếng, bãi Vincom.</summary>
+public sealed class StubGateBookingClient : IGateBookingClient
+{
+    public List<string> CheckInCalls { get; } = [];
+    public List<string> CheckOutCalls { get; } = [];
+
+    public Task<GateBookingSnapshot?> FindByCodeAsync(string bookingCode, CancellationToken cancellationToken = default)
+        => Task.FromResult<GateBookingSnapshot?>(new GateBookingSnapshot(bookingCode, "Confirmed", DemoIds.LotVincom,
+            "51A88888", "Sedan", DateTime.UtcNow.AddHours(1), DateTime.UtcNow.AddHours(3), "B1-A01", 63000, 15, 1.5m));
+
+    public Task<IReadOnlyList<GateBookingListItem>> ListForLotAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+        string? search, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<GateBookingListItem>>([]);
+
+    public Task SyncCheckInAsync(string bookingCode, int? staffUserId, CancellationToken cancellationToken = default)
+    {
+        CheckInCalls.Add(bookingCode);
+        return Task.CompletedTask;
+    }
+
+    public Task SyncCheckOutAsync(string bookingCode, int? staffUserId, CancellationToken cancellationToken = default)
+    {
+        CheckOutCalls.Add(bookingCode);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>Stub PaymentService (TV4): phí cố định 80.000đ không quá giờ, ghi nhận lệnh thu tiền trong bộ nhớ.</summary>
+public sealed class StubPaymentService : IExitFeeCalculator, IGateSettlementRecorder
+{
+    public List<GateSettlementRequest> Records { get; } = [];
+
+    public Task<SessionFeeResult> CalculateAsync(SessionFeeRequest request, CancellationToken cancellationToken = default)
+        => Task.FromResult(new SessionFeeResult(1, 60, false, 50000m, 1m, 0, 0m, 80000m, []));
+
+    public Task<GateSettlementResult> RecordAsync(GateSettlementRequest request, CancellationToken cancellationToken = default)
+    {
+        Records.Add(request);
+        return Task.FromResult(new GateSettlementResult("PM-IT-TEST", "Succeeded"));
+    }
 }
