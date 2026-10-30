@@ -108,6 +108,7 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
     { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
     { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
+    { label: 'Khiếu nại & Đánh giá', path: '/owner/feedback', icon: 'rate_review' },
     { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
   ],
   Staff: [

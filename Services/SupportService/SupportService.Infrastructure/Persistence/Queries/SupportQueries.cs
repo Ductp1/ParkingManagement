@@ -11,12 +11,15 @@ public sealed class SupportQueries(SupportDbContext db) : ISupportQueries
         var query = db.Complaints.AsNoTracking().Where(c => c.OwnerProfileId == ownerProfileId);
         if (status is { } s) query = query.Where(c => c.Status == s);
 
-        return await query
+        var items = await query
             .OrderBy(c => c.Status == ComplaintStatus.AwaitingOwner ? 0 : 1)
             .ThenBy(c => c.OwnerResponseDueAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return items
             .Select(c => new ComplaintDto(c.Id, c.Code, c.Status.ToString(), c.Category.ToString(), c.UserId, c.BookingCode,
                 c.ParkingLotId, c.Description, c.RequestedAmount, c.OwnerResponseDueAtUtc, c.OwnerResponse, c.CreatedAtUtc))
-            .ToListAsync(cancellationToken);
+            .ToList();
     }
 
     public async Task<LotReviewsDto> GetLotReviewsAsync(int parkingLotId, int take, CancellationToken cancellationToken)
