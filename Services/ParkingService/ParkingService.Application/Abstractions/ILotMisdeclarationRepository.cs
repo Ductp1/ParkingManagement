@@ -16,6 +16,16 @@ public interface ILotMisdeclarationRepository
 
     Task<bool> HasOpenCaseAsync(int parkingLotId, CancellationToken cancellationToken = default);
 
+    /// <summary>Mọi bãi (chưa soft-delete) của chủ bãi, có tracking – để khóa vĩnh viễn khi cấm (US-056 AC2).</summary>
+    Task<IReadOnlyList<ParkingLot>> GetOwnerLotsAsync(int ownerProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>Case đang mở (Warned / Suspended) trên các bãi của chủ bãi, có tracking kèm bãi.</summary>
+    Task<IReadOnlyList<LotMisdeclarationCase>> GetOpenCasesByOwnerAsync(int ownerProfileId, CancellationToken cancellationToken = default);
+
+    /// <summary>Hồ sơ KYB còn mở (Draft / Submitted / UnderReview / NeedsMoreInfo) của các bãi, có tracking.</summary>
+    Task<IReadOnlyList<KybApplication>> GetOpenKybApplicationsAsync(IReadOnlyCollection<int> parkingLotIds,
+        CancellationToken cancellationToken = default);
+
     void Add(LotMisdeclarationCase misdeclarationCase);
 
     /// <summary>

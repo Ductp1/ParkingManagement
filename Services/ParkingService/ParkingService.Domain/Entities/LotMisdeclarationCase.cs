@@ -116,6 +116,18 @@ public class LotMisdeclarationCase : BaseEntity
         return wasSuspended;
     }
 
+    /// <summary>
+    /// Warned / Suspended → Banned (AC2: xác nhận cố ý gian lận). Dùng cho case bị xác nhận và các case đang mở khác của cùng chủ bãi,
+    /// để không còn đường khôi phục bãi. Bãi do use case khóa vĩnh viễn (<see cref="Entities.ParkingLot.SuspendForOwnerBan"/>).
+    /// </summary>
+    public void Ban(int adminUserId, string reason, DateTime nowUtc)
+    {
+        EnsureAdmin(adminUserId);
+        var text = Required(reason, "Lý do cấm");
+        MoveTo(MisdeclarationCaseStatus.Banned);
+        Close(adminUserId, text, nowUtc);
+    }
+
     private static LotMisdeclarationCase Open(ParkingLot lot, MisdeclarationSeverity severity, MisdeclarationCaseStatus status,
         MisdeclarationCategory category, string finding, DateTime dueAtUtc, int adminUserId, DateTime nowUtc)
     {

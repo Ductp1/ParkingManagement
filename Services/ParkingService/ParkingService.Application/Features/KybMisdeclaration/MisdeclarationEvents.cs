@@ -17,6 +17,9 @@ public static class MisdeclarationEvents
     public const string Suspended = "MisdeclarationSuspended";
     public const string Resolved = "MisdeclarationResolved";
     public const string Reinstated = "Reinstated";
+    public const string OwnerBanned = "OwnerBanned";
+    /// <summary>Action trên KybApplication (EntityName = KybApplication): "KybApplication.RejectedByBan".</summary>
+    public const string KybRejectedByBan = "RejectedByBan";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 

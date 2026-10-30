@@ -32,6 +32,16 @@ public sealed record EscalateLotMisdeclarationCaseRequest(string? Note);
 
 public sealed record ResolveLotMisdeclarationCaseRequest(string? Note);
 
+/// <summary>Xác nhận cố ý gian lận (AC2) – lý do bắt buộc, ghi vào ResolutionNote của các case bị đóng và audit.</summary>
+public sealed record BanLotOwnerRequest(string? Reason);
+
+/// <summary>
+/// Kết quả cấm chủ bãi (US-056 AC2): màn xử lý của bãi gốc + các bãi bị khóa vĩnh viễn, hồ sơ KYB bị từ chối, case bị đóng.
+/// Khóa tài khoản chủ bãi KHÔNG làm ở đây – Admin dùng Lock owner (US-096, AdminService).
+/// </summary>
+public sealed record OwnerBanResultDto(LotMisdeclarationDto Lot, int OwnerProfileId, IReadOnlyList<int> SuspendedLotIds,
+    IReadOnlyList<int> RejectedKybApplicationIds, IReadOnlyList<int> BannedCaseIds);
+
 // ===== Cấu hình =====
 
 /// <summary>Cấu hình "KybMisdeclaration" (appsettings): số ngày hạn sửa mặc định cho sai sót nhẹ (AC3), 1–30, mặc định 7.</summary>

@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IOpenLotMisdeclarationCaseUseCase, OpenLotMisdeclarationCaseUseCase>();
         services.AddScoped<IEscalateLotMisdeclarationCaseUseCase, EscalateLotMisdeclarationCaseUseCase>();
         services.AddScoped<IResolveLotMisdeclarationCaseUseCase, ResolveLotMisdeclarationCaseUseCase>();
+        services.AddScoped<IBanLotOwnerUseCase, BanLotOwnerUseCase>();
 
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();

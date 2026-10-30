@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Domain;
+using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using ParkingService.Application.Abstractions;
 using ParkingService.Domain.Entities;
@@ -10,7 +11,7 @@ using ParkingService.Domain.Enums;
 
 namespace ParkingService.Infrastructure.Persistence.Repositories;
 
-/// <summary>ADAPTER cổng ghi xử lý khai báo sai (US-056): case, bãi và outbox lưu trong một SaveChanges.</summary>
+/// <summary>ADAPTER cổng ghi xử lý khai báo sai (US-056): case, bãi, hồ sơ KYB và outbox lưu trong một SaveChanges.</summary>
 public sealed class LotMisdeclarationRepository(ParkingDbContext db) : ILotMisdeclarationRepository
 {
     public Task<ParkingLot?> GetLotAsync(int parkingLotId, CancellationToken cancellationToken = default)
@@ -24,6 +25,26 @@ public sealed class LotMisdeclarationRepository(ParkingDbContext db) : ILotMisde
     public Task<bool> HasOpenCaseAsync(int parkingLotId, CancellationToken cancellationToken = default)
         => db.LotMisdeclarationCases.AnyAsync(c => c.ParkingLotId == parkingLotId
             && (c.Status == MisdeclarationCaseStatus.Warned || c.Status == MisdeclarationCaseStatus.Suspended), cancellationToken);
+
+    public async Task<IReadOnlyList<ParkingLot>> GetOwnerLotsAsync(int ownerProfileId, CancellationToken cancellationToken = default)
+        => await db.ParkingLots.Where(l => l.OwnerProfileId == ownerProfileId).OrderBy(l => l.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<LotMisdeclarationCase>> GetOpenCasesByOwnerAsync(int ownerProfileId,
+        CancellationToken cancellationToken = default)
+        => await db.LotMisdeclarationCases
+            .Include(c => c.ParkingLot)
+            .Where(c => c.ParkingLot.OwnerProfileId == ownerProfileId
+                && (c.Status == MisdeclarationCaseStatus.Warned || c.Status == MisdeclarationCaseStatus.Suspended))
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<KybApplication>> GetOpenKybApplicationsAsync(IReadOnlyCollection<int> parkingLotIds,
+        CancellationToken cancellationToken = default)
+        => await db.KybApplications
+            .Where(k => parkingLotIds.Contains(k.ParkingLotId)
+                && (k.Status == KybStatus.Draft || k.Status == KybStatus.Submitted
+                    || k.Status == KybStatus.UnderReview || k.Status == KybStatus.NeedsMoreInfo))
+            .OrderBy(k => k.Id)
+            .ToListAsync(cancellationToken);
 
     public void Add(LotMisdeclarationCase misdeclarationCase) => db.LotMisdeclarationCases.Add(misdeclarationCase);
 

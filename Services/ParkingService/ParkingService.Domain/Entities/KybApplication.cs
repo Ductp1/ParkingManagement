@@ -10,16 +10,20 @@ public class KybApplication : BaseEntity
     /// <summary>Bãi trên ngưỡng này là Tier 1: bắt buộc khảo sát thực địa trước khi duyệt (US-054, US-055 AC4).</summary>
     public const int FieldSurveySlotThreshold = 50;
 
+    /// <summary>Lý do từ chối tự động khi chủ bãi bị cấm vì khai báo gian lận (US-056 AC2).</summary>
+    public const string OwnerBannedRejectReason = "Chủ bãi bị cấm do khai báo gian lận";
+
     /// <summary>
     /// Bảng chuyển trạng thái hợp lệ. Phía chủ bãi (US-054) nộp/nháp; phía Admin (US-055) duyệt.
-    /// Mọi thao tác Admin đi qua <see cref="MoveTo"/> – một chỗ kiểm tra duy nhất, sai → 409.
+    /// Draft / Submitted / NeedsMoreInfo → Rejected chỉ dành cho <see cref="RejectByOwnerBan"/> (US-056); Admin từ chối thường
+    /// vẫn chỉ khi UnderReview (<see cref="Reject"/>). Mọi thao tác Admin đi qua <see cref="MoveTo"/> – một chỗ kiểm tra duy nhất, sai → 409.
     /// </summary>
     private static readonly IReadOnlyDictionary<KybStatus, KybStatus[]> Transitions = new Dictionary<KybStatus, KybStatus[]>
     {
-        [KybStatus.Draft] = [KybStatus.Submitted],
-        [KybStatus.Submitted] = [KybStatus.UnderReview],
+        [KybStatus.Draft] = [KybStatus.Submitted, KybStatus.Rejected],
+        [KybStatus.Submitted] = [KybStatus.UnderReview, KybStatus.Rejected],
         [KybStatus.UnderReview] = [KybStatus.Approved, KybStatus.Rejected, KybStatus.NeedsMoreInfo],
-        [KybStatus.NeedsMoreInfo] = [KybStatus.Draft, KybStatus.Submitted],
+        [KybStatus.NeedsMoreInfo] = [KybStatus.Draft, KybStatus.Submitted, KybStatus.Rejected],
         [KybStatus.Rejected] = [KybStatus.Draft, KybStatus.Submitted],
         [KybStatus.Approved] = [],
     };
@@ -140,8 +144,25 @@ public class KybApplication : BaseEntity
     public void Reject(int adminUserId, string reason, DateTime nowUtc)
     {
         EnsureAdmin(adminUserId);
+        EnsureStatus(KybStatus.UnderReview, "từ chối");
         MoveTo(KybStatus.Rejected);
         RejectReason = Required(reason, "Lý do từ chối");
+        ReviewedByUserId = adminUserId;
+        ReviewedAtUtc = nowUtc;
+    }
+
+    /// <summary>Hồ sơ KYB còn mở (chưa có kết luận cuối) – bị từ chối tự động khi chủ bãi bị cấm (US-056 AC2).</summary>
+    public bool IsOpen => Status is KybStatus.Draft or KybStatus.Submitted or KybStatus.UnderReview or KybStatus.NeedsMoreInfo;
+
+    /// <summary>
+    /// US-056 AC2: chủ bãi bị cấm vì khai báo gian lận → hồ sơ đang mở (Draft / Submitted / UnderReview / NeedsMoreInfo)
+    /// chuyển Rejected với lý do cố định. Đi qua cùng bảng <see cref="Transitions"/>.
+    /// </summary>
+    public void RejectByOwnerBan(int adminUserId, DateTime nowUtc)
+    {
+        EnsureAdmin(adminUserId);
+        MoveTo(KybStatus.Rejected);
+        RejectReason = OwnerBannedRejectReason;
         ReviewedByUserId = adminUserId;
         ReviewedAtUtc = nowUtc;
     }

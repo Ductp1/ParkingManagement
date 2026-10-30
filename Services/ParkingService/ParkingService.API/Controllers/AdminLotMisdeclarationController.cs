@@ -6,7 +6,8 @@ using ParkingService.Application.Features.KybMisdeclaration;
 namespace ParkingService.API.Controllers;
 
 /// <summary>
-/// US-056: Admin xử lý bãi khai báo sai sau khi đã Active – cảnh báo kèm hạn sửa, tạm khóa kèm hạn giải trình 24h, khôi phục.
+/// US-056: Admin xử lý bãi khai báo sai sau khi đã Active – cảnh báo kèm hạn sửa, tạm khóa kèm hạn giải trình 24h, khôi phục,
+/// cấm chủ bãi khi xác nhận gian lận.
 /// Route dưới "parking-lots" để Gateway chuyển sang ParkingService. ParkingService là nơi DUY NHẤT đổi ParkingLot.Status.
 /// Chỉ role Admin; người thao tác lấy từ JWT, không nhận từ body.
 /// </summary>
@@ -18,6 +19,7 @@ public sealed class AdminLotMisdeclarationController(
     IOpenLotMisdeclarationCaseUseCase openCase,
     IEscalateLotMisdeclarationCaseUseCase escalateCase,
     IResolveLotMisdeclarationCaseUseCase resolveCase,
+    IBanLotOwnerUseCase banOwner,
     ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>GET /api/v1/parking-lots/7/misdeclaration-cases – bãi (kể cả Suspended), case đang mở, lịch sử case.</summary>
@@ -61,6 +63,21 @@ public sealed class AdminLotMisdeclarationController(
     public Task<ActionResult<LotMisdeclarationDto>> Resolve(int lotId, int caseId,
         [FromBody] ResolveLotMisdeclarationCaseRequest request, CancellationToken cancellationToken)
         => AsAdmin(adminId => resolveCase.ExecuteAsync(lotId, caseId, request, adminId, cancellationToken));
+
+    /// <summary>
+    /// POST …/7/misdeclaration-cases/3/ban { reason } – xác nhận cố ý gian lận: khóa vĩnh viễn mọi bãi của chủ bãi, từ chối hồ sơ KYB
+    /// còn mở. Khóa tài khoản chủ bãi dùng POST /api/v1/admin/owners/{id}/lock (AdminService, US-096).
+    /// </summary>
+    [HttpPost("{caseId:int}/ban")]
+    [ProducesResponseType<OwnerBanResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<OwnerBanResultDto>> Ban(int lotId, int caseId, [FromBody] BanLotOwnerRequest request,
+        CancellationToken cancellationToken)
+        => currentUser.UserId is { } adminUserId
+            ? Ok(await banOwner.ExecuteAsync(lotId, caseId, request, adminUserId, cancellationToken))
+            : Unauthorized();
 
     private async Task<ActionResult<LotMisdeclarationDto>> AsAdmin(Func<int, Task<LotMisdeclarationDto>> action)
         => currentUser.UserId is { } adminUserId ? Ok(await action(adminUserId)) : Unauthorized();

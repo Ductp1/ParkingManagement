@@ -63,6 +63,20 @@ public class LotMisdeclarationTests
         public Task<bool> HasOpenCaseAsync(int parkingLotId, CancellationToken cancellationToken = default)
             => Task.FromResult(Cases.Any(c => c.ParkingLotId == parkingLotId && c.IsOpen));
 
+        public List<KybApplication> Kybs { get; } = [];
+
+        public Task<IReadOnlyList<ParkingLot>> GetOwnerLotsAsync(int ownerProfileId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ParkingLot>>(lots.Where(l => l.OwnerProfileId == ownerProfileId).ToList());
+
+        public Task<IReadOnlyList<LotMisdeclarationCase>> GetOpenCasesByOwnerAsync(int ownerProfileId,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<LotMisdeclarationCase>>(
+                Cases.Where(c => c.IsOpen && c.ParkingLot.OwnerProfileId == ownerProfileId).ToList());
+
+        public Task<IReadOnlyList<KybApplication>> GetOpenKybApplicationsAsync(IReadOnlyCollection<int> parkingLotIds,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<KybApplication>>(Kybs.Where(k => parkingLotIds.Contains(k.ParkingLotId) && k.IsOpen).ToList());
+
         public void Add(LotMisdeclarationCase misdeclarationCase) => Cases.Add(misdeclarationCase);
 
         public Task SaveWithEventsAsync(IReadOnlyList<IntegrationEvent> events, CancellationToken cancellationToken = default)
@@ -487,6 +501,166 @@ public class LotMisdeclarationTests
         var useCase = new ResolveLotMisdeclarationCaseUseCase(repo, new FakeQueries(repo), Settings, new FixedClock(Now));
 
         await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(LotId, 3, new("Đã sửa"), AdminId));
+    }
+
+    // ==================== Cấm chủ bãi (AC2) ====================
+
+    private static ParkingLot OwnerLot(int id, ParkingLotStatus status, int ownerProfileId = 57) => new(
+        id: id, name: $"Bãi #{id}", address: "Q.9", latitude: 10.85, longitude: 106.77, totalSlots: 30, availableSlots: 0,
+        maxHeightCm: 210, openTime: new TimeOnly(6, 0), closeTime: new TimeOnly(22, 0), status: status, ownerProfileId: ownerProfileId);
+
+    private static KybApplication KybOf(ParkingLot lot, KybStatus status, int id)
+        => WithId(new KybApplication { ParkingLotId = lot.Id, ParkingLot = lot, Status = status }, id);
+
+    private static BanLotOwnerUseCase BanUseCase(FakeRepo repo) => new(repo, new FakeQueries(repo), Settings, new FixedClock(Now));
+
+    [Fact]
+    public void Ban_FromWarnedOrSuspended_ClosesCase_AndIsTerminal()
+    {
+        var warned = Warned(Lot());
+        warned.Ban(AdminId, "Cố ý khai khống công suất", Now);
+        Assert.Equal(MisdeclarationCaseStatus.Banned, warned.Status);
+        Assert.Equal("Cố ý khai khống công suất", warned.ResolutionNote);
+        Assert.False(warned.IsOpen);
+        Assert.Throws<ConflictException>(() => warned.Resolve(AdminId, "Khôi phục", Now));
+
+        var suspended = SuspendedCase(Lot());
+        suspended.Ban(AdminId, "Giả mạo giấy phép", Now);
+        Assert.Equal(MisdeclarationCaseStatus.Banned, suspended.Status);
+    }
+
+    [Fact]
+    public void ParkingLot_SuspendForOwnerBan_FromActiveOrPending_IdempotentWhenSuspended()
+    {
+        var active = Lot(ParkingLotStatus.Active);
+        var pending = Lot(ParkingLotStatus.PendingApproval);
+        var suspended = Lot(ParkingLotStatus.Suspended);
+
+        Assert.True(active.SuspendForOwnerBan());
+        Assert.True(pending.SuspendForOwnerBan());
+        Assert.False(suspended.SuspendForOwnerBan());
+        Assert.All([active, pending, suspended], l => Assert.Equal(ParkingLotStatus.Suspended, l.Status));
+        Assert.False(active.IsDeleted);                    // không soft-delete: dữ liệu giữ lại
+    }
+
+    [Fact]
+    public async Task Ban_SuspendsAllOwnerLots_RejectsOpenKyb_BansOtherOpenCases_InOneSave()
+    {
+        var lot = Lot();                                                    // bãi có case gốc (Active)
+        var pending = OwnerLot(8, ParkingLotStatus.PendingApproval);        // bãi đang thẩm định
+        var otherActive = OwnerLot(9, ParkingLotStatus.Active);             // bãi có case cảnh báo khác
+        var alreadySuspended = OwnerLot(10, ParkingLotStatus.Suspended);    // không đổi, không có case → không audit
+        var stranger = OwnerLot(11, ParkingLotStatus.Active, ownerProfileId: 99);
+        var repo = new FakeRepo(lot, pending, otherActive, alreadySuspended, stranger);
+        repo.Cases.Add(Warned(lot, id: 3));
+        repo.Cases.Add(Warned(otherActive, id: 4));
+        repo.Kybs.Add(KybOf(pending, KybStatus.UnderReview, 21));
+        repo.Kybs.Add(KybOf(otherActive, KybStatus.NeedsMoreInfo, 22));
+        repo.Kybs.Add(KybOf(lot, KybStatus.Approved, 23));                  // đã duyệt → giữ nguyên
+        repo.Kybs.Add(KybOf(stranger, KybStatus.Submitted, 24));            // chủ bãi khác → giữ nguyên
+
+        var result = await BanUseCase(repo).ExecuteAsync(LotId, 3, new BanLotOwnerRequest("Cố ý khai khống công suất"), AdminId);
+
+        Assert.Equal(1, repo.SaveCount);
+        Assert.Equal(57, result.OwnerProfileId);
+        Assert.Equal([LotId, 8, 9], result.SuspendedLotIds.Order());
+        Assert.Equal([21, 22], result.RejectedKybApplicationIds);
+        Assert.Equal([3, 4], result.BannedCaseIds);
+        Assert.All([lot, pending, otherActive, alreadySuspended], l => Assert.Equal(ParkingLotStatus.Suspended, l.Status));
+        Assert.Equal(ParkingLotStatus.Active, stranger.Status);
+        Assert.All(repo.Cases, c => Assert.Equal(MisdeclarationCaseStatus.Banned, c.Status));
+        Assert.All(repo.Kybs.Where(k => k.Id is 21 or 22), k =>
+        {
+            Assert.Equal(KybStatus.Rejected, k.Status);
+            Assert.Equal("Chủ bãi bị cấm do khai báo gian lận", k.RejectReason);
+            Assert.Equal(AdminId, k.ReviewedByUserId);
+        });
+        Assert.Equal(KybStatus.Approved, repo.Kybs.Single(k => k.Id == 23).Status);
+        Assert.Equal(KybStatus.Submitted, repo.Kybs.Single(k => k.Id == 24).Status);
+        Assert.Equal("Banned", result.Lot.Cases[0].Status);
+        Assert.Null(result.Lot.OpenCase);
+
+        var audits = repo.Events.Cast<AuditRecorded>().ToList();
+        Assert.Equal(3, audits.Count(a => a.Action == "ParkingLot.OwnerBanned"));
+        Assert.Equal([LotId.ToString(), "8", "9"], audits.Where(a => a.Action == "ParkingLot.OwnerBanned").Select(a => a.EntityId).Order());
+        var kybAudits = audits.Where(a => a.Action == "KybApplication.RejectedByBan").ToList();
+        Assert.Equal(["21", "22"], kybAudits.Select(a => a.EntityId));
+        Assert.All(kybAudits, a => Assert.Equal("KybApplication", a.EntityName));
+        Assert.Equal("UnderReview", Json(kybAudits[0].OldValuesJson).GetProperty("status").GetString());
+        Assert.Equal("Rejected", Json(kybAudits[0].NewValuesJson).GetProperty("status").GetString());
+        Assert.Equal(5, audits.Count);
+    }
+
+    [Fact]
+    public async Task Ban_FromSuspendedCase_AuditsLotEvenIfStatusUnchanged()
+    {
+        var lot = Lot();
+        var repo = new FakeRepo(lot);
+        repo.Cases.Add(SuspendedCase(lot));
+
+        var result = await BanUseCase(repo).ExecuteAsync(LotId, 3, new BanLotOwnerRequest("Giả mạo giấy phép"), AdminId);
+
+        Assert.Empty(result.SuspendedLotIds);
+        var audit = Assert.IsType<AuditRecorded>(Assert.Single(repo.Events));
+        Assert.Equal("ParkingLot.OwnerBanned", audit.Action);
+        Assert.Equal("Suspended", Json(audit.OldValuesJson).GetProperty("caseStatus").GetString());
+        Assert.Equal("Banned", Json(audit.NewValuesJson).GetProperty("caseStatus").GetString());
+    }
+
+    [Fact]
+    public async Task Ban_MissingReason_Throws400_AndChangesNothing()
+    {
+        var lot = Lot();
+        var pending = OwnerLot(8, ParkingLotStatus.PendingApproval);
+        var repo = new FakeRepo(lot, pending);
+        repo.Cases.Add(Warned(lot));
+        repo.Kybs.Add(KybOf(pending, KybStatus.UnderReview, 21));
+
+        await Assert.ThrowsAsync<ValidationException>(() => BanUseCase(repo).ExecuteAsync(LotId, 3, new BanLotOwnerRequest(" "), AdminId));
+
+        Assert.Equal(0, repo.SaveCount);
+        Assert.Equal(ParkingLotStatus.Active, lot.Status);
+        Assert.Equal(ParkingLotStatus.PendingApproval, pending.Status);
+        Assert.Equal(KybStatus.UnderReview, repo.Kybs[0].Status);
+        Assert.Equal(MisdeclarationCaseStatus.Warned, repo.Cases[0].Status);
+    }
+
+    [Fact]
+    public async Task Ban_ClosedCase_Throws409_AndChangesNothing()
+    {
+        var lot = Lot();
+        var pending = OwnerLot(8, ParkingLotStatus.PendingApproval);
+        var repo = new FakeRepo(lot, pending);
+        var closed = Warned(lot);
+        closed.Resolve(AdminId, "Đã sửa", Now.AddDays(-1));
+        repo.Cases.Add(closed);
+
+        await Assert.ThrowsAsync<ConflictException>(() => BanUseCase(repo).ExecuteAsync(LotId, 3, new BanLotOwnerRequest("Gian lận"), AdminId));
+        Assert.Equal(0, repo.SaveCount);
+        Assert.Equal(ParkingLotStatus.Active, lot.Status);
+        Assert.Equal(ParkingLotStatus.PendingApproval, pending.Status);
+    }
+
+    [Fact]
+    public async Task Ban_UnknownCase_Throws404_InvalidIds_Throw400()
+    {
+        var repo = new FakeRepo(Lot());
+        await Assert.ThrowsAsync<NotFoundException>(() => BanUseCase(repo).ExecuteAsync(LotId, 99, new("Gian lận"), AdminId));
+        await Assert.ThrowsAsync<ValidationException>(() => BanUseCase(repo).ExecuteAsync(LotId, 3, new("Gian lận"), 0));
+    }
+
+    [Fact]
+    public async Task AfterBan_LotCannotBeReopenedOrReinstated()
+    {
+        var lot = Lot();
+        var repo = new FakeRepo(lot);
+        repo.Cases.Add(SuspendedCase(lot));
+        await BanUseCase(repo).ExecuteAsync(LotId, 3, new BanLotOwnerRequest("Gian lận"), AdminId);
+
+        var resolve = new ResolveLotMisdeclarationCaseUseCase(repo, new FakeQueries(repo), Settings, new FixedClock(Now));
+        await Assert.ThrowsAsync<ConflictException>(() => resolve.ExecuteAsync(LotId, 3, new("Khôi phục"), AdminId));
+        await Assert.ThrowsAsync<ConflictException>(() => OpenUseCase(repo).ExecuteAsync(LotId, Minor(), AdminId));
+        Assert.Equal(ParkingLotStatus.Suspended, lot.Status);
     }
 
     // ==================== Đọc ====================
