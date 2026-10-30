@@ -22,6 +22,7 @@ import { formatDateTimeIct, formatNumber, orEmpty } from '../../../utils/format'
 import { cityText, fileNameFromUrl, kybCode, ownerLabel, shortTime } from './kybFormat';
 import { KybDialogs, type KybDialogType } from './KybDialogs';
 import { LotContractPanel } from '../lot-contracts/LotContractPanel';
+import { MisdeclarationPanel } from './MisdeclarationPanel';
 
 const adminLabel = (id: number | null) => (id ? `Admin #${id}` : '—');
 
@@ -79,7 +80,9 @@ const KybDetailBody: React.FC<{
   onAction: (t: KybDialogType) => void;
   /** Gọi sau thao tác hợp đồng (ký hợp đồng = duyệt KYB nên phải tải lại hồ sơ). */
   onContractChanged: () => void;
-}> = ({ kyb, lotContract, onAction, onContractChanged }) => {
+  /** Gọi sau thao tác khai báo sai (US-056) – trạng thái bãi đổi nên tải lại hồ sơ. */
+  onLotChanged: () => void;
+}> = ({ kyb, lotContract, onAction, onContractChanged, onLotChanged }) => {
   const navigate = useNavigate();
   const lot = kyb.parkingLot;
   const lotPath = `/admin/operations/parking-lots/${lot.id}`;
@@ -164,6 +167,8 @@ const KybDetailBody: React.FC<{
         main={
           <>
             {kyb.status !== KybStatus.Draft && <LotContractPanel kyb={kyb} summary={lotContract} onChanged={onContractChanged} />}
+
+            {kyb.status === KybStatus.Approved && <MisdeclarationPanel lotId={lot.id} onChanged={onLotChanged} />}
 
             <Panel title="Documents" description="KybApplications.BusinessLicenseUrl · FireSafetyCertificateUrl · SitePhotoUrlsJson">
               <DetailList>
@@ -297,6 +302,7 @@ export const KybDetailPage: React.FC = () => {
           query.refetch();
           contracts.refetch();
         }}
+        onLotChanged={query.refetch}
       />
       <KybDialogs
         kyb={query.data}

@@ -4,6 +4,11 @@ import type {
   AdminKybApplicationDetailDto,
   AdminKybApplicationSummaryDto,
   AdminKybListQuery,
+  BanLotOwnerRequest,
+  LotMisdeclarationDto,
+  MisdeclarationNoteRequest,
+  OpenLotMisdeclarationCaseRequest,
+  OwnerBanResultDto,
   RecordKybSurveyResultRequest,
   RejectKybRequest,
   RequestKybInfoRequest,
@@ -12,6 +17,9 @@ import type {
 
 /** US-055 – route dưới "parking-lots" để Gateway chuyển sang ParkingService (route /api/v1/admin/** thuộc AdminService). */
 const BASE = '/api/v1/parking-lots/kyb-applications';
+
+/** US-056 – xử lý bãi khai báo sai, cũng dưới "parking-lots". */
+const misdeclarationBase = (lotId: number) => `/api/v1/parking-lots/${lotId}/misdeclaration-cases`;
 
 export const adminKybApi = {
   /**
@@ -58,4 +66,34 @@ export const adminKybApi = {
    */
   requestInfo: (id: number, data: RequestKybInfoRequest) =>
     adminRequest<AdminKybApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/request-info`, data }),
+
+  /**
+   * Bãi (kể cả Suspended), case khai báo sai đang mở và lịch sử case (US-056).
+   */
+  getMisdeclaration: (lotId: number) =>
+    adminRequest<LotMisdeclarationDto>({ method: 'GET', url: misdeclarationBase(lotId) }),
+
+  /**
+   * Mở case cho bãi Active: Minor = cảnh báo + hạn sửa; Suspected = tạm khóa + giải trình 24h (US-056 AC1, AC3).
+   */
+  openMisdeclarationCase: (lotId: number, data: OpenLotMisdeclarationCaseRequest) =>
+    adminRequest<LotMisdeclarationDto>({ method: 'POST', url: misdeclarationBase(lotId), data }),
+
+  /**
+   * Cảnh báo → tạm khóa, hạn giải trình 24h tính lại (US-056).
+   */
+  escalateMisdeclarationCase: (lotId: number, caseId: number, data: MisdeclarationNoteRequest) =>
+    adminRequest<LotMisdeclarationDto>({ method: 'POST', url: `${misdeclarationBase(lotId)}/${caseId}/escalate`, data }),
+
+  /**
+   * Đóng case; bãi đang tạm khóa → khôi phục Active (US-056).
+   */
+  resolveMisdeclarationCase: (lotId: number, caseId: number, data: MisdeclarationNoteRequest) =>
+    adminRequest<LotMisdeclarationDto>({ method: 'POST', url: `${misdeclarationBase(lotId)}/${caseId}/resolve`, data }),
+
+  /**
+   * Xác nhận gian lận: khóa vĩnh viễn mọi bãi của chủ bãi, từ chối hồ sơ KYB còn mở (US-056 AC2).
+   */
+  banLotOwner: (lotId: number, caseId: number, data: BanLotOwnerRequest) =>
+    adminRequest<OwnerBanResultDto>({ method: 'POST', url: `${misdeclarationBase(lotId)}/${caseId}/ban`, data }),
 };
