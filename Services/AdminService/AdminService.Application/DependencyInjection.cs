@@ -1,4 +1,5 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
@@ -65,6 +66,11 @@ public static class DependencyInjection
         services.AddScoped<IUpdateContractTemplateDraftUseCase, UpdateContractTemplateDraftUseCase>();
         services.AddScoped<IActivateContractTemplateUseCase, ActivateContractTemplateUseCase>();
         services.AddScoped<IDiscardContractTemplateDraftUseCase, DiscardContractTemplateDraftUseCase>();
+        // US-100: tra cứu audit log toàn hệ thống (chỉ đọc)
+        services.AddScoped<IListAuditLogsUseCase, ListAuditLogsUseCase>();
+        services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
+        services.AddScoped<IGetAuditLogFilterOptionsUseCase, GetAuditLogFilterOptionsUseCase>();
+        services.AddScoped<IExportAuditLogsUseCase, ExportAuditLogsUseCase>();
         return services;
     }
 }

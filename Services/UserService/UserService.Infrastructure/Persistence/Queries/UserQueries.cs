@@ -16,7 +16,7 @@ public sealed class UserQueries(UserDbContext db) : IUserQueries
                 u.Roles.Select(r => r.Role.ToString()).ToList(),
                 u.OwnerProfile == null ? null : new OwnerProfileDto(
                     u.OwnerProfile.Id, u.OwnerProfile.BusinessName, u.OwnerProfile.TaxCode,
-                    u.OwnerProfile.BankName, u.OwnerProfile.BankAccountNumber)))
+                    u.OwnerProfile.BankName, u.OwnerProfile.BankAccountNumber), u.AvatarUrl))
             .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<PagedResult<UserSummaryDto>> ListAsync(UserRoleType? role, int page, int pageSize, CancellationToken cancellationToken)

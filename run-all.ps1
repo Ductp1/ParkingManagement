@@ -34,8 +34,18 @@ $services = @(
 )
 
 if (-not $NoBuild) {
+    # Windows không cho ghi đè DLL đang được host trong checkout này sử dụng.
+    $hostNames = @($services | ForEach-Object { "$($_.Name).API" }) + 'ParkingManagement.Gateway'
+    $checkoutPrefix = [IO.Path]::GetFullPath($root).TrimEnd('\') + '\'
+    foreach ($runningHost in @(Get-Process -Name $hostNames -ErrorAction SilentlyContinue)) {
+        if ($runningHost.Path -and $runningHost.Path.StartsWith($checkoutPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+            Write-Host "Dung $($runningHost.ProcessName) (PID $($runningHost.Id)) de build..." -ForegroundColor Yellow
+            Stop-Process -Id $runningHost.Id -ErrorAction Stop
+            $runningHost.WaitForExit()
+        }
+    }
     Write-Host "Build solution..." -ForegroundColor Cyan
-    dotnet build "$root\ParkingManagement.slnx" -nologo -v q
+    dotnet build "$root\ParkingManagement.slnx" -nologo -v q -m:1 -p:UseSharedCompilation=false -nodeReuse:false
     if ($LASTEXITCODE -ne 0) { Write-Host "Build loi - dung." -ForegroundColor Red; exit 1 }
 }
 

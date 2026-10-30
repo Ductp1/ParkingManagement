@@ -6,7 +6,7 @@ namespace UserService.Application.Features.Users;
 
 // ===== DTO =====
 public sealed record UserDto(int Id, string FullName, string? Email, string? PhoneNumber, string Status, string KycStatus,
-    IReadOnlyList<string> Roles, OwnerProfileDto? OwnerProfile);
+    IReadOnlyList<string> Roles, OwnerProfileDto? OwnerProfile, string? AvatarUrl = null);
 
 public sealed record OwnerProfileDto(int Id, string BusinessName, string? TaxCode, string BankName, string BankAccountNumber);
 
