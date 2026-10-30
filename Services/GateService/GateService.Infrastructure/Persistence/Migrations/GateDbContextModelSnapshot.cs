@@ -150,6 +150,139 @@ namespace GateService.Infrastructure.Persistence.Migrations
                     b.ToTable("GateEvents", (string)null);
                 });
 
+            modelBuilder.Entity("GateService.Domain.Entities.LotAdmissionCounter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Subscriber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Transient")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId")
+                        .IsUnique();
+
+                    b.ToTable("LotAdmissionCounters");
+                });
+
+            modelBuilder.Entity("GateService.Domain.Entities.LotCapacityAuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("ChangedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ChangedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("NewCapacity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NewSubscriberQuota")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NewTransientBuffer")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("NewVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("OldCapacity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OldSubscriberQuota")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OldTransientBuffer")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("OldVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WarningsJson")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId", "ChangedAtUtc");
+
+                    b.ToTable("LotCapacityAuditLogs");
+                });
+
+            modelBuilder.Entity("GateService.Domain.Entities.LotCapacityConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LastChangedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SubscriberQuota")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TransientBuffer")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId")
+                        .IsUnique();
+
+                    b.ToTable("LotCapacityConfigs");
+                });
+
             modelBuilder.Entity("GateService.Domain.Entities.ParkingSession", b =>
                 {
                     b.Property<int>("Id")
@@ -157,6 +290,11 @@ namespace GateService.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdmissionType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<string>("BookingCode")
                         .HasMaxLength(30)

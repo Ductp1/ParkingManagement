@@ -1,3 +1,4 @@
+using GateService.Domain.Enums;
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
 
@@ -49,6 +50,9 @@ public class ParkingSession : BaseEntity
     public decimal? Fee { get; set; }
     public decimal? OverstayFee { get; set; }
     public ParkingSessionStatus Status { get; set; } = ParkingSessionStatus.Active;
+
+    /// <summary>US-066: loại kênh khi vào (vãng lai / đặt trước-thuê bao) — dùng để trừ đúng bộ đếm lúc ra.</summary>
+    public AdmissionType AdmissionType { get; set; } = AdmissionType.Transient;
 
 
     public ICollection<GateEvent> Events { get; set; } = new List<GateEvent>();

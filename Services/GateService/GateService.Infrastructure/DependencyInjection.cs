@@ -3,6 +3,8 @@ using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
 using GateService.Application.Features.GateEvents;
 using GateService.Application.Features.PlateRecognition;
+using GateService.Application.Features.LotCapacity;
+using GateService.Infrastructure.Integrations;
 using GateService.Infrastructure.Persistence;
 using GateService.Infrastructure.Persistence.Queries;
 using GateService.Infrastructure.Persistence.Repositories;
@@ -30,6 +32,21 @@ public static class DependencyInjection
         // T-703: GateDevices.
         services.AddScoped<IGateDeviceQueries, GateDeviceQueries>();
         services.AddScoped<IGateDeviceRepository, GateDeviceRepository>();
+        services.AddScoped<IGetGateDevicesUseCase, GetGateDevicesUseCase>();
+        services.AddScoped<IGetGateDeviceByIdUseCase, GetGateDeviceByIdUseCase>();
+        services.AddScoped<ICreateGateDeviceUseCase, CreateGateDeviceUseCase>();
+        services.AddScoped<IUpdateGateDeviceUseCase, UpdateGateDeviceUseCase>();
+        services.AddScoped<IDeleteGateDeviceUseCase, DeleteGateDeviceUseCase>();
+        services.AddScoped<IRecordGateDeviceHeartbeatUseCase, RecordGateDeviceHeartbeatUseCase>();
+        // US-066: store + cổng vào/ra nguyên tử + publisher/counter HTTP (tự nuốt lỗi).
+        services.AddScoped<ILotCapacityPolicyStore, LotCapacityStore>();
+        services.AddScoped<ILotAdmissionGate, LotAdmissionGate>();
+        services.AddScoped<ILotCapacityRealtimePublisher, NotificationCapacityPublisher>();
+        services.AddScoped<IActiveSubscriberCounter, BookingSubscriberCounter>();
+        services.AddHttpClient<NotificationCapacityPublisher>((_, client) =>
+            client.BaseAddress = new Uri(configuration["NotificationService:BaseUrl"] ?? "http://localhost:5106"));
+        services.AddHttpClient<BookingSubscriberCounter>((_, client) =>
+            client.BaseAddress = new Uri(configuration["BookingService:BaseUrl"] ?? "http://localhost:5104"));
         return services;
     }
 }

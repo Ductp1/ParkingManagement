@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/overview/DashboardPage';
 import { PartnerListPage } from './pages/operations/partner/PartnerListPage';
 import { PartnerDetailPage } from './pages/operations/partner/PartnerDetailPage';
 import { ParkingLotDetailPage } from './pages/operations/lots/ParkingLotDetailPage';
+import { CapacityConfigPage } from './pages/operations/lots/CapacityConfigPage';
 import { KybListPage } from './pages/operations/kyb/KybListPage';
 import { KybDetailPage } from './pages/operations/kyb/KybDetailPage';
 import { ContractTemplateEditorPage } from './pages/operations/contract-templates/ContractTemplateEditorPage';
@@ -79,6 +80,8 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/bookings" element={unavailable('bookings')} />
         <Route path="operations/bookings/monthly-passes" element={unavailable('monthlyPasses')} />
         <Route path="operations/bookings/:code" element={<BookingDetailPage />} />
+        {/* US-066: cấu hình sức chứa & vùng đệm vãng lai (mặc định bãi #1). */}
+        <Route path="operations/capacity-config" element={<CapacityConfigPage />} />
         <Route path="operations/gate-activity" element={<GateSessionsPage />} />
         <Route path="operations/gate-activity/devices" element={<GateDevicesPage />} />
         <Route path="operations/gate-activity/shifts" element={unavailable('gateShifts', { subTabs: GATE_SUB_TABS })} />

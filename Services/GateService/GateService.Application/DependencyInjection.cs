@@ -2,6 +2,7 @@ using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
 using GateService.Application.Features.PlateRecognition;
+using GateService.Application.Features.LotCapacity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GateService.Application;
@@ -24,6 +25,9 @@ public static class DependencyInjection
         services.AddScoped<IUpdateGateDeviceUseCase, UpdateGateDeviceUseCase>();
         services.AddScoped<IDeleteGateDeviceUseCase, DeleteGateDeviceUseCase>();
         services.AddScoped<IRecordGateDeviceHeartbeatUseCase, RecordGateDeviceHeartbeatUseCase>();
+        // US-066: cau hinh suc chua & vung dem vang lai.
+        services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
+        services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
         return services;
     }
 }

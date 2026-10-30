@@ -1,4 +1,5 @@
 using BookingService.Application.Features.Bookings;
+using BookingService.Application.Features.MonthlyPasses;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingService.Application;
@@ -18,6 +19,8 @@ public static class DependencyInjection
         services.AddScoped<IReviewBookingUseCase, ReviewBookingUseCase>();
         services.AddScoped<ILotCancelBookingUseCase, LotCancelBookingUseCase>();
         services.AddScoped<IGateBookingActionsUseCase, GateBookingActionsUseCase>();
+        // US-066 (luật 4): dang ky thue bao co kiem tra han muc A < Q.
+        services.AddScoped<IRegisterMonthlyPassUseCase, RegisterMonthlyPassUseCase>();
         return services;
     }
 }
