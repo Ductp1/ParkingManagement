@@ -14,39 +14,47 @@ public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwne
     IOwnerDisputeService ownerDisputes, ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>GET /api/v1/complaints/payout-holds – Khoản quyết toán đang bị phong tỏa vì tranh chấp (US-089 AC3).</summary>
-    /// <remarks>Chủ bãi chỉ thấy khoản của mình (lấy từ JWT hoặc fallback ownerProfileId); Admin xem tất cả hoặc lọc bằng <paramref name="ownerProfileId"/>.</remarks>
+    /// <remarks>Chủ bãi chỉ thấy khoản của mình (lấy từ JWT); Admin xem tất cả hoặc lọc bằng <paramref name="ownerProfileId"/>.</remarks>
     [HttpGet("payout-holds")]
+    [Authorize(Roles = "LotOwner,Admin")]
     [ProducesResponseType<IReadOnlyList<PayoutHoldDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<PayoutHoldDto>>> PayoutHolds([FromQuery] int? ownerProfileId, CancellationToken cancellationToken)
     {
         if (currentUser.Roles.Contains("Admin"))
             return Ok(await ownerDisputes.ListPayoutHoldsAsync(ownerProfileId, cancellationToken));
-        var owner = currentUser.OwnerProfileId ?? ownerProfileId ?? 1;
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
         return Ok(await ownerDisputes.ListPayoutHoldsAsync(owner, cancellationToken));
     }
 
     /// <summary>GET /api/v1/complaints/CP-0001/owner-view – Chủ bãi xem tranh chấp về bãi của mình (US-089 AC1).</summary>
     [HttpGet("{code}/owner-view")]
+    [Authorize(Policy = "RequireOwner")]
     [ProducesResponseType<ComplaintDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ComplaintDetailDto>> OwnerView([FromRoute] string code, [FromQuery] int? ownerProfileId, CancellationToken cancellationToken)
+    public async Task<ActionResult<ComplaintDetailDto>> OwnerView([FromRoute] string code, CancellationToken cancellationToken)
     {
-        var owner = currentUser.OwnerProfileId ?? ownerProfileId ?? 1;
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
         return Ok(await ownerDisputes.GetAsync(owner, code, cancellationToken));
     }
 
     /// <summary>POST /api/v1/complaints/CP-0001/owner-response – Chủ bãi phản hồi tranh chấp trong 48 giờ kèm bằng chứng (US-089 AC1).</summary>
     [HttpPost("{code}/owner-response")]
+    [Authorize(Policy = "RequireOwner")]
     [ProducesResponseType<ComplaintDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ComplaintDetailDto>> OwnerRespond([FromRoute] string code, [FromQuery] int? ownerProfileId, [FromBody] OwnerResponseRequestDto request,
+    public async Task<ActionResult<ComplaintDetailDto>> OwnerRespond([FromRoute] string code, [FromBody] OwnerResponseRequestDto request,
         CancellationToken cancellationToken)
     {
-        var owner = currentUser.OwnerProfileId ?? ownerProfileId ?? 1;
-        var userId = currentUser.UserId ?? 1;
-        return Ok(await ownerDisputes.RespondAsync(owner, userId, code, request, cancellationToken));
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await ownerDisputes.RespondAsync(owner, currentUser.UserId, code, request, cancellationToken));
     }
 
     /// <summary>Token có vai trò LotOwner nhưng không gắn 1 hồ sơ chủ bãi (claim "OwnerProfileId").</summary>
@@ -92,27 +100,33 @@ public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews, IRevi
 {
     /// <summary>POST /api/v1/reviews/5/owner-reply – Chủ bãi viết 1 phản hồi công khai cho đánh giá về bãi mình (US-094 AC1).</summary>
     [HttpPost("{id:int}/owner-reply")]
+    [Authorize(Policy = "RequireOwner")]
     [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ModeratedReviewDto>> OwnerReply([FromRoute] int id, [FromQuery] int? ownerProfileId, [FromBody] OwnerReplyRequestDto request,
+    public async Task<ActionResult<ModeratedReviewDto>> OwnerReply([FromRoute] int id, [FromBody] OwnerReplyRequestDto request,
         CancellationToken cancellationToken)
     {
-        var owner = currentUser.OwnerProfileId ?? ownerProfileId ?? 1;
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
         return Ok(await moderation.ReplyAsync(owner, id, request, cancellationToken));
     }
 
     /// <summary>POST /api/v1/reviews/5/report – Chủ bãi khiếu nại đánh giá, chuyển Admin xem xét (US-094 AC2).</summary>
     [HttpPost("{id:int}/report")]
+    [Authorize(Policy = "RequireOwner")]
     [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<ModeratedReviewDto>> Report([FromRoute] int id, [FromQuery] int? ownerProfileId, [FromBody] ReviewReasonRequestDto request,
+    public async Task<ActionResult<ModeratedReviewDto>> Report([FromRoute] int id, [FromBody] ReviewReasonRequestDto request,
         CancellationToken cancellationToken)
     {
-        var owner = currentUser.OwnerProfileId ?? ownerProfileId ?? 1;
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
         return Ok(await moderation.ReportAsync(owner, id, request, cancellationToken));
     }
 
