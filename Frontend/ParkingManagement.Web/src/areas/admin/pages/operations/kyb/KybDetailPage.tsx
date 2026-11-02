@@ -21,6 +21,8 @@ import { useAdminToast } from '../../../hooks/useAdminToast';
 import { formatDateTimeIct, formatNumber, orEmpty } from '../../../utils/format';
 import { cityText, fileNameFromUrl, kybCode, ownerLabel, shortTime } from './kybFormat';
 import { KybDialogs, type KybDialogType } from './KybDialogs';
+import { AuditTrailLink } from '../../../components/AuditTrailLink';
+import { auditLogListLink } from '../../access/auditLogFormat';
 import { LotContractPanel } from '../lot-contracts/LotContractPanel';
 
 const adminLabel = (id: number | null) => (id ? `Admin #${id}` : '—');
@@ -110,7 +112,12 @@ const KybDetailBody: React.FC<{
       <AdminTitleBar
         title={lot.name}
         subtitle={`${kybCode(kyb.id)} · Lot #${lot.id} · submitted ${formatDateTimeIct(kyb.submittedAtUtc)}`}
-        actions={titleActions}
+        actions={
+          <>
+            <AuditTrailLink to={auditLogListLink({ entity: 'KybApplication', entityId: String(kyb.id) })} />
+            {titleActions}
+          </>
+        }
       />
 
       {underReview && blockers.length > 0 && (
