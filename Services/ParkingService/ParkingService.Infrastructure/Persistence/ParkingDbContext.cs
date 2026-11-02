@@ -13,6 +13,7 @@ public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options)
     public DbSet<Slot> Slots => Set<Slot>();
     public DbSet<LayoutVersion> LayoutVersions => Set<LayoutVersion>();
     public DbSet<KybApplication> KybApplications => Set<KybApplication>();
+    public DbSet<LotMisdeclarationCase> LotMisdeclarationCases => Set<LotMisdeclarationCase>();
     public DbSet<LotCapacityConfig> LotCapacityConfigs => Set<LotCapacityConfig>();
     public DbSet<LotOperatingHour> LotOperatingHours => Set<LotOperatingHour>();
     public DbSet<ClosureSchedule> ClosureSchedules => Set<ClosureSchedule>();
