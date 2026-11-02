@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
+        services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
         services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
         services.AddScoped<IAdminKybQueries, AdminKybQueries>();               // US-055 (đọc)

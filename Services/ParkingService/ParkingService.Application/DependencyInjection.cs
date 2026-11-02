@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using ParkingService.Application.Features.Capacity;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
@@ -65,6 +66,10 @@ public static class DependencyInjection
 
         // Layouts (T-502, US-059)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();
+
+        // Capacity & Walk-in Buffer (UI-26, EP10)
+        services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
+        services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
         return services;
     }
