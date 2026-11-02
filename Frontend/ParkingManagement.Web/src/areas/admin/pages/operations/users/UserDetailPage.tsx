@@ -20,6 +20,8 @@ import { useAdminToast } from '../../../hooks/useAdminToast';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTime, formatShortDateTime, formatVnd, orEmpty } from '../../../utils/format';
 import { LockOwnerDialog, RetrySyncDialog, UnlockOwnerDialog } from './UserDialogs';
+import { AuditTrailLink } from '../../../components/AuditTrailLink';
+import { auditLogListLink } from '../../access/auditLogFormat';
 
 type UserDialog = 'lock' | 'unlock' | 'retry' | null;
 
@@ -213,7 +215,16 @@ export const UserDetailPage: React.FC = () => {
 
   return (
     <>
-      <AdminTitleBar title={user.fullName} subtitle={subtitle} actions={titleAction} />
+      <AdminTitleBar
+        title={user.fullName}
+        subtitle={subtitle}
+        actions={
+          <>
+            <AuditTrailLink to={user.ownerProfile ? auditLogListLink({ ownerProfileId: user.ownerProfile.id }) : auditLogListLink({ userId: user.id })} />
+            {titleAction}
+          </>
+        }
+      />
 
       {isOwner && isLocked && latest && !syncFailed && (
         <Banner tone="danger">

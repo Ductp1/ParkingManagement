@@ -521,6 +521,91 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.ToTable("LotIntegrations", (string)null);
                 });
 
+            modelBuilder.Entity("ParkingService.Domain.Entities.LotMisdeclarationCase", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ClosedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("DueAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EscalatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EscalationNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Finding")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("OpenedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("OpenedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerProfileId");
+
+                    b.HasIndex("ParkingLotId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_LotMisdeclarationCases_OpenPerLot")
+                        .HasFilter("\"Status\" IN ('Warned', 'Suspended')");
+
+                    b.HasIndex("ParkingLotId", "OpenedAtUtc");
+
+                    b.ToTable("LotMisdeclarationCases", (string)null);
+                });
+
             modelBuilder.Entity("ParkingService.Domain.Entities.LotOperatingHour", b =>
                 {
                     b.Property<int>("Id")
@@ -964,6 +1049,17 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("ParkingService.Domain.Entities.LotIntegration", b =>
+                {
+                    b.HasOne("ParkingService.Domain.Entities.ParkingLot", "ParkingLot")
+                        .WithMany()
+                        .HasForeignKey("ParkingLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ParkingLot");
+                });
+
+            modelBuilder.Entity("ParkingService.Domain.Entities.LotMisdeclarationCase", b =>
                 {
                     b.HasOne("ParkingService.Domain.Entities.ParkingLot", "ParkingLot")
                         .WithMany()

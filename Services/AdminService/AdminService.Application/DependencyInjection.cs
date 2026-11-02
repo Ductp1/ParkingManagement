@@ -1,6 +1,7 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
+using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
@@ -15,6 +16,8 @@ public static class DependencyInjection
     public static IServiceCollection AddAdminApplication(this IServiceCollection services)
     {
         services.AddScoped<IGetPlatformSettingsUseCase, GetPlatformSettingsUseCase>();
+        // US-081: Admin Dashboard – tổng quan toàn sàn
+        services.AddScoped<IGetDashboardOverviewUseCase, GetDashboardOverviewUseCase>();
         // US-098: đọc tham số theo khóa (giá trị hiệu lực theo thời điểm)
         services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
         // US-098: đổi giá trị tham số có Effective Date
@@ -30,6 +33,8 @@ public static class DependencyInjection
         // US-096: khóa / mở khóa chủ bãi
         services.AddScoped<ILockOwnerUseCase, LockOwnerUseCase>();
         services.AddScoped<IUnlockOwnerUseCase, UnlockOwnerUseCase>();
+        // T-802: nhận sự kiện AuditRecorded của service khác (endpoint nội bộ /internal/v1/events)
+        services.AddScoped<IRecordAuditEventUseCase, RecordAuditEventUseCase>();
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
         services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
         services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();

@@ -14,6 +14,9 @@ public static class DependencyInjection
         services.AddScoped<IComputeSessionFeeUseCase, ComputeSessionFeeUseCase>();
         services.AddScoped<IRecordGateSettlementUseCase, RecordGateSettlementUseCase>();
         services.AddScoped<ICreateVnpayPaymentUseCase, CreateVnpayPaymentUseCase>();
+        services.AddScoped<ICreateVietQrPaymentUseCase, CreateVietQrPaymentUseCase>();
+        services.AddScoped<IProcessVnpayReturnUseCase, ProcessVnpayReturnUseCase>();
+        services.AddScoped<IProcessVnpayIpnUseCase, ProcessVnpayIpnUseCase>();
         return services;
     }
 }
