@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text.Json;
+using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -177,6 +178,8 @@ public sealed class Tv1ApiFixture : IDisposable
         Set("Security__AuthRequestsPerMinute","200");
         Set("Captcha__SecretKey","integration-test-secret");
         Set("Database__ApplyMigrationsOnStartup","true");Set("EventBus__Enabled","true");
+        // A real RabbitMQ bus must never be constructed by this HTTP fixture (including /health).
+        Set("EventBus__RabbitMq__Password", " ");
         Set("Otp__Transport","Http");Set("Otp__DeliveryUrl","https://otp.test/delivery");
         if(Environment.GetEnvironmentVariable("TV1_TEST_DB") is {Length:>0} db)Set("ConnectionStrings__ServiceDb",db);
         factory=new ApiFactory(delivery);
@@ -209,7 +212,8 @@ public sealed class Tv1ApiFixture : IDisposable
             services.AddDataProtection().UseEphemeralDataProtectionProvider();
             services.AddHttpClient("IdentityIntegrations").ConfigurePrimaryHttpMessageHandler(()=>handler);
             services.AddSingleton<ParkingManagement.ServiceDefaults.Messaging.IRabbitMqPublisher, TestEventPublisher>();
-            MassTransit.DependencyInjectionRegistrationExtensions.RemoveMassTransitHostedService(services);
+            // Replace both transport and health-check dependencies, not only the hosted service.
+            services.AddMassTransitTestHarness();
         });
     }
     private sealed class TestCaptcha : UserService.Application.Interfaces.ICaptchaVerifier
