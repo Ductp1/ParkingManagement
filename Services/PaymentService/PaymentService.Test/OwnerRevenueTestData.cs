@@ -30,6 +30,12 @@ internal sealed class InMemoryOwnerRevenueQueries(IEnumerable<Payment>? payments
     public Task<IReadOnlyList<OwnerSettlementRow>> ListSettledPeriodsAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
         => Run(filter, OwnerRevenueQueryShapes.SettledPeriods(_settlements.AsQueryable(), filter));
 
+    public Task<IReadOnlyList<OwnerRevenueDayRow>> SumByVietnamDayAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
+        => Run(filter, OwnerRevenueQueryShapes.SumByVietnamDay(_payments.AsQueryable(), filter));
+
+    public Task<IReadOnlyList<OwnerRevenueDayHourRow>> SumByVietnamDayHourAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
+        => Run(filter, OwnerRevenueQueryShapes.SumByVietnamDayHour(_payments.AsQueryable(), filter));
+
     private Task<IReadOnlyList<T>> Run<T>(OwnerRevenueFilter filter, IQueryable<T> query)
     {
         LastFilter = filter;

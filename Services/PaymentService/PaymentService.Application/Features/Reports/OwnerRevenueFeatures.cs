@@ -55,6 +55,13 @@ public sealed record OwnerRefundReasonRow(RefundReason Reason, int RefundCount, 
 /// <summary>Một kỳ quyết toán đã duyệt; CommissionAmount là của cả kỳ hoặc chỉ các dòng của bãi đang lọc.</summary>
 public sealed record OwnerSettlementRow(DateOnly PeriodStart, DateOnly PeriodEnd, decimal CommissionAmount, decimal NetPayout);
 
+/// <summary>Doanh thu của một ngày theo lịch Việt Nam (năm/tháng/ngày của PaidAtUtc + 7h).</summary>
+public sealed record OwnerRevenueDayRow(int Year, int Month, int Day, decimal GrossAmount, decimal RefundedAmount, int TransactionCount);
+
+/// <summary>Doanh thu của một giờ trong một ngày theo lịch Việt Nam.</summary>
+public sealed record OwnerRevenueDayHourRow(int Year, int Month, int Day, int HourOfDay, decimal GrossAmount, decimal RefundedAmount,
+    int TransactionCount);
+
 public interface IOwnerRevenueQueries
 {
     /// <summary>Doanh thu theo (bãi, phương thức, mục đích) – GROUP BY ở database.</summary>
@@ -68,6 +75,12 @@ public interface IOwnerRevenueQueries
 
     /// <summary>Kỳ quyết toán Approved/Paid của chủ bãi nằm trọn trong khoảng lọc (tối đa ~53 kỳ tuần / 366 ngày).</summary>
     Task<IReadOnlyList<OwnerSettlementRow>> ListSettledPeriodsAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>Doanh thu theo ngày Việt Nam (tối đa 366 dòng) – GROUP BY ở database; tuần/tháng gộp tiếp từ các dòng này.</summary>
+    Task<IReadOnlyList<OwnerRevenueDayRow>> SumByVietnamDayAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>Doanh thu theo (ngày, giờ) Việt Nam (tối đa 7 × 24 dòng) – GROUP BY ở database.</summary>
+    Task<IReadOnlyList<OwnerRevenueDayHourRow>> SumByVietnamDayHourAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
 }
 
 /// <summary>US-078: quy tắc dùng chung cho mọi báo cáo doanh thu chủ bãi (summary, series, giao dịch, CSV).</summary>

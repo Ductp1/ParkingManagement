@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IProcessVnpayIpnUseCase, ProcessVnpayIpnUseCase>();
         // US-078: báo cáo doanh thu chủ bãi (chỉ đọc).
         services.AddScoped<IGetOwnerRevenueSummaryUseCase, GetOwnerRevenueSummaryUseCase>();
+        services.AddScoped<IGetOwnerRevenueSeriesUseCase, GetOwnerRevenueSeriesUseCase>();
         return services;
     }
 }

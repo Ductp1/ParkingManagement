@@ -140,6 +140,37 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
         Assert.Contains("from phải nhỏ hơn to.", await response.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task OwnerRevenueSeries_WithoutToken_Returns401()
+    {
+        var response = await host.Client.GetAsync("/api/v1/payments/reports/owner-revenue/series?from=2026-10-01&to=2026-11-01");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OwnerRevenueSeries_OwnerToken_ReturnsWeeklyPointsOfOwnData()
+    {
+        var response = await host.GetAsync(
+            $"/api/v1/payments/reports/owner-revenue/series?from=2026-10-01&to=2026-11-01&granularity=Week&ownerProfileId={OwnerB}",
+            host.MintToken("LotOwner", OwnerA));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var series = await response.Content.ReadFromJsonAsync<OwnerRevenueSeriesDto>(host.Json);
+        Assert.Equal("Week", series!.Granularity);
+        Assert.Equal(5, series.Points.Count);   // 01–04, 05–11, 12–18, 19–25, 26–31/10
+        Assert.Equal(100_000, series.Points.Sum(p => p.GrossRevenue));
+        Assert.Equal(new DateTimeOffset(2026, 10, 1, 0, 0, 0, TimeSpan.FromHours(7)), series.Points[0].PeriodStart);
+    }
+
+    [Fact]
+    public async Task OwnerRevenueSeries_InvalidGranularity_Returns400()
+    {
+        var response = await host.GetAsync("/api/v1/payments/reports/owner-revenue/series?granularity=Year",
+            host.MintToken("LotOwner", OwnerA));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("granularity phải là Hour, Day, Week hoặc Month.", await response.Content.ReadAsStringAsync());
+    }
+
     /// <summary>Host dùng chung cho cả lớp test: cặp khóa RSA test (UserService giả lập) + Kestrel cổng ngẫu nhiên.</summary>
     public sealed class ApiHost : IAsyncLifetime
     {

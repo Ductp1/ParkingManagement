@@ -23,6 +23,21 @@ public static class OwnerRevenueQueryShapes
             .GroupBy(p => p.PaidAtUtc!.Value.AddHours(7).Hour)
             .Select(g => new OwnerRevenueHourRow(g.Key, g.Sum(p => p.Amount), g.Sum(p => p.RefundedAmount), g.Count()));
 
+    /// <summary>Ngày theo lịch Việt Nam = năm/tháng/ngày của (PaidAtUtc + 7h).</summary>
+    public static IQueryable<OwnerRevenueDayRow> SumByVietnamDay(IQueryable<Payment> payments, OwnerRevenueFilter filter)
+        => payments.WhereRevenue(filter)
+            .Select(p => new { Local = p.PaidAtUtc!.Value.AddHours(7), p.Amount, p.RefundedAmount })
+            .GroupBy(x => new { x.Local.Year, x.Local.Month, x.Local.Day })
+            .Select(g => new OwnerRevenueDayRow(g.Key.Year, g.Key.Month, g.Key.Day,
+                g.Sum(x => x.Amount), g.Sum(x => x.RefundedAmount), g.Count()));
+
+    public static IQueryable<OwnerRevenueDayHourRow> SumByVietnamDayHour(IQueryable<Payment> payments, OwnerRevenueFilter filter)
+        => payments.WhereRevenue(filter)
+            .Select(p => new { Local = p.PaidAtUtc!.Value.AddHours(7), p.Amount, p.RefundedAmount })
+            .GroupBy(x => new { x.Local.Year, x.Local.Month, x.Local.Day, x.Local.Hour })
+            .Select(g => new OwnerRevenueDayHourRow(g.Key.Year, g.Key.Month, g.Key.Day, g.Key.Hour,
+                g.Sum(x => x.Amount), g.Sum(x => x.RefundedAmount), g.Count()));
+
     public static IQueryable<OwnerRefundReasonRow> SumCompletedRefundsByReason(IQueryable<Payment> payments, OwnerRevenueFilter filter)
         => payments.WhereRevenue(filter)
             .SelectMany(p => p.Refunds)
@@ -61,4 +76,11 @@ public sealed class OwnerRevenueQueries(PaymentDbContext db) : IOwnerRevenueQuer
 
     public async Task<IReadOnlyList<OwnerSettlementRow>> ListSettledPeriodsAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
         => await OwnerRevenueQueryShapes.SettledPeriods(db.Settlements.AsNoTracking(), filter).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<OwnerRevenueDayRow>> SumByVietnamDayAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
+        => await OwnerRevenueQueryShapes.SumByVietnamDay(db.Payments.AsNoTracking(), filter).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<OwnerRevenueDayHourRow>> SumByVietnamDayHourAsync(OwnerRevenueFilter filter,
+        CancellationToken cancellationToken)
+        => await OwnerRevenueQueryShapes.SumByVietnamDayHour(db.Payments.AsNoTracking(), filter).ToListAsync(cancellationToken);
 }

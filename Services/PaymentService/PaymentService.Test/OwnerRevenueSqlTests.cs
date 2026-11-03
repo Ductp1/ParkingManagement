@@ -51,6 +51,29 @@ public class OwnerRevenueSqlTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void ByVietnamDay_GroupsByLocalYearMonthDayInDatabase()
+    {
+        var sql = Sql(OwnerRevenueQueryShapes.SumByVietnamDay(_db.Payments, Filter));
+
+        Assert.Contains("GROUP BY", sql);
+        Assert.Contains("INTERVAL '7 hours'", sql);
+        Assert.Contains("date_part('year'", sql);
+        Assert.Contains("date_part('month'", sql);
+        Assert.Contains("date_part('day'", sql);
+        Assert.Contains("\"OwnerProfileId\" = ", sql);
+    }
+
+    [Fact]
+    public void ByVietnamDayHour_AlsoGroupsByLocalHour()
+    {
+        var sql = Sql(OwnerRevenueQueryShapes.SumByVietnamDayHour(_db.Payments, Filter with { ParkingLotId = 21 }));
+
+        Assert.Contains("GROUP BY", sql);
+        Assert.Contains("date_part('hour'", sql);
+        Assert.Contains("\"ParkingLotId\" = ", sql);
+    }
+
+    [Fact]
     public void RefundsByReason_And_SettledPeriods_AreTranslatable()
     {
         var refundSql = Sql(OwnerRevenueQueryShapes.SumCompletedRefundsByReason(_db.Payments, Filter));

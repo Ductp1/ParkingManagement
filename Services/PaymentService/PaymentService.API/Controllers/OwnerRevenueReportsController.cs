@@ -13,7 +13,8 @@ namespace PaymentService.API.Controllers;
 [ApiController]
 [Route("api/v1/payments/reports/owner-revenue")]
 [Authorize(Policy = "RequireOwner")]
-public sealed class OwnerRevenueReportsController(IGetOwnerRevenueSummaryUseCase getSummary, ICurrentUser currentUser) : ControllerBase
+public sealed class OwnerRevenueReportsController(IGetOwnerRevenueSummaryUseCase getSummary, IGetOwnerRevenueSeriesUseCase getSeries,
+    ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>
     /// GET /api/v1/payments/reports/owner-revenue/summary?from=2026-10-01&amp;to=2026-11-01&amp;parkingLotId=1
@@ -27,4 +28,18 @@ public sealed class OwnerRevenueReportsController(IGetOwnerRevenueSummaryUseCase
     public async Task<ActionResult<OwnerRevenueSummaryDto>> Summary([FromQuery] DateOnly? from, [FromQuery] DateOnly? to,
         [FromQuery] int? parkingLotId, CancellationToken cancellationToken)
         => Ok(await getSummary.ExecuteAsync(currentUser.OwnerProfileId, new OwnerRevenueQuery(from, to, parkingLotId), cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/payments/reports/owner-revenue/series?from=2026-10-01&amp;to=2026-11-01&amp;parkingLotId=1&amp;granularity=Week
+    /// granularity: Hour (khoảng ≤ 7 ngày) | Day (mặc định) | Week (bắt đầu thứ Hai) | Month. Đủ mọi điểm, kể cả điểm bằng 0.
+    /// </summary>
+    [HttpGet("series")]
+    [ProducesResponseType<OwnerRevenueSeriesDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<OwnerRevenueSeriesDto>> Series([FromQuery] DateOnly? from, [FromQuery] DateOnly? to,
+        [FromQuery] int? parkingLotId, [FromQuery] string? granularity, CancellationToken cancellationToken)
+        => Ok(await getSeries.ExecuteAsync(currentUser.OwnerProfileId, new OwnerRevenueQuery(from, to, parkingLotId), granularity,
+            cancellationToken));
 }
