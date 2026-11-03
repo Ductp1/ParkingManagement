@@ -1,0 +1,21 @@
+{
+  "name": "parkingmanagement-e2e",
+  "private": true,
+  "type": "module",
+  "description": "T-903 – Playwright E2E cho 3 luồng nghiệm thu (Tài xế / Cổng / Chủ bãi–Admin)",
+  "scripts": {
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:ui": "playwright test --project=ui",
+    "report": "playwright show-report",
+    "db:reset": "node scripts/reset-e2e-db.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
+    "typescript": "^7.0.2"
+  }
+}
