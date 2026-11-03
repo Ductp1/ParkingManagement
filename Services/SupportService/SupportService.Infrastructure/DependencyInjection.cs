@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddServiceDbContext<SupportDbContext>(configuration);
         services.AddScoped<ISupportQueries, SupportQueries>();
         services.AddScoped<IFaqQueries, FaqQueries>();
+        services.AddScoped<SupportService.Application.Features.AdminDashboard.IAdminComplaintSummaryQueries, AdminComplaintSummaryQueries>(); // US-081
         services.AddSingleton(configuration.GetSection("HelpCenter").Get<HelpCenterSettings>() ?? new HelpCenterSettings());
         services.AddScoped<IComplaintRepository, ComplaintRepository>();
         services.AddScoped<IReviewRepository, ReviewRepository>();

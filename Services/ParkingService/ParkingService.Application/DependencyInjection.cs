@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<IApproveKybApplicationUseCase, ApproveKybApplicationUseCase>();
         services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
         services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
+        services.AddScoped<Features.AdminDashboard.IGetAdminLotsSummaryUseCase, Features.AdminDashboard.GetAdminLotsSummaryUseCase>(); // US-081
 
         // Khai báo sai – Admin (US-056)
         services.AddScoped<IGetLotMisdeclarationUseCase, GetLotMisdeclarationUseCase>();
