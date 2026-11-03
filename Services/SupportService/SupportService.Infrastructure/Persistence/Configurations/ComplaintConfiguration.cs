@@ -16,6 +16,7 @@ internal sealed class ComplaintConfiguration : IEntityTypeConfiguration<Complain
             t.HasCheckConstraint("CK_Complaints_PayoutHold_RequiresOwner", "NOT \"PayoutHeld\" OR \"OwnerProfileId\" IS NOT NULL");
             t.HasCheckConstraint("CK_Complaints_PayoutHold_OnlyWhileOpen", "NOT \"PayoutHeld\" OR \"Status\" NOT IN ('Resolved', 'Rejected')");
         });
+        e.Ignore(x => x.FirstRespondedAtUtc);   // US-090: tính từ FirstResponseAtUtc / OwnerRespondedAtUtc
         e.Property(x => x.RowVersion).IsConcurrencyToken();   // PostgreSQL: tự đóng dấu ở SaveChanges (giống Booking, Slot)
         e.Property(x => x.Code).HasMaxLength(30).IsRequired();
         e.Property(x => x.BookingCode).HasMaxLength(30);

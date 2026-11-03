@@ -33,6 +33,8 @@ public static class ComplaintRules
     public static (ComplaintPriority Priority, SupportTeam Team) Classify(ComplaintCategory category) => category switch
     {
         ComplaintCategory.LotFull or ComplaintCategory.Damage => (ComplaintPriority.High, SupportTeam.Supervisor),
+        // US-090: tài xế đang đứng ở bãi mà chỗ đã đặt bị chiếm → ưu tiên cao, chủ bãi xử lý tại chỗ.
+        ComplaintCategory.SlotOccupied => (ComplaintPriority.High, SupportTeam.Support),
         ComplaintCategory.Overcharge or ComplaintCategory.RefundRequest or ComplaintCategory.AppError
             => (ComplaintPriority.Medium, SupportTeam.Support),
         _ => (ComplaintPriority.Low, SupportTeam.Support),
