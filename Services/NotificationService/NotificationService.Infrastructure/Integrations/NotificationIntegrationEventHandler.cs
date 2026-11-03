@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NotificationService.Application.Features.Ingestion;
+using NotificationService.Application.Features.Reminders;
 using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.SharedKernel.Contracts;
 
@@ -15,6 +16,7 @@ namespace NotificationService.Infrastructure.Integrations;
 /// </summary>
 public sealed class NotificationIntegrationEventHandler(
     IBookingConfirmationNotifications bookingConfirmations,
+    IBookingReminderScheduler reminderScheduler,
     ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -25,15 +27,28 @@ public sealed class NotificationIntegrationEventHandler(
         {
             // ===== US-083: xác nhận booking & thanh toán =====
             case nameof(BookingConfirmed):
-                await bookingConfirmations.HandleBookingConfirmedAsync(
-                    Deserialize<BookingConfirmed>(envelope), envelope.EventId, cancellationToken);
+            {
+                var evt = Deserialize<BookingConfirmed>(envelope);
+                await bookingConfirmations.HandleBookingConfirmedAsync(evt, envelope.EventId, cancellationToken);
+                // ===== US-084: booking được xác nhận → đặt 2 nhắc lịch (trước giờ đến + trước giờ hết hạn)
+                await reminderScheduler.ScheduleForBookingAsync(evt, cancellationToken);
                 break;
+            }
             case nameof(BookingPaymentCompleted):
                 await bookingConfirmations.HandleBookingPaymentCompletedAsync(
                     Deserialize<BookingPaymentCompleted>(envelope), envelope.EventId, cancellationToken);
                 break;
 
-            // US-084 bổ sung: BookingConfirmed (đặt lịch nhắc) / BookingCancelled (hủy lịch) / BookingModified (reschedule).
+            // ===== US-084: hủy/đổi booking → hủy hoặc reschedule nhắc lịch =====
+            case nameof(BookingCancelled):
+                await reminderScheduler.CancelForBookingAsync(
+                    Deserialize<BookingCancelled>(envelope), cancellationToken);
+                break;
+            case nameof(BookingModified):
+                await reminderScheduler.RescheduleForBookingAsync(
+                    Deserialize<BookingModified>(envelope), cancellationToken);
+                break;
+
             // US-085 bổ sung: BookingCreated/BookingCancelled/BookingModified (báo chủ bãi).
             // US-086 bổ sung: LotEmergencyStopped (fan-out đa kênh + tracking).
             default:

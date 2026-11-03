@@ -23,3 +23,18 @@ internal sealed class NotificationDedupeConfiguration : IEntityTypeConfiguration
         e.HasIndex(x => x.DedupeKey).IsUnique().HasFilter("\"DedupeKey\" IS NOT NULL");
     }
 }
+
+/// <summary>US-084: job nhắc lịch — poll theo (Status, DueAtUtc); 1 job Pending duy nhất mỗi (BookingId, Kind).</summary>
+internal sealed class ReminderJobConfiguration : IEntityTypeConfiguration<ReminderJob>
+{
+    public void Configure(EntityTypeBuilder<ReminderJob> e)
+    {
+        e.ToTable("ReminderJobs");
+        e.Property(x => x.BookingCode).HasMaxLength(50).IsRequired();
+        e.Property(x => x.LotName).HasMaxLength(200).IsRequired();
+        e.HasIndex(x => new { x.Status, x.DueAtUtc });
+        e.HasIndex(x => new { x.BookingId, x.Kind, x.Status })
+            .IsUnique()
+            .HasFilter("\"Status\" = 'Pending'");
+    }
+}

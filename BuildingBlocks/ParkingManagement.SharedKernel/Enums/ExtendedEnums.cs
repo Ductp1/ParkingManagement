@@ -33,6 +33,10 @@ public enum GateDeviceStatus { Online = 0, Offline = 1, Maintenance = 2 }
 
 // ===== NotificationService =====
 public enum DevicePlatform { Android = 1, Ios = 2, Web = 3 }
+/// <summary>US-084: loại nhắc lịch cho booking.</summary>
+public enum ReminderKind { BeforeArrival = 1, BeforeEnd = 2 }
+/// <summary>US-084: vòng đời job nhắc lịch (Cancelled khi booking hủy/đổi giờ).</summary>
+public enum ReminderJobStatus { Pending = 0, Sent = 1, Cancelled = 2 }
 
 // ===== AdminService =====
 public enum RiskSubjectType { User = 1, Staff = 2, ParkingLot = 3, OwnerProfile = 4 }

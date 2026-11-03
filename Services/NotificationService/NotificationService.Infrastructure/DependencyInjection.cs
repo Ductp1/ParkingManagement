@@ -6,6 +6,7 @@ using NotificationService.Application.Features.Dispatcher;
 using NotificationService.Application.Features.Ingestion;
 using NotificationService.Application.Features.Notifications;
 using NotificationService.Application.Features.Preferences;
+using NotificationService.Application.Features.Reminders;
 using NotificationService.Infrastructure.Integrations;
 using NotificationService.Infrastructure.Persistence;
 using NotificationService.Infrastructure.Services.UserDirectory;
@@ -71,6 +72,13 @@ public static class DependencyInjection
         services.AddScoped<IUserNotificationSettingsPort, UserNotificationSettingsRepository>();
         services.AddScoped<ITransactionalNotificationSender, DispatcherTransactionalNotificationSender>();
         services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
+
+        // ===== US-084: nhắc lịch booking (đặt/hủy/reschedule job + worker quét due) =====
+        services.Configure<ReminderOptions>(configuration.GetSection(ReminderOptions.SectionName));
+        services.AddScoped<Application.Features.Reminders.IReminderJobRepository, ReminderJobRepository>();
+        services.AddScoped<Application.Features.Reminders.IBookingReminderScheduler, Application.Features.Reminders.BookingReminderScheduler>();
+        services.AddHostedService<Workers.ReminderSchedulerWorker>();
+
         // MassTransit + RabbitMQ: queue "notification.service" nhận event booking/payment/lot theo routing key
         // (= EventType). TransactionalInbox chặn xử lý trùng theo EventId (idempotency US-083).
         services.AddRabbitMqInboxConsumer<NotificationDbContext, NotificationIntegrationEventHandler>(configuration);

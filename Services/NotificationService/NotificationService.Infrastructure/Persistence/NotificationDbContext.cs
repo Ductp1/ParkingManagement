@@ -13,6 +13,7 @@ public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<UserNotificationSettings> UserNotificationSettings => Set<UserNotificationSettings>();
+    public DbSet<ReminderJob> ReminderJobs => Set<ReminderJob>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
