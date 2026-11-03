@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using UserService.Application.Features.Users;
-using UserService.Application.Features.Identity;
 
 namespace UserService.API.Controllers;
 
@@ -14,6 +13,9 @@ namespace UserService.API.Controllers;
 public sealed class UsersController(
     IGetUserByIdUseCase getUserById,
     IListUsersUseCase listUsers,
+    ProfileUseCases profiles,
+    AvatarUseCases avatars,
+    IAvatarStorage avatarStorage,
     ILockOwnerProfileUseCase lockOwnerProfile,
     IUnlockOwnerProfileUseCase unlockOwnerProfile,
     ICurrentUser currentUser) : ControllerBase
@@ -36,6 +38,42 @@ public sealed class UsersController(
     [HttpGet("me")]
     public async Task<ActionResult<UserDto>> Me(CancellationToken ct)
         => currentUser.UserId is { } id ? Ok(await getUserById.ExecuteAsync(id, ct)) : Unauthorized();
+
+    [HttpPut("me")]
+    public async Task<IActionResult> UpdateMe(UpdateProfileRequest request, CancellationToken ct)
+    {
+        await profiles.UpdateAsync(request, ct);
+        return NoContent();
+    }
+
+    [HttpPost("me/avatar")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(AvatarUseCases.MaxBytes + 65536)]
+    [RequestFormLimits(MultipartBodyLengthLimit = AvatarUseCases.MaxBytes + 65536)]
+    public async Task<ActionResult<AvatarResponse>> UploadAvatar(IFormFile file, CancellationToken ct)
+    {
+        await using var image = file.OpenReadStream();
+        return Ok(await avatars.UploadAsync(image, file.Length, ct));
+    }
+
+    [HttpDelete("me/avatar")]
+    public async Task<IActionResult> RemoveAvatar(CancellationToken ct)
+    {
+        await avatars.RemoveAsync(ct);
+        return NoContent();
+    }
+
+    // Random immutable identifiers expose only normalized avatar pixels, never storage paths.
+    [AllowAnonymous]
+    [HttpGet("avatars/{id:guid}.png")]
+    public async Task<IActionResult> Avatar(Guid id, CancellationToken ct)
+    {
+        var content = await avatarStorage.ReadAsync(id, ct);
+        if (content is null) return NotFound();
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return File(content, "image/png");
+    }
 
     /// <summary>POST /api/v1/users/owner-profiles/{ownerProfileId}/lock – Khóa chủ bãi (chỉ Admin).</summary>
     [HttpPost("owner-profiles/{ownerProfileId:int}/lock")]

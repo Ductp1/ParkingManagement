@@ -19,7 +19,9 @@ public static class DependencyInjection
         services.AddScoped<IReviewBookingUseCase, ReviewBookingUseCase>();
         services.AddScoped<ILotCancelBookingUseCase, LotCancelBookingUseCase>();
         services.AddScoped<IGateBookingActionsUseCase, GateBookingActionsUseCase>();
-        // US-066 (luật 4): dang ky thue bao co kiem tra han muc A < Q.
+        // UC-20: danh sách booking trong ca trực cho Staff App (US-076).
+        services.AddScoped<IListGateBookingsUseCase, ListGateBookingsUseCase>();
+        // US-066 (luật 4): đăng ký thuê bao có kiểm tra hạn mức A < Q.
         services.AddScoped<IRegisterMonthlyPassUseCase, RegisterMonthlyPassUseCase>();
         return services;
     }

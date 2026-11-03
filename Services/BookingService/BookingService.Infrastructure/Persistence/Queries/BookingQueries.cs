@@ -34,4 +34,30 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
                 b.PlateNumber, b.StartAtUtc, b.EndAtUtc, b.TotalAmount))
             .ToListAsync(cancellationToken);
     }
+
+    // UC-20 (US-076): booking trong ca trực của Staff — IsOverdue tính ở SQL (dịch được sang Postgres).
+    public async Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+    {
+        // Booking sắp đến trong ca (Confirmed theo khung giờ bắt đầu) + xe đang trong bãi + no-show vừa xảy ra trong ca.
+        BookingStatus[] statuses = [BookingStatus.Confirmed, BookingStatus.CheckedIn, BookingStatus.Parking, BookingStatus.NoShow];
+        var query = db.Bookings.AsNoTracking()
+            .Where(b => b.ParkingLotId == parkingLotId && statuses.Contains(b.Status)
+                     && ((b.StartAtUtc >= fromUtc && b.StartAtUtc <= toUtc) || b.Status != BookingStatus.Confirmed));
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var keyword = search.Trim().ToUpperInvariant();
+            query = query.Where(b => b.Code.ToUpper().Contains(keyword) || b.PlateNumber.ToUpper().Contains(keyword));
+        }
+
+        return await query
+            .OrderBy(b => b.StartAtUtc)
+            .Select(b => new GateBookingListItemDto(
+                b.Code, b.PlateNumber, b.VehicleType.ToString(), b.SlotCode, b.StartAtUtc, b.EndAtUtc,
+                b.Status.ToString(),
+                b.Status == BookingStatus.Confirmed && nowUtc > b.StartAtUtc.AddMinutes(gracePeriodMinutes),
+                b.TotalAmount))
+            .ToListAsync(cancellationToken);
+    }
 }

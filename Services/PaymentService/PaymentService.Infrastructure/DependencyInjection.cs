@@ -3,8 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using PaymentService.Application.Features;
+using PaymentService.Application.Interfaces;
 using PaymentService.Infrastructure.Persistence;
 using PaymentService.Infrastructure.Persistence.Queries;
+using PaymentService.Infrastructure.Persistence.Repositories;
 using PaymentService.Infrastructure.Persistence.Seeding;
 using PaymentService.Infrastructure.Vnpay;
 
@@ -19,7 +21,11 @@ public static class DependencyInjection
         services.AddScoped<IRateCardRepository, RateCardRepository>();
         services.AddScoped<IHolidayRepository, HolidayRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
+        // UC-22: ghi thanh toán tiền mặt staff xác nhận tại cổng ra.
+        services.AddScoped<IPaymentWriter, PaymentWriter>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
+        services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IVnpayGateway, VnpayGateway>();
         return services;
     }
 }

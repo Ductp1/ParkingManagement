@@ -70,6 +70,9 @@ public class CancellationPolicyTests
         public Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken) => Task.FromResult(booking);
         public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
+        public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+            DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
     }
 
     private sealed class FixedClock(DateTime utc) : TimeProvider
@@ -426,6 +429,10 @@ public class BookingFeaturesTests
 
         public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
+
+        public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+            DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository

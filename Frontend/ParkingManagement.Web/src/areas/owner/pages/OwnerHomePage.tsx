@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface DayStat {
   day: string;
@@ -31,6 +32,7 @@ const HOURLY_TRAFFIC = [
 ];
 
 export const OwnerHomePage: React.FC = () => {
+  const navigate = useNavigate();
   const [metricMode, setMetricMode] = useState<'revenue' | 'traffic'>('revenue');
   const [periodMode, setPeriodMode] = useState<'week' | 'month'>('week');
   const [selectedLot, setSelectedLot] = useState<'all' | 'landmark' | 'bitexco'>('all');
@@ -97,7 +99,7 @@ export const OwnerHomePage: React.FC = () => {
             <span className="material-symbols-outlined text-[18px]">download</span>
             Xuất Excel / PDF
           </button>
-          <button className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
+          <button type="button" onClick={() => navigate('/owner/kyb')} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
             <span className="material-symbols-outlined text-[18px]">add</span>
             Đăng ký bãi mới
           </button>

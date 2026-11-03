@@ -1,5 +1,7 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.AuditLogs;
 using AdminService.Application.Features.ContractTemplates;
+using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
@@ -29,15 +31,18 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<AdminDbContext>(configuration);
         services.AddScoped<ISettingsQueries, SettingsQueries>();
+        services.AddScoped<IDashboardQueries, DashboardQueries>();                           // US-081: số liệu dashboard
         services.AddScoped<ISystemConfigChangeQueries, SystemConfigChangeQueries>();
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
+        services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
         services.AddScoped<ILotContractRepository, LotContractRepository>();
         services.AddScoped<IContractTemplateQueries, ContractTemplateQueries>();             // US-116: mẫu hợp đồng bãi
         services.AddScoped<IContractTemplateRepository, ContractTemplateRepository>();
+        services.AddScoped<IAuditLogQueries, AuditLogQueries>();                             // US-100: tra cứu audit log
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 

@@ -79,11 +79,17 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EntityName", "EntityId");
+                    b.HasIndex("Action", "CreatedAtUtc");
+
+                    b.HasIndex("CreatedAtUtc", "Id");
 
                     b.HasIndex("OwnerProfileId", "CreatedAtUtc");
 
+                    b.HasIndex("SourceService", "CreatedAtUtc");
+
                     b.HasIndex("UserId", "CreatedAtUtc");
+
+                    b.HasIndex("EntityName", "EntityId", "CreatedAtUtc");
 
                     b.ToTable("AuditLogs", (string)null);
                 });
@@ -1237,6 +1243,20 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasFilter("\"CancelledAtUtc\" IS NULL");
 
                     b.ToTable("SystemConfigChanges", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingManagement.ServiceDefaults.Messaging.InboxReceipt", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("InboxReceipts", (string)null);
                 });
 
             modelBuilder.Entity("ParkingManagement.SharedKernel.Domain.OutboxMessage", b =>
