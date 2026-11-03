@@ -114,7 +114,7 @@ export function RegisterPage() {
     if (busy || remainingResend > 0) return;
     const trimmedEmail = email.trim();
     if (!trimmedEmail) {
-      setError('Vui lòng nhập địa chỉ email nhận mã.');
+      setError('Vui lòng nhập email hoặc số điện thoại nhận mã.');
       return;
     }
 
@@ -192,23 +192,23 @@ export function RegisterPage() {
       </>}
       {step === 'verify' && <>
         <span className="auth-kicker">CHỈ CÒN MỘT BƯỚC NỮA</span>
-        <h1 className="auth-heading">Xác thực email<br />của bạn.</h1>
-        <p className="auth-description">Nhập mã 6 số được gửi đến email của bạn để hoàn tất đăng ký.</p>
+        <h1 className="auth-heading">Xác thực tài khoản<br />của bạn.</h1>
+        <p className="auth-description">Nhập mã 6 số gửi đến email hoặc số điện thoại để kích hoạt tài khoản của bạn.</p>
         <form className="auth-form" onSubmit={event => { event.preventDefault(); void handleVerifyOtp(); }}>
-          <label className="auth-field" htmlFor="verify-email">Email nhận mã<input id="verify-email" required type="email" autoComplete="email" value={email} onChange={e => { setEmail(e.target.value); setCode(''); }} disabled={busy || initialAction !== 'verify'} /></label>
+          <label className="auth-field" htmlFor="verify-email">Email hoặc số điện thoại nhận mã<input id="verify-email" required maxLength={256} autoComplete="username" value={email} onChange={e => { setEmail(e.target.value); setCode(''); setExpiresAt(0); setRetryAt(0); }} disabled={busy || initialAction !== 'verify'} /></label>
           <div><span className="auth-field" style={{ marginBottom: 12 }}>Mã xác thực OTP</span><OtpInput className="auth-otp" value={code} onChange={setCode} disabled={busy} hasError={!!error} autoFocus={!!email} />{expiresAt > 0 && <p className="auth-otp-timer">{remainingExpire > 0 ? <>Mã có hiệu lực trong <strong>{formatExpireTime(remainingExpire)}</strong></> : 'Mã đã hết hạn. Vui lòng gửi lại mã.'}</p>}</div>
           {message && <div role="status" className="auth-alert auth-alert-success">{message}</div>}
           {error && <div role="alert" className="auth-alert auth-alert-error">{error}</div>}
           <button className="auth-submit" type="submit" disabled={busy || code.length !== 6 || !email.trim()}>{busy ? 'Đang xác thực…' : 'Xác thực tài khoản'}{!busy && <ArrowRight size={17} />}</button>
         </form>
         <button className="auth-resend" type="button" disabled={busy || remainingResend > 0 || !email.trim()} onClick={() => void handleResendOtp()}>{remainingResend > 0 ? `Gửi lại mã sau ${remainingResend}s` : 'Chưa nhận được mã? Gửi lại OTP'}</button>
-        <p className="auth-switch">Kiểm tra cả thư mục spam nếu bạn chưa thấy email.<br /><Link to="/login">Quay lại đăng nhập</Link></p>
+        <p className="auth-switch">Kiểm tra hộp thư, thư mục spam hoặc tin nhắn nhận mã.<br /><Link to="/login">Quay lại đăng nhập</Link></p>
       </>}
       {step === 'done' && <>
         <div className="auth-success-icon"><Check size={30} /></div>
         <span className="auth-kicker">SẴN SÀNG LÊN ĐƯỜNG</span>
         <h1 className="auth-heading">Chào mừng bạn<br />đến ParkMaster!</h1>
-        <p className="auth-description">Email <strong>{email}</strong> đã được xác thực. Bạn có thể đăng nhập và bắt đầu hành trình của mình.</p>
+        <p className="auth-description">Thông tin liên hệ <strong>{email}</strong> đã được xác thực. Bạn có thể đăng nhập và bắt đầu hành trình của mình.</p>
         <Link className="auth-submit" to="/login">Đến trang đăng nhập <ArrowRight size={17} /></Link>
       </>}
     </AuthLayout>

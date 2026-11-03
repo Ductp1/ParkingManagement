@@ -34,8 +34,9 @@ export const ListScreen: React.FC<ListScreenProps> = ({ title, subtitle, actions
 /** Bố cục màn chi tiết: cột trái 2/3 + cột phải 1/3 (Figma 792 | 380). */
 export const DetailColumns: React.FC<{ main: React.ReactNode; side?: React.ReactNode }> = ({ main, side }) => (
   <div className="flex flex-col items-start gap-4 xl:flex-row">
-    <div className="flex w-full min-w-0 flex-col gap-4 xl:flex-[2]">{main}</div>
-    {side && <div className="flex w-full min-w-0 flex-col gap-4 xl:flex-1">{side}</div>}
+    {/* Panel trong mỗi cột hiện so le lần đầu (tối đa 8, --stagger-step); refetch không chạy lại vì panel không remount. */}
+    <div className="adm-stagger-children flex w-full min-w-0 flex-col gap-4 xl:flex-[2]">{main}</div>
+    {side && <div className="adm-stagger-children flex w-full min-w-0 flex-col gap-4 xl:flex-1">{side}</div>}
   </div>
 );
 

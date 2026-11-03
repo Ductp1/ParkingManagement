@@ -18,6 +18,8 @@ public static class DependencyInjection
         services.AddScoped<IReviewBookingUseCase, ReviewBookingUseCase>();
         services.AddScoped<ILotCancelBookingUseCase, LotCancelBookingUseCase>();
         services.AddScoped<IGateBookingActionsUseCase, GateBookingActionsUseCase>();
+        // UC-20: danh sách booking trong ca trực cho Staff App (US-076).
+        services.AddScoped<IListGateBookingsUseCase, ListGateBookingsUseCase>();
         return services;
     }
 }

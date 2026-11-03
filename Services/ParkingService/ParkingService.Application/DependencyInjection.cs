@@ -1,7 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
+using ParkingService.Application.Features.Capacity;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
+using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.Slots;
@@ -36,6 +38,13 @@ public static class DependencyInjection
         services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
         services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
 
+        // Khai báo sai – Admin (US-056)
+        services.AddScoped<IGetLotMisdeclarationUseCase, GetLotMisdeclarationUseCase>();
+        services.AddScoped<IOpenLotMisdeclarationCaseUseCase, OpenLotMisdeclarationCaseUseCase>();
+        services.AddScoped<IEscalateLotMisdeclarationCaseUseCase, EscalateLotMisdeclarationCaseUseCase>();
+        services.AddScoped<IResolveLotMisdeclarationCaseUseCase, ResolveLotMisdeclarationCaseUseCase>();
+        services.AddScoped<IBanLotOwnerUseCase, BanLotOwnerUseCase>();
+
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();
         services.AddScoped<IUpdateZoneUseCase, UpdateZoneUseCase>();
@@ -62,6 +71,10 @@ public static class DependencyInjection
         services.AddScoped<IPublishFloorLayoutUseCase, PublishFloorLayoutUseCase>();
         services.AddScoped<IGetFloorLayoutVersionsUseCase, GetFloorLayoutVersionsUseCase>();
         services.AddScoped<IGetFloorLayoutByVersionUseCase, GetFloorLayoutByVersionUseCase>();
+
+        // Capacity & Walk-in Buffer (UI-26, EP10)
+        services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
+        services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
         return services;
     }

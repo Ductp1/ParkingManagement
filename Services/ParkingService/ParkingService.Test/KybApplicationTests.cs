@@ -84,6 +84,36 @@ public class KybApplicationTests
             useCase.ExecuteAsync(new GetKybApplicationQuery(ParkingLotId: 1, OwnerProfileId: 99)));
     }
 
+    [Fact]
+    public async Task GetKyb_WhenNeedsMoreInfo_ReturnsAdminReviewNote()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+        var kybRepo = new FakeKybRepo();
+        var app = new KybApplication { ParkingLotId = 1, Status = KybStatus.UnderReview };
+        app.RequestMoreInfo(adminUserId: 1, "  Bổ sung chứng nhận PCCC còn hiệu lực  ", new DateTime(2026, 10, 30, 1, 0, 0, DateTimeKind.Utc));
+        await kybRepo.AddAsync(app);
+        var useCase = new GetKybApplicationUseCase(kybRepo, lotRepo, NullLogger<GetKybApplicationUseCase>.Instance);
+
+        var result = await useCase.ExecuteAsync(new GetKybApplicationQuery(ParkingLotId: 1, OwnerProfileId: 10));
+
+        Assert.Equal("NeedsMoreInfo", result.Status);
+        Assert.Equal("Bổ sung chứng nhận PCCC còn hiệu lực", result.ReviewNote);
+        Assert.Null(result.RejectReason); // field cũ giữ nguyên ý nghĩa: chỉ là lý do từ chối
+    }
+
+    [Fact]
+    public async Task GetKyb_WhenNoExisting_ReviewNoteIsNull()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        await lotRepo.AddAsync(CreateLot(1, ownerProfileId: 10, totalSlots: 30));
+        var useCase = new GetKybApplicationUseCase(new FakeKybRepo(), lotRepo, NullLogger<GetKybApplicationUseCase>.Instance);
+
+        var result = await useCase.ExecuteAsync(new GetKybApplicationQuery(ParkingLotId: 1, OwnerProfileId: 10));
+
+        Assert.Null(result.ReviewNote);
+    }
+
     // ==================== SAVE DRAFT TESTS ====================
 
     [Fact]

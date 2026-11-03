@@ -1018,20 +1018,27 @@ export const LotDetailPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex gap-3 w-full">
+            <div className="flex flex-col sm:flex-row gap-2.5 w-full">
               <button
                 type="button"
-                onClick={() => navigate('/driver/history')}
-                className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors shadow-sm"
+                onClick={() =>
+                  navigate(
+                    `/driver/payment-result?code=${encodeURIComponent(
+                      DEMO_TICKET_CODE
+                    )}&method=${paymentMethod}&amount=${totalAmount}&status=success`
+                  )
+                }
+                className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                Xem vé trong Lịch sử
+                <span className="material-symbols-outlined text-[18px]">receipt_long</span>
+                <span>Xem Biên nhận & Vé QR (UI-12)</span>
               </button>
               <button
                 type="button"
-                onClick={() => setShowSuccessModal(false)}
-                className="px-5 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-colors"
+                onClick={() => navigate('/driver/history')}
+                className="px-4 py-3 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition-colors cursor-pointer"
               >
-                Đóng
+                Lịch sử đặt
               </button>
             </div>
           </div>

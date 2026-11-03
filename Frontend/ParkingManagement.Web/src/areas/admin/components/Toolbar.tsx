@@ -23,7 +23,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({ placeholder, value, onSear
 
   return (
     <label
-      className={`flex h-8 items-center gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 text-(--admin-text-secondary) focus-within:border-(--admin-brand-navy-900) ${disabled ? 'opacity-60' : ''}`}
+      className={`adm-tr-colors flex h-8 items-center gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 text-(--admin-text-secondary) focus-within:border-(--admin-brand-navy-900) ${disabled ? 'opacity-60' : ''}`}
       style={{ width }}
       title={disabled ? disabledReason : undefined}
     >
@@ -61,7 +61,7 @@ export const ToolbarSelect: React.FC<ToolbarSelectProps> = ({ label, value, opti
   const current = options.find((o) => o.value === value)?.label ?? options[0]?.label ?? '';
   return (
     <label
-      className={`relative flex h-8 items-center justify-between gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 text-(--admin-text-secondary) focus-within:border-(--admin-brand-navy-900) ${disabled ? 'opacity-60' : ''}`}
+      className={`adm-tr-colors relative flex h-8 items-center justify-between gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 text-(--admin-text-secondary) focus-within:border-(--admin-brand-navy-900) ${disabled ? 'opacity-60' : ''}`}
       style={{ width }}
       title={disabled ? disabledReason : undefined}
     >

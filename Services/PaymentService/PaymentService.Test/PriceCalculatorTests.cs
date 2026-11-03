@@ -38,7 +38,7 @@ public class PriceCalculatorTests
     }
 
     [Fact] // TC-PARK-07: vào và ra trong 14 phút → 0đ
-    public void Within_15_minute_grace_period_is_free()
+    public void Calculate_Within15MinuteGracePeriod_ReturnsFreeZeroAmount()
     {
         var q = PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, Weekday, Weekday.AddMinutes(14));
         Assert.True(q.IsWithinGracePeriod);
@@ -46,7 +46,7 @@ public class PriceCalculatorTests
     }
 
     [Fact] // TC-PARK-07: vào và ra đúng mốc 15 phút tròn → 0đ (vẫn trong ân hạn miễn phí)
-    public void Exactly_15_minute_grace_period_is_free()
+    public void Calculate_Exactly15MinuteGracePeriod_ReturnsFreeZeroAmount()
     {
         var q = PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, Weekday, Weekday.AddMinutes(15));
         Assert.True(q.IsWithinGracePeriod);
@@ -60,18 +60,18 @@ public class PriceCalculatorTests
     [InlineData(120, 50000)]   // = BK-0001 trong dữ liệu demo
     [InlineData(180, 70000)]   // = BK-0002 trước giảm giá
     [InlineData(300, 105000)]  // 30k + 3×20k + 15k
-    public void Tiered_blocks_are_summed(int minutes, decimal expected)
+    public void Calculate_TieredBlocks_SumsBlockPrices(int minutes, decimal expected)
         => Assert.Equal(expected, PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, Weekday, Weekday.AddMinutes(minutes)).FinalAmount);
 
     [Fact]
-    public void Weekend_multiplier_applies_by_vietnam_time()
+    public void Calculate_WeekendInVietnamTime_AppliesWeekendMultiplier()
     {
         var saturday = new DateTime(2026, 10, 3, 2, 0, 0, DateTimeKind.Utc); // 09:00 thứ Bảy giờ VN
         Assert.Equal(60000, PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, saturday, saturday.AddMinutes(120)).FinalAmount);
     }
 
     [Fact]
-    public void Holiday_multiplier_applies_when_date_is_in_holiday_list()
+    public void Calculate_DateInHolidayList_AppliesHolidayMultiplier()
     {
         // Thứ Tư 02/09/2026 lúc 09:00 sáng giờ VN (02:00 UTC)
         var nationalDay = new DateTime(2026, 9, 2, 2, 0, 0, DateTimeKind.Utc);
@@ -84,7 +84,7 @@ public class PriceCalculatorTests
     }
 
     [Fact]
-    public void Overnight_surcharge_applies_when_parking_crosses_night_window()
+    public void Calculate_CrossesNightWindow_AddsOvernightSurcharge()
     {
         // Thứ Sáu 20:00 VN (13:00 UTC) đến 23:00 VN (16:00 UTC) -> 180 phút
         var entryUtc = new DateTime(2026, 10, 2, 13, 0, 0, DateTimeKind.Utc);
@@ -97,7 +97,7 @@ public class PriceCalculatorTests
     }
 
     [Fact]
-    public void Daytime_parking_does_not_incur_overnight_surcharge()
+    public void Calculate_DaytimeParkingOnly_DoesNotAddOvernightSurcharge()
     {
         // Thứ Sáu 08:00 VN (01:00 UTC) đến 18:00 VN (11:00 UTC) -> hoàn toàn ban ngày
         var entryUtc = new DateTime(2026, 10, 2, 1, 0, 0, DateTimeKind.Utc);
@@ -108,7 +108,7 @@ public class PriceCalculatorTests
     }
 
     [Fact]
-    public void Holiday_takes_priority_over_weekend_multiplier()
+    public void Calculate_WeekendAndHolidayOverlap_PrioritizesHolidayMultiplier()
     {
         // Thứ Bảy ngày lễ 03/10/2026: Ưu tiên hệ số lễ 1.3 thay vì cuối tuần 1.2
         var saturdayHoliday = new DateTime(2026, 10, 3, 2, 0, 0, DateTimeKind.Utc);
@@ -120,15 +120,15 @@ public class PriceCalculatorTests
     }
 
     [Fact]
-    public void Oversized_vehicle_without_own_rules_uses_suv_price_times_multiplier()
+    public void Calculate_OversizedVehicleWithoutOwnRules_UsesSuvPriceWithMultiplier()
         => Assert.Equal(75000, PriceCalculator.Calculate(VincomCard(), VehicleType.Oversized, Weekday, Weekday.AddMinutes(120)).FinalAmount);
 
     [Fact]
-    public void Daily_cap_is_respected()
+    public void Calculate_TotalExceedsDailyCap_CapsAtMaxDailyAmount()
         => Assert.Equal(300000, PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, Weekday, Weekday.AddHours(23)).FinalAmount);
 
     [Fact]
-    public void Calculate_throws_argument_exception_when_end_before_start()
+    public void Calculate_EndBeforeStart_ThrowsArgumentException()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
             PriceCalculator.Calculate(VincomCard(), VehicleType.Sedan, Weekday, Weekday.AddMinutes(-10)));
@@ -136,7 +136,7 @@ public class PriceCalculatorTests
     }
 
     [Fact]
-    public void Multiple_overnight_parking_charges_surcharge_for_each_night()
+    public void Calculate_MultipleOvernightParking_ChargesSurchargeForEachNight()
     {
         // Thứ Sáu 20:00 VN (13:00 UTC) đến Chủ Nhật 08:00 sáng VN (01:00 UTC) -> Đỗ qua 2 đêm liên tiếp
         var entryUtc = new DateTime(2026, 10, 2, 13, 0, 0, DateTimeKind.Utc);

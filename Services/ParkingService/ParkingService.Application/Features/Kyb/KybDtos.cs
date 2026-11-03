@@ -4,6 +4,7 @@ namespace ParkingService.Application.Features.Kyb;
 
 /// <summary>
 /// DTO thông tin chi tiết hồ sơ thẩm định KYB 4 bước của bãi đỗ (US-054).
+/// ReviewNote: nội dung Admin yêu cầu bổ sung khi NeedsMoreInfo (US-055 AC3) – thêm cuối, mặc định null để giữ tương thích.
 /// </summary>
 public sealed record KybApplicationDto(
     int Id,
@@ -19,7 +20,8 @@ public sealed record KybApplicationDto(
     string? FieldSurveyNote,
     DateTime? SubmittedAtUtc,
     DateTime? ReviewedAtUtc,
-    string? RejectReason);
+    string? RejectReason,
+    string? ReviewNote = null);
 
 /// <summary>Truy vấn hồ sơ KYB của bãi đỗ.</summary>
 public sealed record GetKybApplicationQuery(
