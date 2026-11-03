@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
@@ -169,6 +170,56 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
             host.MintToken("LotOwner", OwnerA));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("granularity phải là Hour, Day, Week hoặc Month.", await response.Content.ReadAsStringAsync());
+    }
+
+    [Theory]
+    [InlineData("transactions")]
+    [InlineData("export")]
+    public async Task OwnerRevenueTransactionsAndExport_WithoutToken_Return401(string endpoint)
+    {
+        var response = await host.Client.GetAsync($"/api/v1/payments/reports/owner-revenue/{endpoint}?from=2026-10-01&to=2026-11-01");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OwnerRevenueTransactions_OwnerToken_ReturnsOwnRowsWithoutDriverData()
+    {
+        var response = await host.GetAsync(
+            $"/api/v1/payments/reports/owner-revenue/transactions?from=2026-10-01&to=2026-11-01&ownerProfileId={OwnerB}&page=1&pageSize=10",
+            host.MintToken("LotOwner", OwnerA));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"totalCount\":1", json);
+        Assert.Contains("\"amount\":100000", json);
+        Assert.DoesNotContain("70000", json);
+        Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("transferContent", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task OwnerRevenueTransactions_PageSizeTooLarge_Returns400()
+    {
+        var response = await host.GetAsync("/api/v1/payments/reports/owner-revenue/transactions?pageSize=101",
+            host.MintToken("LotOwner", OwnerA));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("pageSize phải trong khoảng 1–100.", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task OwnerRevenueExport_OwnerToken_ReturnsCsvAttachment()
+    {
+        var response = await host.GetAsync("/api/v1/payments/reports/owner-revenue/export?from=2026-10-01&to=2026-11-01",
+            host.MintToken("LotOwner", OwnerA));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/csv", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("owner-revenue-20261001-20261101.csv", response.Content.Headers.ContentDisposition?.FileNameStar
+            ?? response.Content.Headers.ContentDisposition?.FileName);
+        var bytes = await response.Content.ReadAsByteArrayAsync();
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
+        var text = Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
+        Assert.Equal(3, text.Split("\r\n").Length);   // header + 1 dòng của OwnerA + dòng trống cuối
     }
 
     /// <summary>Host dùng chung cho cả lớp test: cặp khóa RSA test (UserService giả lập) + Kestrel cổng ngẫu nhiên.</summary>

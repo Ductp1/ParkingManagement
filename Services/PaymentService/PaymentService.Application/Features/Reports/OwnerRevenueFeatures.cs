@@ -1,3 +1,4 @@
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using PaymentService.Domain.Entities;
@@ -81,6 +82,14 @@ public interface IOwnerRevenueQueries
 
     /// <summary>Doanh thu theo (ngày, giờ) Việt Nam (tối đa 7 × 24 dòng) – GROUP BY ở database.</summary>
     Task<IReadOnlyList<OwnerRevenueDayHourRow>> SumByVietnamDayHourAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>Giao dịch theo bộ lọc, mới nhất trước (PaidAtUtc giảm dần, Id giảm dần) – lọc, đếm, phân trang ở database.</summary>
+    Task<PagedResult<OwnerRevenueTransactionRow>> ListTransactionsAsync(OwnerRevenueTransactionFilter filter, int page, int pageSize,
+        CancellationToken cancellationToken);
+
+    /// <summary>Tối đa maxRows giao dịch theo bộ lọc, mới nhất trước (xuất CSV).</summary>
+    Task<IReadOnlyList<OwnerRevenueTransactionRow>> ListTransactionsForExportAsync(OwnerRevenueTransactionFilter filter, int maxRows,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>US-078: quy tắc dùng chung cho mọi báo cáo doanh thu chủ bãi (summary, series, giao dịch, CSV).</summary>

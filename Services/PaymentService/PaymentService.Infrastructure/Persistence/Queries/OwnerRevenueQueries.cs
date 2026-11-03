@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using PaymentService.Application.Features.Reports;
 using PaymentService.Domain.Entities;
@@ -37,6 +38,21 @@ public static class OwnerRevenueQueryShapes
             .GroupBy(x => new { x.Local.Year, x.Local.Month, x.Local.Day, x.Local.Hour })
             .Select(g => new OwnerRevenueDayHourRow(g.Key.Year, g.Key.Month, g.Key.Day, g.Key.Hour,
                 g.Sum(x => x.Amount), g.Sum(x => x.RefundedAmount), g.Count()));
+
+    /// <summary>Giao dịch được tính doanh thu theo bộ lọc, mới nhất trước (sắp xếp trước khi chiếu để EF dịch được ORDER BY).</summary>
+    public static IQueryable<Payment> FilterTransactions(IQueryable<Payment> payments, OwnerRevenueTransactionFilter filter)
+    {
+        var query = payments.WhereRevenue(filter.Range);
+        if (filter.Method is { } method) query = query.Where(p => p.Method == method);
+        if (filter.Purpose is { } purpose) query = query.Where(p => p.Purpose == purpose);
+        if (filter.Status is { } status) query = query.Where(p => p.Status == status);
+        return query.OrderByDescending(p => p.PaidAtUtc).ThenByDescending(p => p.Id);
+    }
+
+    /// <summary>Chỉ đọc các cột cần cho báo cáo – không đọc UserId, TransferContent, RawCallbackJson, ConfirmedByStaffId.</summary>
+    public static IQueryable<OwnerRevenueTransactionRow> ToTransactionRows(IQueryable<Payment> payments)
+        => payments.Select(p => new OwnerRevenueTransactionRow(p.Id, p.Code, p.PaidAtUtc!.Value, p.ParkingLotId, p.BookingCode,
+            p.Method, p.Purpose, p.Status, p.Amount, p.RefundedAmount, p.ProviderTransactionId));
 
     public static IQueryable<OwnerRefundReasonRow> SumCompletedRefundsByReason(IQueryable<Payment> payments, OwnerRevenueFilter filter)
         => payments.WhereRevenue(filter)
@@ -83,4 +99,19 @@ public sealed class OwnerRevenueQueries(PaymentDbContext db) : IOwnerRevenueQuer
     public async Task<IReadOnlyList<OwnerRevenueDayHourRow>> SumByVietnamDayHourAsync(OwnerRevenueFilter filter,
         CancellationToken cancellationToken)
         => await OwnerRevenueQueryShapes.SumByVietnamDayHour(db.Payments.AsNoTracking(), filter).ToListAsync(cancellationToken);
+
+    public async Task<PagedResult<OwnerRevenueTransactionRow>> ListTransactionsAsync(OwnerRevenueTransactionFilter filter, int page,
+        int pageSize, CancellationToken cancellationToken)
+    {
+        var query = OwnerRevenueQueryShapes.FilterTransactions(db.Payments.AsNoTracking(), filter);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await OwnerRevenueQueryShapes.ToTransactionRows(query.Skip((page - 1) * pageSize).Take(pageSize))
+            .ToListAsync(cancellationToken);
+        return new PagedResult<OwnerRevenueTransactionRow>(items, page, pageSize, total);
+    }
+
+    public async Task<IReadOnlyList<OwnerRevenueTransactionRow>> ListTransactionsForExportAsync(OwnerRevenueTransactionFilter filter,
+        int maxRows, CancellationToken cancellationToken)
+        => await OwnerRevenueQueryShapes.ToTransactionRows(OwnerRevenueQueryShapes.FilterTransactions(db.Payments.AsNoTracking(), filter)
+            .Take(maxRows)).ToListAsync(cancellationToken);
 }

@@ -74,6 +74,23 @@ public class OwnerRevenueSqlTests(ITestOutputHelper output) : IDisposable
     }
 
     [Fact]
+    public void Transactions_FilterSortPageInDatabase_AndReadNoDriverColumns()
+    {
+        var filter = new OwnerRevenueTransactionFilter(Filter with { ParkingLotId = 21 }, ParkingManagement.SharedKernel.Enums.PaymentMethod.Cash);
+        var sql = Sql(OwnerRevenueQueryShapes.ToTransactionRows(
+            OwnerRevenueQueryShapes.FilterTransactions(_db.Payments, filter).Skip(20).Take(20)));
+
+        Assert.Contains("\"OwnerProfileId\" = ", sql);
+        Assert.Contains("\"ParkingLotId\" = ", sql);
+        Assert.Contains("\"Method\" = ", sql);
+        Assert.Contains("ORDER BY p.\"PaidAtUtc\" DESC, p.\"Id\" DESC", sql);
+        Assert.Contains("LIMIT", sql);
+        Assert.Contains("OFFSET", sql);
+        foreach (var column in new[] { "UserId", "TransferContent", "RawCallbackJson", "ConfirmedByStaffId" })
+            Assert.DoesNotContain(column, sql);
+    }
+
+    [Fact]
     public void RefundsByReason_And_SettledPeriods_AreTranslatable()
     {
         var refundSql = Sql(OwnerRevenueQueryShapes.SumCompletedRefundsByReason(_db.Payments, Filter));

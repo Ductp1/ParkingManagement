@@ -21,6 +21,8 @@ public static class DependencyInjection
         // US-078: báo cáo doanh thu chủ bãi (chỉ đọc).
         services.AddScoped<IGetOwnerRevenueSummaryUseCase, GetOwnerRevenueSummaryUseCase>();
         services.AddScoped<IGetOwnerRevenueSeriesUseCase, GetOwnerRevenueSeriesUseCase>();
+        services.AddScoped<IListOwnerRevenueTransactionsUseCase, ListOwnerRevenueTransactionsUseCase>();
+        services.AddScoped<IExportOwnerRevenueTransactionsUseCase, ExportOwnerRevenueTransactionsUseCase>();
         return services;
     }
 }

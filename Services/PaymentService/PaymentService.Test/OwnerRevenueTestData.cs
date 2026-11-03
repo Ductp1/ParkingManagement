@@ -1,3 +1,4 @@
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using PaymentService.Application.Features.Reports;
 using PaymentService.Domain.Entities;
@@ -35,6 +36,26 @@ internal sealed class InMemoryOwnerRevenueQueries(IEnumerable<Payment>? payments
 
     public Task<IReadOnlyList<OwnerRevenueDayHourRow>> SumByVietnamDayHourAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
         => Run(filter, OwnerRevenueQueryShapes.SumByVietnamDayHour(_payments.AsQueryable(), filter));
+
+    public Task<PagedResult<OwnerRevenueTransactionRow>> ListTransactionsAsync(OwnerRevenueTransactionFilter filter, int page, int pageSize,
+        CancellationToken cancellationToken)
+    {
+        LastFilter = filter.Range;
+        LastTransactionFilter = filter;
+        var query = OwnerRevenueQueryShapes.FilterTransactions(_payments.AsQueryable(), filter);
+        var items = OwnerRevenueQueryShapes.ToTransactionRows(query.Skip((page - 1) * pageSize).Take(pageSize)).ToList();
+        return Task.FromResult(new PagedResult<OwnerRevenueTransactionRow>(items, page, pageSize, query.Count()));
+    }
+
+    public Task<IReadOnlyList<OwnerRevenueTransactionRow>> ListTransactionsForExportAsync(OwnerRevenueTransactionFilter filter, int maxRows,
+        CancellationToken cancellationToken)
+    {
+        LastTransactionFilter = filter;
+        return Run(filter.Range, OwnerRevenueQueryShapes.ToTransactionRows(
+            OwnerRevenueQueryShapes.FilterTransactions(_payments.AsQueryable(), filter).Take(maxRows)));
+    }
+
+    public OwnerRevenueTransactionFilter? LastTransactionFilter { get; private set; }
 
     private Task<IReadOnlyList<T>> Run<T>(OwnerRevenueFilter filter, IQueryable<T> query)
     {
