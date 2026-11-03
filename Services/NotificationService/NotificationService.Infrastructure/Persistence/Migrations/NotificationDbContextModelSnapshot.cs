@@ -94,6 +94,10 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("jsonb");
 
+                    b.Property<string>("DedupeKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<bool>("IsRead")
                         .HasColumnType("boolean");
 
@@ -135,6 +139,10 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DedupeKey")
+                        .IsUnique()
+                        .HasFilter("\"DedupeKey\" IS NOT NULL");
 
                     b.HasIndex("TemplateId");
 
@@ -218,6 +226,11 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
                     b.Property<string>("TitleTemplate")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -228,7 +241,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Key", "Channel")
+                    b.HasIndex("Key", "Channel", "Language")
                         .IsUnique();
 
                     b.ToTable("NotificationTemplates", (string)null);
@@ -242,6 +255,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "OTP_CODE",
+                            Language = "vi",
                             TitleTemplate = "Mã xác thực"
                         },
                         new
@@ -252,6 +266,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "BOOKING_CONFIRMED",
+                            Language = "vi",
                             TitleTemplate = "Đặt chỗ thành công"
                         },
                         new
@@ -262,6 +277,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "BOOKING_CONFIRMED",
+                            Language = "vi",
                             TitleTemplate = "Xác nhận đặt chỗ {BookingCode}"
                         },
                         new
@@ -272,6 +288,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "BOOKING_HOLD_EXPIRED",
+                            Language = "vi",
                             TitleTemplate = "Hết thời gian giữ chỗ"
                         },
                         new
@@ -282,6 +299,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "BOOKING_REMINDER",
+                            Language = "vi",
                             TitleTemplate = "Sắp đến giờ đỗ xe"
                         },
                         new
@@ -292,6 +310,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "BOOKING_CANCELLED",
+                            Language = "vi",
                             TitleTemplate = "Đã hủy booking"
                         },
                         new
@@ -302,6 +321,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "BOOKING_NO_SHOW",
+                            Language = "vi",
                             TitleTemplate = "Booking bị hủy do không đến"
                         },
                         new
@@ -312,6 +332,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "CHECKIN_SUCCESS",
+                            Language = "vi",
                             TitleTemplate = "Xe đã vào bãi"
                         },
                         new
@@ -322,6 +343,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "CHECKOUT_RECEIPT",
+                            Language = "vi",
                             TitleTemplate = "Xe đã ra bãi"
                         },
                         new
@@ -332,6 +354,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "PAYMENT_FAILED",
+                            Language = "vi",
                             TitleTemplate = "Thanh toán thất bại"
                         },
                         new
@@ -342,6 +365,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "KYB_APPROVED",
+                            Language = "vi",
                             TitleTemplate = "Bãi xe đã được duyệt"
                         },
                         new
@@ -352,6 +376,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "KYB_REJECTED",
+                            Language = "vi",
                             TitleTemplate = "Hồ sơ bãi xe cần bổ sung"
                         },
                         new
@@ -362,6 +387,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "COMPLAINT_CREATED",
+                            Language = "vi",
                             TitleTemplate = "Có khiếu nại mới"
                         },
                         new
@@ -372,8 +398,53 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
                             Key = "EMERGENCY_CLOSURE",
+                            Language = "vi",
                             TitleTemplate = "Bãi đóng khẩn cấp"
                         });
+                });
+
+            modelBuilder.Entity("NotificationService.Domain.Entities.UserNotificationSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("UserNotificationSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ParkingManagement.ServiceDefaults.Messaging.InboxReceipt", b =>
+                {
+                    b.Property<Guid>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ProcessedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("EventId");
+
+                    b.ToTable("InboxReceipts", (string)null);
                 });
 
             modelBuilder.Entity("ParkingManagement.SharedKernel.Domain.OutboxMessage", b =>

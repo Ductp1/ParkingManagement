@@ -67,7 +67,8 @@ public sealed class NotificationDispatcher : INotificationDispatcher
             Body = request.Body,
             DataJson = request.DataJson,
             Status = NotificationStatus.Pending,
-            RetryCount = 0
+            RetryCount = 0,
+            DedupeKey = request.DedupeKey
         };
         await _repository.AddAsync(notification, cancellationToken);
 

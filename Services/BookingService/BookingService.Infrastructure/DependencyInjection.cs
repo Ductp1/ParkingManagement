@@ -9,6 +9,7 @@ using BookingService.Infrastructure.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace BookingService.Infrastructure;
@@ -22,6 +23,11 @@ public static class DependencyInjection
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
         services.AddHostedService<HoldExpiryWorker>();
+        // US-083: outbox publisher + consumer kết quả thanh toán (PaymentSucceeded → ConfirmPayment → BookingConfirmed).
+        // AddRabbitMqInboxConsumer đã dựng luôn bus + IRabbitMqPublisher + IOutboxTransport (không cần AddRabbitMqEventBus nữa).
+        services.AddScoped<IBookingEventPublisher, BookingEventOutbox>();
+        services.AddRabbitMqInboxConsumer<BookingDbContext, BookingIntegrationEventHandler>(configuration);
+        services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<BookingDbContext>>();
         // US-066 (luat 4): dang ky thue bao nguyen tu theo han muc + doc Q tu GateService.
         services.AddScoped<IMonthlyPassRegistrationStore, MonthlyPassRegistrationStore>();
         services.AddScoped<ILotSubscriberQuotaProvider, GateCapacityQuotaProvider>();

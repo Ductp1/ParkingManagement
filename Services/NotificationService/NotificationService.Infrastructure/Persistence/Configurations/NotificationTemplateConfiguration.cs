@@ -12,15 +12,17 @@ internal sealed class NotificationTemplateConfiguration : IEntityTypeConfigurati
     {
         e.ToTable("NotificationTemplates");
         e.Property(x => x.Key).HasMaxLength(50).IsRequired();
+        // US-083 i18n: mỗi key×channel có bản "vi" (bắt buộc, seed) và "en" (bổ sung dần).
+        e.Property(x => x.Language).HasMaxLength(5).IsRequired();
         e.Property(x => x.TitleTemplate).HasMaxLength(200).IsRequired();
         e.Property(x => x.BodyTemplate).HasMaxLength(2000).IsRequired();
-        e.HasIndex(x => new { x.Key, x.Channel }).IsUnique();
+        e.HasIndex(x => new { x.Key, x.Channel, x.Language }).IsUnique();
 
         var at = SeedClock.SeededAtUtc;
         var id = 0;
         object T(string key, NotificationChannel channel, string title, string body) => new
         {
-            Id = ++id, Key = key, Channel = channel, TitleTemplate = title, BodyTemplate = body, IsActive = true, CreatedAtUtc = at
+            Id = ++id, Key = key, Channel = channel, Language = "vi", TitleTemplate = title, BodyTemplate = body, IsActive = true, CreatedAtUtc = at
         };
 
         e.HasData(

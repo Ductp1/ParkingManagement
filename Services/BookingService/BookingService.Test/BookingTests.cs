@@ -1,6 +1,7 @@
 ﻿using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -75,6 +76,14 @@ public class CancellationPolicyTests
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
     }
 
+
+/// <summary>US-083: fake publisher — capture event để test assert nội dung outbox.</summary>
+internal sealed class FakeEventPublisher : IBookingEventPublisher
+{
+    public List<IntegrationEvent> Events { get; } = [];
+
+    public void Enqueue(IntegrationEvent integrationEvent) => Events.Add(integrationEvent);
+}
     private sealed class FixedClock(DateTime utc) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(utc, TimeSpan.Zero);
@@ -270,7 +279,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -305,7 +314,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -333,7 +342,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -362,7 +371,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -401,7 +410,7 @@ public class BookingFeaturesTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeEventPublisher(), clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 5,
@@ -454,6 +463,14 @@ public class BookingFeaturesTests
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
+
+/// <summary>US-083: fake publisher — capture event để test assert nội dung outbox.</summary>
+internal sealed class FakeEventPublisher : IBookingEventPublisher
+{
+    public List<IntegrationEvent> Events { get; } = [];
+
+    public void Enqueue(IntegrationEvent integrationEvent) => Events.Add(integrationEvent);
+}
     private sealed class FixedClock(DateTime utc) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(utc, TimeSpan.Zero);

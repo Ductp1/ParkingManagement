@@ -3,8 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using NotificationService.Application.Features;
 using NotificationService.Application.Features.DeviceTokens;
 using NotificationService.Application.Features.Dispatcher;
+using NotificationService.Application.Features.Ingestion;
 using NotificationService.Application.Features.Notifications;
 using NotificationService.Application.Features.Preferences;
+using NotificationService.Infrastructure.Integrations;
 using NotificationService.Infrastructure.Persistence;
 using NotificationService.Infrastructure.Services.UserDirectory;
 using NotificationService.Infrastructure.Persistence.Queries;
@@ -16,6 +18,7 @@ using NotificationService.Infrastructure.Services.FcmSender;
 using NotificationService.Infrastructure.Services.InAppSender;
 using NotificationService.Infrastructure.Services.SmsSender;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace NotificationService.Infrastructure;
@@ -62,6 +65,13 @@ public static class DependencyInjection
 
         // Dispatcher orchestrator
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
+
+        // ===== US-083→086 foundation: renderer i18n + settings ngôn ngữ + consumer integration events =====
+        services.AddScoped<ITemplateRenderer, DbTemplateRenderer>();
+        services.AddScoped<IUserNotificationSettingsPort, UserNotificationSettingsRepository>();
+        // MassTransit + RabbitMQ: queue "notification.service" nhận event booking/payment/lot theo routing key
+        // (= EventType). TransactionalInbox chặn xử lý trùng theo EventId (idempotency US-083).
+        services.AddRabbitMqInboxConsumer<NotificationDbContext, NotificationIntegrationEventHandler>(configuration);
 
         return services;
     }

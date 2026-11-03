@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Unit test cho Domain + Application cá»§a BookingService (khÃ´ng cáº§n database). -->
+  <!-- Unit test cho Domain + Application của BookingService; US-083 thêm test consumer cần Infrastructure (PostgreSQL thật). -->
   <PropertyGroup>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -14,5 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BookingService.Application\BookingService.Application.csproj" />
+    <ProjectReference Include="..\BookingService.Infrastructure\BookingService.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -204,6 +204,7 @@ public interface ICreateBookingUseCase
 public sealed class CreateBookingUseCase(
     IBookingRepository repository,
     IQrTokenService qrService,
+    IBookingEventPublisher events,
     TimeProvider timeProvider) : ICreateBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
@@ -266,6 +267,14 @@ public sealed class CreateBookingUseCase(
         await repository.AddAsync(booking, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
 
+        // US-083/085: phát BookingCreated sau khi có Id (outbox commit ở save tiếp theo —
+        // thông báo tạo đơn là thông báo phụ, thông báo chính thức là BookingConfirmed sau thanh toán).
+        events.Enqueue(new BookingCreated(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.SlotId, booking.SlotCode, booking.PlateNumber,
+            booking.StartAtUtc, booking.EndAtUtc, booking.TotalAmount, booking.HoldExpiresAtUtc!.Value));
+        await repository.SaveChangesAsync(cancellationToken);
+
         return new BookingDetailDto(
             booking.Id, booking.Code, booking.Status.ToString(), booking.UserId, booking.VehicleId,
             booking.PlateNumber, booking.VehicleType.ToString(), booking.ParkingLotId, booking.ParkingLotName,
@@ -285,6 +294,7 @@ public interface ICancelBookingUseCase
 /// <summary>US-038: Khách hủy booking theo Cancellation Window 1 giờ.</summary>
 public sealed class CancelBookingUseCase(
     IBookingRepository repository,
+    IBookingEventPublisher events,
     TimeProvider timeProvider) : ICancelBookingUseCase
 {
     public async Task<CancellationResultDto> ExecuteAsync(string code, CancelBookingCommand command, CancellationToken cancellationToken = default)
@@ -300,8 +310,14 @@ public sealed class CancelBookingUseCase(
         // Gọi phương thức State Machine của Entity
         booking.CancelByCustomer(decision.ResultStatus, now, command.UserId, command.Reason ?? decision.Reason);
 
-        await repository.SaveChangesAsync(cancellationToken);
         var refund = Math.Round(booking.PaidAmount * decision.RefundPercent / 100m, 0);
+
+        // US-083/084/085: hủy booking → hủy nhắc lịch + báo chủ bãi (outbox cùng transaction).
+        events.Enqueue(new BookingCancelled(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.StartAtUtc, refund, command.Reason ?? decision.Reason));
+
+        await repository.SaveChangesAsync(cancellationToken);
 
         return new CancellationResultDto(booking.Code, booking.Status.ToString(), decision.RefundPercent, refund, decision.Reason);
     }
@@ -316,6 +332,7 @@ public interface IModifyBookingUseCase
 public sealed class ModifyBookingUseCase(
     IBookingRepository repository,
     IBookingQueries queries,
+    IBookingEventPublisher events,
     TimeProvider timeProvider) : IModifyBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(string code, ModifyBookingCommand command, CancellationToken cancellationToken = default)
@@ -371,6 +388,12 @@ public sealed class ModifyBookingUseCase(
             booking.PlateNumber = command.NewPlateNumber.Trim().ToUpperInvariant();
         }
 
+        // US-084/085: đổi giờ/đổi xe → reschedule nhắc lịch + báo chủ bãi (outbox cùng transaction).
+        events.Enqueue(new BookingModified(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.StartAtUtc, booking.EndAtUtc,
+            command.NewStartAtUtc.HasValue ? "Đổi giờ đỗ" : "Đổi xe"));
+
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
             ?? throw new NotFoundException("Booking", code);
@@ -385,7 +408,8 @@ public interface IExtendBookingUseCase
 /// <summary>US-030: Gia hạn thời gian đỗ xe.</summary>
 public sealed class ExtendBookingUseCase(
     IBookingRepository repository,
-    IBookingQueries queries) : IExtendBookingUseCase
+    IBookingQueries queries,
+    IBookingEventPublisher events) : IExtendBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(string code, ExtendBookingCommand command, CancellationToken cancellationToken = default)
     {
@@ -410,6 +434,12 @@ public sealed class ExtendBookingUseCase(
         });
 
         booking.EndAtUtc = command.NewEndAtUtc;
+
+        // US-084: gia hạn → reschedule nhắc "sắp hết giờ" với mốc EndAtUtc mới (outbox cùng transaction).
+        events.Enqueue(new BookingModified(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.StartAtUtc, booking.EndAtUtc, "Gia hạn giờ ra"));
+
         await repository.SaveChangesAsync(cancellationToken);
 
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -427,6 +457,7 @@ public interface IReviewBookingUseCase
 public sealed class ReviewBookingUseCase(
     IBookingRepository repository,
     IBookingQueries queries,
+    IBookingEventPublisher events,
     TimeProvider timeProvider) : IReviewBookingUseCase
 {
     public async Task<BookingDetailDto> ApproveAsync(string code, ReviewBookingCommand command, CancellationToken cancellationToken = default)
@@ -439,6 +470,12 @@ public sealed class ReviewBookingUseCase(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         booking.ApproveByOwner(now, command.OwnerProfileId, command.Reason);
+
+        // ApproveByOwner → Confirmed: US-083 gửi xác nhận + US-084 đặt nhắc lịch cho booking Mức 0.
+        events.Enqueue(new BookingConfirmed(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.SlotId, booking.SlotCode, booking.PlateNumber,
+            booking.StartAtUtc, booking.EndAtUtc, booking.TotalAmount));
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -454,7 +491,12 @@ public sealed class ReviewBookingUseCase(
             throw new ValidationException("Bạn không có quyền từ chối booking của bãi này.");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        booking.RejectByOwner(now, command.OwnerProfileId, command.Reason ?? "Chủ bãi từ chối do hết chỗ");
+        var reason = command.Reason ?? "Chủ bãi từ chối do hết chỗ";
+        booking.RejectByOwner(now, command.OwnerProfileId, reason);
+
+        events.Enqueue(new BookingCancelled(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.StartAtUtc, 0m, reason));
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -471,6 +513,7 @@ public interface ILotCancelBookingUseCase
 public sealed class LotCancelBookingUseCase(
     IBookingRepository repository,
     IBookingQueries queries,
+    IBookingEventPublisher events,
     TimeProvider timeProvider) : ILotCancelBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(string code, LotCancelBookingCommand command, CancellationToken cancellationToken = default)
@@ -483,6 +526,10 @@ public sealed class LotCancelBookingUseCase(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         booking.CancelByOwner(now, command.OwnerProfileId, command.Reason);
+
+        events.Enqueue(new BookingCancelled(
+            booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
+            booking.ParkingLotName, booking.StartAtUtc, booking.PaidAmount, $"Chủ bãi hủy sự cố: {command.Reason}"));
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
