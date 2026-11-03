@@ -99,6 +99,24 @@ jobs:
     needs: [build, changes]
     runs-on: ubuntu-latest
     environment: environment
+
+    # US-066: GateService.Test có 3 test chạy trên PostgreSQL thật (LotAdmissionGateDbTests –
+    # kiểm chứng row-lock chống race condition, không thể giả lập trên InMemory). Job matrix
+    # dùng chung nên các service khác cũng có sẵn postgres (vô hại – không dùng tới).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
       Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
       # T-704: secret HMAC xác thực QR token check-in (BookingService ↔ GateService). Cùng tên với biến môi trường local.
@@ -115,7 +133,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Unit test (Domain + Application) – không cần database
+      # Unit test – đa số không cần database; riêng GateService có 3 test US-066 chạy trên
+      # PostgreSQL thật từ service container postgres khai báo ở trên (localhost:5432).
       - name: Test
         run: >
           dotnet test Services/${{ matrix.service }}/${{ matrix.service }}.Test/${{ matrix.service }}.Test.csproj
