@@ -129,6 +129,33 @@ Content-Type: application/json
 
 { "reason": "Đánh giá đúng với trải nghiệm thực tế của tài xế." }
 
+### US-091 · Tài xế đến nơi nhưng bãi hết chỗ → "Báo sự cố" (cần booking Confirmed, từ 30' trước giờ bắt đầu đến hết khung giờ) → 201
+# Gọi thẳng SupportService (@direct) – Gateway chưa có route /api/v1/lot-full-incidents (nhờ TV1 thêm).
+POST {{direct}}/api/v1/lot-full-incidents
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0002", "note": "Bảo vệ báo bãi đã hết chỗ dù tôi đã đặt trước." }
+
+### US-091 · Xem sự cố (thay LF-... vừa tạo) – có danh sách bãi thay thế trong 1 km
+GET {{direct}}/api/v1/lot-full-incidents/LF-20261120-1234
+Authorization: Bearer {{driverToken}}
+
+### US-091 · AC2: đồng ý chuyển miễn phí sang 1 bãi trong danh sách gợi ý → TransferAccepted
+POST {{direct}}/api/v1/lot-full-incidents/LF-20261120-1234/accept-transfer
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "parkingLotId": 4 }
+
+### US-091 · AC3: không nhận bãi thay thế → RefundRequested (hoàn 100% + voucher 20.000đ), bãi bị ghi vi phạm SLA
+POST {{direct}}/api/v1/lot-full-incidents/LF-20261120-1234/decline
+Authorization: Bearer {{driverToken}}
+
+### US-091 · Admin: sự cố + vi phạm SLA theo bãi
+GET {{direct}}/api/v1/lot-full-incidents?parkingLotId=1&slaViolationOnly=true
+Authorization: Bearer {{adminToken}}
+
 ### US-093 · Các API đánh giá cần JWT của tài xế: userId lấy từ claim "sub", không gửi trong body/query.
 # Lấy token bằng POST {{gateway}}/api/v1/auth/login (tài khoản tài xế demo) rồi dán accessToken vào @driverToken.
 @driverToken = DAN_ACCESS_TOKEN_VAO_DAY
