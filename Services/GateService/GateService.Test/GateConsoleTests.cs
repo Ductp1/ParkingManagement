@@ -1,6 +1,8 @@
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateEvents;
 using GateService.Application.Features.PlateRecognition;
+using GateService.Application.Features.LotCapacity;
+using GateService.Domain.Enums;
 using GateService.Domain.Entities;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
@@ -17,7 +19,7 @@ public class GateConsoleTests
         var writer = new FakeWriter();
         var events = new FakeGateEvents();
         var useCase = new CheckInUseCase(recognizer, new BookingQrTokenValidator(), new FakeBookings(), writer,
-            events, TimeProvider.System, new GateConsoleOptions());
+            events, TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher());
 
         var dto = await useCase.ExecuteAsync(new CheckInCommand(2, GateMethod.Manual, " 51f-123.45 "));
 
@@ -38,7 +40,7 @@ public class GateConsoleTests
         var writer = new FakeWriter();
         var events = new FakeGateEvents();
         var useCase = new CheckInUseCase(new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(),
-            writer, events, TimeProvider.System, new GateConsoleOptions());
+            writer, events, TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher());
 
         await useCase.ExecuteAsync(new CheckInCommand(1, GateMethod.BookingCode, "30A-123.45", BookingCode: "bk-0002", StaffUserId: 9));
 
@@ -54,7 +56,7 @@ public class GateConsoleTests
     public async Task CheckIn_qr_without_token_is_rejected()
         => await Assert.ThrowsAsync<ValidationException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(), new FakeWriter(), new FakeGateEvents(),
-            TimeProvider.System, new GateConsoleOptions())
+            TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(1, GateMethod.Qr, "30A-123.45")));
 
     [Fact]
@@ -66,7 +68,7 @@ public class GateConsoleTests
 
         await Assert.ThrowsAsync<ValidationException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(), new FakeWriter(), new FakeGateEvents(),
-            TimeProvider.System, new GateConsoleOptions())
+            TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(1, GateMethod.Qr, "51F-123.45", QrToken: token)));
     }
 
@@ -79,7 +81,7 @@ public class GateConsoleTests
 
         await Assert.ThrowsAsync<ValidationException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(clock), new FakeBookings(), new FakeWriter(), new FakeGateEvents(),
-            clock, new GateConsoleOptions())
+            clock, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(1, GateMethod.Qr, "51F-123.45", QrToken: expired)));
     }
 
@@ -91,7 +93,7 @@ public class GateConsoleTests
 
         await Assert.ThrowsAsync<ValidationException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(), new FakeWriter(), new FakeGateEvents(),
-            TimeProvider.System, new GateConsoleOptions())
+            TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(1, GateMethod.Qr, "51F-123.45", QrToken: token)));
     }
 
@@ -103,7 +105,7 @@ public class GateConsoleTests
         var token = TestQrTokenFactory.Create("bk-20261002-0001", "51F-123.45", 2, DateTime.UtcNow.AddHours(2));
 
         var dto = await new CheckInUseCase(new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(),
-            writer, events, TimeProvider.System, new GateConsoleOptions())
+            writer, events, TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(2, GateMethod.Qr, "51F-123.45", QrToken: token));
 
         // Mã booking PHẢI lấy từ payload đã xác thực (viết hoa chuẩn hoá), không phải từ client.
@@ -135,7 +137,7 @@ public class GateConsoleTests
 
         await Assert.ThrowsAsync<ConflictException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(), bookings, writer, new FakeGateEvents(),
-            TimeProvider.System, new GateConsoleOptions())
+            TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(2, GateMethod.Qr, "51F-123.45", QrToken: token)));
     }
 
@@ -148,7 +150,7 @@ public class GateConsoleTests
         var token = TestQrTokenFactory.Create("BK-20261002-0001", "30A-123.45", 2, DateTime.UtcNow.AddHours(2));
 
         var dto = await new CheckInUseCase(new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(),
-            writer, events, TimeProvider.System, new GateConsoleOptions())
+            writer, events, TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(2, GateMethod.Qr, "51F-123.45", QrToken: token));
 
         Assert.Equal("51F12345", dto.PlateNumber);          // lượt gửi ghi biển số THỰC TẾ
@@ -163,7 +165,7 @@ public class GateConsoleTests
     public async Task CheckIn_ocr_method_is_not_supported_yet()
         => await Assert.ThrowsAsync<ValidationException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(), new FakeWriter(), new FakeGateEvents(),
-            TimeProvider.System, new GateConsoleOptions())
+            TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(1, GateMethod.Ocr, "30A-123.45")));
 
     [Fact]
@@ -178,7 +180,7 @@ public class GateConsoleTests
 
         await Assert.ThrowsAsync<ConflictException>(() => new CheckInUseCase(
             new FakeRecognizer(), new BookingQrTokenValidator(), new FakeBookings(), writer, new FakeGateEvents(),
-            TimeProvider.System, new GateConsoleOptions())
+            TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckInCommand(2, GateMethod.Manual, "51F-123.45")));
     }
 
@@ -194,7 +196,7 @@ public class GateConsoleTests
             EntryAtUtc = now.AddHours(-1).UtcDateTime, CheckInMethod = GateMethod.Manual, Status = ParkingSessionStatus.Active
         });
         var useCase = new CheckOutUseCase(new FakeRecognizer(), new FakeBookings(), new FakeExitFees(), new FakeSettlements(),
-            writer, events, new FixedTimeProvider(now), new GateConsoleOptions());
+            writer, events, new FixedTimeProvider(now), new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher());
 
         var result = await useCase.ExecuteAsync(new CheckOutCommand(2, "51F12345", StaffUserId: 9));
 
@@ -212,6 +214,23 @@ public class GateConsoleTests
     public async Task CheckOut_unknown_plate_is_not_found()
         => await Assert.ThrowsAsync<NotFoundException>(() => new CheckOutUseCase(
             new FakeRecognizer(), new FakeBookings(), new FakeExitFees(), new FakeSettlements(), new FakeWriter(),
-            new FakeGateEvents(), TimeProvider.System, new GateConsoleOptions())
+            new FakeGateEvents(), TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
             .ExecuteAsync(new CheckOutCommand(2, "51F-123.45")));
-}
+
+    /// <summary>US-066: gate luon cho vao - test T-702 goc khong quan tam quota.</summary>
+    private sealed class AlwaysAdmitGate : ILotAdmissionGate
+    {
+        public Task<(bool Admitted, string? RejectReason)> TryAdmitAsync(
+            int parkingLotId, AdmissionType type, CancellationToken cancellationToken = default)
+            => Task.FromResult<(bool Admitted, string? RejectReason)>((true, null));
+
+        public Task ReleaseAsync(int parkingLotId, AdmissionType type, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
+    /// <summary>US-066: publisher im lang (no-op).</summary>
+    private sealed class SilentCapacityPublisher : ILotCapacityRealtimePublisher
+    {
+        public Task PublishCapacityChangedAsync(int parkingLotId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }}

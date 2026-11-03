@@ -1,4 +1,5 @@
 using BookingService.Application.Features.Bookings;
+using BookingService.Application.Features.MonthlyPasses;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingService.Application;
@@ -20,6 +21,8 @@ public static class DependencyInjection
         services.AddScoped<IGateBookingActionsUseCase, GateBookingActionsUseCase>();
         // UC-20: danh sách booking trong ca trực cho Staff App (US-076).
         services.AddScoped<IListGateBookingsUseCase, ListGateBookingsUseCase>();
+        // US-066 (luật 4): đăng ký thuê bao có kiểm tra hạn mức A < Q.
+        services.AddScoped<IRegisterMonthlyPassUseCase, RegisterMonthlyPassUseCase>();
         return services;
     }
 }

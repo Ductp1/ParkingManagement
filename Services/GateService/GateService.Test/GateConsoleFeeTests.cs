@@ -21,7 +21,7 @@ public class GateConsoleFeeTests
     {
         var clock = new FixedTimeProvider(at ?? Now);
         return new CheckInUseCase(recognizer, new BookingQrTokenValidator(clock), bookings, writer, events,
-            clock, options ?? Options);
+            clock, options ?? Options, new AlwaysAdmitLotCapacityGate(), new NoopCapacityPublisher());
     }
 
     // ===== US-044: Check-in Grace Period 15 phút =====
@@ -261,7 +261,8 @@ public class GateConsoleFeeTests
 
     private static CheckOutUseCase NewCheckOut(FakeWriter writer, FakeGateEvents events, FakeBookings bookings,
         FakeExitFees exitFees, FakeSettlements settlements)
-        => new(new FakeRecognizer(), bookings, exitFees, settlements, writer, events, new FixedTimeProvider(Now), Options);
+        => new(new FakeRecognizer(), bookings, exitFees, settlements, writer, events, new FixedTimeProvider(Now), Options,
+            new AlwaysAdmitLotCapacityGate(), new NoopCapacityPublisher());
 
     private sealed class FakeShiftQueries(ShiftDto? openShift) : IShiftQueries
     {

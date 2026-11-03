@@ -1,8 +1,10 @@
 using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateEvents;
+using GateService.Application.Features.LotCapacity;
 using GateService.Application.Features.PlateRecognition;
 using GateService.Domain.Entities;
+using GateService.Domain.Enums;
 using ParkingManagement.SharedKernel.Enums;
 
 namespace GateService.Test;
@@ -163,4 +165,21 @@ public sealed class FakeSessionQueries : IParkingSessionQueries
                                           && x.Status == ParkingSessionStatus.Active);
         return Task.FromResult(s is null ? null : ParkingSessionMapper.ToDto(s, nowUtc));
     }
+}
+
+// ===== US-066: fakes cho admission gate & capacity publisher (luôn cho vào / im lặng) =====
+internal sealed class AlwaysAdmitLotCapacityGate : ILotAdmissionGate
+{
+    public Task<(bool Admitted, string? RejectReason)> TryAdmitAsync(
+        int parkingLotId, AdmissionType type, CancellationToken cancellationToken = default)
+        => Task.FromResult<(bool Admitted, string? RejectReason)>((true, null));
+
+    public Task ReleaseAsync(int parkingLotId, AdmissionType type, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
+}
+
+internal sealed class NoopCapacityPublisher : ILotCapacityRealtimePublisher
+{
+    public Task PublishCapacityChangedAsync(int parkingLotId, CancellationToken cancellationToken = default)
+        => Task.CompletedTask;
 }
