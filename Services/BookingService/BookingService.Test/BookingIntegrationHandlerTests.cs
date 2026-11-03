@@ -89,9 +89,10 @@ public class BookingIntegrationHandlerTests
             await NewHandler(db2, now)
                 .HandleAsync(PaymentEnvelope(120000m), CancellationToken.None);
 
-            var row = Assert.IsType<ParkingManagement.SharedKernel.Domain.OutboxMessage>(db2.OutboxMessages.Single());
-            Assert.Equal(nameof(BookingConfirmed), row.EventType);
-            var confirmed = System.Text.Json.JsonSerializer.Deserialize<BookingConfirmed>(row.PayloadJson);
+            // Handler phát 2 event: BookingConfirmed (xác nhận đặt chỗ US-083) + BookingPaymentCompleted (thông báo thanh toán).
+            Assert.Equal(2, db2.OutboxMessages.Count());
+            var confirmedRow = db2.OutboxMessages.Single(m => m.EventType == nameof(BookingConfirmed));
+            var confirmed = System.Text.Json.JsonSerializer.Deserialize<BookingConfirmed>(confirmedRow.PayloadJson);
             Assert.NotNull(confirmed);
             Assert.Equal(1, confirmed!.BookingId);
             Assert.Equal("BK-US083-0001", confirmed.Code);
@@ -124,7 +125,9 @@ public class BookingIntegrationHandlerTests
             await NewHandler(db2, now)
                 .HandleAsync(PaymentEnvelope(120000m), CancellationToken.None); // KHÔNG được nổ ConflictException
 
-            Assert.Empty(db2.OutboxMessages);
+            // Đã confirm trước đó → KHÔNG phát BookingConfirmed; chỉ có BookingPaymentCompleted (US-083 thông báo nhận tiền trễ).
+            Assert.Single(db2.OutboxMessages);
+            Assert.Equal(nameof(BookingPaymentCompleted), db2.OutboxMessages.Single().EventType);
         }
         finally
         {

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using NotificationService.Application.Features.Ingestion;
 using ParkingManagement.ServiceDefaults.Messaging;
+using ParkingManagement.SharedKernel.Contracts;
 
 namespace NotificationService.Infrastructure.Integrations;
 
@@ -11,17 +13,37 @@ namespace NotificationService.Infrastructure.Integrations;
 /// với mọi thay đổi DB — MassTransit chỉ ack sau commit, redelivery an toàn).
 /// Payload deserialize bằng JsonSerializerDefaults.Web (case-insensitive) nên khớp cả PascalCase của outbox.
 /// </summary>
-public sealed class NotificationIntegrationEventHandler(ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
+public sealed class NotificationIntegrationEventHandler(
+    IBookingConfirmationNotifications bookingConfirmations,
+    ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
-    public Task HandleAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public async Task HandleAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
     {
-        // Foundation (F): đường ống sự kiện được kiểm chứng — queue/subscription/inbox vận hành.
-        // US-083 bổ sung case BookingConfirmed/PaymentSucceeded/PaymentFailed,
-        // US-084 case BookingConfirmed (đặt lịch)/BookingCancelled (hủy lịch)/BookingModified (reschedule),
-        // US-085 case BookingCreated/Cancelled/Modified (báo chủ bãi),
-        // US-086 case LotEmergencyStopped (fan-out đa kênh).
-        logger.LogInformation("Event {EventType} (eventId={EventId}) đến NotificationService — chưa gắn nghiệp vụ, bỏ qua an toàn.",
-            envelope.EventType, envelope.EventId);
-        return Task.CompletedTask;
+        switch (envelope.EventType)
+        {
+            // ===== US-083: xác nhận booking & thanh toán =====
+            case nameof(BookingConfirmed):
+                await bookingConfirmations.HandleBookingConfirmedAsync(
+                    Deserialize<BookingConfirmed>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(BookingPaymentCompleted):
+                await bookingConfirmations.HandleBookingPaymentCompletedAsync(
+                    Deserialize<BookingPaymentCompleted>(envelope), envelope.EventId, cancellationToken);
+                break;
+
+            // US-084 bổ sung: BookingConfirmed (đặt lịch nhắc) / BookingCancelled (hủy lịch) / BookingModified (reschedule).
+            // US-085 bổ sung: BookingCreated/BookingCancelled/BookingModified (báo chủ bãi).
+            // US-086 bổ sung: LotEmergencyStopped (fan-out đa kênh + tracking).
+            default:
+                logger.LogInformation("Event {EventType} (eventId={EventId}) chưa có handler nghiệp vụ — bỏ qua an toàn.",
+                    envelope.EventType, envelope.EventId);
+                break;
+        }
     }
+
+    private static T Deserialize<T>(IntegrationEventEnvelope envelope) where T : class
+        => JsonSerializer.Deserialize<T>(envelope.Payload.GetRawText(), Json)
+           ?? throw new JsonException($"Payload {envelope.EventType} rỗng hoặc sai định dạng.");
 }

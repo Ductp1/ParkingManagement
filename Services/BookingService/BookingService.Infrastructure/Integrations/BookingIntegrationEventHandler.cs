@@ -46,10 +46,10 @@ public sealed class BookingIntegrationEventHandler(
                     cancellationToken);
                 break;
             case nameof(PaymentFailed):
-                var failed = JsonSerializer.Deserialize<PaymentFailed>(envelope.Payload.GetRawText())
-                             ?? throw new JsonException("Payload PaymentFailed rỗng.");
-                logger.LogInformation("PaymentFailed (payment={PaymentId}, booking={BookingId}) — giữ chỗ sẽ hết hạn theo HoldExpiryWorker.",
-                    failed.PaymentId, failed.BookingId);
+                await OnPaymentFailedAsync(
+                    JsonSerializer.Deserialize<PaymentFailed>(envelope.Payload.GetRawText())
+                        ?? throw new JsonException("Payload PaymentFailed rỗng."),
+                    cancellationToken);
                 break;
             default:
                 logger.LogInformation("Event {EventType} không thuộc phạm vi BookingService — bỏ qua.", envelope.EventType);
@@ -80,13 +80,33 @@ public sealed class BookingIntegrationEventHandler(
                 booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
                 booking.ParkingLotName, booking.SlotId, booking.SlotCode, booking.PlateNumber,
                 booking.StartAtUtc, booking.EndAtUtc, booking.TotalAmount));
-            await repository.SaveChangesAsync(cancellationToken);
-            logger.LogInformation("Booking {Code} đã CONFIRMED sau thanh toán {PaymentId}.", booking.Code, payload.PaymentId);
         }
         else
         {
             logger.LogInformation("Booking {Code} ở trạng thái {Status} — bỏ qua PaymentSucceeded (idempotent).",
                 booking.Code, booking.Status);
         }
+
+        // US-083: event làm giàu cho NotificationService (có UserId + BookingCode — event gốc của PaymentService thiếu).
+        events.Enqueue(new BookingPaymentCompleted(
+            payload.PaymentId, booking.Id, booking.Code, booking.UserId,
+            payload.Amount, payload.Method, Succeeded: true, FailureReason: null));
+        await repository.SaveChangesAsync(cancellationToken);
+        logger.LogInformation("Booking {Code}: thanh toán {PaymentId} THÀNH CÔNG → đã phát BookingConfirmed/BookingPaymentCompleted.",
+            booking.Code, payload.PaymentId);
+    }
+
+    private async Task OnPaymentFailedAsync(PaymentFailed payload, CancellationToken cancellationToken)
+    {
+        if (payload.BookingId is null or <= 0) return;
+        var booking = await repository.GetEntityByIdAsync(payload.BookingId.Value, cancellationToken);
+        if (booking is null) return;
+
+        // Không đổi trạng thái (HoldExpiryWorker sẽ hết hạn giữ chỗ 15 phút) — chỉ phát event thông báo thất bại.
+        events.Enqueue(new BookingPaymentCompleted(
+            payload.PaymentId, booking.Id, booking.Code, booking.UserId,
+            booking.TotalAmount, "VNPAY", Succeeded: false, FailureReason: payload.Reason));
+        await repository.SaveChangesAsync(cancellationToken);
+        logger.LogInformation("Booking {Code}: thanh toán {PaymentId} THẤT BẠI.", booking.Code, payload.PaymentId);
     }
 }

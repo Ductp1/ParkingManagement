@@ -53,6 +53,12 @@ public sealed record BookingCompleted(int BookingId, string Code, int ParkingLot
 /// <summary>US-084/US-085: khách đổi giờ/đổi xe/gia hạn → nhắc lịch được reschedule + chủ bãi được báo.</summary>
 public sealed record BookingModified(int BookingId, string Code, int UserId, int ParkingLotId, int OwnerProfileId, string ParkingLotName,
     DateTime StartAtUtc, DateTime EndAtUtc, string ChangedNote) : IntegrationEvent;
+/// <summary>
+/// US-083: kết quả thanh toán CHO BOOKING (BookingService phát sau khi consume PaymentSucceeded/Failed —
+/// event gốc của PaymentService không có UserId/BookingCode, NotificationService cần đủ để render thông báo).
+/// </summary>
+public sealed record BookingPaymentCompleted(int PaymentId, int BookingId, string Code, int UserId,
+    decimal Amount, string Method, bool Succeeded, string? FailureReason) : IntegrationEvent;
 
 // ===== GateService =====
 public sealed record VehicleCheckedIn(int ParkingSessionId, int ParkingLotId, int? BookingId, int? SlotId, string PlateNumber) : IntegrationEvent;

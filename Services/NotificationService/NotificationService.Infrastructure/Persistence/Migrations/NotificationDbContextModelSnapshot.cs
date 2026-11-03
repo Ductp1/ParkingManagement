@@ -272,6 +272,17 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = 3,
+                            BodyTemplate = "Booking {BookingCode} at {LotName} starting {StartAt} has been confirmed.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_CONFIRMED",
+                            Language = "en",
+                            TitleTemplate = "Booking confirmed"
+                        },
+                        new
+                        {
+                            Id = 4,
                             BodyTemplate = "Bạn đã đặt chỗ tại {LotName}, slot {SlotCode}, từ {StartAt} đến {EndAt}. Số tiền: {Amount}.",
                             Channel = "Email",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -282,7 +293,18 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 4,
+                            Id = 5,
+                            BodyTemplate = "Your booking at {LotName}, slot {SlotCode}, from {StartAt} to {EndAt}. Amount: {Amount}.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_CONFIRMED",
+                            Language = "en",
+                            TitleTemplate = "Booking {BookingCode} confirmed"
+                        },
+                        new
+                        {
+                            Id = 6,
                             BodyTemplate = "Booking {BookingCode} đã hết 15 phút giữ chỗ do chưa thanh toán.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -293,7 +315,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 5,
+                            Id = 7,
                             BodyTemplate = "Booking {BookingCode} bắt đầu lúc {StartAt}. Bạn có 15 phút ân hạn khi đến trễ.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -304,7 +326,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 6,
+                            Id = 8,
                             BodyTemplate = "Booking {BookingCode} đã hủy. Hoàn tiền: {RefundAmount}.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -315,7 +337,18 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 7,
+                            Id = 9,
+                            BodyTemplate = "Booking {BookingCode} has been cancelled. Refund: {RefundAmount}.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_CANCELLED",
+                            Language = "en",
+                            TitleTemplate = "Booking cancelled"
+                        },
+                        new
+                        {
+                            Id = 10,
                             BodyTemplate = "Booking {BookingCode} đã bị hủy vì quá 30 phút chưa check-in.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -326,7 +359,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 8,
+                            Id = 11,
                             BodyTemplate = "Xe {PlateNumber} đã vào {LotName} lúc {EntryAt}.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -337,7 +370,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 9,
+                            Id = 12,
                             BodyTemplate = "Xe {PlateNumber} ra lúc {ExitAt}. Tổng phí: {Amount}.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -348,8 +381,30 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 10,
-                            BodyTemplate = "Thanh toán cho {BookingCode} không thành công. Vui lòng thử lại.",
+                            Id = 13,
+                            BodyTemplate = "Đã nhận {Amount} qua {Method}. Cảm ơn bạn!",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "PAYMENT_SUCCEEDED",
+                            Language = "vi",
+                            TitleTemplate = "Thanh toán thành công"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            BodyTemplate = "We received {Amount} via {Method}. Thank you!",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "PAYMENT_SUCCEEDED",
+                            Language = "en",
+                            TitleTemplate = "Payment successful"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            BodyTemplate = "Thanh toán cho booking {BookingCode} không thành công ({Reason}). Vui lòng thử lại trong 15 phút giữ chỗ.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             IsActive = true,
@@ -359,7 +414,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 11,
+                            Id = 16,
                             BodyTemplate = "Bãi {LotName} đã được duyệt và hiển thị trên Smart Parking.",
                             Channel = "Email",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -370,7 +425,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 12,
+                            Id = 17,
                             BodyTemplate = "Hồ sơ bãi {LotName} chưa được duyệt. Lý do: {Reason}.",
                             Channel = "Email",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -381,7 +436,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 13,
+                            Id = 18,
                             BodyTemplate = "Khiếu nại {ComplaintCode} cho bãi {LotName}. Vui lòng phản hồi trong 48 giờ.",
                             Channel = "InApp",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -392,7 +447,7 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         },
                         new
                         {
-                            Id = 14,
+                            Id = 19,
                             BodyTemplate = "Bãi {LotName} tạm đóng. Booking {BookingCode} sẽ được hoàn tiền hoặc đổi bãi.",
                             Channel = "Sms",
                             CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -400,6 +455,204 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             Key = "EMERGENCY_CLOSURE",
                             Language = "vi",
                             TitleTemplate = "Bãi đóng khẩn cấp"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            BodyTemplate = "Lot {LotName} is temporarily closed. Booking {BookingCode} will be refunded or relocated.",
+                            Channel = "Sms",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "en",
+                            TitleTemplate = "Emergency closure"
+                        },
+                        new
+                        {
+                            Id = 21,
+                            BodyTemplate = "Bãi {LotName} tạm đóng khẩn cấp. Lý do: {Reason}. Booking {BookingCode} của bạn bị ảnh hưởng — đội hỗ trợ sẽ liên hệ hoàn tiền hoặc đổi bãi sớm nhất.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "vi",
+                            TitleTemplate = "Bãi đóng khẩn cấp"
+                        },
+                        new
+                        {
+                            Id = 22,
+                            BodyTemplate = "Lot {LotName} is temporarily closed. Reason: {Reason}. Your booking {BookingCode} is affected — support will contact you for a refund or relocation shortly.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "en",
+                            TitleTemplate = "Emergency closure"
+                        },
+                        new
+                        {
+                            Id = 23,
+                            BodyTemplate = "Bãi {LotName} tạm đóng khẩn cấp. Lý do: {Reason}. Booking {BookingCode} của bạn bị ảnh hưởng, chúng tôi sẽ xử lý hoàn tiền/đổi bãi.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "vi",
+                            TitleTemplate = "Bãi {LotName} đóng khẩn cấp – booking {BookingCode}"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            BodyTemplate = "Bãi {LotName} tạm đóng. Booking {BookingCode} bị ảnh hưởng.",
+                            Channel = "Push",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "vi",
+                            TitleTemplate = "Bãi đóng khẩn cấp"
+                        },
+                        new
+                        {
+                            Id = 25,
+                            BodyTemplate = "Booking {BookingCode} tại {LotName}: {StartAt} → {EndAt}.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "OWNER_BOOKING_NEW",
+                            Language = "vi",
+                            TitleTemplate = "Có đặt chỗ mới"
+                        },
+                        new
+                        {
+                            Id = 26,
+                            BodyTemplate = "Booking {BookingCode} tại {LotName} vừa bị hủy. Lý do: {Reason}.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "OWNER_BOOKING_CANCELLED",
+                            Language = "vi",
+                            TitleTemplate = "Booking đã hủy"
+                        },
+                        new
+                        {
+                            Id = 27,
+                            BodyTemplate = "Booking {BookingCode} tại {LotName} đã đổi: {ChangedNote}. Thời gian mới: {StartAt} → {EndAt}.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "OWNER_BOOKING_MODIFIED",
+                            Language = "vi",
+                            TitleTemplate = "Booking thay đổi"
+                        },
+                        new
+                        {
+                            Id = 28,
+                            BodyTemplate = "Bạn có lịch đỗ tại {LotName} lúc {StartAt} (mã {BookingCode}). Xuất phát đúng giờ nhé!",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_REMINDER_ARRIVAL",
+                            Language = "vi",
+                            TitleTemplate = "Nhắc lịch đỗ xe"
+                        },
+                        new
+                        {
+                            Id = 29,
+                            BodyTemplate = "Your parking at {LotName} starts at {StartAt} (booking {BookingCode}).",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_REMINDER_ARRIVAL",
+                            Language = "en",
+                            TitleTemplate = "Parking reminder"
+                        },
+                        new
+                        {
+                            Id = 30,
+                            BodyTemplate = "Bạn có lịch đỗ tại {LotName} lúc {StartAt} (mã {BookingCode}, slot {SlotCode}).",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_REMINDER_ARRIVAL",
+                            Language = "vi",
+                            TitleTemplate = "Nhắc lịch: đỗ xe lúc {StartAt}"
+                        },
+                        new
+                        {
+                            Id = 31,
+                            BodyTemplate = "Lượt đỗ {BookingCode} tại {LotName} kết thúc lúc {EndAt}. Vui lòng xuất xe đúng giờ để tránh phát sinh phí.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_REMINDER_END",
+                            Language = "vi",
+                            TitleTemplate = "Sắp hết giờ đỗ"
+                        },
+                        new
+                        {
+                            Id = 32,
+                            BodyTemplate = "Your parking {BookingCode} at {LotName} ends at {EndAt}. Please check out on time.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_REMINDER_END",
+                            Language = "en",
+                            TitleTemplate = "Parking ending soon"
+                        },
+                        new
+                        {
+                            Id = 33,
+                            BodyTemplate = "Lượt đỗ {BookingCode} tại {LotName} kết thúc lúc {EndAt}.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "BOOKING_REMINDER_END",
+                            Language = "vi",
+                            TitleTemplate = "Sắp hết giờ đỗ – {BookingCode}"
+                        },
+                        new
+                        {
+                            Id = 34,
+                            BodyTemplate = "Bãi {LotName} không nhận tín hiệu từ thiết bị kể từ {LastHeartbeat}. Dashboard đang hiển thị dữ liệu cũ — vui lòng kiểm tra thiết bị.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_DATA_STALE",
+                            Language = "vi",
+                            TitleTemplate = "Dữ liệu bãi không cập nhật"
+                        },
+                        new
+                        {
+                            Id = 35,
+                            BodyTemplate = "Lot {LotName} has received no device heartbeat since {LastHeartbeat}. The dashboard is showing stale data — please check your devices.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_DATA_STALE",
+                            Language = "en",
+                            TitleTemplate = "Stale lot data"
+                        },
+                        new
+                        {
+                            Id = 36,
+                            BodyTemplate = "Bãi {LotName} đã nhận lại tín hiệu lúc {Heartbeat}. Dashboard trở lại chế độ real-time.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_DATA_RECOVERED",
+                            Language = "vi",
+                            TitleTemplate = "Dữ liệu bãi đã phục hồi"
+                        },
+                        new
+                        {
+                            Id = 37,
+                            BodyTemplate = "Lot {LotName} received a heartbeat at {Heartbeat}. The dashboard is back to real-time.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_DATA_RECOVERED",
+                            Language = "en",
+                            TitleTemplate = "Lot data recovered"
                         });
                 });
 

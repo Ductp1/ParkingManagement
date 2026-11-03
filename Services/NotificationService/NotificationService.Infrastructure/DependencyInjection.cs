@@ -69,6 +69,8 @@ public static class DependencyInjection
         // ===== US-083→086 foundation: renderer i18n + settings ngôn ngữ + consumer integration events =====
         services.AddScoped<ITemplateRenderer, DbTemplateRenderer>();
         services.AddScoped<IUserNotificationSettingsPort, UserNotificationSettingsRepository>();
+        services.AddScoped<ITransactionalNotificationSender, DispatcherTransactionalNotificationSender>();
+        services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
         // MassTransit + RabbitMQ: queue "notification.service" nhận event booking/payment/lot theo routing key
         // (= EventType). TransactionalInbox chặn xử lý trùng theo EventId (idempotency US-083).
         services.AddRabbitMqInboxConsumer<NotificationDbContext, NotificationIntegrationEventHandler>(configuration);
