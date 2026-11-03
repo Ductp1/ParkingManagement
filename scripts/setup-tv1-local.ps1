@@ -23,14 +23,15 @@ $existingConfig = if (Test-Path -LiteralPath $configPath) { Get-Content -Literal
 $encryptionKey = $existingConfig.Security.EncryptionKey
 if (-not $encryptionKey) { $encryptionKey = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)) }
 if (-not $OtpDeliveryUrl) { $OtpDeliveryUrl = $existingConfig.Otp.DeliveryUrl }
-if (-not $EventBusUrl) { $EventBusUrl = $existingConfig.EventBus.PublishUrl }
 $existingConfig.Jwt = @{ PublicKeyPath = 'Keys/public.key'; PrivateKeyPath = 'Keys/private.key' }
 if (-not $existingConfig.Security) { $existingConfig.Security = @{} }
 $existingConfig.Security.EncryptionKey = $encryptionKey
 if (-not $existingConfig.Otp) { $existingConfig.Otp = @{} }
 $existingConfig.Otp.DeliveryUrl = $OtpDeliveryUrl
 if (-not $existingConfig.EventBus) { $existingConfig.EventBus = @{} }
-$existingConfig.EventBus.Enabled = $true; $existingConfig.EventBus.PublishUrl = $EventBusUrl
+$existingConfig.EventBus.Enabled = $true
+$existingConfig.EventBus.Remove('PublishUrl') | Out-Null
+$existingConfig.EventBus.Remove('ApiKey') | Out-Null
 $existingConfig | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $configPath -Encoding utf8
 $gatewayPath = Join-Path $gateway 'appsettings.Local.json'
 $gatewayConfig = if (Test-Path -LiteralPath $gatewayPath) { Get-Content -LiteralPath $gatewayPath -Raw | ConvertFrom-Json -AsHashtable } else { @{} }
@@ -38,3 +39,4 @@ $gatewayConfig.Jwt = @{ PublicKeyPath = $publicPath; SessionValidationUrl = 'htt
 $gatewayConfig | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $gatewayPath -Encoding utf8
 Write-Host 'Đã tạo/cập nhật cấu hình local và giữ nguyên khóa mã hóa hiện có. Không đưa file Local/private key vào Git.'
 Write-Host 'OTP cần SMTP hoặc endpoint gửi thực tế. Chạy scripts/configure-otp-email.ps1 để cấu hình SMTP.'
+Write-Host 'Event Bus dùng RabbitMQ. Chạy scripts/setup-rabbitmq-local.ps1 để cấu hình broker local.'

@@ -9,6 +9,7 @@ export interface AuthUser {
   roles?: UserRole[];
   ownerProfileId?: number;
   token?: string;
+  avatarUrl?: string | null;
 }
 
 export interface AuthState {

@@ -18,7 +18,7 @@ export async function verifyRegistration(contact: string, code: string) {
 export async function resendRegistrationOtp(contact: string) {
   await apiClient.post('/api/v1/auth/otp/resend', { contact, purpose: 'Register' });
 }
-interface UserDto { id: number; fullName: string; email?: string; phoneNumber?: string; roles: string[] }
+interface UserDto { id: number; fullName: string; email?: string; phoneNumber?: string; roles: string[]; avatarUrl?: string | null }
 
 function save(tokens: Tokens) {
   sessionStorage.setItem('parkmaster_token', tokens.accessToken);
@@ -34,7 +34,31 @@ export async function currentUser(): Promise<AuthUser> {
     .filter((r): r is UserRole => ['Driver', 'Owner', 'Staff', 'Admin'].includes(r));
   if (!roles.length) throw new Error('Tài khoản chưa có vai trò được hỗ trợ.');
   return { id: data.id, fullName: data.fullName, email: data.email, phone: data.phoneNumber,
-    roles, role: roles[0] };
+    roles, role: roles[0], avatarUrl: data.avatarUrl };
+}
+export async function forgotPassword(contact: string) {
+  await apiClient.post('/api/v1/auth/password/forgot', { contact });
+}
+export async function resetPassword(contact: string, code: string, newPassword: string) {
+  await apiClient.post('/api/v1/auth/password/reset', { contact, code, newPassword });
+}
+export async function updateProfile(fullName: string) {
+  await apiClient.put('/api/v1/users/me', { fullName });
+}
+export async function uploadAvatar(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const { data } = await apiClient.post<{ avatarUrl: string }>('/api/v1/users/me/avatar', form,
+    { headers: { 'Content-Type': undefined } });
+  return data.avatarUrl;
+}
+export async function deleteAvatar() {
+  await apiClient.delete('/api/v1/users/me/avatar');
+}
+export function avatarSource(url?: string | null) {
+  if (!url) return undefined;
+  // Same API URL must work through Vite's proxy and when Gateway is on a separate origin.
+  return url.startsWith('/api/') ? `${(apiClient.defaults.baseURL || '').replace(/\/$/, '')}${url}` : url;
 }
 export async function login(emailOrPhone: string, password: string, captchaToken: string) {
   const { data } = await apiClient.post<Tokens>('/api/v1/auth/login', { emailOrPhone, password, captchaToken });

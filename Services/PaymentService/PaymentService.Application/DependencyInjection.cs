@@ -10,7 +10,13 @@ public static class DependencyInjection
     {
         services.AddScoped<IQuotePriceUseCase, QuotePriceUseCase>();
         services.AddScoped<IGetPaymentsByBookingUseCase, GetPaymentsByBookingUseCase>();
+        // UC-22: chốt phí lượt gửi tại cổng ra + ghi thanh toán tiền mặt do staff xác nhận.
+        services.AddScoped<IComputeSessionFeeUseCase, ComputeSessionFeeUseCase>();
+        services.AddScoped<IRecordGateSettlementUseCase, RecordGateSettlementUseCase>();
         services.AddScoped<ICreateVnpayPaymentUseCase, CreateVnpayPaymentUseCase>();
+        services.AddScoped<ICreateVietQrPaymentUseCase, CreateVietQrPaymentUseCase>();
+        services.AddScoped<IProcessVnpayReturnUseCase, ProcessVnpayReturnUseCase>();
+        services.AddScoped<IProcessVnpayIpnUseCase, ProcessVnpayIpnUseCase>();
         return services;
     }
 }

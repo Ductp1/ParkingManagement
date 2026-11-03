@@ -148,4 +148,31 @@ public class ParkingLot : BaseEntity, ISoftDelete
 
     /// <summary>Chế tài SLA cấp 3 hoặc Emergency Stop.</summary>
     public void Suspend() => Status = ParkingLotStatus.Suspended;
+
+    /// <summary>Tạm khóa niêm yết do khai báo sai (US-056): chỉ Active → Suspended, bãi bị ẩn khỏi tìm kiếm.</summary>
+    public void SuspendListing()
+    {
+        if (Status != ParkingLotStatus.Active)
+            throw new ConflictException($"Chỉ tạm khóa được bãi đang hoạt động (hiện tại: {Status}).");
+        Status = ParkingLotStatus.Suspended;
+    }
+
+    /// <summary>
+    /// Chủ bãi bị cấm vì khai báo gian lận (US-056 AC2): Active / PendingApproval → Suspended vĩnh viễn (không soft-delete, dữ liệu
+    /// giữ lại). Bãi đã Suspended giữ nguyên. Trả true nếu trạng thái thay đổi.
+    /// </summary>
+    public bool SuspendForOwnerBan()
+    {
+        if (Status == ParkingLotStatus.Suspended) return false;
+        Status = ParkingLotStatus.Suspended;
+        return true;
+    }
+
+    /// <summary>Khôi phục bãi sau khi chủ bãi sửa đúng / giải trình hợp lệ (US-056): chỉ Suspended → Active.</summary>
+    public void Reinstate()
+    {
+        if (Status != ParkingLotStatus.Suspended)
+            throw new ConflictException($"Chỉ khôi phục được bãi đang bị tạm khóa (hiện tại: {Status}).");
+        Status = ParkingLotStatus.Active;
+    }
 }

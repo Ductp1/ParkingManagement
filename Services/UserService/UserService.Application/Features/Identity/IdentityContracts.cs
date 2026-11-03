@@ -12,6 +12,7 @@ namespace UserService.Application.Features.Identity;
 public sealed record RegisterRequest(string FullName, string Contact, string Password, UserRoleType Role = UserRoleType.Driver, string? BusinessName = null);
 public sealed record OtpRequest(string Contact, OtpPurpose Purpose = OtpPurpose.Register);
 public sealed record VerifyOtpRequest(string Contact, string Code);
+public sealed record ResetPasswordRequest(string Contact, string Code, string NewPassword);
 
 public interface IIdentityTransaction : IAsyncDisposable { Task CommitAsync(CancellationToken ct); }
 public interface IIdentityStore
