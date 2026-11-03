@@ -7,7 +7,7 @@ public sealed record IntegrationEventEnvelope(Guid EventId, string EventType, Da
 
 public interface IRabbitMqPublisher
 {
-    Task PublishAsync(OutboxMessage message, ReadOnlyMemory<byte> body, CancellationToken ct);
+    Task PublishAsync(IntegrationEventEnvelope envelope, CancellationToken ct);
 }
 
 public sealed class RabbitMqOutboxTransport(IRabbitMqPublisher publisher) : IOutboxTransport
@@ -18,7 +18,6 @@ public sealed class RabbitMqOutboxTransport(IRabbitMqPublisher publisher) : IOut
             throw new ArgumentException("Sự kiện phải có EventId và EventType.");
         using var json = JsonDocument.Parse(message.PayloadJson);
         var envelope = new IntegrationEventEnvelope(message.Id, message.EventType, message.OccurredAtUtc, json.RootElement.Clone());
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(envelope, new JsonSerializerOptions(JsonSerializerDefaults.Web));
-        return publisher.PublishAsync(message, bytes, ct);
+        return publisher.PublishAsync(envelope, ct);
     }
 }

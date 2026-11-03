@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using MassTransit;
 using AdminService.API.Controllers;
 using AdminService.Application.Features.Users;
 using AdminService.Domain.Entities;
@@ -67,11 +68,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
                     ["Jwt:PrivateKeyPath"] = _keys.PrivateKeyPath,
                     ["Database:SeedDemoData"] = "true",
                     ["Captcha:SecretKey"] = "integration-test-secret",
+                    // This UserService host supplies users/sessions; broker delivery is tested separately.
+                    ["EventBus:Enabled"] = "false",
                 }));
             builder.ConfigureServices(services =>
             {
                 services.UseIsolatedDatabase<UserDbContext>(userCs);
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
+                services.AddMassTransitTestHarness();
             });
         });
         using var userHealth = await UserFactory.CreateClient().GetAsync("/health");
