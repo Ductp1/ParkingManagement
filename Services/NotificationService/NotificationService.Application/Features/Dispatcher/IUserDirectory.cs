@@ -12,4 +12,7 @@ public interface IUserDirectory
 
     /// <summary>Số điện thoại người nhận (SMS). Null khi không có.</summary>
     Task<string?> GetPhoneNumberAsync(int userId, CancellationToken cancellationToken = default);
+
+    /// <summary>US-085: ánh xạ OwnerProfileId → UserId (để gửi thông báo cho chủ bãi). Null khi không tìm thấy.</summary>
+    Task<int?> GetOwnerUserIdAsync(int ownerProfileId, CancellationToken cancellationToken = default);
 }

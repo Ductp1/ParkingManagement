@@ -72,6 +72,7 @@ public static class DependencyInjection
         services.AddScoped<IUserNotificationSettingsPort, UserNotificationSettingsRepository>();
         services.AddScoped<ITransactionalNotificationSender, DispatcherTransactionalNotificationSender>();
         services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
+        services.AddScoped<IOwnerBookingNotifications, OwnerBookingNotifications>();
 
         // ===== US-084: nhắc lịch booking (đặt/hủy/reschedule job + worker quét due) =====
         services.Configure<ReminderOptions>(configuration.GetSection(ReminderOptions.SectionName));

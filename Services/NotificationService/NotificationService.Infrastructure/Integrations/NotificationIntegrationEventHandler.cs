@@ -17,6 +17,7 @@ namespace NotificationService.Infrastructure.Integrations;
 public sealed class NotificationIntegrationEventHandler(
     IBookingConfirmationNotifications bookingConfirmations,
     IBookingReminderScheduler reminderScheduler,
+    IOwnerBookingNotifications ownerNotifications,
     ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -25,12 +26,11 @@ public sealed class NotificationIntegrationEventHandler(
     {
         switch (envelope.EventType)
         {
-            // ===== US-083: xác nhận booking & thanh toán =====
+            // ===== US-083 + US-084 + US-085: booking được xác nhận =====
             case nameof(BookingConfirmed):
             {
                 var evt = Deserialize<BookingConfirmed>(envelope);
                 await bookingConfirmations.HandleBookingConfirmedAsync(evt, envelope.EventId, cancellationToken);
-                // ===== US-084: booking được xác nhận → đặt 2 nhắc lịch (trước giờ đến + trước giờ hết hạn)
                 await reminderScheduler.ScheduleForBookingAsync(evt, cancellationToken);
                 break;
             }
@@ -39,17 +39,28 @@ public sealed class NotificationIntegrationEventHandler(
                     Deserialize<BookingPaymentCompleted>(envelope), envelope.EventId, cancellationToken);
                 break;
 
-            // ===== US-084: hủy/đổi booking → hủy hoặc reschedule nhắc lịch =====
+            // ===== US-084 (hủy/reschedule nhắc lịch) + US-085 (báo chủ bãi) =====
             case nameof(BookingCancelled):
-                await reminderScheduler.CancelForBookingAsync(
-                    Deserialize<BookingCancelled>(envelope), cancellationToken);
+            {
+                var evt = Deserialize<BookingCancelled>(envelope);
+                await reminderScheduler.CancelForBookingAsync(evt, cancellationToken);
+                await ownerNotifications.HandleBookingCancelledAsync(evt, envelope.EventId, cancellationToken);
                 break;
+            }
             case nameof(BookingModified):
-                await reminderScheduler.RescheduleForBookingAsync(
-                    Deserialize<BookingModified>(envelope), cancellationToken);
+            {
+                var evt = Deserialize<BookingModified>(envelope);
+                await reminderScheduler.RescheduleForBookingAsync(evt, cancellationToken);
+                await ownerNotifications.HandleBookingModifiedAsync(evt, envelope.EventId, cancellationToken);
+                break;
+            }
+
+            // ===== US-085: booking mới tạo (PendingPayment) → báo chủ bãi =====
+            case nameof(BookingCreated):
+                await ownerNotifications.HandleBookingCreatedAsync(
+                    Deserialize<BookingCreated>(envelope), envelope.EventId, cancellationToken);
                 break;
 
-            // US-085 bổ sung: BookingCreated/BookingCancelled/BookingModified (báo chủ bãi).
             // US-086 bổ sung: LotEmergencyStopped (fan-out đa kênh + tracking).
             default:
                 logger.LogInformation("Event {EventType} (eventId={EventId}) chưa có handler nghiệp vụ — bỏ qua an toàn.",
