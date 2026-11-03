@@ -50,11 +50,15 @@ public class JwtAuthenticationSetupTests
     public void ExistingPublicControllers_DoNotRequireAuthentication()
     {
         var controllers = typeof(ParkingLotsController).Assembly.GetTypes()
-            .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract && !t.Name.StartsWith("Admin", StringComparison.Ordinal))
+            .Where(t => typeof(ControllerBase).IsAssignableFrom(t)
+                     && !t.IsAbstract
+                     && !t.Name.StartsWith("Admin", StringComparison.Ordinal)
+                     && t != typeof(FloorLayoutsController))
             .ToList();
 
         Assert.Contains(typeof(ParkingLotsController), controllers);
         Assert.Contains(typeof(KybApplicationsController), controllers);
+        Assert.Contains(typeof(ParkingLotStructureController), controllers);
         foreach (var controller in controllers)
         {
             Assert.Null(controller.GetCustomAttribute<AuthorizeAttribute>(inherit: true));
@@ -62,6 +66,34 @@ public class JwtAuthenticationSetupTests
                 .Where(m => m.GetCustomAttribute<AuthorizeAttribute>(inherit: true) is not null)
                 .Select(m => m.Name);
             Assert.Empty(protectedActions);
+        }
+    }
+
+    [Fact]
+    public void FloorLayoutsController_GetLayoutIsPublic_AndMutatingActionsRequireAuthorization()
+    {
+        var controller = typeof(FloorLayoutsController);
+        Assert.Null(controller.GetCustomAttribute<AuthorizeAttribute>(inherit: true));
+
+        // Public SVG renderer endpoint for guest drivers and gate kiosks
+        var getLayoutMethod = controller.GetMethod(nameof(FloorLayoutsController.GetLayout));
+        Assert.NotNull(getLayoutMethod);
+        Assert.NotNull(getLayoutMethod.GetCustomAttribute<AllowAnonymousAttribute>());
+
+        // Owner/Admin editor endpoints require authorization
+        string[] protectedActionNames = [
+            nameof(FloorLayoutsController.GetDraft),
+            nameof(FloorLayoutsController.SaveDraft),
+            nameof(FloorLayoutsController.Publish),
+            nameof(FloorLayoutsController.GetVersions),
+            nameof(FloorLayoutsController.GetVersionByNo)
+        ];
+
+        foreach (var actionName in protectedActionNames)
+        {
+            var method = controller.GetMethod(actionName);
+            Assert.NotNull(method);
+            Assert.NotNull(method.GetCustomAttribute<AuthorizeAttribute>(inherit: true));
         }
     }
 }

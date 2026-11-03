@@ -15,6 +15,12 @@ public sealed class LayoutVersionRepository(ParkingDbContext db) : ILayoutVersio
             .OrderByDescending(lv => lv.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public Task<LayoutVersion?> GetLatestDraftByFloorIdAsync(int floorId, CancellationToken cancellationToken = default)
+        => db.LayoutVersions
+            .Where(lv => lv.FloorId == floorId && !lv.IsPublished)
+            .OrderByDescending(lv => lv.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public Task<LayoutVersion?> GetByFloorIdAndVersionAsync(int floorId, int versionNo, CancellationToken cancellationToken = default)
         => db.LayoutVersions.AsNoTracking()
             .FirstOrDefaultAsync(lv => lv.FloorId == floorId && lv.VersionNo == versionNo, cancellationToken);
@@ -44,6 +50,12 @@ public sealed class LayoutVersionRepository(ParkingDbContext db) : ILayoutVersio
     public Task UpdateAsync(LayoutVersion layoutVersion, CancellationToken cancellationToken = default)
     {
         db.LayoutVersions.Update(layoutVersion);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(LayoutVersion layoutVersion, CancellationToken cancellationToken = default)
+    {
+        db.LayoutVersions.Remove(layoutVersion);
         return Task.CompletedTask;
     }
 
