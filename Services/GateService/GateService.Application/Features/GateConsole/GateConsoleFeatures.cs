@@ -1,6 +1,8 @@
-using GateService.Application.Features.GateEvents;
+﻿using GateService.Application.Features.GateEvents;
+using GateService.Application.Features.LotCapacity;
 using GateService.Application.Features.PlateRecognition;
 using GateService.Domain.Entities;
+using GateService.Domain.Enums;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using ParkingManagement.SharedKernel.Rules;
@@ -60,7 +62,8 @@ public interface ICheckInUseCase
 /// </summary>
 public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrTokenValidator qrTokens,
     IGateBookingClient bookings, IParkingSessionWriter writer, IGateEventWriter gateEvents,
-    TimeProvider timeProvider, GateConsoleOptions options) : ICheckInUseCase
+    TimeProvider timeProvider, GateConsoleOptions options,
+    ILotAdmissionGate admissionGate, ILotCapacityRealtimePublisher capacityPublisher) : ICheckInUseCase
 {
     public async Task<ParkingSessionDto> ExecuteAsync(CheckInCommand command, CancellationToken cancellationToken = default)
     {
@@ -112,43 +115,66 @@ public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrT
         if (await writer.FindActiveTrackedAsync(command.ParkingLotId, recognized.PlateNumber, cancellationToken) is not null)
             throw new ConflictException($"Xe {recognized.PlateDisplay} đang có lượt gửi chưa kết thúc tại bãi này.");
 
-        var session = new ParkingSession
-        {
-            Code = $"PS-{now:yyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}",
-            ParkingLotId = command.ParkingLotId,
-            BookingCode = bookingCode,
-            PlateNumber = recognized.PlateNumber,
-            VehicleType = booking is not null && Enum.TryParse<VehicleType>(booking.VehicleType, out var bookedType)
-                ? bookedType
-                : VehicleType.Sedan, // vãng lai: OCR hiện chưa trả loại xe – mặc định Sedan, staff có thể sửa ở luồng ngoại lệ
-            IsWalkIn = bookingCode is null,
-            EntryAtUtc = now,
-            CheckInMethod = command.Method,
-            CheckedInByStaffId = command.StaffUserId,
-            Status = ParkingSessionStatus.Active,
-        };
-        await writer.AddAsync(session, cancellationToken);
+        // US-066 (luật 2-3): nhận chỗ NGUYÊN TỬ trước khi tạo lượt. Vãng lai chịu trần B (và C),
+        // đặt trước/thuê bao chỉ chịu trần C. Update có điều kiện fail (rows = 0) → từ chối.
+        var admissionType = bookingCode is null ? AdmissionType.Transient : AdmissionType.Subscriber;
+        var admission = await admissionGate.TryAdmitAsync(command.ParkingLotId, admissionType, cancellationToken);
+        if (!admission.Admitted)
+            throw new ConflictException(admission.RejectReason == AdmissionRejectReasons.TransientBufferFull
+                ? "Hết vùng đệm vãng lai (V >= B): bãi hiện chỉ nhận xe đặt trước/thuê bao."
+                : "Bãi đã đầy (T >= C): vui lòng chờ có xe ra hoặc liên hệ nhân viên.");
 
-        // Mọi thao tác tay tại cổng phải được ghi GateEvents. Biển thực tế khác biển trên QR (nhân viên
-        // xác nhận cho vào) thì ghi rõ vào note làm bằng chứng đối soát – không chặn check-in.
-        string note;
-        if (bookingCode is null)
-            note = "Khách vãng lai – nhân viên nhập biển số.";
-        else
+        ParkingSession session;
+        try
         {
-            note = bookingPlate is not null && PlateNormalizer.Normalize(bookingPlate) != recognized.PlateNumber
-                ? $"Check-in theo booking {bookingCode} – biển số thực tế {PlateNormalizer.Format(recognized.PlateNumber)} khác biển số trên QR ({PlateNormalizer.Format(bookingPlate)}). Nhân viên xác nhận cho vào, ghi nhận để đối soát."
-                : $"Check-in theo booking {bookingCode}.";
+            session = new ParkingSession
+            {
+                Code = $"PS-{now:yyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}",
+                ParkingLotId = command.ParkingLotId,
+                BookingCode = bookingCode,
+                PlateNumber = recognized.PlateNumber,
+                VehicleType = booking is not null && Enum.TryParse<VehicleType>(booking.VehicleType, out var bookedType)
+                    ? bookedType
+                    : VehicleType.Sedan, // vãng lai: OCR hiện chưa trả loại xe – mặc định Sedan, staff có thể sửa ở luồng ngoại lệ
+                IsWalkIn = bookingCode is null,
+                EntryAtUtc = now,
+                CheckInMethod = command.Method,
+                CheckedInByStaffId = command.StaffUserId,
+                Status = ParkingSessionStatus.Active,
+                AdmissionType = admissionType,
+            };
+            await writer.AddAsync(session, cancellationToken);
 
-            // US-044: ân hạn 15 phút – vẫn cho vào bình thường, phí vẫn tính từ giờ bắt đầu đã đặt (không bù giờ).
-            if (lateMinutes > options.CheckInGracePeriodMinutes)
-                note += $" Đến trễ {lateMinutes} phút – VƯỢT ân hạn {options.CheckInGracePeriodMinutes} phút, nhân viên xác nhận cho vào (theo dõi no-show UC-24).";
-            else if (lateMinutes > 0)
-                note += $" Đến trễ {lateMinutes} phút – trong ân hạn {options.CheckInGracePeriodMinutes} phút (US-044), tính phí từ giờ bắt đầu đã đặt.";
+            // Mọi thao tác tay tại cổng phải được ghi GateEvents. Biển thực tế khác biển trên QR (nhân viên
+            // xác nhận cho vào) thì ghi rõ vào note làm bằng chứng đối soát – không chặn check-in.
+            string note;
+            if (bookingCode is null)
+                note = "Khách vãng lai – nhân viên nhập biển số.";
+            else
+            {
+                note = bookingPlate is not null && PlateNormalizer.Normalize(bookingPlate) != recognized.PlateNumber
+                    ? $"Check-in theo booking {bookingCode} – biển số thực tế {PlateNormalizer.Format(recognized.PlateNumber)} khác biển số trên QR ({PlateNormalizer.Format(bookingPlate)}). Nhân viên xác nhận cho vào, ghi nhận để đối soát."
+                    : $"Check-in theo booking {bookingCode}.";
+
+                // US-044: ân hạn 15 phút – vẫn cho vào bình thường, phí vẫn tính từ giờ bắt đầu đã đặt (không bù giờ).
+                if (lateMinutes > options.CheckInGracePeriodMinutes)
+                    note += $" Đến trễ {lateMinutes} phút – VƯỢT ân hạn {options.CheckInGracePeriodMinutes} phút, nhân viên xác nhận cho vào (theo dõi no-show UC-24).";
+                else if (lateMinutes > 0)
+                    note += $" Đến trễ {lateMinutes} phút – trong ân hạn {options.CheckInGracePeriodMinutes} phút (US-044), tính phí từ giờ bắt đầu đã đặt.";
+            }
+            await gateEvents.WriteAsync(new GateEventDraft(command.ParkingLotId, GateEventType.CheckIn, session.Id,
+                recognized.PlateNumber, command.StaffUserId, note),
+                cancellationToken);
         }
-        await gateEvents.WriteAsync(new GateEventDraft(command.ParkingLotId, GateEventType.CheckIn, session.Id,
-            recognized.PlateNumber, command.StaffUserId, note),
-            cancellationToken);
+        catch
+        {
+            // Tạo lượt thất bại sau khi đã nhận chỗ → trả lại bộ đếm (tránh drift T/V).
+            await admissionGate.ReleaseAsync(command.ParkingLotId, admissionType, cancellationToken);
+            throw;
+        }
+
+        // US-066: publish CapacityChanged (lỗi publish được publisher tự nuốt, không hỏng check-in).
+        await capacityPublisher.PublishCapacityChangedAsync(command.ParkingLotId, cancellationToken);
 
         // Đồng bộ booking → CheckedIn (UC-21). Lỗi hạ tầng → 503; lượt đã được tạo an toàn nhờ
         // unique index + guard phía trên nên thao tác lặp của staff bị chặn 409, không sinh lượt trùng.
@@ -174,7 +200,8 @@ public interface ICheckOutUseCase
 /// </summary>
 public sealed class CheckOutUseCase(IPlateRecognizer plateRecognizer, IGateBookingClient bookings,
     IExitFeeCalculator exitFees, IGateSettlementRecorder settlements, IParkingSessionWriter writer,
-    IGateEventWriter gateEvents, TimeProvider timeProvider, GateConsoleOptions options) : ICheckOutUseCase
+    IGateEventWriter gateEvents, TimeProvider timeProvider, GateConsoleOptions options,
+    ILotAdmissionGate admissionGate, ILotCapacityRealtimePublisher capacityPublisher) : ICheckOutUseCase
 {
     public async Task<CheckOutResultDto> ExecuteAsync(CheckOutCommand command, CancellationToken cancellationToken = default)
     {
@@ -236,6 +263,11 @@ public sealed class CheckOutUseCase(IPlateRecognizer plateRecognizer, IGateBooki
             : null;
         await gateEvents.WriteAsync(new GateEventDraft(command.ParkingLotId, GateEventType.CheckOut, session.Id,
             recognized.PlateNumber, command.StaffUserId, note), cancellationToken);
+
+        // US-066 (luật 6): trừ đúng bộ đếm theo loại đã ghi lúc vào, rồi publish CapacityChanged
+        // (lỗi publish được publisher tự nuốt — không hỏng check-out).
+        await admissionGate.ReleaseAsync(command.ParkingLotId, session.AdmissionType, cancellationToken);
+        await capacityPublisher.PublishCapacityChangedAsync(command.ParkingLotId, cancellationToken);
 
         return new CheckOutResultDto(ParkingSessionMapper.ToDto(session, now), quote, warning);
     }

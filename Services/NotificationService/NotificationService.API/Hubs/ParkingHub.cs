@@ -82,6 +82,14 @@ public sealed class ParkingHub : Hub
         _logger.LogInformation("📊 CAPACITY CHANGED: lotId={LotId}, available={Available}, total={Total}",
             parkingLotId, message.AvailableSlots, message.TotalSlots);
     }
+
+    /// <summary>US-066: broadcast cấu hình sức chứa mới + số chỗ trống tới mọi subscriber của lot.</summary>
+    public async Task BroadcastCapacityConfigChangedAsync(int parkingLotId, CapacityConfigChangedMessage message)
+    {
+        await Clients.Group(LotGroup(parkingLotId)).SendAsync("CapacityChanged", message);
+        _logger.LogInformation("📊 CAPACITY CONFIG CHANGED: lotId={LotId}, C={Capacity}, B={Buffer}, Q={Quota}, version={Version}",
+            parkingLotId, message.Capacity, message.TransientBuffer, message.SubscriberQuota, message.Version);
+    }
 }
 
 /// <summary>DTO cho slot state change message. Module: TV6 (S1-T601).</summary>
@@ -103,4 +111,19 @@ public sealed record CapacityChangeMessage(
     int ReservedSlots,
     bool IsEmergencyMode,
     DateTime UpdatedAtUtc
+);
+
+/// <summary>
+/// US-066: payload CapacityChanged real-time khi admin lưu cấu hình hoặc xe vào/ra,
+/// thuê bao đăng ký/hủy: lotId, C, B, Q, số chỗ trống theo từng kênh, version, timestamp.
+/// </summary>
+public sealed record CapacityConfigChangedMessage(
+    int ParkingLotId,
+    int Capacity,
+    int TransientBuffer,
+    int SubscriberQuota,
+    int AvailableForTransient,
+    int AvailableForSubscriber,
+    long Version,
+    DateTime TimestampUtc
 );

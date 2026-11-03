@@ -2,8 +2,10 @@ using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
 using GateService.Application.Features.GateEvents;
+using GateService.Application.Features.LotCapacity;
 using GateService.Application.Features.PlateRecognition;
 using GateService.Infrastructure.HttpClients;
+using GateService.Infrastructure.Integrations;
 using GateService.Infrastructure.Persistence;
 using GateService.Infrastructure.Persistence.Queries;
 using GateService.Infrastructure.Persistence.Repositories;
@@ -31,6 +33,12 @@ public static class DependencyInjection
         // T-703: GateDevices.
         services.AddScoped<IGateDeviceQueries, GateDeviceQueries>();
         services.AddScoped<IGateDeviceRepository, GateDeviceRepository>();
+        services.AddScoped<IGetGateDevicesUseCase, GetGateDevicesUseCase>();
+        services.AddScoped<IGetGateDeviceByIdUseCase, GetGateDeviceByIdUseCase>();
+        services.AddScoped<ICreateGateDeviceUseCase, CreateGateDeviceUseCase>();
+        services.AddScoped<IUpdateGateDeviceUseCase, UpdateGateDeviceUseCase>();
+        services.AddScoped<IDeleteGateDeviceUseCase, DeleteGateDeviceUseCase>();
+        services.AddScoped<IRecordGateDeviceHeartbeatUseCase, RecordGateDeviceHeartbeatUseCase>();
         // UC-20: đọc ca trực để xác định khung giờ "trong ca".
         services.AddScoped<IShiftQueries, ShiftQueries>();
         // UC-20/UC-21/UC-22: Gate Console gọi BookingService (TV3) và PaymentService (TV4) qua HTTP.
@@ -56,6 +64,15 @@ public static class DependencyInjection
             CheckInGracePeriodMinutes = ParsePositiveInt(configuration["GateConsole:CheckInGracePeriodMinutes"], 15),
             BillingGracePeriodMinutes = ParsePositiveInt(configuration["GateConsole:BillingGracePeriodMinutes"], 15),
         });
+        // US-066: store + cổng vào/ra nguyên tử + publisher/counter HTTP (tự nuốt lỗi).
+        services.AddScoped<ILotCapacityPolicyStore, LotCapacityStore>();
+        services.AddScoped<ILotAdmissionGate, LotAdmissionGate>();
+        services.AddScoped<ILotCapacityRealtimePublisher, NotificationCapacityPublisher>();
+        services.AddScoped<IActiveSubscriberCounter, BookingSubscriberCounter>();
+        services.AddHttpClient<NotificationCapacityPublisher>((_, client) =>
+            client.BaseAddress = new Uri(configuration["NotificationService:BaseUrl"] ?? "http://localhost:5106"));
+        services.AddHttpClient<BookingSubscriberCounter>((_, client) =>
+            client.BaseAddress = new Uri(configuration["BookingService:BaseUrl"] ?? "http://localhost:5104"));
         return services;
     }
 

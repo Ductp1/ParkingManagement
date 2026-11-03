@@ -544,7 +544,7 @@ export const OwnerKybPage: React.FC = () => {
             Hồ sơ Pháp lý & Thẩm định (KYB Portal)
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Thẩm định Cơ sở Bãi đỗ xe (US-054)
+            Thẩm định Cơ sở Bãi đỗ xe
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
             Quy trình thẩm định 4 bước chuẩn hóa để kích hoạt bãi xe mở bán công khai trên sàn thương mại điện tử.
