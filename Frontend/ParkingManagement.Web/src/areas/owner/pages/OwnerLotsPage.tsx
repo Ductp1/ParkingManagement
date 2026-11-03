@@ -7,10 +7,12 @@ import {
   Sparkles,
   RefreshCw,
   FolderTree,
+  Sliders,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
 import { ownerStructureApi } from '@/api/ownerStructureApi';
+import { ownerCapacityApi } from '@/api/ownerCapacityApi';
 import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
 import type {
   ZoneDto,
@@ -21,12 +23,19 @@ import type {
   UpdateFloorRequest,
   ParkingLotHierarchyDto,
 } from '@/types/ownerStructure';
+import type {
+  LotCapacityConfigDto,
+  UpdateLotCapacityConfigRequest,
+} from '@/types/ownerCapacity';
 import { ZoneCard } from '../components/structure/ZoneCard';
 import { ZoneModal } from '../components/structure/ZoneModal';
 import { FloorTable } from '../components/structure/FloorTable';
 import { FloorModal } from '../components/structure/FloorModal';
 import { DeleteConfirmModal } from '../components/structure/DeleteConfirmModal';
 import { RegisterLotModal } from '../components/RegisterLotModal';
+import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
+import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
+import { CapacityConfigSection } from '../components/capacity/CapacityConfigSection';
 
 export const OwnerLotsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,6 +47,17 @@ export const OwnerLotsPage: React.FC = () => {
   const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
   const [loadingLots, setLoadingLots] = useState(true);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
+  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26)
+  const [activeTab, setActiveTab] = useState<'structure' | 'capacity'>(() => {
+    const tabParam = searchParams.get('tab');
+    return tabParam === 'capacity' ? 'capacity' : 'structure';
+  });
+
+  // Cấu hình Sức chứa & Vùng đệm vãng lai (UI-26)
+  const [capacityConfig, setCapacityConfig] = useState<LotCapacityConfigDto | null>(null);
+  const [loadingCapacity, setLoadingCapacity] = useState(false);
+  const [savingCapacity, setSavingCapacity] = useState(false);
 
   // Cấu trúc phân tầng
   const [zones, setZones] = useState<ZoneDto[]>([]);
@@ -156,12 +176,97 @@ export const OwnerLotsPage: React.FC = () => {
     }
   }, []);
 
+  // Tải cấu hình sức chứa
+  const loadCapacityConfig = useCallback(
+    async (lotId: number) => {
+      setLoadingCapacity(true);
+      try {
+        const config = await ownerCapacityApi.getCapacityConfig(lotId, ownerProfileId);
+        setCapacityConfig(config);
+      } catch (err) {
+        console.error('Failed to fetch capacity config, using fallback:', err);
+        const currentLot = lots.find((l) => l.id === lotId);
+        const total = currentLot?.totalSlots || 20;
+        setCapacityConfig({
+          parkingLotId: lotId,
+          parkingLotName: currentLot?.name || 'Bãi đỗ xe',
+          totalSlots: total,
+          walkInBufferPercent: 30,
+          calculatedWalkInBufferSlots: Math.round(total * 0.3),
+          onlineQuota: Math.max(0, total - Math.round(total * 0.3)),
+          maxAllowedOnlineQuota: Math.max(0, total - Math.round(total * 0.3)),
+          onlineLockThreshold: 5,
+          instantBookingPaused: false,
+          integrationTier: 'Manual',
+          isEmergencyStopped: false,
+        });
+      } finally {
+        setLoadingCapacity(false);
+      }
+    },
+    [ownerProfileId, lots]
+  );
+
+  // Đồng bộ searchParams và load dữ liệu khi bãi xe hoặc tab thay đổi
   useEffect(() => {
     if (selectedLotId) {
-      void loadStructureData(selectedLotId);
-      setSearchParams({ lotId: selectedLotId.toString() });
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('lotId', selectedLotId.toString());
+        next.set('tab', activeTab);
+        return next;
+      });
+      if (activeTab === 'structure') {
+        void loadStructureData(selectedLotId);
+      } else {
+        void loadCapacityConfig(selectedLotId);
+      }
     }
-  }, [selectedLotId, loadStructureData, setSearchParams]);
+  }, [selectedLotId, activeTab, loadStructureData, loadCapacityConfig, setSearchParams]);
+
+  const handleTabChange = (tab: 'structure' | 'capacity') => {
+    setActiveTab(tab);
+    if (selectedLotId) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('lotId', selectedLotId.toString());
+        next.set('tab', tab);
+        return next;
+      });
+      if (tab === 'capacity' && capacityConfig?.parkingLotId !== selectedLotId) {
+        void loadCapacityConfig(selectedLotId);
+      } else if (tab === 'structure' && zones.length === 0) {
+        void loadStructureData(selectedLotId);
+      }
+    }
+  };
+
+  // Cập nhật cấu hình sức chứa
+  const handleSaveCapacity = async (payload: UpdateLotCapacityConfigRequest) => {
+    if (!selectedLotId) return;
+    setSavingCapacity(true);
+    try {
+      const updated = await ownerCapacityApi.updateCapacityConfig(selectedLotId, payload);
+      setCapacityConfig(updated);
+      setActionMessage({
+        type: 'success',
+        text: 'Cập nhật cấu hình sức chứa & vùng đệm vãng lai thành công!',
+      });
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string; title?: string } } };
+      const errMsg =
+        apiError?.response?.data?.detail ||
+        apiError?.response?.data?.title ||
+        'Không thể lưu cấu hình sức chứa. Vui lòng kiểm tra lại.';
+      setActionMessage({
+        type: 'error',
+        text: errMsg,
+      });
+      throw err;
+    } finally {
+      setSavingCapacity(false);
+    }
+  };
 
   // 3. Tải danh sách Tầng khi thay đổi Zone đang chọn
   const loadFloorsOfZone = useCallback(async (zoneId: number) => {
@@ -330,14 +435,27 @@ export const OwnerLotsPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-semibold uppercase tracking-wider mb-2">
-            <Building2 size={13} />
-            Hạ tầng & Cấu trúc Phân tầng (US-058)
+            {activeTab === 'structure' ? (
+              <>
+                <Building2 size={13} />
+                Hạ tầng & Cấu trúc Phân tầng (US-058)
+              </>
+            ) : (
+              <>
+                <Sliders size={13} />
+                Sức chứa & Phân bổ Real-time (UI-26)
+              </>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Khai báo Tầng & Khu vực (Zones & Floors)
+            {activeTab === 'structure'
+              ? 'Khai báo Tầng & Khu vực (Zones & Floors)'
+              : 'Cấu hình Sức chứa & Vùng đệm Vãng lai'}
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
-            Thiết lập kiến trúc không gian bãi xe: Phân chia khu vực (tòa nhà / hầm), cao độ tầng và ma trận lưới ô đỗ.
+            {activeTab === 'structure'
+              ? 'Thiết lập kiến trúc không gian bãi xe: Phân chia khu vực (tòa nhà / hầm), cao độ tầng và ma trận lưới ô đỗ.'
+              : 'Quản lý tỷ lệ giữ chỗ cho khách vãng lai, phân bổ hạn ngạch đặt chỗ Online và thiết lập ngưỡng khóa an toàn.'}
           </p>
         </div>
 
@@ -414,126 +532,197 @@ export const OwnerLotsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Thống kê tóm tắt bãi đỗ xe đang chọn */}
+      {/* =====================================================================
+          TAB NAVIGATION SWITCHER (US-058 vs UI-26)
+      ====================================================================== */}
       {selectedLot && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng Khu vực</span>
-            <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
-              <FolderTree size={18} className="text-indigo-600" />
-              <span>{zones.length} Zone</span>
-            </div>
-          </div>
+        <div className="flex items-center gap-2 mt-6 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/70 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => handleTabChange('structure')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'structure'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <FolderTree size={16} />
+            Sơ đồ & Phân tầng (US-058)
+          </button>
 
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng số Tầng</span>
-            <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
-              <Layers size={18} className="text-purple-600" />
-              <span>
-                {hierarchy
-                  ? hierarchy.zones.reduce((sum, z) => sum + z.floors.length, 0)
-                  : floors.length}{' '}
-                Tầng
-              </span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quy mô cơ sở</span>
-            <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
-              <Sparkles size={18} className="text-amber-500" />
-              <span>{selectedLot.totalSlots} ô đỗ</span>
-            </div>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trạng thái bãi</span>
-            <div className="mt-1">
-              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                {selectedLot.status}
-              </span>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={() => handleTabChange('capacity')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'capacity'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Sliders size={16} />
+            Sức chứa & Vùng đệm (UI-26)
+          </button>
         </div>
       )}
 
       {/* =====================================================================
-          2. BỐ CỤC 2 CỘT MASTER-DETAIL (ZONES <-> FLOORS)
+          2. TAB 1 CONTENT: CẤU TRÚC PHÂN TẦNG (ZONES & FLOORS)
       ====================================================================== */}
-      {selectedLot && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
-          {/* CỘT TRÁI (4 cols): Quản lý Khu vực (Zones) */}
-          <div className="lg:col-span-4 space-y-4">
-            <div className="rounded-3xl bg-white border border-slate-200/90 p-5 shadow-xs">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div>
-                  <h2 className="text-sm font-bold text-slate-900">Khu vực (Zones)</h2>
-                  <p className="text-[11px] text-slate-500">Bấm vào khu vực để xem các tầng</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddZone}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <Plus size={14} />
-                  Thêm Zone
-                </button>
+      {selectedLot && activeTab === 'structure' && (
+        <>
+          {/* Thống kê tóm tắt bãi đỗ xe đang chọn */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng Khu vực</span>
+              <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
+                <FolderTree size={18} className="text-indigo-600" />
+                <span>{zones.length} Zone</span>
               </div>
+            </div>
 
-              {/* Danh sách Zone Cards */}
-              <div className="mt-4 space-y-3">
-                {loadingZones ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    <RefreshCw size={18} className="animate-spin mx-auto mb-2 text-indigo-600" />
-                    Đang tải danh sách khu vực…
-                  </div>
-                ) : zones.length === 0 ? (
-                  <div className="p-6 text-center text-slate-400 text-xs">
-                    Chưa có khu vực nào. Hãy nhấn <strong>"+ Thêm Zone"</strong> bên trên.
-                  </div>
-                ) : (
-                  zones.map((zone) => (
-                    <ZoneCard
-                      key={zone.id}
-                      zone={zone}
-                      isSelected={selectedZoneId === zone.id}
-                      floorCount={zoneFloorCounts.get(zone.id) || 0}
-                      onSelect={(z) => setSelectedZoneId(z.id)}
-                      onEdit={handleOpenEditZone}
-                      onDelete={handleDeleteZoneClick}
-                    />
-                  ))
-                )}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng số Tầng</span>
+              <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
+                <Layers size={18} className="text-purple-600" />
+                <span>
+                  {hierarchy
+                    ? hierarchy.zones.reduce((sum, z) => sum + z.floors.length, 0)
+                    : floors.length}{' '}
+                  Tầng
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Quy mô cơ sở</span>
+              <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
+                <Sparkles size={18} className="text-amber-500" />
+                <span>{selectedLot.totalSlots} ô đỗ</span>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Trạng thái bãi</span>
+              <div className="mt-1">
+                <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  {selectedLot.status}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* CỘT PHẢI (8 cols): Quản lý Tầng (Floors) thuộc Zone đang chọn */}
-          <div className="lg:col-span-8">
-            {selectedZone ? (
-              <FloorTable
-                floors={floors}
-                zoneName={`${selectedZone.code} - ${selectedZone.name}`}
-                loading={loadingFloors}
-                onAddFloor={handleOpenAddFloor}
-                onEditFloor={handleOpenEditFloor}
-                onDeleteFloor={handleDeleteFloorClick}
-              />
-            ) : (
-              <div className="rounded-3xl bg-white border border-slate-200/90 p-12 text-center shadow-xs">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
-                  <Layers size={28} />
+          {/* BỐ CỤC 2 CỘT MASTER-DETAIL (ZONES <-> FLOORS) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
+            {/* CỘT TRÁI (4 cols): Quản lý Khu vực (Zones) */}
+            <div className="lg:col-span-4 space-y-4">
+              <div className="rounded-3xl bg-white border border-slate-200/90 p-5 shadow-xs">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">Khu vực (Zones)</h2>
+                    <p className="text-[11px] text-slate-500">Bấm vào khu vực để xem các tầng</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddZone}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    Thêm Zone
+                  </button>
                 </div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Chưa chọn khu vực
-                </h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                  Vui lòng chọn một Khu vực (Zone) ở cột bên trái hoặc bấm "Thêm Zone" để bắt đầu quản lý danh sách tầng.
-                </p>
+
+                {/* Danh sách Zone Cards */}
+                <div className="mt-4 space-y-3">
+                  {loadingZones ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      <RefreshCw size={18} className="animate-spin mx-auto mb-2 text-indigo-600" />
+                      Đang tải danh sách khu vực…
+                    </div>
+                  ) : zones.length === 0 ? (
+                    <div className="p-6 text-center text-slate-400 text-xs">
+                      Chưa có khu vực nào. Hãy nhấn <strong>"+ Thêm Zone"</strong> bên trên.
+                    </div>
+                  ) : (
+                    zones.map((zone) => (
+                      <ZoneCard
+                        key={zone.id}
+                        zone={zone}
+                        isSelected={selectedZoneId === zone.id}
+                        floorCount={zoneFloorCounts.get(zone.id) || 0}
+                        onSelect={(z) => setSelectedZoneId(z.id)}
+                        onEdit={handleOpenEditZone}
+                        onDelete={handleDeleteZoneClick}
+                      />
+                    ))
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+
+            {/* CỘT PHẢI (8 cols): Quản lý Tầng (Floors) thuộc Zone đang chọn */}
+            <div className="lg:col-span-8">
+              {selectedZone ? (
+                <FloorTable
+                  floors={floors}
+                  zoneName={`${selectedZone.code} - ${selectedZone.name}`}
+                  loading={loadingFloors}
+                  onAddFloor={handleOpenAddFloor}
+                  onEditFloor={handleOpenEditFloor}
+                  onDeleteFloor={handleDeleteFloorClick}
+                />
+              ) : (
+                <div className="rounded-3xl bg-white border border-slate-200/90 p-12 text-center shadow-xs">
+                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+                    <Layers size={28} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Chưa chọn khu vực
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
+                    Vui lòng chọn một Khu vực (Zone) ở cột bên trái hoặc bấm "Thêm Zone" để bắt đầu quản lý danh sách tầng.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
+        </>
+      )}
+
+      {/* =====================================================================
+          3. TAB 2 CONTENT: CẤU HÌNH SỨC CHỨA & VÙNG ĐỆM VÃNG LAI (UI-26)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'capacity' && (
+        <div className="mt-6 space-y-6">
+          {loadingCapacity ? (
+            <div className="py-16 text-center text-xs sm:text-sm text-slate-500 bg-white rounded-3xl border border-slate-200/90 shadow-xs">
+              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-indigo-600" />
+              Đang tải cấu hình sức chứa và thông số kỹ thuật bãi đỗ…
+            </div>
+          ) : capacityConfig ? (
+            <>
+              {/* Cảnh báo Dừng khẩn cấp nếu có */}
+              <EmergencyStopAlert
+                isEmergencyStopped={capacityConfig.isEmergencyStopped}
+                emergencyReason={capacityConfig.emergencyReason}
+              />
+
+              {/* 4 Thẻ KPI Tóm Tắt */}
+              <CapacitySummaryCards config={capacityConfig} />
+
+              {/* Bảng điều khiển cấu hình chính với thanh phân bổ động & preset */}
+              <CapacityConfigSection
+                config={capacityConfig}
+                saving={savingCapacity}
+                onSave={handleSaveCapacity}
+                onRefresh={() => loadCapacityConfig(selectedLot.id)}
+              />
+            </>
+          ) : (
+            <div className="p-8 text-center text-slate-400 text-xs bg-white rounded-3xl border border-slate-200">
+              Không tìm thấy cấu hình sức chứa cho bãi xe này.
+            </div>
+          )}
         </div>
       )}
 
