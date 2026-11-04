@@ -1357,16 +1357,16 @@ export const SmartParkingFinderPage: React.FC = () => {
       {/* MODAL CHECKOUT: DỊCH VỤ CỘNG THÊM & PHƯƠNG THỨC THANH TOÁN */}
       {/* ======================================================== */}
       {showCheckoutModal && currentSelectedLot && (
-        <div className="fixed inset-0 z-1000 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto flex flex-col gap-5">
-            {/* Header */}
-            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+        <div className="fixed inset-0 z-1000 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200/90 max-h-[90vh] flex flex-col overflow-hidden">
+            {/* 1. Header (Cố định ở trên) */}
+            <div className="shrink-0 px-5 sm:px-6 py-4 border-b border-slate-100 bg-white flex items-start justify-between gap-3">
               <div>
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-extrabold uppercase tracking-wider mb-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
                   Xác nhận đặt chỗ &amp; Thanh toán
                 </div>
-                <h3 className="text-lg font-extrabold text-slate-900">{currentSelectedLot.name}</h3>
+                <h3 className="text-base sm:text-lg font-extrabold text-slate-900">{currentSelectedLot.name}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Ô đỗ: <strong className="text-blue-600 font-bold">{selectedSlotCode}</strong> • {availableFloors.find((f) => f.id === selectedFloorId)?.name || 'Tầng hầm'} • Giữ chỗ 15 phút
                 </p>
@@ -1374,204 +1374,207 @@ export const SmartParkingFinderPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowCheckoutModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            {/* Xe liên kết ANPR */}
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-blue-600 text-[20px]">directions_car</span>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Xe liên kết nhận diện ANPR</span>
-                  <span className="font-extrabold text-slate-800">
-                    {vehicles.find((v) => v.isDefault)?.plateDisplay || vehicles[0]?.plateDisplay || '51K-889.32'}
-                  </span>
+            {/* 2. Body (Cuộn nội dung mượt mà, viền bo không bị cắt) */}
+            <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-4 space-y-4 text-xs [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200">
+              {/* Xe liên kết ANPR */}
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="material-symbols-outlined text-blue-600 text-[20px]">directions_car</span>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Xe liên kết nhận diện ANPR</span>
+                    <span className="font-extrabold text-slate-800">
+                      {vehicles.find((v) => v.isDefault)?.plateDisplay || vehicles[0]?.plateDisplay || '51K-889.32'}
+                    </span>
+                  </div>
                 </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                  Tự mở barie
+                </span>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                Tự mở barie
-              </span>
-            </div>
 
-            {/* Dịch vụ tiện ích cộng thêm */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-blue-600">tune</span>
-                <span>Dịch vụ tiện ích cộng thêm</span>
-              </span>
+              {/* Dịch vụ tiện ích cộng thêm */}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-blue-600">tune</span>
+                  <span>Dịch vụ tiện ích cộng thêm</span>
+                </span>
 
-              <div className="space-y-2 text-xs">
-                {/* EV Fast-charge */}
-                <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 cursor-pointer border border-slate-200 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={hasEvService}
-                      onChange={(e) => setHasEvService(e.target.checked)}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
-                    />
-                    <div>
-                      <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                        <span>Sạc nhanh xe điện Fast-charge 120kW</span>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-bold">EV</span>
+                <div className="space-y-2">
+                  {/* EV Fast-charge */}
+                  <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 cursor-pointer border border-slate-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={hasEvService}
+                        onChange={(e) => setHasEvService(e.target.checked)}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <span>Sạc nhanh xe điện Fast-charge 120kW</span>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.2 rounded font-bold">EV</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">Tự động kích hoạt nguồn điện tại trụ ô {selectedSlotCode}</p>
                       </div>
-                      <p className="text-[11px] text-slate-500">Tự động kích hoạt nguồn điện tại trụ ô {selectedSlotCode}</p>
                     </div>
-                  </div>
-                  <span className="font-bold text-blue-600 whitespace-nowrap">+50.000 đ</span>
-                </label>
+                    <span className="font-bold text-blue-600 whitespace-nowrap">+50.000 đ</span>
+                  </label>
 
-                {/* Car wash */}
-                <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 cursor-pointer border border-slate-200 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={hasWashService}
-                      onChange={(e) => setHasWashService(e.target.checked)}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
-                    />
-                    <div>
-                      <div className="font-bold text-slate-800">Rửa xe bọt tuyết &amp; Hút bụi nội thất VIP</div>
-                      <p className="text-[11px] text-slate-500">Kỹ thuật viên phục vụ tại chỗ trước giờ nhận xe</p>
+                  {/* Car wash */}
+                  <label className="flex items-center justify-between p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 cursor-pointer border border-slate-200 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={hasWashService}
+                        onChange={(e) => setHasWashService(e.target.checked)}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-800">Rửa xe bọt tuyết &amp; Hút bụi nội thất VIP</div>
+                        <p className="text-[11px] text-slate-500">Kỹ thuật viên phục vụ tại chỗ trước giờ nhận xe</p>
+                      </div>
                     </div>
-                  </div>
-                  <span className="font-bold text-slate-900 whitespace-nowrap">+80.000 đ</span>
-                </label>
+                    <span className="font-bold text-slate-900 whitespace-nowrap">+80.000 đ</span>
+                  </label>
 
-                {/* Insurance */}
-                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 border border-slate-200 opacity-90">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={true}
-                      readOnly
-                      className="w-4 h-4 rounded text-blue-600 border-slate-300 cursor-not-allowed"
-                    />
-                    <div>
-                      <div className="font-bold text-slate-800">Bảo hiểm rủi ro ParkMaster Care</div>
-                      <p className="text-[11px] text-slate-500">Bảo hiểm trầy xước &amp; đền bù 100% trong bãi</p>
+                  {/* Insurance */}
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50/60 border border-slate-200 opacity-90">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        readOnly
+                        className="w-4 h-4 rounded text-blue-600 border-slate-300 cursor-not-allowed"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-800">Bảo hiểm rủi ro ParkMaster Care</div>
+                        <p className="text-[11px] text-slate-500">Bảo hiểm trầy xước &amp; đền bù 100% trong bãi</p>
+                      </div>
                     </div>
+                    <span className="font-bold text-emerald-600 whitespace-nowrap">0 đ (Miễn phí)</span>
                   </div>
-                  <span className="font-bold text-emerald-600 whitespace-nowrap">0 đ (Miễn phí)</span>
                 </div>
               </div>
-            </div>
 
-            {/* Phương thức thanh toán */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-blue-600">credit_card</span>
-                <span>Phương thức thanh toán</span>
-              </span>
+              {/* Phương thức thanh toán */}
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-blue-600">credit_card</span>
+                  <span>Phương thức thanh toán</span>
+                </span>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {/* MoMo / VNPay */}
-                <label
-                  onClick={() => setPaymentMethod('momo')}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    paymentMethod === 'momo'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="pm_method"
-                    checked={paymentMethod === 'momo'}
-                    onChange={() => setPaymentMethod('momo')}
-                    className="w-3.5 h-3.5 text-blue-600"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold block truncate">MoMo / VNPAY QR</span>
-                    <span className="text-[10px] text-slate-400 block">Thanh toán tức thì</span>
-                  </div>
-                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* MoMo / VNPay */}
+                  <label
+                    onClick={() => setPaymentMethod('momo')}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'momo'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm_method"
+                      checked={paymentMethod === 'momo'}
+                      onChange={() => setPaymentMethod('momo')}
+                      className="w-3.5 h-3.5 text-blue-600"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-bold block truncate">MoMo / VNPAY QR</span>
+                      <span className="text-[10px] text-slate-400 block">Thanh toán tức thì</span>
+                    </div>
+                  </label>
 
-                {/* Card */}
-                <label
-                  onClick={() => setPaymentMethod('card')}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    paymentMethod === 'card'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="pm_method"
-                    checked={paymentMethod === 'card'}
-                    onChange={() => setPaymentMethod('card')}
-                    className="w-3.5 h-3.5 text-blue-600"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold block truncate">Thẻ Visa / Master</span>
-                    <span className="text-[10px] text-slate-400 block">Thẻ tín dụng/ghi nợ</span>
-                  </div>
-                </label>
+                  {/* Card */}
+                  <label
+                    onClick={() => setPaymentMethod('card')}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'card'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm_method"
+                      checked={paymentMethod === 'card'}
+                      onChange={() => setPaymentMethod('card')}
+                      className="w-3.5 h-3.5 text-blue-600"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-bold block truncate">Thẻ Visa / Master</span>
+                      <span className="text-[10px] text-slate-400 block">Thẻ tín dụng/ghi nợ</span>
+                    </div>
+                  </label>
 
-                {/* VETC */}
-                <label
-                  onClick={() => setPaymentMethod('etc')}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    paymentMethod === 'etc'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="pm_method"
-                    checked={paymentMethod === 'etc'}
-                    onChange={() => setPaymentMethod('etc')}
-                    className="w-3.5 h-3.5 text-blue-600"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold block truncate">Ví VETC / ePass</span>
-                    <span className="text-[10px] text-slate-400 block">Trừ phí tự động ETC</span>
-                  </div>
-                </label>
+                  {/* VETC */}
+                  <label
+                    onClick={() => setPaymentMethod('etc')}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'etc'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm_method"
+                      checked={paymentMethod === 'etc'}
+                      onChange={() => setPaymentMethod('etc')}
+                      className="w-3.5 h-3.5 text-blue-600"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-bold block truncate">Ví VETC / ePass</span>
+                      <span className="text-[10px] text-slate-400 block">Trừ phí tự động ETC</span>
+                    </div>
+                  </label>
 
-                {/* Gate */}
-                <label
-                  onClick={() => setPaymentMethod('gate')}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                    paymentMethod === 'gate'
-                      ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="pm_method"
-                    checked={paymentMethod === 'gate'}
-                    onChange={() => setPaymentMethod('gate')}
-                    className="w-3.5 h-3.5 text-blue-600"
-                  />
-                  <div className="min-w-0">
-                    <span className="font-bold block truncate">Tại cổng ANPR</span>
-                    <span className="text-[10px] text-slate-400 block">Thanh toán khi ra bãi</span>
-                  </div>
-                </label>
+                  {/* Gate */}
+                  <label
+                    onClick={() => setPaymentMethod('gate')}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'gate'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="pm_method"
+                      checked={paymentMethod === 'gate'}
+                      onChange={() => setPaymentMethod('gate')}
+                      className="w-3.5 h-3.5 text-blue-600"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-bold block truncate">Tại cổng ANPR</span>
+                      <span className="text-[10px] text-slate-400 block">Thanh toán khi ra bãi</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Ghi chú điều phối (Tùy chọn) */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-slate-700">Ghi chú điều phối (Tùy chọn)</label>
+                <input
+                  type="text"
+                  value={bookingNote}
+                  onChange={(e) => setBookingNote(e.target.value)}
+                  placeholder="VD: Xe gầm thấp, cần cắm sạc sớm..."
+                  className="h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:border-blue-600 focus:bg-white transition-all"
+                />
               </div>
             </div>
 
-            {/* Ghi chú điều phối (Tùy chọn) */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700">Ghi chú điều phối (Tùy chọn)</label>
-              <input
-                type="text"
-                value={bookingNote}
-                onChange={(e) => setBookingNote(e.target.value)}
-                placeholder="VD: Xe gầm thấp, cần cắm sạc sớm..."
-                className="h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:border-blue-600 focus:bg-white transition-all"
-              />
-            </div>
-
-            {/* Bảng chi phí & Nút chốt */}
-            <div className="pt-3 border-t border-slate-100 flex flex-col gap-3">
+            {/* 3. Footer (Cố định ở dưới - không bao giờ bị cắt nút) */}
+            <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-100 bg-slate-50/90 flex flex-col gap-3">
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between text-slate-500">
                   <span>Phí giữ chỗ tiêu chuẩn (1 giờ đầu):</span>
@@ -1583,7 +1586,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                     <span className="font-semibold text-blue-700">+{(evFee + washFee).toLocaleString('vi-VN')} đ</span>
                   </div>
                 )}
-                <div className="flex justify-between items-baseline pt-1 border-t border-slate-100">
+                <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
                   <span className="font-extrabold text-slate-900 text-sm">Tổng cộng:</span>
                   <span className="text-xl font-black text-blue-700">{totalAmount.toLocaleString('vi-VN')} đ</span>
                 </div>
@@ -1593,7 +1596,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowCheckoutModal(false)}
-                  className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Hủy bỏ
                 </button>
