@@ -89,6 +89,7 @@ interface SubNavItem {
 const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
   Driver: [
     { label: 'Trang chủ', path: '/driver', icon: 'home' },
+    { label: 'Tìm bãi thông minh', path: '/driver/find-lot', icon: 'near_me' },
     { label: 'Bãi đỗ & Sơ đồ', path: '/driver/parking-lots', icon: 'local_parking' },
     { label: 'Xe của tôi', path: '/driver/vehicles', icon: 'directions_car' },
     { label: 'Xác minh KYC', path: '/driver/kyc', icon: 'verified_user' },

@@ -37,4 +37,29 @@ export interface ParkingLotSearchItemDto {
   ratingAverage?: number;
   ratingCount?: number;
   amenities?: string[];
+  pricePerHour?: number;
+}
+
+export interface LayoutCellDto {
+  x: number;
+  y: number;
+  type: string; // 'slot' | 'road' | 'entry' | 'exit' | 'wall' | 'pillar' | 'empty'
+  code?: string | null;
+  slotType?: string | null;
+  maxVehicleType?: string | null;
+  state?: string | null; // 'Available' | 'Occupied' | 'Reserved' | 'Maintenance'
+  widthCells: number;
+  heightCells: number;
+}
+
+export interface FloorLayoutDto {
+  floorId: number;
+  floorName: string;
+  level: number;
+  versionNo: number;
+  isPublished: boolean;
+  publishedAtUtc?: string | null;
+  columns: number;
+  rows: number;
+  cells: LayoutCellDto[];
 }

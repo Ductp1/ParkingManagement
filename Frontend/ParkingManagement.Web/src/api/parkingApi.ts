@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ParkingLotDto, ParkingLotSearchItemDto } from '@/types/parking';
+import type { ParkingLotDto, ParkingLotSearchItemDto, FloorLayoutDto } from '@/types/parking';
 
 export const parkingApi = {
   /**
@@ -11,7 +11,7 @@ export const parkingApi = {
   },
 
   /**
-   * Tìm kiếm bãi đỗ gần nhất
+   * Tìm kiếm bãi đỗ gần nhất (US-014, US-015, US-016)
    */
   search: async (params: {
     lat: number;
@@ -27,6 +27,30 @@ export const parkingApi = {
     const response = await apiClient.get<ParkingLotSearchItemDto[]>('/api/v1/parking-lots/search', {
       params,
     });
+    return response.data;
+  },
+
+  /**
+   * Lấy sơ đồ ma trận 2D của tầng (T-502, US-020, US-059)
+   */
+  getFloorLayout: async (floorId: number): Promise<FloorLayoutDto> => {
+    const response = await apiClient.get<FloorLayoutDto>(`/api/v1/parking-lots/floors/${floorId}/layout`);
+    return response.data;
+  },
+
+  /**
+   * Lấy danh sách khu vực trong bãi (US-058)
+   */
+  getLotZones: async (lotId: number): Promise<Array<{ id: number; code: string; name: string; isOutdoor: boolean }>> => {
+    const response = await apiClient.get(`/api/v1/parking-lots/${lotId}/zones`);
+    return response.data;
+  },
+
+  /**
+   * Lấy danh sách tầng trong khu vực (US-058)
+   */
+  getZoneFloors: async (zoneId: number): Promise<Array<{ id: number; name: string; level: number; maxHeightCm: number; gridColumns: number; gridRows: number }>> => {
+    const response = await apiClient.get(`/api/v1/parking-lots/zones/${zoneId}/floors`);
     return response.data;
   },
 };
