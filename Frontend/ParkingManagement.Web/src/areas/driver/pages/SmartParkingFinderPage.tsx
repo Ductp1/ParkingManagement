@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { parkingApi } from '@/api/parkingApi';
 import type { ParkingLotSearchItemDto, FloorLayoutDto, LayoutCellDto } from '@/types/parking';
 
@@ -200,6 +202,11 @@ export const SmartParkingFinderPage: React.FC = () => {
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [bookingSuccessCode, setBookingSuccessCode] = useState<string | null>(null);
 
+  // 7. Refs cho Leaflet Map
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+
   // ==========================================
   // LIFECYCLE 1: Fetch danh sách bãi xe theo GPS & Filter
   // ==========================================
@@ -241,7 +248,147 @@ export const SmartParkingFinderPage: React.FC = () => {
   }, [fetchParkingLots]);
 
   // ==========================================
-  // LIFECYCLE 2: Fetch Sơ đồ 2D khi đổi bãi xe hoặc đổi tab
+  // BUSINESS LOGIC: BỘ XẾP HẠNG "CÒN CHỖ > GẦN NHẤT"
+  // ==========================================
+  const rankedLots = useMemo(() => {
+    return [...parkingLots]
+      .filter((lot) => {
+        // Lọc theo từ khóa tìm kiếm điểm đến
+        if (destinationQuery.trim()) {
+          const q = destinationQuery.toLowerCase();
+          const matchName = lot.name.toLowerCase().includes(q);
+          const matchAddress = lot.address.toLowerCase().includes(q);
+          if (!matchName && !matchAddress) return false;
+        }
+        // Lọc trạm sạc EV
+        if (onlyEvCharging) {
+          const hasEv = lot.amenities?.some((a) => a.toLowerCase().includes('sạc') || a.toLowerCase().includes('ev'));
+          if (!hasEv) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        // Rule 1: Bãi còn chỗ xếp trước bãi hết chỗ
+        const aHasSlots = a.availableSlots > 0 ? 1 : 0;
+        const bHasSlots = b.availableSlots > 0 ? 1 : 0;
+        if (aHasSlots !== bHasSlots) {
+          return bHasSlots - aHasSlots;
+        }
+        // Rule 2: Xếp theo khoảng cách gần nhất
+        return a.distanceKm - b.distanceKm;
+      });
+  }, [parkingLots, destinationQuery, onlyEvCharging]);
+
+  // Bãi xe đang được chọn hiện tại
+  const currentSelectedLot = useMemo(() => {
+    return parkingLots.find((l) => l.id === selectedLotId) || parkingLots[0] || FALLBACK_LOTS[0];
+  }, [parkingLots, selectedLotId]);
+
+  // ==========================================
+  // LIFECYCLE 2: TÍCH HỢP BẢN ĐỒ TƯƠNG TÁC THẬT (LEAFLET - CARTO VOYAGER)
+  // ==========================================
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    if (!mapInstanceRef.current) {
+      // Khởi tạo bản đồ với vị trí ban đầu
+      const map = L.map(mapContainerRef.current, {
+        zoomControl: true,
+        attributionControl: false,
+      }).setView([coords.lat, coords.lng], 15);
+
+      // Nguồn Tile CartoDB Voyager sạch 100%, không đường 9 đoạn, hiển thị đường phố chi tiết
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        subdomains: 'abcd',
+      }).addTo(map);
+
+      mapInstanceRef.current = map;
+      markersLayerRef.current = L.layerGroup().addTo(map);
+    }
+  }, [coords.lat, coords.lng]);
+
+  // Vẽ Marker và Lộ trình đường đi mỗi khi đổi bãi hoặc đổi tọa độ GPS
+  useEffect(() => {
+    if (!mapInstanceRef.current || !markersLayerRef.current) return;
+
+    // Xóa marker cũ
+    markersLayerRef.current.clearLayers();
+
+    // 1. Marker vị trí người dùng
+    const userMarkerHtml = `
+      <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+        <div style="width:30px;height:30px;border-radius:50%;background:#2563eb;border:3px solid #ffffff;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">
+          🚗
+        </div>
+        <span style="margin-top:2px;padding:2px 8px;border-radius:12px;background:#0f172a;color:#fff;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);">
+          Bạn ở đây
+        </span>
+      </div>
+    `;
+    const userIcon = L.divIcon({
+      className: 'custom-user-icon',
+      html: userMarkerHtml,
+      iconSize: [0, 0],
+    });
+    L.marker([coords.lat, coords.lng], { icon: userIcon }).addTo(markersLayerRef.current);
+
+    // 2. Marker cho các bãi đỗ xe
+    rankedLots.forEach((lot) => {
+      const isSelected = lot.id === selectedLotId;
+      const isFull = lot.availableSlots === 0;
+      const bg = isSelected ? '#2563eb' : isFull ? '#ef4444' : '#10b981';
+
+      const lotMarkerHtml = `
+        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;">
+          <div style="padding:4px 10px;border-radius:20px;background:${bg};color:#fff;font-size:11px;font-weight:800;border:2px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.25);display:flex;align-items:center;gap:4px;white-space:nowrap;">
+            <span style="font-weight:900;">P</span>
+            <span>${lot.name.replace('Bãi xe ', '').substring(0, 16)}</span>
+            <span style="background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:10px;font-size:10px;">${isFull ? 'Hết' : lot.availableSlots + ' ô'}</span>
+          </div>
+          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${bg};margin-top:-1px;"></div>
+        </div>
+      `;
+      const lotIcon = L.divIcon({
+        className: 'custom-lot-icon',
+        html: lotMarkerHtml,
+        iconSize: [0, 0],
+      });
+
+      const marker = L.marker([lot.latitude, lot.longitude], { icon: lotIcon });
+      marker.on('click', () => setSelectedLotId(lot.id));
+      marker.addTo(markersLayerRef.current!);
+    });
+
+    // 3. Vẽ đường nét đứt dẫn đường từ GPS đến bãi đỗ đang chọn
+    if (currentSelectedLot) {
+      L.polyline([[coords.lat, coords.lng], [currentSelectedLot.latitude, currentSelectedLot.longitude]], {
+        color: '#2563eb',
+        weight: 4,
+        dashArray: '8, 8',
+        opacity: 0.85,
+      }).addTo(markersLayerRef.current);
+
+      // Canh khung hình bao trùm cả vị trí người dùng và bãi xe
+      const bounds = L.latLngBounds([
+        [coords.lat, coords.lng],
+        [currentSelectedLot.latitude, currentSelectedLot.longitude],
+      ]);
+      mapInstanceRef.current.fitBounds(bounds, { padding: [80, 80], maxZoom: 16 });
+    }
+  }, [coords, rankedLots, selectedLotId, currentSelectedLot]);
+
+  // Cập nhật kích thước bản đồ khi chuyển tab
+  useEffect(() => {
+    if (activeViewTab === 'map' && mapInstanceRef.current) {
+      setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 100);
+    }
+  }, [activeViewTab]);
+
+  // ==========================================
+  // LIFECYCLE 3: Fetch Sơ đồ 2D khi đổi bãi xe hoặc đổi tab
   // ==========================================
   useEffect(() => {
     if (activeViewTab !== 'layout2d') return;
@@ -333,43 +480,6 @@ export const SmartParkingFinderPage: React.FC = () => {
     setBookingSuccessCode(mockCode);
     setShowBookingModal(true);
   };
-
-  // ==========================================
-  // BUSINESS LOGIC: BỘ XẾP HẠNG "CÒN CHỖ > GẦN NHẤT"
-  // ==========================================
-  const rankedLots = useMemo(() => {
-    return [...parkingLots]
-      .filter((lot) => {
-        // Lọc theo từ khóa tìm kiếm điểm đến
-        if (destinationQuery.trim()) {
-          const q = destinationQuery.toLowerCase();
-          const matchName = lot.name.toLowerCase().includes(q);
-          const matchAddress = lot.address.toLowerCase().includes(q);
-          if (!matchName && !matchAddress) return false;
-        }
-        // Lọc trạm sạc EV
-        if (onlyEvCharging) {
-          const hasEv = lot.amenities?.some((a) => a.toLowerCase().includes('sạc') || a.toLowerCase().includes('ev'));
-          if (!hasEv) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        // Rule 1: Bãi còn chỗ xếp trước bãi hết chỗ
-        const aHasSlots = a.availableSlots > 0 ? 1 : 0;
-        const bHasSlots = b.availableSlots > 0 ? 1 : 0;
-        if (aHasSlots !== bHasSlots) {
-          return bHasSlots - aHasSlots;
-        }
-        // Rule 2: Xếp theo khoảng cách gần nhất
-        return a.distanceKm - b.distanceKm;
-      });
-  }, [parkingLots, destinationQuery, onlyEvCharging]);
-
-  // Bãi xe đang được chọn hiện tại
-  const currentSelectedLot = useMemo(() => {
-    return parkingLots.find((l) => l.id === selectedLotId) || parkingLots[0] || FALLBACK_LOTS[0];
-  }, [parkingLots, selectedLotId]);
 
   return (
     <div className="flex flex-col md:flex-row w-full h-[calc(100vh-64px)] bg-slate-100 overflow-hidden font-sans text-slate-800 antialiased">
@@ -683,111 +793,48 @@ export const SmartParkingFinderPage: React.FC = () => {
           </div>
         </header>
 
-        {/* Nội dung View 1: Bản đồ & Dẫn đường */}
-        {activeViewTab === 'map' && (
-          <div className="flex-1 relative flex flex-col items-center justify-center p-4 overflow-hidden select-none">
-            {/* Bản đồ Vector Canvas Sạch (Chuẩn pháp lý, không đường tranh chấp) */}
-            <div className="w-full h-full rounded-2xl bg-slate-900 overflow-hidden relative shadow-inner border border-slate-800 flex items-center justify-center">
-              {/* Lưới tọa độ đồ họa giả lập đường phố */}
-              <svg className="w-full h-full opacity-40" viewBox="0 0 1000 600" fill="none">
-                <defs>
-                  <pattern id="city-grid" width="60" height="60" patternUnits="userSpaceOnUse">
-                    <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#334155" strokeWidth="1" />
-                  </pattern>
-                </defs>
-                <rect width="1000" height="600" fill="url(#city-grid)" />
+        {/* Nội dung View 1: Bản đồ & Dẫn đường (Leaflet Map thật 100%) */}
+        <div className={`flex-1 relative flex flex-col p-3 overflow-hidden ${activeViewTab === 'map' ? 'block' : 'hidden'}`}>
+          <div className="w-full h-full rounded-2xl overflow-hidden relative shadow-sm border border-slate-200">
+            {/* Div mount bản đồ Leaflet */}
+            <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-                {/* Các đại lộ chính */}
-                <path d="M 0 300 Q 500 280 1000 320" stroke="#475569" strokeWidth="16" />
-                <path d="M 500 0 Q 480 300 520 600" stroke="#475569" strokeWidth="16" />
-                <path d="M 200 100 L 800 500" stroke="#334155" strokeWidth="8" />
-
-                {/* Đường dẫn đường (Route Polyline) từ vị trí tài xế tới bãi xe */}
-                <path
-                  d="M 350 420 L 500 300 L 680 220"
-                  stroke="#3b82f6"
-                  strokeWidth="4"
-                  strokeDasharray="6 6"
-                  className="animate-pulse"
-                />
-              </svg>
-
-              {/* Marker: Vị trí của tài xế */}
-              <div
-                className="absolute flex flex-col items-center pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
-                style={{ left: '35%', top: '70%' }}
-              >
-                <div className="w-6 h-6 rounded-full bg-blue-600 border-2 border-white shadow-lg flex items-center justify-center text-white animate-bounce">
-                  <span className="material-symbols-outlined text-[14px]">directions_car</span>
+            {/* Floating Action Box (Overlay chỉ đường) */}
+            <div className="absolute bottom-5 left-5 right-5 max-w-lg mx-auto bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-slate-200 z-500">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">{currentSelectedLot.name}</h4>
+                  <p className="text-[11px] text-slate-500">
+                    Khoảng cách: <strong>{currentSelectedLot.distanceKm} km</strong> • Ước tính lái xe: ~{currentSelectedLot.estimatedTravelTimeMinutes} phút
+                  </p>
                 </div>
-                <span className="mt-1 px-2 py-0.5 rounded-full bg-slate-950/90 text-white text-[10px] font-bold backdrop-blur-xs whitespace-nowrap">
-                  Bạn đang ở đây
+                <span className="text-xs font-black text-blue-700">
+                  {(currentSelectedLot.pricePerHour ?? 30000).toLocaleString('vi-VN')} đ/h
                 </span>
               </div>
 
-              {/* Marker: Vị trí bãi đỗ đang chọn */}
-              <div
-                className="absolute flex flex-col items-center cursor-pointer transform -translate-x-1/2 -translate-y-1/2 transition-transform hover:scale-110"
-                style={{ left: '68%', top: '37%' }}
-                onClick={() => setActiveViewTab('layout2d')}
-              >
-                <div className="px-3 py-1 rounded-full bg-emerald-600 text-white font-black text-xs shadow-xl flex items-center gap-1 border-2 border-white">
-                  <span>P</span>
-                  <span>{currentSelectedLot.name.split(' ')[2] || 'Bãi đỗ'}</span>
-                  <span className="text-[10px] bg-emerald-700 px-1.5 py-0.2 rounded-full">
-                    {currentSelectedLot.availableSlots} chỗ
-                  </span>
-                </div>
-                <div className="w-3 h-3 bg-emerald-600 rotate-45 -mt-1.5 border-r border-b border-white"></div>
-              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
+                  className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                >
+                  <span className="material-symbols-outlined text-[16px]">navigation</span>
+                  <span>Mở Google Maps</span>
+                </button>
 
-              {/* Marker phụ: Bãi xe khác xung quanh */}
-              <div
-                className="absolute flex flex-col items-center opacity-70 cursor-pointer transform -translate-x-1/2 -translate-y-1/2"
-                style={{ left: '52%', top: '55%' }}
-              >
-                <div className="px-2 py-0.5 rounded-full bg-slate-700 text-white font-bold text-[10px] flex items-center gap-1">
-                  <span>P Chợ Bến Thành</span>
-                </div>
-              </div>
-
-              {/* Floating Action Box (Overlay chỉ đường) */}
-              <div className="absolute bottom-5 left-5 right-5 max-w-lg mx-auto bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-slate-200">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900">{currentSelectedLot.name}</h4>
-                    <p className="text-[11px] text-slate-500">
-                      Khoảng cách: <strong>{currentSelectedLot.distanceKm} km</strong> • Ước tính lái xe: ~{currentSelectedLot.estimatedTravelTimeMinutes} phút
-                    </p>
-                  </div>
-                  <span className="text-xs font-black text-blue-700">
-                    {(currentSelectedLot.pricePerHour ?? 30000).toLocaleString('vi-VN')} đ/h
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
-                    className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">navigation</span>
-                    <span>Mở Google Maps</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setActiveViewTab('layout2d')}
-                    className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">grid_view</span>
-                    <span>Xem sơ đồ 2D bãi</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveViewTab('layout2d')}
+                  className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                >
+                  <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                  <span>Xem sơ đồ 2D bãi</span>
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Nội dung View 2: Sơ đồ ma trận ô đỗ 2D (Matrix Grid Renderer) */}
         {activeViewTab === 'layout2d' && (
