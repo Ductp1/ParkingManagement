@@ -19,100 +19,15 @@ interface BookingItem {
   reviewed?: boolean;
 }
 
-const INITIAL_BOOKINGS: BookingItem[] = [
-  {
-    id: '1',
-    code: '#PKM-2025-8842',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Landmark 81 Garage',
-    spot: 'Vị trí B-04 • Tầng Hầm B2',
-    timeRange: '14:00 - 18:00 (Bắt đầu sau 3h 30m)',
-    dateLabel: 'Hôm nay',
-    services: ['Sạc nhanh EV 120kW'],
-    totalPrice: 175000,
-    paymentMethod: 'Ví MoMo AutoPay',
-    status: 'upcoming',
-    statusText: 'Sắp diễn ra (Trước hạn 1h)',
-  },
-  {
-    id: '6',
-    code: '#PKM-2025-9901',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Crescent Mall Phú Mỹ Hưng',
-    spot: 'Vị trí P-12 • Tầng Hầm B1',
-    timeRange: '11:15 - 15:15 (Bắt đầu sau 35 phút)',
-    dateLabel: 'Hôm nay',
-    services: ['Đỗ xe tiêu chuẩn'],
-    totalPrice: 100000,
-    paymentMethod: 'Ví MoMo AutoPay',
-    status: 'upcoming',
-    statusText: 'Sắp diễn ra (Cận giờ < 1h)',
-  },
-  {
-    id: '2',
-    code: '#PKM-2025-7621',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Bitexco Financial Tower',
-    spot: 'Vị trí A-15 • Tầng Hầm B1',
-    timeRange: '09:15 - 12:45 (3h 30m)',
-    dateLabel: 'Hôm qua',
-    services: ['Đỗ xe tiêu chuẩn'],
-    totalPrice: 115000,
-    paymentMethod: 'Ví MoMo AutoPay',
-    status: 'completed',
-    statusText: 'Đã hoàn thành',
-  },
-  {
-    id: '3',
-    code: '#PKM-2025-6320',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Saigon Centre / Takashimaya',
-    spot: 'Vị trí C-08 • Tầng Hầm B3',
-    timeRange: '17:00 - 21:00 (4h 00m)',
-    dateLabel: '18/10/2025',
-    services: ['Sạc nhanh EV 120kW', 'Rửa xe bọt tuyết'],
-    totalPrice: 210000,
-    paymentMethod: 'Thẻ Visa **8842',
-    status: 'completed',
-    statusText: 'Đã hoàn thành',
-    reviewed: true,
-    rating: 5,
-  },
-  {
-    id: '4',
-    code: '#PKM-2025-5412',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Sân bay Tân Sơn Nhất (Ga T3 TCP)',
-    spot: 'Vị trí VIP-02 (Tầng 2)',
-    timeRange: '06:00 - 20:00 (3 ngày lưu bãi)',
-    dateLabel: '12/10 - 15/10',
-    services: ['Đỗ dài ngày VIP', 'Camera bảo vệ 24/7'],
-    totalPrice: 450000,
-    paymentMethod: 'Ví VETC AutoPay',
-    status: 'completed',
-    statusText: 'Đã hoàn thành',
-  },
-  {
-    id: '5',
-    code: '#PKM-2025-4109',
-    plate: '51K-889.32',
-    carModel: 'Mercedes EQE SUV',
-    location: 'Vincom Center Đồng Khởi',
-    spot: 'Vị trí B-22 • Tầng Hầm B2',
-    timeRange: 'Hủy lúc 09:30 • Thay đổi lịch trình di chuyển',
-    dateLabel: '05/10/2025',
-    services: ['Đỗ xe tiêu chuẩn'],
-    totalPrice: 0,
-    paymentMethod: 'Đã hoàn 100% (90.000 đ) về Ví ParkMaster',
-    status: 'cancelled',
-    statusText: 'Đã hủy (Hoàn 100%)',
-  },
-];
+const loadSavedBookings = (): BookingItem[] => {
+  try {
+    const raw = localStorage.getItem('parkmaster_driver_bookings');
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // fallback
+  }
+  return [];
+};
 
 const RATING_DESCRIPTIONS: Record<number, string> = {
   1: 'Rất không hài lòng (1 sao)',
@@ -125,7 +40,7 @@ const RATING_DESCRIPTIONS: Record<number, string> = {
 export const BookingHistoryPage: React.FC = () => {
   const navigate = useNavigate();
 
-  const [bookings, setBookings] = useState<BookingItem[]>(INITIAL_BOOKINGS);
+  const [bookings, setBookings] = useState<BookingItem[]>(loadSavedBookings);
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -164,7 +79,6 @@ export const BookingHistoryPage: React.FC = () => {
   const [customReason, setCustomReason] = useState<string>('');
   const [refundMethod, setRefundMethod] = useState<'wallet' | 'original'>('wallet');
   const [isCancelling, setIsCancelling] = useState<boolean>(false);
-  const [cancelPolicyScenario, setCancelPolicyScenario] = useState<'auto' | 'before_1h' | 'after_1h'>('auto');
   const [cancelToast, setCancelToast] = useState<{ title: string; message: string; refundAmount: number } | null>(null);
 
   const availableTags = [
@@ -192,22 +106,24 @@ export const BookingHistoryPage: React.FC = () => {
 
   const handleSubmitFeedback = () => {
     if (!activeFeedbackBooking) return;
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === activeFeedbackBooking.id
-          ? { ...b, reviewed: true, rating: ratingValue }
-          : b
-      )
+    const updated = bookings.map((b) =>
+      b.id === activeFeedbackBooking.id
+        ? { ...b, reviewed: true, rating: ratingValue }
+        : b
     );
+    setBookings(updated);
+    try {
+      localStorage.setItem('parkmaster_driver_bookings', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to save feedback', e);
+    }
     setActiveFeedbackBooking(null);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3500);
   };
 
   // UI-10: Cancellation Calculation
-  const isFullRefund =
-    cancelPolicyScenario === 'before_1h' ||
-    (cancelPolicyScenario === 'auto' && activeCancelBooking?.id !== '6');
+  const isFullRefund = true; // Hủy theo chính sách ParkMaster: hoàn tiền 100% trước giờ hẹn
 
   const originalPrice = activeCancelBooking?.totalPrice || 0;
   const penaltyRate = isFullRefund ? 0 : 0.3;
@@ -216,7 +132,6 @@ export const BookingHistoryPage: React.FC = () => {
 
   const handleOpenCancelModal = (booking: BookingItem) => {
     setActiveCancelBooking(booking);
-    setCancelPolicyScenario('auto');
     setCancelReason('schedule_change');
     setCustomReason('');
     setRefundMethod('wallet');
@@ -244,20 +159,25 @@ export const BookingHistoryPage: React.FC = () => {
         refundMethod === 'wallet' ? 'Ví ParkMaster' : 'tài khoản gốc'
       }`;
 
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === activeCancelBooking.id
-            ? {
-                ...b,
-                status: 'cancelled',
-                statusText: updatedStatusText,
-                totalPrice: penaltyFee,
-                paymentMethod: updatedRefundNote,
-                timeRange: `Hủy lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • ${reasonLabel}`,
-              }
-            : b
-        )
+      const updated = bookings.map((b) =>
+        b.id === activeCancelBooking.id
+          ? {
+              ...b,
+              status: 'cancelled' as const,
+              statusText: updatedStatusText,
+              totalPrice: penaltyFee,
+              paymentMethod: updatedRefundNote,
+              timeRange: `Hủy lúc ${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} • ${reasonLabel}`,
+            }
+          : b
       );
+
+      setBookings(updated);
+      try {
+        localStorage.setItem('parkmaster_driver_bookings', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to save bookings', err);
+      }
 
       setIsCancelling(false);
       setActiveCancelBooking(null);
@@ -437,10 +357,29 @@ export const BookingHistoryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 5. Booking Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+        {/* 5. Booking Table or Empty State */}
+        {bookings.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center flex flex-col items-center justify-center shadow-xs">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+              <span className="material-symbols-outlined text-[32px]">receipt_long</span>
+            </div>
+            <h3 className="text-base font-bold text-slate-800 mb-1">Bạn chưa có lượt đặt chỗ nào</h3>
+            <p className="text-xs text-slate-500 max-w-sm mb-6">
+              Khi bạn đặt chỗ trước tại các bãi đỗ thông minh ParkMaster, toàn bộ vé điện tử và mã QR check-in sẽ được lưu trữ và hiển thị tại đây.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate('/driver/find-lot')}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">near_me</span>
+              <span>Tìm bãi đỗ xe ngay</span>
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="py-3 px-3 sm:px-4">Mã đặt chỗ & Xe</th>
@@ -626,7 +565,7 @@ export const BookingHistoryPage: React.FC = () => {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => navigate('/driver/parking-lots')}
+                                  onClick={() => navigate('/driver/find-lot')}
                                   className="px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 font-bold text-xs transition-colors cursor-pointer"
                                 >
                                   Đặt lại
@@ -643,6 +582,7 @@ export const BookingHistoryPage: React.FC = () => {
             </table>
           </div>
         </div>
+      )}
       </main>
 
       {/* 6. UI-10: CANCELLATION & REFUND MODAL */}
@@ -675,47 +615,6 @@ export const BookingHistoryPage: React.FC = () => {
               >
                 <span className="material-symbols-outlined text-[22px]">close</span>
               </button>
-            </div>
-
-            {/* Test Scenario Switcher */}
-            <div className="p-3 bg-slate-100 rounded-2xl border border-slate-200 flex flex-col gap-2">
-              <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center justify-between">
-                <span>Mô phỏng thời điểm hủy (Demo Test):</span>
-                <span className="text-[10px] text-blue-600 font-semibold">Tự động theo giờ hoặc chọn thủ công</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCancelPolicyScenario('before_1h')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-left border ${
-                    isFullRefund
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                    <span>Trước hạn ≥ 1 Giờ</span>
-                  </div>
-                  <div className="text-[10px] opacity-90 font-normal mt-0.5">Hoàn 100% (Miễn phí hủy)</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setCancelPolicyScenario('after_1h')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-left border ${
-                    !isFullRefund
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px]">warning</span>
-                    <span>Cận giờ &lt; 1 Giờ</span>
-                  </div>
-                  <div className="text-[10px] opacity-90 font-normal mt-0.5">Phí 30% • Hoàn 70%</div>
-                </button>
-              </div>
             </div>
 
             {/* 1-Hour Policy Timeline Indicator */}

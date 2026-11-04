@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useAppSelector } from '@/store';
 import { parkingApi } from '@/api/parkingApi';
 import type {
   ParkingLotSearchItemDto,
@@ -71,6 +72,7 @@ const generateFallbackMatrix = (columns = 12, rows = 6): FloorLayoutDto => {
 
 export const SmartParkingFinderPage: React.FC = () => {
   const navigate = useNavigate();
+  const { vehicles } = useAppSelector((state) => state.vehicle);
 
   // ==========================================
   // STATE MANAGEMENT
@@ -512,9 +514,36 @@ export const SmartParkingFinderPage: React.FC = () => {
   };
 
   const handleConfirmReservation = () => {
-    const mockCode = `PK-${Math.floor(100000 + Math.random() * 900000)}`;
-    setBookingSuccessCode(mockCode);
+    const bookingCode = `#PKM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    setBookingSuccessCode(bookingCode);
     setShowBookingModal(true);
+
+    if (currentSelectedLot) {
+      const activeCar = vehicles.find((v) => v.isDefault) || vehicles[0];
+      const activeFloor = availableFloors.find((f) => f.id === selectedFloorId);
+      const newBooking = {
+        id: String(Date.now()),
+        code: bookingCode,
+        plate: activeCar?.plateDisplay || activeCar?.plateNumber || '51K-889.32',
+        carModel: `${activeCar?.brand || ''} ${activeCar?.model || 'Ô tô'}`.trim() || 'Xe cá nhân',
+        location: currentSelectedLot.name,
+        spot: `Vị trí ${selectedSlotCode || 'Tự do'} • ${activeFloor?.name || 'Tầng hầm'}`,
+        timeRange: `Giữ chỗ 15 phút (Đến lúc ${new Date(Date.now() + 15 * 60000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})`,
+        dateLabel: 'Hôm nay',
+        services: onlyEvCharging ? ['Sạc nhanh EV'] : ['Đỗ xe tiêu chuẩn'],
+        totalPrice: currentSelectedLot.pricePerHour || 30000,
+        paymentMethod: 'Thanh toán tại cổng ANPR',
+        status: 'upcoming' as const,
+        statusText: 'Đang giữ chỗ (15 phút)',
+      };
+
+      try {
+        const existing = JSON.parse(localStorage.getItem('parkmaster_driver_bookings') || '[]');
+        localStorage.setItem('parkmaster_driver_bookings', JSON.stringify([newBooking, ...existing]));
+      } catch (e) {
+        console.error('Failed to save booking to localStorage', e);
+      }
+    }
   };
 
   return (
