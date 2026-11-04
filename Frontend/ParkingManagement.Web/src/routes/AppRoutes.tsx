@@ -7,7 +7,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
-import { DriverHomePage } from '@/areas/driver/pages/DriverHomePage';
 import { VehiclesPage } from '@/areas/driver/pages/VehiclesPage';
 import { LotDetailPage } from '@/areas/driver/pages/LotDetailPage';
 import { OwnerHomePage } from '@/areas/owner/pages/OwnerHomePage';
@@ -40,10 +39,10 @@ export const AppRoutes: React.FC = () => {
         {/* 🚗 1. Driver Portal (/driver/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Driver', 'Admin']} />}>
           <Route path="/driver">
-            <Route index element={<DriverHomePage />} />
+            <Route index element={<Navigate to="/driver/find-lot" replace />} />
             <Route path="find-lot" element={<SmartParkingFinderPage />} />
             <Route path="vehicles" element={<VehiclesPage />} />
-            <Route path="parking-lots" element={<LotDetailPage />} />
+            <Route path="parking-lots" element={<Navigate to="/driver/find-lot" replace />} />
             <Route path="parking-lots/:id" element={<LotDetailPage />} />
             <Route path="history" element={<BookingHistoryPage />} />
             <Route path="support" element={<SupportPage />} />
