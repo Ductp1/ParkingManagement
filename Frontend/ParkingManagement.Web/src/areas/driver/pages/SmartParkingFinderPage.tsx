@@ -54,6 +54,17 @@ const PRESET_LOCATIONS: LocationPreset[] = [
   },
 ];
 
+// Định dạng tên bãi ngắn gọn, tự nhiên, không cắt vụn chữ tiếng Việt
+const formatLotMarkerName = (name: string): string => {
+  return name
+    .replace(/^Bãi xe\s+/i, '')
+    .replace(/^Tòa nhà\s+/i, '')
+    .replace(/^Trung tâm\s+/i, '')
+    .replace(/\s*\(B\d+\)$/i, '')
+    .replace(/\s*\(P\d+\)$/i, '')
+    .trim();
+};
+
 // Fallback bãi xe thật tại TP.HCM (Defensive Fallback nếu API 500 hoặc rỗng)
 const FALLBACK_LOTS: ParkingLotSearchItemDto[] = [
   {
@@ -191,6 +202,7 @@ export const SmartParkingFinderPage: React.FC = () => {
 
   // 4. Khung xem bên phải: Tab 'map' hoặc 'layout2d'
   const [activeViewTab, setActiveViewTab] = useState<'map' | 'layout2d'>('map');
+  const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState<boolean>(false);
 
   // 5. Dữ liệu sơ đồ 2D của bãi đang chọn
   const [floorLayout, setFloorLayout] = useState<FloorLayoutDto | null>(null);
@@ -317,11 +329,13 @@ export const SmartParkingFinderPage: React.FC = () => {
 
     // 1. Marker vị trí người dùng
     const userMarkerHtml = `
-      <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
-        <div style="width:30px;height:30px;border-radius:50%;background:#2563eb;border:3px solid #ffffff;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">
-          🚗
+      <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);font-family:'Be Vietnam Pro',Inter,sans-serif;">
+        <div style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;">
+          <div style="position:relative;width:32px;height:32px;border-radius:50%;background:#1d4ed8;border:2.5px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">
+            🚗
+          </div>
         </div>
-        <span style="margin-top:2px;padding:2px 8px;border-radius:12px;background:#0f172a;color:#fff;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);">
+        <span style="margin-top:3px;padding:2px 8px;border-radius:12px;background:#0f172a;color:#ffffff;font-size:10.5px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);letter-spacing:0.1px;">
           Bạn ở đây
         </span>
       </div>
@@ -331,22 +345,29 @@ export const SmartParkingFinderPage: React.FC = () => {
       html: userMarkerHtml,
       iconSize: [0, 0],
     });
-    L.marker([coords.lat, coords.lng], { icon: userIcon }).addTo(markersLayerRef.current);
+    L.marker([coords.lat, coords.lng], { icon: userIcon, zIndexOffset: 800 }).addTo(markersLayerRef.current);
 
     // 2. Marker cho các bãi đỗ xe
     rankedLots.forEach((lot) => {
       const isSelected = lot.id === selectedLotId;
       const isFull = lot.availableSlots === 0;
-      const bg = isSelected ? '#2563eb' : isFull ? '#ef4444' : '#10b981';
+      const displayName = formatLotMarkerName(lot.name);
+
+      const bg = isSelected ? '#1d4ed8' : isFull ? '#e11d48' : '#059669';
+      const shadowStyle = isSelected
+        ? 'box-shadow: 0 0 0 4px rgba(37,99,235,0.4), 0 8px 18px rgba(0,0,0,0.32); transform: scale(1.08);'
+        : 'box-shadow: 0 3px 10px rgba(0,0,0,0.22);';
 
       const lotMarkerHtml = `
-        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;">
-          <div style="padding:4px 10px;border-radius:20px;background:${bg};color:#fff;font-size:11px;font-weight:800;border:2px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.25);display:flex;align-items:center;gap:4px;white-space:nowrap;">
-            <span style="font-weight:900;">P</span>
-            <span>${lot.name.replace('Bãi xe ', '').substring(0, 16)}</span>
-            <span style="background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:10px;font-size:10px;">${isFull ? 'Hết' : lot.availableSlots + ' ô'}</span>
+        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;font-family:'Be Vietnam Pro',Inter,sans-serif;transition:transform 0.15s ease;">
+          <div style="padding:4px 9px;border-radius:20px;background:${bg};color:#ffffff;font-size:11px;font-weight:700;border:2px solid #ffffff;display:flex;align-items:center;gap:4px;white-space:nowrap;${shadowStyle}">
+            <span style="font-weight:900;font-size:10px;background:rgba(255,255,255,0.25);border-radius:50%;width:17px;height:17px;display:flex;align-items:center;justify-content:center;">P</span>
+            <span style="letter-spacing:-0.1px;">${displayName}</span>
+            <span style="background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;">
+              ${isFull ? 'Hết chỗ' : lot.availableSlots + ' ô'}
+            </span>
           </div>
-          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid ${bg};margin-top:-1px;"></div>
+          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid ${bg};margin-top:-1px;"></div>
         </div>
       `;
       const lotIcon = L.divIcon({
@@ -355,7 +376,10 @@ export const SmartParkingFinderPage: React.FC = () => {
         iconSize: [0, 0],
       });
 
-      const marker = L.marker([lot.latitude, lot.longitude], { icon: lotIcon });
+      const marker = L.marker([lot.latitude, lot.longitude], {
+        icon: lotIcon,
+        zIndexOffset: isSelected ? 1000 : isFull ? 100 : 500,
+      });
       marker.on('click', () => setSelectedLotId(lot.id));
       marker.addTo(markersLayerRef.current!);
     });
@@ -680,6 +704,7 @@ export const SmartParkingFinderPage: React.FC = () => {
               const isSelected = lot.id === selectedLotId;
               const isFull = lot.availableSlots === 0;
               const isAlmostFull = lot.availableSlots > 0 && lot.availableSlots <= 5;
+              const hasEv = lot.amenities?.some((a) => a.toLowerCase().includes('sạc') || a.toLowerCase().includes('ev'));
 
               return (
                 <div
@@ -687,14 +712,19 @@ export const SmartParkingFinderPage: React.FC = () => {
                   onClick={() => setSelectedLotId(lot.id)}
                   className={`p-3 rounded-xl border transition-all cursor-pointer relative bg-white ${
                     isSelected
-                      ? 'border-blue-600 ring-2 ring-blue-500/20 shadow-sm'
+                      ? 'border-blue-600 border-l-4 border-l-blue-600 bg-blue-50/40 ring-1 ring-blue-500/20 shadow-sm'
                       : 'border-slate-200 hover:border-slate-300 hover:shadow-xs'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <h3 className="text-xs font-bold text-slate-900 leading-snug line-clamp-1">
-                      {lot.name}
-                    </h3>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isSelected && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0"></span>
+                      )}
+                      <h3 className="text-xs font-bold text-slate-900 leading-snug truncate">
+                        {lot.name}
+                      </h3>
+                    </div>
                     {isFull ? (
                       <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
                         HẾT CHỖ
@@ -710,20 +740,28 @@ export const SmartParkingFinderPage: React.FC = () => {
                     )}
                   </div>
 
-                  <p className="text-[11px] text-slate-500 line-clamp-1 mb-2.5">
+                  <p className="text-[11px] text-slate-500 line-clamp-1 mb-2">
                     {lot.address}
                   </p>
 
                   <div className="flex items-center justify-between text-[11px] font-medium text-slate-600 pt-2 border-t border-slate-100">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <span className="font-bold text-slate-900 flex items-center gap-0.5">
                         <span className="material-symbols-outlined text-[14px] text-blue-600">near_me</span>
                         {lot.distanceKm < 1
                           ? `${Math.round(lot.distanceKm * 1000)}m`
                           : `${lot.distanceKm.toFixed(1)}km`}
                       </span>
-                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-300">•</span>
                       <span>🚗 ~{lot.estimatedTravelTimeMinutes || Math.max(1, Math.round(lot.distanceKm * 3))} ph</span>
+                      {hasEv && (
+                        <>
+                          <span className="text-slate-300">•</span>
+                          <span className="text-[9.5px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-200 flex items-center">
+                            ⚡ EV
+                          </span>
+                        </>
+                      )}
                     </div>
 
                     <span className="font-extrabold text-blue-700">
@@ -799,39 +837,147 @@ export const SmartParkingFinderPage: React.FC = () => {
             {/* Div mount bản đồ Leaflet */}
             <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-            {/* Floating Action Box (Overlay chỉ đường) */}
-            <div className="absolute bottom-5 left-5 right-5 max-w-lg mx-auto bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-slate-200 z-500">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-900">{currentSelectedLot.name}</h4>
-                  <p className="text-[11px] text-slate-500">
-                    Khoảng cách: <strong>{currentSelectedLot.distanceKm} km</strong> • Ước tính lái xe: ~{currentSelectedLot.estimatedTravelTimeMinutes} phút
-                  </p>
+            {/* Quick Map Controls (Nút tiện ích góc trên bên phải) */}
+            <div className="absolute top-3 right-3 z-500 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (mapInstanceRef.current) {
+                    mapInstanceRef.current.setView([coords.lat, coords.lng], 16, { animate: true });
+                  }
+                }}
+                title="Quay lại vị trí của bạn"
+                className="w-9 h-9 bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200 flex items-center justify-center text-slate-700 hover:text-blue-600 hover:bg-white transition-all active:scale-95 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[19px]">my_location</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (mapInstanceRef.current && currentSelectedLot) {
+                    const bounds = L.latLngBounds([
+                      [coords.lat, coords.lng],
+                      [currentSelectedLot.latitude, currentSelectedLot.longitude],
+                    ]);
+                    mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 });
+                  }
+                }}
+                title="Xem toàn bộ cung đường đi"
+                className="w-9 h-9 bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200 flex items-center justify-center text-slate-700 hover:text-blue-600 hover:bg-white transition-all active:scale-95 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[19px]">route</span>
+              </button>
+            </div>
+
+            {/* Floating Action Box (Overlay chỉ đường & Chi tiết bãi) */}
+            <div className="absolute bottom-4 left-4 right-4 md:left-6 md:right-auto md:w-[460px] z-500 transition-all duration-200">
+              {isBottomCardCollapsed ? (
+                // Thanh trạng thái thu nhỏ gọn gàng, không che khuất các bãi bên dưới
+                <div className="bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-xl border border-slate-200/90 flex items-center justify-between gap-3">
+                  <div
+                    className="flex items-center gap-2.5 min-w-0 cursor-pointer"
+                    onClick={() => setIsBottomCardCollapsed(false)}
+                  >
+                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0">
+                      P
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-slate-900 truncate">
+                        {formatLotMarkerName(currentSelectedLot.name)}
+                      </p>
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                        <span className="text-blue-600 font-semibold">{currentSelectedLot.distanceKm} km</span>
+                        <span>•</span>
+                        <span className="text-emerald-700 font-semibold">{currentSelectedLot.availableSlots} chỗ trống</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
+                      className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs cursor-pointer active:scale-95"
+                      title="Chỉ đường trên Google Maps"
+                    >
+                      <span className="material-symbols-outlined text-[17px]">navigation</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsBottomCardCollapsed(false)}
+                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all cursor-pointer active:scale-95"
+                      title="Mở rộng chi tiết"
+                    >
+                      <span className="material-symbols-outlined text-[17px]">expand_less</span>
+                    </button>
+                  </div>
                 </div>
-                <span className="text-xs font-black text-blue-700">
-                  {(currentSelectedLot.pricePerHour ?? 30000).toLocaleString('vi-VN')} đ/h
-                </span>
-              </div>
+              ) : (
+                // Hộp chi tiết đầy đủ với nút thu nhỏ
+                <div className="bg-white/95 backdrop-blur-md rounded-2xl p-4 shadow-xl border border-slate-200/90">
+                  <div className="flex items-start justify-between gap-2 mb-2.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h4 className="text-xs font-bold text-slate-900 truncate">
+                          {currentSelectedLot.name}
+                        </h4>
+                        {currentSelectedLot.amenities?.some((a) => a.toLowerCase().includes('sạc') || a.toLowerCase().includes('ev')) && (
+                          <span className="px-1.5 py-0.2 text-[9.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded-md shrink-0 flex items-center gap-0.5">
+                            ⚡ EV
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 line-clamp-1">
+                        {currentSelectedLot.address}
+                      </p>
+                      <div className="flex items-center gap-2.5 mt-1.5 text-[11px]">
+                        <span className="font-bold text-slate-800 flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[14px] text-blue-600">near_me</span>
+                          {currentSelectedLot.distanceKm} km
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="text-slate-600 flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[14px] text-slate-500">directions_car</span>
+                          ~{currentSelectedLot.estimatedTravelTimeMinutes} phút
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="font-extrabold text-blue-700">
+                          {(currentSelectedLot.pricePerHour ?? 30000).toLocaleString('vi-VN')} đ/h
+                        </span>
+                      </div>
+                    </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
-                  className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
-                >
-                  <span className="material-symbols-outlined text-[16px]">navigation</span>
-                  <span>Mở Google Maps</span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsBottomCardCollapsed(true)}
+                      className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
+                      title="Thu nhỏ để xem trọn bản đồ"
+                    >
+                      <span className="material-symbols-outlined text-[19px]">expand_more</span>
+                    </button>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => setActiveViewTab('layout2d')}
-                  className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
-                >
-                  <span className="material-symbols-outlined text-[16px]">grid_view</span>
-                  <span>Xem sơ đồ 2D bãi</span>
-                </button>
-              </div>
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
+                      className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">navigation</span>
+                      <span>Mở Google Maps</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveViewTab('layout2d')}
+                      className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                      <span>Xem sơ đồ 2D bãi</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
