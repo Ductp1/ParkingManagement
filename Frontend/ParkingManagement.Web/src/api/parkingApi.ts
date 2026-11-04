@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ParkingLotDto, ParkingLotSearchItemDto, FloorLayoutDto } from '@/types/parking';
+import type { ParkingLotDto, ParkingLotSearchItemDto, FloorLayoutDto, ParkingLotHierarchyDto } from '@/types/parking';
 
 export const parkingApi = {
   /**
@@ -27,6 +27,14 @@ export const parkingApi = {
     const response = await apiClient.get<ParkingLotSearchItemDto[]>('/api/v1/parking-lots/search', {
       params,
     });
+    return response.data;
+  },
+
+  /**
+   * Lấy cây cấu trúc toàn bộ bãi đỗ: Lot -> Zone -> Floor -> Slot (Hợp đồng API số 4)
+   */
+  getLotHierarchy: async (lotId: number): Promise<ParkingLotHierarchyDto> => {
+    const response = await apiClient.get<ParkingLotHierarchyDto>(`/api/v1/parking-lots/${lotId}/hierarchy`);
     return response.data;
   },
 
