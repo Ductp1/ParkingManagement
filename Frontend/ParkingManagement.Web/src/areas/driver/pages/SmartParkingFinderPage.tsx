@@ -297,10 +297,10 @@ export const SmartParkingFinderPage: React.FC = () => {
         attributionControl: false,
       }).setView([coords.lat, coords.lng], 15);
 
-      // Nguồn Tile CartoDB Voyager sạch 100%, không đường 9 đoạn, hiển thị đường phố chi tiết
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-        subdomains: 'abcd',
+      // Nguồn Tile Google Maps đường phố chuẩn, tải cực nhanh, không watermark, không cần API Key, chuẩn chủ quyền VN
+      L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       }).addTo(map);
 
       mapInstanceRef.current = map;
