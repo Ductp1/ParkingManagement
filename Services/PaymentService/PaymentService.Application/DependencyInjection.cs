@@ -21,6 +21,8 @@ public static class DependencyInjection
         services.AddScoped<ICalculateOverstayPenaltyUseCase, CalculateOverstayPenaltyUseCase>();
         // US-034: Hoàn tiền tự động khi đã trừ tiền nhưng booking thất bại
         services.AddScoped<IProcessAutoRefundUseCase, ProcessAutoRefundUseCase>();
+        // US-041: Chủ bãi chủ động hoàn tiền khi lỗi tại bãi
+        services.AddScoped<IProcessOwnerRefundUseCase, ProcessOwnerRefundUseCase>();
         // US-070 & US-071: Quản lý biểu giá và phụ thu
         services.AddScoped<ICreateRateCardUseCase, CreateRateCardUseCase>();
         services.AddScoped<IGetRateCardsByLotUseCase, GetRateCardsByLotUseCase>();
