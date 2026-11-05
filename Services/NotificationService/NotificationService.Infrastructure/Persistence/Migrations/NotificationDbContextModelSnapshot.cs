@@ -69,6 +69,60 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                     b.ToTable("DeviceTokens", (string)null);
                 });
 
+            modelBuilder.Entity("NotificationService.Domain.Entities.EmergencyAlert", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BatchKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LotName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("StoppedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("StoppedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalRecipients")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchKey")
+                        .IsUnique();
+
+                    b.HasIndex("ParkingLotId", "CreatedAtUtc");
+
+                    b.ToTable("EmergencyAlerts", (string)null);
+                });
+
             modelBuilder.Entity("NotificationService.Domain.Entities.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -76,6 +130,10 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BatchKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("Body")
                         .IsRequired()
@@ -95,8 +153,8 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb");
 
                     b.Property<string>("DedupeKey")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<bool>("IsRead")
                         .HasColumnType("boolean");
@@ -139,6 +197,8 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BatchKey");
 
                     b.HasIndex("DedupeKey")
                         .IsUnique()
@@ -653,6 +713,138 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             Key = "LOT_DATA_RECOVERED",
                             Language = "en",
                             TitleTemplate = "Lot data recovered"
+                        },
+                        new
+                        {
+                            Id = 38,
+                            BodyTemplate = "Bãi {LotName} không nhận heartbeat kể từ {LastHeartbeat}. Dashboard đang hiển thị dữ liệu cũ (US-068) — vui lòng kiểm tra thiết bị/controller của bãi.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_DATA_STALE",
+                            Language = "vi",
+                            TitleTemplate = "Cảnh báo: bãi {LotName} mất tín hiệu thiết bị"
+                        },
+                        new
+                        {
+                            Id = 39,
+                            BodyTemplate = "Lot {LotName} received no heartbeat since {LastHeartbeat}. The dashboard is showing stale data (US-068) — please check your devices/controllers.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_DATA_STALE",
+                            Language = "en",
+                            TitleTemplate = "Alert: lot {LotName} lost device heartbeat"
+                        },
+                        new
+                        {
+                            Id = 40,
+                            BodyTemplate = "Lot {LotName} is temporarily closed. Reason: {Reason}. Your booking {BookingCode} is affected — we will process a refund or relocation.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "en",
+                            TitleTemplate = "Emergency closure at {LotName} – booking {BookingCode}"
+                        },
+                        new
+                        {
+                            Id = 41,
+                            BodyTemplate = "Lot {LotName} is temporarily closed. Booking {BookingCode} is affected.",
+                            Channel = "Push",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE",
+                            Language = "en",
+                            TitleTemplate = "Emergency closure"
+                        },
+                        new
+                        {
+                            Id = 42,
+                            BodyTemplate = "Bãi {LotName} đã ĐÓNG khẩn cấp lúc {StoppedAt}. Lý do: {Reason}. {Count} booking bị ảnh hưởng đã được thông báo đa kênh.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE_OWNER",
+                            Language = "vi",
+                            TitleTemplate = "Bạn đã đóng bãi khẩn cấp"
+                        },
+                        new
+                        {
+                            Id = 43,
+                            BodyTemplate = "Lot {LotName} was emergency-stopped at {StoppedAt}. Reason: {Reason}. {Count} affected bookings have been notified across channels.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE_OWNER",
+                            Language = "en",
+                            TitleTemplate = "Emergency stop triggered"
+                        },
+                        new
+                        {
+                            Id = 44,
+                            BodyTemplate = "Bãi {LotName} đã ĐÓNG khẩn cấp lúc {StoppedAt}. Lý do: {Reason}. {Count} booking bị ảnh hưởng — khách đã nhận thông báo đa kênh (push/SMS/email/in-app). Booking mới bị chặn cho đến khi mở lại bãi.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE_OWNER",
+                            Language = "vi",
+                            TitleTemplate = "[KHẨN] Bãi {LotName} đã đóng khẩn cấp"
+                        },
+                        new
+                        {
+                            Id = 45,
+                            BodyTemplate = "Lot {LotName} was emergency-stopped at {StoppedAt}. Reason: {Reason}. {Count} affected bookings were notified across channels (push/SMS/email/in-app). New bookings are blocked until you lift the closure.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "EMERGENCY_CLOSURE_OWNER",
+                            Language = "en",
+                            TitleTemplate = "[URGENT] Lot {LotName} emergency-stopped"
+                        },
+                        new
+                        {
+                            Id = 46,
+                            BodyTemplate = "Bãi {LotName} đã MỞ lại lúc {ReopenedAt}. Đặt chỗ và check-in hoạt động bình thường.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_REOPENED",
+                            Language = "vi",
+                            TitleTemplate = "Bãi đã mở lại"
+                        },
+                        new
+                        {
+                            Id = 47,
+                            BodyTemplate = "Lot {LotName} reopened at {ReopenedAt}. Bookings and check-ins are working normally.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_REOPENED",
+                            Language = "en",
+                            TitleTemplate = "Lot reopened"
+                        },
+                        new
+                        {
+                            Id = 48,
+                            BodyTemplate = "Bãi {LotName} đã MỞ lại lúc {ReopenedAt} sau sự cố khẩn cấp. Đặt chỗ và check-in hoạt động bình thường.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_REOPENED",
+                            Language = "vi",
+                            TitleTemplate = "Bãi {LotName} đã mở lại"
+                        },
+                        new
+                        {
+                            Id = 49,
+                            BodyTemplate = "Lot {LotName} reopened at {ReopenedAt} after the emergency closure. Bookings and check-ins are working normally.",
+                            Channel = "Email",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "LOT_REOPENED",
+                            Language = "en",
+                            TitleTemplate = "Lot {LotName} reopened"
                         });
                 });
 

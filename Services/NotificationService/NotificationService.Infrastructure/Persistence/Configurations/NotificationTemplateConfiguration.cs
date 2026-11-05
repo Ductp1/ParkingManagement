@@ -62,6 +62,20 @@ internal sealed class NotificationTemplateConfiguration : IEntityTypeConfigurati
             T("LOT_DATA_STALE", NotificationChannel.InApp, "Dữ liệu bãi không cập nhật", "Bãi {LotName} không nhận tín hiệu từ thiết bị kể từ {LastHeartbeat}. Dashboard đang hiển thị dữ liệu cũ — vui lòng kiểm tra thiết bị."),
             T("LOT_DATA_STALE", NotificationChannel.InApp, "Stale lot data", "Lot {LotName} has received no device heartbeat since {LastHeartbeat}. The dashboard is showing stale data — please check your devices.", "en"),
             T("LOT_DATA_RECOVERED", NotificationChannel.InApp, "Dữ liệu bãi đã phục hồi", "Bãi {LotName} đã nhận lại tín hiệu lúc {Heartbeat}. Dashboard trở lại chế độ real-time."),
-            T("LOT_DATA_RECOVERED", NotificationChannel.InApp, "Lot data recovered", "Lot {LotName} received a heartbeat at {Heartbeat}. The dashboard is back to real-time.", "en"));
+            T("LOT_DATA_RECOVERED", NotificationChannel.InApp, "Lot data recovered", "Lot {LotName} received a heartbeat at {Heartbeat}. The dashboard is back to real-time.", "en"),
+            // ===== US-086: bổ sung mẫu khẩn cấp — chỉ APPEND cuối danh sách (id HasData tuần tự,
+            // chèn giữa làm dịch id các mẫu cũ → migration ghi đè lịch sử). =====
+            T("LOT_DATA_STALE", NotificationChannel.Email, "Cảnh báo: bãi {LotName} mất tín hiệu thiết bị", "Bãi {LotName} không nhận heartbeat kể từ {LastHeartbeat}. Dashboard đang hiển thị dữ liệu cũ (US-068) — vui lòng kiểm tra thiết bị/controller của bãi."),
+            T("LOT_DATA_STALE", NotificationChannel.Email, "Alert: lot {LotName} lost device heartbeat", "Lot {LotName} received no heartbeat since {LastHeartbeat}. The dashboard is showing stale data (US-068) — please check your devices/controllers.", "en"),
+            T("EMERGENCY_CLOSURE", NotificationChannel.Email, "Emergency closure at {LotName} – booking {BookingCode}", "Lot {LotName} is temporarily closed. Reason: {Reason}. Your booking {BookingCode} is affected — we will process a refund or relocation.", "en"),
+            T("EMERGENCY_CLOSURE", NotificationChannel.Push, "Emergency closure", "Lot {LotName} is temporarily closed. Booking {BookingCode} is affected.", "en"),
+            T("EMERGENCY_CLOSURE_OWNER", NotificationChannel.InApp, "Bạn đã đóng bãi khẩn cấp", "Bãi {LotName} đã ĐÓNG khẩn cấp lúc {StoppedAt}. Lý do: {Reason}. {Count} booking bị ảnh hưởng đã được thông báo đa kênh."),
+            T("EMERGENCY_CLOSURE_OWNER", NotificationChannel.InApp, "Emergency stop triggered", "Lot {LotName} was emergency-stopped at {StoppedAt}. Reason: {Reason}. {Count} affected bookings have been notified across channels.", "en"),
+            T("EMERGENCY_CLOSURE_OWNER", NotificationChannel.Email, "[KHẨN] Bãi {LotName} đã đóng khẩn cấp", "Bãi {LotName} đã ĐÓNG khẩn cấp lúc {StoppedAt}. Lý do: {Reason}. {Count} booking bị ảnh hưởng — khách đã nhận thông báo đa kênh (push/SMS/email/in-app). Booking mới bị chặn cho đến khi mở lại bãi."),
+            T("EMERGENCY_CLOSURE_OWNER", NotificationChannel.Email, "[URGENT] Lot {LotName} emergency-stopped", "Lot {LotName} was emergency-stopped at {StoppedAt}. Reason: {Reason}. {Count} affected bookings were notified across channels (push/SMS/email/in-app). New bookings are blocked until you lift the closure.", "en"),
+            T("LOT_REOPENED", NotificationChannel.InApp, "Bãi đã mở lại", "Bãi {LotName} đã MỞ lại lúc {ReopenedAt}. Đặt chỗ và check-in hoạt động bình thường."),
+            T("LOT_REOPENED", NotificationChannel.InApp, "Lot reopened", "Lot {LotName} reopened at {ReopenedAt}. Bookings and check-ins are working normally.", "en"),
+            T("LOT_REOPENED", NotificationChannel.Email, "Bãi {LotName} đã mở lại", "Bãi {LotName} đã MỞ lại lúc {ReopenedAt} sau sự cố khẩn cấp. Đặt chỗ và check-in hoạt động bình thường."),
+            T("LOT_REOPENED", NotificationChannel.Email, "Lot {LotName} reopened", "Lot {LotName} reopened at {ReopenedAt} after the emergency closure. Bookings and check-ins are working normally.", "en"));
     }
 }

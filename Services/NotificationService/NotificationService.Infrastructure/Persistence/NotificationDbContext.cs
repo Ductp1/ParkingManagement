@@ -14,6 +14,7 @@ public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
     public DbSet<UserNotificationSettings> UserNotificationSettings => Set<UserNotificationSettings>();
     public DbSet<ReminderJob> ReminderJobs => Set<ReminderJob>();
+    public DbSet<EmergencyAlert> EmergencyAlerts => Set<EmergencyAlert>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

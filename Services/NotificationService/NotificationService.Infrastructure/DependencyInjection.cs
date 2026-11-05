@@ -74,6 +74,13 @@ public static class DependencyInjection
         services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
         services.AddScoped<IOwnerBookingNotifications, OwnerBookingNotifications>();
 
+        // ===== US-086: emergency đa kênh + tracking trạng thái gửi =====
+        services.AddSingleton(configuration.GetSection(EmergencyNotificationOptions.SectionName)
+            .Get<EmergencyNotificationOptions>() ?? new EmergencyNotificationOptions());
+        services.AddScoped<IEmergencyAlertStore, Persistence.Repositories.EmergencyAlertStore>();
+        services.AddScoped<IEmergencyDeliveryQueries, Persistence.Repositories.EmergencyAlertStore>();
+        services.AddScoped<IEmergencyNotifications, Application.Features.Ingestion.EmergencyNotifications>();
+
         // ===== US-084: nhắc lịch booking (đặt/hủy/reschedule job + worker quét due) =====
         services.Configure<ReminderOptions>(configuration.GetSection(ReminderOptions.SectionName));
         services.AddScoped<Application.Features.Reminders.IReminderJobRepository, ReminderJobRepository>();

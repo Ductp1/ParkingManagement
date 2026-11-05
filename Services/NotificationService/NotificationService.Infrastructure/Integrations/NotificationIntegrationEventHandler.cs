@@ -18,6 +18,7 @@ public sealed class NotificationIntegrationEventHandler(
     IBookingConfirmationNotifications bookingConfirmations,
     IBookingReminderScheduler reminderScheduler,
     IOwnerBookingNotifications ownerNotifications,
+    Application.Features.Ingestion.IEmergencyNotifications emergencyNotifications,
     ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -61,7 +62,24 @@ public sealed class NotificationIntegrationEventHandler(
                     Deserialize<BookingCreated>(envelope), envelope.EventId, cancellationToken);
                 break;
 
-            // US-086 bổ sung: LotEmergencyStopped (fan-out đa kênh + tracking).
+            // ===== US-086: khẩn cấp đa kênh + stale alert (fan-out + tracking BatchKey) =====
+            case nameof(LotEmergencyStopped):
+                await emergencyNotifications.HandleLotEmergencyStoppedAsync(
+                    Deserialize<LotEmergencyStopped>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotEmergencyLifted):
+                await emergencyNotifications.HandleLotEmergencyLiftedAsync(
+                    Deserialize<LotEmergencyLifted>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotDataMarkedStale):
+                await emergencyNotifications.HandleLotDataMarkedStaleAsync(
+                    Deserialize<LotDataMarkedStale>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotDataRecovered):
+                await emergencyNotifications.HandleLotDataRecoveredAsync(
+                    Deserialize<LotDataRecovered>(envelope), envelope.EventId, cancellationToken);
+                break;
+
             default:
                 logger.LogInformation("Event {EventType} (eventId={EventId}) chưa có handler nghiệp vụ — bỏ qua an toàn.",
                     envelope.EventType, envelope.EventId);
