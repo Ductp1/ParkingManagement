@@ -1217,6 +1217,429 @@ public class FloorLayoutTests
         await Assert.ThrowsAsync<NotFoundException>(() => useCase.ExecuteAsync(1, 99));
     }
 
+    // ==================== US-060: ROLLBACK, DIFF & SAFETY CHECK TESTS ====================
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 0)]
+    [InlineData(-1, 1)]
+    [InlineData(1, -1)]
+    public async Task RollbackFloorLayout_WithInvalidInput_ThrowsValidationException(int floorId, int versionNo)
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var command = new RollbackFloorLayoutCommand(floorId, versionNo);
+        await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task RollbackFloorLayout_WhenFloorNotFound_ThrowsNotFoundException()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var command = new RollbackFloorLayoutCommand(999, 1);
+        await Assert.ThrowsAsync<NotFoundException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task RollbackFloorLayout_WhenTargetVersionNotFound_ThrowsNotFoundException()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        var command = new RollbackFloorLayoutCommand(1, 5);
+        await Assert.ThrowsAsync<NotFoundException>(() => useCase.ExecuteAsync(command));
+    }
+
+    [Fact]
+    public async Task RollbackFloorLayout_WhenOccupiedSlotMissingInOldVersion_ThrowsConflictException()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Ô đỗ A-01 đang có xe đậu (Occupied)
+        var slotA01 = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "A-01",
+            GridX = 0,
+            GridY = 0,
+            State = SlotState.Occupied,
+            MaxVehicleType = VehicleType.Suv,
+            IsActive = true
+        }, 101);
+        await slotRepo.AddAsync(slotA01);
+
+        // Phiên bản cũ v1 chỉ có A-02, không hề có A-01
+        var v1Json = JsonSerializer.Serialize(new
+        {
+            columns = 10,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 1, y = 0, type = "slot", code = "A-02", slotType = "standard", maxVehicleType = "suv" }
+            }
+        });
+        var version1 = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            LayoutJson = v1Json,
+            ChangeNote = "Initial version"
+        }, 1);
+        await layoutRepo.AddAsync(version1);
+
+        var command = new RollbackFloorLayoutCommand(1, 1, "Rollback to v1");
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+        Assert.Contains("A-01", ex.Message);
+        Assert.Contains("phương tiện đỗ", ex.Message);
+    }
+
+    [Fact]
+    public async Task RollbackFloorLayout_WhenReservedSlotMissingInOldVersion_ThrowsConflictException()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Ô đỗ B-01 đang được khách đặt giữ chỗ (Reserved)
+        var slotB01 = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "B-01",
+            GridX = 0,
+            GridY = 0,
+            State = SlotState.Reserved,
+            MaxVehicleType = VehicleType.Sedan,
+            IsActive = true
+        }, 102);
+        await slotRepo.AddAsync(slotB01);
+
+        // Phiên bản cũ v1 không có B-01
+        var v1Json = JsonSerializer.Serialize(new
+        {
+            columns = 10,
+            rows = 10,
+            cells = Array.Empty<object>()
+        });
+        var version1 = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            LayoutJson = v1Json
+        }, 1);
+        await layoutRepo.AddAsync(version1);
+
+        var command = new RollbackFloorLayoutCommand(1, 1);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+        Assert.Contains("B-01", ex.Message);
+        Assert.Contains("giữ chỗ", ex.Message);
+    }
+
+    [Fact]
+    public async Task RollbackFloorLayout_WhenVehicleTypeDowngradedForActiveSlot_ThrowsConflictException()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // A-01 đang Occupied với SUV
+        var slotA01 = WithId(new Slot
+        {
+            FloorId = 1,
+            Code = "A-01",
+            GridX = 0,
+            GridY = 0,
+            State = SlotState.Occupied,
+            MaxVehicleType = VehicleType.Suv,
+            IsActive = true
+        }, 101);
+        await slotRepo.AddAsync(slotA01);
+
+        // Phiên bản cũ v1 có A-01 nhưng chỉ cho Sedan (downgrade từ SUV -> Sedan)
+        var v1Json = JsonSerializer.Serialize(new
+        {
+            columns = 10,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 0, y = 0, type = "slot", code = "A-01", slotType = "standard", maxVehicleType = "sedan" }
+            }
+        });
+        var version1 = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            LayoutJson = v1Json
+        }, 1);
+        await layoutRepo.AddAsync(version1);
+
+        var command = new RollbackFloorLayoutCommand(1, 1);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(command));
+        Assert.Contains("A-01", ex.Message);
+        Assert.Contains("loại xe", ex.Message);
+    }
+
+    [Fact]
+    public async Task RollbackFloorLayout_WhenSafe_CreatesNewVersionAndSynchronizesSlots()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new RollbackFloorLayoutUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<RollbackFloorLayoutUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // V1 trong lịch sử: có A-01 (0,0, Sedan) và A-02 (1,0, Suv)
+        var v1Json = JsonSerializer.Serialize(new
+        {
+            columns = 12,
+            rows = 8,
+            cells = new object[]
+            {
+                new { x = 0, y = 0, type = "slot", code = "A-01", slotType = "standard", maxVehicleType = "sedan" },
+                new { x = 1, y = 0, type = "slot", code = "A-02", slotType = "ev_charging", maxVehicleType = "suv" }
+            }
+        });
+        var version1 = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 1,
+            IsPublished = true,
+            LayoutJson = v1Json
+        }, 1);
+        await layoutRepo.AddAsync(version1);
+
+        // V2 hiện tại: có A-01, A-02, và A-03 (A-03 Available, không có ai đặt)
+        var slotA01 = WithId(new Slot { FloorId = 1, Code = "A-01", GridX = 0, GridY = 0, State = SlotState.Available, MaxVehicleType = VehicleType.Sedan, IsActive = true }, 101);
+        var slotA02 = WithId(new Slot { FloorId = 1, Code = "A-02", GridX = 1, GridY = 0, State = SlotState.Occupied, MaxVehicleType = VehicleType.Suv, IsActive = true }, 102);
+        var slotA03 = WithId(new Slot { FloorId = 1, Code = "A-03", GridX = 2, GridY = 0, State = SlotState.Available, MaxVehicleType = VehicleType.Sedan, IsActive = true }, 103);
+        await slotRepo.AddAsync(slotA01);
+        await slotRepo.AddAsync(slotA02);
+        await slotRepo.AddAsync(slotA03);
+
+        var version2 = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 2,
+            IsPublished = true,
+            LayoutJson = "{}"
+        }, 2);
+        await layoutRepo.AddAsync(version2);
+
+        // Draft dở dang
+        var draft = WithId(new LayoutVersion
+        {
+            FloorId = 1,
+            VersionNo = 3,
+            IsPublished = false,
+            LayoutJson = "{}"
+        }, 3);
+        await layoutRepo.AddAsync(draft);
+
+        // Thực hiện rollback về V1
+        var command = new RollbackFloorLayoutCommand(1, 1, "Rollback to V1", 42);
+        var result = await useCase.ExecuteAsync(command);
+
+        // Kết quả phải trả về sơ đồ v1
+        Assert.NotNull(result);
+        Assert.Equal(1, result.FloorId);
+        Assert.Equal(12, result.Columns);
+        Assert.Equal(8, result.Rows);
+        Assert.Equal(2, result.Cells.Count(c => c.Type == "slot"));
+
+        // Kiểm tra tạo phiên bản mới VersionNo = 4
+        var latestPublished = await layoutRepo.GetLatestPublishedByFloorIdAsync(1);
+        Assert.NotNull(latestPublished);
+        Assert.Equal(3, latestPublished.VersionNo);
+        Assert.True(latestPublished.IsPublished);
+        Assert.Equal(42, latestPublished.CreatedByUserId);
+
+        // Bản nháp dở dang phải bị xóa
+        var currentDraft = await layoutRepo.GetLatestDraftByFloorIdAsync(1);
+        Assert.Null(currentDraft);
+
+        // Slot A-03 phải bị đánh dấu IsActive = false vì không còn trong V1
+        var updatedA03 = (await slotRepo.GetByFloorIdAsync(1)).First(s => s.Code == "A-03");
+        Assert.False(updatedA03.IsActive);
+    }
+
+    [Fact]
+    public async Task GetFloorLayoutDiff_IdentifiesAddedRemovedModifiedAndBlockersCorrectly()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new GetFloorLayoutDiffUseCase(floorRepo, slotRepo, layoutRepo, NullLogger<GetFloorLayoutDiffUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // V1: A-01 (Sedan), A-02 (Suv), A-03 (Sedan)
+        var v1Json = JsonSerializer.Serialize(new
+        {
+            columns = 10,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 0, y = 0, type = "slot", code = "A-01", slotType = "standard", maxVehicleType = "sedan" },
+                new { x = 1, y = 0, type = "slot", code = "A-02", slotType = "standard", maxVehicleType = "suv" },
+                new { x = 2, y = 0, type = "slot", code = "A-03", slotType = "standard", maxVehicleType = "sedan" }
+            }
+        });
+        await layoutRepo.AddAsync(WithId(new LayoutVersion { FloorId = 1, VersionNo = 1, IsPublished = true, LayoutJson = v1Json }, 1));
+
+        // V2:
+        // - A-01: Modified (đổi tọa độ và đổi sang EvCharging)
+        // - A-02: Bị Removed
+        // - A-04: Added mới
+        var v2Json = JsonSerializer.Serialize(new
+        {
+            columns = 12,
+            rows = 10,
+            cells = new object[]
+            {
+                new { x = 0, y = 1, type = "slot", code = "A-01", slotType = "ev_charging", maxVehicleType = "sedan" },
+                new { x = 2, y = 0, type = "slot", code = "A-03", slotType = "standard", maxVehicleType = "sedan" },
+                new { x = 3, y = 0, type = "slot", code = "A-04", slotType = "standard", maxVehicleType = "suv" }
+            }
+        });
+        await layoutRepo.AddAsync(WithId(new LayoutVersion { FloorId = 1, VersionNo = 2, IsPublished = true, LayoutJson = v2Json }, 2));
+
+        // DB: A-02 đang có xe Occupied! -> Khi V1 so sánh sang V2, việc mất A-02 phải bị coi là Blocker!
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-02", State = SlotState.Occupied, MaxVehicleType = VehicleType.Suv, IsActive = true }, 102));
+
+        var diff = await useCase.ExecuteAsync(1, 1, 2);
+
+        Assert.NotNull(diff);
+        Assert.Equal(1, diff.FromVersionNo);
+        Assert.Equal(2, diff.ToVersionNo);
+        Assert.True(diff.GridSizeChanged);
+        Assert.Single(diff.AddedSlots);
+        Assert.Equal("A-04", diff.AddedSlots[0].Code);
+        Assert.Single(diff.RemovedSlots);
+        Assert.Equal("A-02", diff.RemovedSlots[0].Code);
+        Assert.True(diff.RemovedSlots[0].IsSafetyBlocker);
+        Assert.False(diff.CanSafelyApply);
+        Assert.NotEmpty(diff.SafetyBlockers);
+        Assert.Single(diff.ModifiedSlots);
+        Assert.Equal("A-01", diff.ModifiedSlots[0].Code);
+    }
+
+    [Fact]
+    public async Task ValidateFloorLayoutSafety_WhenBlockersPresent_ReturnsCanProceedFalseWithAtRiskSlots()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new ValidateFloorLayoutSafetyUseCase(floorRepo, slotRepo, NullLogger<ValidateFloorLayoutSafetyUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // A-01 đang Occupied trong DB
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-01", State = SlotState.Occupied, MaxVehicleType = VehicleType.Suv, IsActive = true }, 101));
+
+        // Bản vẽ kiểm tra không có A-01
+        var command = new FloorLayoutSafetyCheckCommand(1, 10, 10, new[]
+        {
+            new LayoutCellInputDto(0, 0, "slot", "A-02", SlotType.Standard, VehicleType.Suv, 1, 1)
+        });
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.False(result.CanProceed);
+        Assert.Contains("A-01", result.ActiveBookingAtRiskSlots);
+        Assert.NotEmpty(result.SafetyBlockers);
+    }
+
+    [Fact]
+    public async Task ValidateFloorLayoutSafety_WhenSafe_ReturnsCanProceedTrue()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new ValidateFloorLayoutSafetyUseCase(floorRepo, slotRepo, NullLogger<ValidateFloorLayoutSafetyUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        await slotRepo.AddAsync(WithId(new Slot { FloorId = 1, Code = "A-01", State = SlotState.Occupied, MaxVehicleType = VehicleType.Suv, IsActive = true }, 101));
+
+        // Bản vẽ có A-01 giữ nguyên MaxVehicleType Suv
+        var command = new FloorLayoutSafetyCheckCommand(1, 10, 10, new[]
+        {
+            new LayoutCellInputDto(0, 0, "slot", "A-01", SlotType.Standard, VehicleType.Suv, 1, 1),
+            new LayoutCellInputDto(1, 0, "slot", "A-02", SlotType.Standard, VehicleType.Sedan, 1, 1)
+        });
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.True(result.CanProceed);
+        Assert.Empty(result.ActiveBookingAtRiskSlots);
+        Assert.Empty(result.SafetyBlockers);
+    }
+
+    [Fact]
+    public async Task DiscardFloorLayoutDraft_WhenDraftExists_DeletesDraftSuccessfully()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new DiscardFloorLayoutDraftUseCase(floorRepo, layoutRepo, NullLogger<DiscardFloorLayoutDraftUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        var draft = WithId(new LayoutVersion { FloorId = 1, VersionNo = 2, IsPublished = false, LayoutJson = "{}" }, 1);
+        await layoutRepo.AddAsync(draft);
+
+        await useCase.ExecuteAsync(1);
+
+        var currentDraft = await layoutRepo.GetLatestDraftByFloorIdAsync(1);
+        Assert.Null(currentDraft);
+    }
+
+    [Fact]
+    public async Task DiscardFloorLayoutDraft_WhenNoDraftExists_CompletesWithoutError()
+    {
+        var floorRepo = new FakeFloorRepo();
+        var layoutRepo = new FakeLayoutVersionRepo();
+        var useCase = new DiscardFloorLayoutDraftUseCase(floorRepo, layoutRepo, NullLogger<DiscardFloorLayoutDraftUseCase>.Instance);
+
+        var floor = WithId(new Floor { ZoneId = 1, Name = "Tầng 1", Level = 1, GridColumns = 10, GridRows = 10 }, 1);
+        await floorRepo.AddAsync(floor);
+
+        // Không có draft nào, chạy không bị exception
+        await useCase.ExecuteAsync(1);
+    }
+
+
     // ==================== FAKE REPOSITORIES FOR TESTING ====================
 
     private sealed class FakeLayoutVersionRepo : ILayoutVersionRepository
