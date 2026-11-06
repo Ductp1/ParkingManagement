@@ -111,6 +111,42 @@ internal sealed class FakeLotDirectory(params (int OwnerProfileId, int LotId)[] 
     }
 }
 
+/// <summary>ParkingService giả: ghi lại lệnh áp / gỡ; Failure → ném lỗi như client thật (sync ghi Failed).</summary>
+internal sealed class FakeParkingSanctionClient : IParkingSanctionClient
+{
+    public List<ParkingSanctionCommand> Applied { get; } = [];
+    public List<int> Lifted { get; } = [];
+    public Exception? Failure { get; set; }
+
+    public Task ApplyAsync(ParkingSanctionCommand command, CancellationToken cancellationToken)
+    {
+        if (Failure is not null) throw Failure;
+        Applied.Add(command);
+        return Task.CompletedTask;
+    }
+
+    public Task LiftAsync(int sanctionId, CancellationToken cancellationToken)
+    {
+        if (Failure is not null) throw Failure;
+        Lifted.Add(sanctionId);
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>NotificationService giả: ghi lại thông báo đã gửi.</summary>
+internal sealed class FakeNotificationClient : INotificationClient
+{
+    public List<OwnerNotification> Sent { get; } = [];
+    public Exception? Failure { get; set; }
+
+    public Task SendAsync(OwnerNotification notification, CancellationToken cancellationToken)
+    {
+        if (Failure is not null) throw Failure;
+        Sent.Add(notification);
+        return Task.CompletedTask;
+    }
+}
+
 /// <summary>Kho chế tài in-memory: cấp Id khi thêm, mô phỏng partial unique index, đếm số lần lưu.</summary>
 internal sealed class InMemorySanctionStore : IOwnerLockRepository, ISanctionRepository, ISanctionAdminQueries
 {
@@ -180,6 +216,24 @@ internal sealed class InMemorySanctionStore : IOwnerLockRepository, ISanctionRep
 
     public Task<RiskFlag?> FindRiskFlagTrackedAsync(int id, CancellationToken cancellationToken)
         => Task.FromResult(RiskFlags.FirstOrDefault(f => f.Id == id));
+
+    /// <summary>Mô phỏng tiến trình khác vừa đóng chế tài: TryExpireAsync của các Id này trả false (UPDATE … WHERE Active = 0 dòng).</summary>
+    public HashSet<int> ExpiredElsewhere { get; } = [];
+
+    public Task<IReadOnlyList<Sanction>> FindDueForExpiryTrackedAsync(DateTime nowUtc, int take, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<Sanction> result = Sanctions.Where(s => s.Status == SanctionStatus.Active && s.EndsAtUtc != null && s.EndsAtUtc <= nowUtc)
+            .OrderBy(s => s.EndsAtUtc).ThenBy(s => s.Id).Take(take).ToList();
+        return Task.FromResult(result);
+    }
+
+    public Task<bool> TryExpireAsync(Sanction sanction, AuditLog auditLog, CancellationToken cancellationToken)
+    {
+        if (ExpiredElsewhere.Contains(sanction.Id)) return Task.FromResult(false);
+        TransactionCount++;
+        AuditLogs.Add(auditLog.WithId(nextAuditId++));
+        return Task.FromResult(true);
+    }
 
     public Task AddIssuedAsync(IReadOnlyList<Sanction> sanctions, Func<Sanction, AuditLog> buildAuditLog,
         Action<IReadOnlyList<Sanction>>? afterInsert, CancellationToken cancellationToken)

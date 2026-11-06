@@ -160,6 +160,49 @@ public class Sanction : BaseEntity
         NotificationSyncStatus = SanctionSyncStatus.NotRequired;
     }
 
+    /// <summary>
+    /// US-097: job đóng chế tài tới hạn. ParkingService tự hết hiệu lực theo thời gian → lệnh áp chưa tới không cần gửi nữa;
+    /// khóa chủ bãi cần mở khóa bên UserService (job không có token → chờ Admin đồng bộ lại); chủ bãi được báo hết hạn.
+    /// </summary>
+    public void ExpireOnSchedule()
+    {
+        Status = SanctionStatus.Expired;
+        if (IsOwnerLock)
+        {
+            UserServiceSyncStatus = SanctionSyncStatus.Pending;
+            UserServiceSyncedAtUtc = null;
+        }
+        if (ParkingSyncStatus is SanctionSyncStatus.Pending or SanctionSyncStatus.Failed)
+            ParkingSyncStatus = SanctionSyncStatus.NotRequired;
+        if (NotificationSyncStatus != SanctionSyncStatus.NotRequired)
+        {
+            NotificationSyncStatus = SanctionSyncStatus.Pending;
+            NotificationSentAtUtc = null;
+        }
+    }
+
+    /// <summary>Còn service nào chưa nhận / nhận lỗi lệnh hiện tại.</summary>
+    public bool HasPendingSync => IsPendingOrFailed(UserServiceSyncStatus) || IsPendingOrFailed(ParkingSyncStatus)
+                                  || IsPendingOrFailed(NotificationSyncStatus);
+
+    public static bool IsPendingOrFailed(SanctionSyncStatus status) => status is SanctionSyncStatus.Pending or SanctionSyncStatus.Failed;
+
+    public void MarkParkingSynced(DateTime syncedAtUtc)
+    {
+        ParkingSyncStatus = SanctionSyncStatus.Synced;
+        ParkingSyncedAtUtc = syncedAtUtc;
+    }
+
+    public void MarkParkingSyncFailed() => ParkingSyncStatus = SanctionSyncStatus.Failed;
+
+    public void MarkNotificationSent(DateTime sentAtUtc)
+    {
+        NotificationSyncStatus = SanctionSyncStatus.Synced;
+        NotificationSentAtUtc = sentAtUtc;
+    }
+
+    public void MarkNotificationFailed() => NotificationSyncStatus = SanctionSyncStatus.Failed;
+
     public void MarkSynced(DateTime syncedAtUtc)
     {
         UserServiceSyncStatus = SanctionSyncStatus.Synced;

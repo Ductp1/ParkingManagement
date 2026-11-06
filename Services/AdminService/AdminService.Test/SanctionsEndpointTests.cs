@@ -136,6 +136,35 @@ public class SanctionsEndpointTests
         Assert.Single(host.Store.Sanctions);
     }
 
+    [Fact]
+    public async Task Failed_parking_sync_is_reported_then_fixed_by_retry_sync()
+    {
+        await using var host = await SanctionApiHost.StartAsync();
+        host.Parking.Failure = new ParkingManagement.SharedKernel.Exceptions.DependencyUnavailableException("ParkingService hiện không phản hồi.");
+
+        var issued = await host.SendAsync(HttpMethod.Post, "api/v1/admin/sanctions", "Admin", new
+        {
+            ownerProfileId = OwnerTsn, ownerUserId = OwnerTsnUser, level = "RankingPenalty", parkingLotIds = new[] { LotBenThanh },
+            reason = "Từ chối booking nhiều lần", endsAtUtc = NowUtc.AddDays(10),
+        });
+        Assert.Equal(HttpStatusCode.Created, issued.StatusCode);                      // lỗi service khác không làm hỏng request
+        var sanction = Assert.Single((await issued.Content.ReadFromJsonAsync<IssueSanctionResultDto>(Json))!.Sanctions);
+        Assert.Equal("Failed", sanction.ParkingSyncStatus);
+
+        var forbidden = await host.SendAsync(HttpMethod.Post, $"api/v1/admin/sanctions/{sanction.Id}/retry-sync", "LotOwner");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        host.Parking.Failure = null;
+        var retried = await host.SendAsync(HttpMethod.Post, $"api/v1/admin/sanctions/{sanction.Id}/retry-sync", "Admin");
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        var detail = (await retried.Content.ReadFromJsonAsync<SanctionDetailDto>(Json))!;
+        Assert.Equal("Synced", detail.Sanction.ParkingSyncStatus);
+        Assert.Contains(detail.Timeline, t => t.Action == "Sanction.SyncRetried" && t.UserId == Admin);
+
+        var nothingLeft = await host.SendAsync(HttpMethod.Post, $"api/v1/admin/sanctions/{sanction.Id}/retry-sync", "Admin");
+        Assert.Equal(HttpStatusCode.Conflict, nothingLeft.StatusCode);
+    }
+
     private static object WarningBody(int[] lots) => new
     {
         ownerProfileId = OwnerTsn, ownerUserId = OwnerTsnUser, level = "Warning", parkingLotIds = lots,
@@ -150,6 +179,8 @@ public class SanctionsEndpointTests
 
         public HttpClient Client { get; private set; } = null!;
         public InMemorySanctionStore Store { get; } = new();
+        public FakeParkingSanctionClient Parking { get; } = new();
+        public FakeNotificationClient Notifications { get; } = new();
 
         public static async Task<SanctionApiHost> StartAsync()
         {
@@ -184,6 +215,9 @@ public class SanctionsEndpointTests
             builder.Services.AddScoped<IGetSanctionUseCase, GetSanctionUseCase>();
             builder.Services.AddScoped<IGetSanctionStatsUseCase, GetSanctionStatsUseCase>();
             builder.Services.AddScoped<IGetSanctionSuggestionUseCase, GetSanctionSuggestionUseCase>();
+            builder.Services.AddScoped<IRetrySanctionSyncUseCase, RetrySanctionSyncUseCase>();
+            builder.Services.AddSingleton<IParkingSanctionClient>(host.Parking);
+            builder.Services.AddSingleton<INotificationClient>(host.Notifications);
 
             host.app = builder.Build();
             host.app.UseServiceDefaults();

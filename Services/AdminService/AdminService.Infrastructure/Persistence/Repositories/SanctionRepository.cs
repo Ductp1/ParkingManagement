@@ -60,4 +60,34 @@ public sealed class SanctionRepository(AdminDbContext db) : ISanctionRepository
         db.AuditLogs.Add(auditLog);
         await db.SaveChangesAsync(cancellationToken);       // đổi trạng thái chế tài + audit log: cùng 1 lần SaveChanges
     }
+
+    public Task SaveAsync(CancellationToken cancellationToken) => db.SaveChangesAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Sanction>> FindDueForExpiryTrackedAsync(DateTime nowUtc, int take, CancellationToken cancellationToken)
+        => await db.Sanctions
+            .Where(s => s.Status == SanctionStatus.Active && s.EndsAtUtc != null && s.EndsAtUtc <= nowUtc)
+            .OrderBy(s => s.EndsAtUtc).ThenBy(s => s.Id)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+    public async Task<bool> TryExpireAsync(Sanction sanction, AuditLog auditLog, CancellationToken cancellationToken)
+    {
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        // Giữ dòng: job khác (hoặc Admin) đang đóng cùng chế tài phải chờ tới khi transaction này xong, rồi thấy Status ≠ Active → 0 dòng.
+        var claimed = await db.Sanctions
+            .Where(s => s.Id == sanction.Id && s.Status == SanctionStatus.Active)
+            .ExecuteUpdateAsync(u => u.SetProperty(s => s.Status, SanctionStatus.Expired), cancellationToken);
+        if (claimed == 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            db.Entry(sanction).State = EntityState.Detached;
+            return false;
+        }
+
+        db.AuditLogs.Add(auditLog);
+        await db.SaveChangesAsync(cancellationToken);       // trạng thái đồng bộ của chế tài + audit log: cùng 1 lần SaveChanges
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
 }

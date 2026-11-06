@@ -41,6 +41,8 @@ public static class DependencyInjection
         services.AddScoped<IGetSanctionUseCase, GetSanctionUseCase>();
         services.AddScoped<IGetSanctionStatsUseCase, GetSanctionStatsUseCase>();
         services.AddScoped<IGetSanctionSuggestionUseCase, GetSanctionSuggestionUseCase>();
+        services.AddScoped<IRetrySanctionSyncUseCase, RetrySanctionSyncUseCase>();
+        services.AddScoped<IExpireSanctionsUseCase, ExpireSanctionsUseCase>();          // SanctionExpiryJob
         // T-802: nhận sự kiện AuditRecorded của service khác (endpoint nội bộ /internal/v1/events)
         services.AddScoped<IRecordAuditEventUseCase, RecordAuditEventUseCase>();
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác

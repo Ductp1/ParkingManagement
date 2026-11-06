@@ -12,7 +12,7 @@ namespace AdminService.API.Controllers;
 [Authorize(Policy = "RequireAdmin")]
 public sealed class AdminSanctionsController(IListSanctionsUseCase listSanctions, IGetSanctionUseCase getSanction,
     IGetSanctionStatsUseCase getStats, IIssueSanctionUseCase issueSanction, IRevokeSanctionUseCase revokeSanction,
-    ICurrentUser currentUser) : ControllerBase
+    IRetrySanctionSyncUseCase retrySync, ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>
     /// GET /api/v1/admin/sanctions?status=Active&amp;level=RankingPenalty&amp;ownerProfileId=2&amp;parkingLotId=4&amp;search=overbooking
@@ -48,5 +48,15 @@ public sealed class AdminSanctionsController(IListSanctionsUseCase listSanctions
     public async Task<ActionResult<SanctionDetailDto>> Revoke(int id, [FromBody] RevokeSanctionRequest request, CancellationToken cancellationToken)
         => currentUser.UserId is { } adminUserId
             ? Ok(await revokeSanction.ExecuteAsync(id, request, adminUserId, cancellationToken))
+            : Unauthorized();
+
+    /// <summary>
+    /// POST /api/v1/admin/sanctions/12/retry-sync – gửi lại các lệnh đang chờ / lỗi (UserService, ParkingService, thông báo) bằng JWT
+    /// của Admin. Không còn gì để đồng bộ → 409.
+    /// </summary>
+    [HttpPost("{id:int}/retry-sync")]
+    public async Task<ActionResult<SanctionDetailDto>> RetrySync(int id, CancellationToken cancellationToken)
+        => currentUser.UserId is { } adminUserId
+            ? Ok(await retrySync.ExecuteAsync(id, adminUserId, cancellationToken))
             : Unauthorized();
 }

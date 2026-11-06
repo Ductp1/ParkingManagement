@@ -16,8 +16,8 @@ public interface IIssueSanctionUseCase
 /// <summary>
 /// US-097 (UC-41): Admin áp chế tài SLA 4 cấp (Điều 7 hợp đồng mẫu).
 ///  - Cảnh cáo (bãi / toàn chủ bãi), hạ hạng (bãi / toàn chủ bãi), tạm ngừng niêm yết (bãi): mỗi bãi 1 chế tài, tất cả + audit log ghi
-///    trong 1 transaction; bãi nào đang có chế tài cùng cấp còn hiệu lực → 409 cả request. ParkingService / thông báo ở trạng thái
-///    chờ đồng bộ (thi hành ở bước đồng bộ, không gọi trong use case này).
+///    trong 1 transaction; bãi nào đang có chế tài cùng cấp còn hiệu lực → 409 cả request. Sau khi lưu mới đẩy sang ParkingService
+///    (hạ hạng / tạm ngừng niêm yết) và gửi thông báo cho chủ bãi; lỗi service khác chỉ ghi Failed, chế tài vẫn giữ (đồng bộ lại sau).
 ///  - Tạm ngừng toàn chủ bãi (khóa tài khoản có hạn) và chấm dứt hợp tác (khóa vĩnh viễn): đi qua lõi khóa chủ bãi của US-096
 ///    (OwnerLockCore) – cùng unique index, audit "Owner.Locked" và đồng bộ UserService; khóa tạm đang hiệu lực được thay bằng khóa
 ///    vĩnh viễn khi nâng lên cấp 4.
@@ -29,12 +29,15 @@ public sealed class IssueSanctionUseCase(
     ISanctionRepository repository,
     IParkingLotDirectory lotDirectory,
     ISanctionAdminQueries queries,
+    IParkingSanctionClient parking,
+    INotificationClient notifications,
     SanctionSettings settings,
     TimeProvider timeProvider,
     ILogger<IssueSanctionUseCase> logger) : IIssueSanctionUseCase
 {
     private static readonly JsonSerializerOptions AuditJson = new(JsonSerializerDefaults.Web);
     private readonly OwnerLockCore core = new(userService, timeProvider, logger);
+    private readonly SanctionSyncCore sync = new(parking, notifications, timeProvider, logger);
 
     public async Task<IssueSanctionResultDto> ExecuteAsync(IssueSanctionRequest request, int performedByUserId, CancellationToken cancellationToken = default)
     {
@@ -120,6 +123,7 @@ public sealed class IssueSanctionUseCase(
         riskFlag?.ResolveWithSanction(sanction.Id, now);
 
         await core.SyncLockAsync(sanction, cancellationToken);
+        await sync.NotifyAsync(sanction, cancellationToken);
         await lockRepository.SaveAsync(cancellationToken);
         return sanction.Id;
     }
@@ -148,6 +152,10 @@ public sealed class IssueSanctionUseCase(
         await repository.AddIssuedAsync(sanctions, s => BuildIssuedAuditLog(s, performedByUserId),
             riskFlag is null ? null : inserted => riskFlag.ResolveWithSanction(PickForRiskFlag(inserted, riskFlag).Id, now),
             cancellationToken);
+
+        // Đã lưu: đẩy từng chế tài sang ParkingService + báo chủ bãi, rồi ghi kết quả đồng bộ một lần.
+        foreach (var sanction in sanctions) await sync.SyncAsync(sanction, cancellationToken);
+        await repository.SaveAsync(cancellationToken);
         return sanctions.Select(s => s.Id).ToList();
     }
 

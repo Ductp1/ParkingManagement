@@ -1,6 +1,7 @@
 using System.Text.Json;
 using AdminService.Application.Features.Owners;
 using AdminService.Domain.Entities;
+using Microsoft.Extensions.Logging;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -17,12 +18,15 @@ public interface IRevokeSanctionUseCase
 ///    và đồng bộ UserService.
 ///  - Còn lại: Revoked + ghi người / lúc / lý do + audit "Sanction.Revoked" trong 1 lần SaveChanges; service đã nhận lệnh áp
 ///    (ParkingService / thông báo) về chờ đồng bộ lệnh gỡ.
+/// Sau khi lưu: gỡ bên ParkingService + báo chủ bãi, ghi kết quả (Failed → Admin đồng bộ lại).
 /// Chế tài đã gỡ / hết hạn → 409.
 /// </summary>
 public sealed class RevokeSanctionUseCase(ISanctionRepository repository, IUnlockOwnerUseCase unlockOwner, ISanctionAdminQueries queries,
-    TimeProvider timeProvider) : IRevokeSanctionUseCase
+    IParkingSanctionClient parking, INotificationClient notifications, TimeProvider timeProvider, ILogger<RevokeSanctionUseCase> logger)
+    : IRevokeSanctionUseCase
 {
     private static readonly JsonSerializerOptions AuditJson = new(JsonSerializerDefaults.Web);
+    private readonly SanctionSyncCore sync = new(parking, notifications, timeProvider, logger);
 
     public async Task<SanctionDetailDto> ExecuteAsync(int sanctionId, RevokeSanctionRequest request, int performedByUserId,
         CancellationToken cancellationToken = default)
@@ -61,6 +65,10 @@ public sealed class RevokeSanctionUseCase(ISanctionRepository repository, IUnloc
             sanction.Revoke(reason, performedByUserId, now);
             await repository.SaveWithAuditAsync(auditLog, cancellationToken);
         }
+
+        // Khóa chủ bãi: luồng US-096 đã mở khóa bên UserService trên cùng entity đang tracking; ở đây chỉ còn ParkingService / thông báo.
+        await sync.SyncAsync(sanction, cancellationToken);
+        await repository.SaveAsync(cancellationToken);
 
         return await queries.GetDetailAsync(sanctionId, now, cancellationToken) ?? throw new NotFoundException("Chế tài", sanctionId);
     }

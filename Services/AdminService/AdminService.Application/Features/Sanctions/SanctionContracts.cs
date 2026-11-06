@@ -104,4 +104,13 @@ public interface ISanctionRepository
         CancellationToken cancellationToken);
     /// <summary>Ghi thay đổi của chế tài đang tracking + audit log trong CÙNG 1 lần SaveChanges.</summary>
     Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken);
+    /// <summary>Ghi kết quả đồng bộ (Synced / Failed) của các chế tài đang tracking.</summary>
+    Task SaveAsync(CancellationToken cancellationToken);
+    /// <summary>Chế tài Active đã tới hạn (EndsAtUtc ≤ now), hạn sớm nhất trước, tối đa <paramref name="take"/>; có tracking.</summary>
+    Task<IReadOnlyList<Sanction>> FindDueForExpiryTrackedAsync(DateTime nowUtc, int take, CancellationToken cancellationToken);
+    /// <summary>
+    /// Đóng chế tài tới hạn (entity đã đổi sang Expired trong bộ nhớ) + audit log trong 1 transaction, CHỈ KHI dòng trong DB còn Active
+    /// (UPDATE … WHERE Status = 'Active'): hai job chạy trùng → job sau nhận false, entity được bỏ tracking, không ghi gì.
+    /// </summary>
+    Task<bool> TryExpireAsync(Sanction sanction, AuditLog auditLog, CancellationToken cancellationToken);
 }

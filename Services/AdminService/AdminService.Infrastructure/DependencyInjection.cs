@@ -10,6 +10,7 @@ using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using AdminService.Infrastructure.Documents;
 using AdminService.Infrastructure.Integrations;
+using AdminService.Infrastructure.Jobs;
 using AdminService.Infrastructure.Persistence;
 using AdminService.Infrastructure.Persistence.Queries;
 using AdminService.Infrastructure.Persistence.Repositories;
@@ -89,6 +90,23 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // US-097: thi hành chế tài – ParkingService (hạ hạng / tạm ngừng niêm yết, JWT Admin chuyển tiếp) và thông báo cho chủ bãi.
+        services.AddHttpClient<IParkingSanctionClient, ParkingSanctionClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        services.AddHttpClient<INotificationClient, NotificationClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // US-097: job đóng chế tài tới hạn ("Sanctions:ExpiryJob:Enabled" = false để tắt, ví dụ khi chạy nhiều instance thử nghiệm).
+        var expiryJob = SanctionExpiryJobSettingsFrom(configuration);
+        services.AddSingleton(expiryJob);
+        if (expiryJob.Enabled) services.AddHostedService<SanctionExpiryJob>();
 
         // US-081: nguồn chỉ-đọc của Admin dashboard qua Gateway (JWT Admin chuyển tiếp). Timeout từng nguồn đặt ở use case
         // ("Dashboard:SourceTimeoutSeconds:{Service}", mặc định 3 giây); HttpClient.Timeout chỉ là chốt chặn cuối.
@@ -122,6 +140,17 @@ public static class DependencyInjection
         return new SanctionSettings(
             window is >= 1 and <= 365 ? window.Value : defaults.SuggestionWindowDays,
             appeal is >= 1 and <= 30 ? appeal.Value : defaults.AppealBusinessDays);
+    }
+
+    private static SanctionExpiryJobSettings SanctionExpiryJobSettingsFrom(IConfiguration configuration)
+    {
+        var defaults = new SanctionExpiryJobSettings();
+        var interval = configuration.GetValue<int?>("Sanctions:ExpiryJob:IntervalSeconds");
+        var batch = configuration.GetValue<int?>("Sanctions:ExpiryJob:BatchSize");
+        return new SanctionExpiryJobSettings(
+            configuration.GetValue<bool?>("Sanctions:ExpiryJob:Enabled") ?? defaults.Enabled,
+            interval is >= 30 and <= 3600 ? interval.Value : defaults.IntervalSeconds,
+            batch is >= 1 and <= 500 ? batch.Value : defaults.BatchSize);
     }
 
     /// <summary>"Dashboard:SourceTimeoutSeconds": { "GateService": 3, … } – giá trị thiếu / ≤ 0 / sai định dạng dùng mặc định 3 giây.</summary>

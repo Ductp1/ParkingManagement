@@ -13,35 +13,43 @@ public class SanctionRevokeTests
 {
     private static readonly DateTime NextWeek = NowUtc.AddDays(7);
 
-    private static (RevokeSanctionUseCase UseCase, FakeOwnerDirectoryUserService Users) Create(InMemorySanctionStore store)
+    private static (RevokeSanctionUseCase UseCase, FakeOwnerDirectoryUserService Users) Create(InMemorySanctionStore store,
+        FakeParkingSanctionClient? parking = null, FakeNotificationClient? notifications = null)
     {
         var users = new FakeOwnerDirectoryUserService(TsnOwner);
         var time = new FixedTime(Now);
         var unlock = new UnlockOwnerUseCase(users, store, time, NullLogger<UnlockOwnerUseCase>.Instance);
-        return (new RevokeSanctionUseCase(store, unlock, store, time), users);
+        return (new RevokeSanctionUseCase(store, unlock, store, parking ?? new FakeParkingSanctionClient(),
+            notifications ?? new FakeNotificationClient(), time, NullLogger<RevokeSanctionUseCase>.Instance), users);
     }
 
     [Fact]
-    public async Task Revoking_a_listing_suspension_records_who_when_why_and_queues_parking_and_notification_sync()
+    public async Task Revoking_a_listing_suspension_records_who_when_why_then_lifts_it_in_parking_and_notifies()
     {
         var sanction = LotSanction(7, LotBenThanh, SanctionLevel.TemporarySuspension, NextWeek);
         sanction.ParkingSyncStatus = SanctionSyncStatus.Synced;
         sanction.ParkingSyncedAtUtc = NowUtc.AddHours(-1);
         sanction.NotificationSyncStatus = SanctionSyncStatus.Synced;
+        sanction.OwnerUserId = OwnerTsnUser;
         var store = new InMemorySanctionStore([sanction]);
-        var (useCase, users) = Create(store);
+        var parking = new FakeParkingSanctionClient();
+        var notifications = new FakeNotificationClient();
+        var (useCase, users) = Create(store, parking, notifications);
 
         var detail = await useCase.ExecuteAsync(7, new RevokeSanctionRequest("  Chủ bãi đã khắc phục  "), Admin);
 
         Assert.Equal(SanctionStatus.Revoked, sanction.Status);
         Assert.Equal((NowUtc, Admin, "Chủ bãi đã khắc phục"), (sanction.RevokedAtUtc!.Value, sanction.RevokedByUserId!.Value, sanction.RevokeReason));
-        Assert.Equal(SanctionSyncStatus.Pending, sanction.ParkingSyncStatus);        // ParkingService phải nhận lệnh gỡ
-        Assert.Null(sanction.ParkingSyncedAtUtc);
-        Assert.Equal(SanctionSyncStatus.Pending, sanction.NotificationSyncStatus);
+        Assert.Equal([7], parking.Lifted);                                          // ParkingService nhận lệnh gỡ
+        Assert.Equal((SanctionSyncStatus.Synced, (DateTime?)NowUtc), (sanction.ParkingSyncStatus, sanction.ParkingSyncedAtUtc));
+        Assert.Equal(SanctionSyncStatus.Synced, sanction.NotificationSyncStatus);
+        var sent = Assert.Single(notifications.Sent);
+        Assert.Equal("SANCTION_REVOKED", sent.TemplateKey);
+        Assert.Contains("Chủ bãi đã khắc phục", sent.Body);
         Assert.Equal(SanctionSyncStatus.NotRequired, sanction.UserServiceSyncStatus);
         var audit = Assert.Single(store.AuditLogs);
         Assert.Equal(("Sanction.Revoked", "Sanction", "7", "Chủ bãi đã khắc phục"), (audit.Action, audit.EntityName, audit.EntityId, audit.Reason));
-        Assert.Equal(1, store.SaveCount);                                           // trạng thái + audit: 1 lần SaveChanges
+        Assert.Equal(2, store.SaveCount);                                           // trạng thái + audit (1 SaveChanges), rồi kết quả đồng bộ
         Assert.Empty(users.UnlockCalls);
         Assert.Equal("Revoked", detail.Sanction.Status);
         Assert.Equal("Sanction.Revoked", Assert.Single(detail.Timeline).Action);
@@ -52,12 +60,13 @@ public class SanctionRevokeTests
     {
         var warning = LotSanction(8, LotBenThanh, SanctionLevel.Warning, NextWeek);
         warning.NotificationSyncStatus = SanctionSyncStatus.Synced;
+        warning.OwnerUserId = OwnerTsnUser;
         var (useCase, _) = Create(new InMemorySanctionStore([warning]));
 
         await useCase.ExecuteAsync(8, new RevokeSanctionRequest("Gỡ nhầm"), Admin);
 
         Assert.Equal(SanctionSyncStatus.NotRequired, warning.ParkingSyncStatus);
-        Assert.Equal(SanctionSyncStatus.Pending, warning.NotificationSyncStatus);
+        Assert.Equal(SanctionSyncStatus.Synced, warning.NotificationSyncStatus);
     }
 
     [Fact]

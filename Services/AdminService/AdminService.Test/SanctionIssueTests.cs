@@ -15,13 +15,14 @@ public class SanctionIssueTests
     private static readonly DateTime NextWeek = NowUtc.AddDays(7);
 
     private static (IssueSanctionUseCase UseCase, InMemorySanctionStore Store, FakeOwnerDirectoryUserService Users, FakeLotDirectory Lots)
-        Create(InMemorySanctionStore? store = null, FakeOwnerDirectoryUserService? users = null, FakeLotDirectory? lots = null)
+        Create(InMemorySanctionStore? store = null, FakeOwnerDirectoryUserService? users = null, FakeLotDirectory? lots = null,
+            FakeParkingSanctionClient? parking = null, FakeNotificationClient? notifications = null)
     {
         store ??= new InMemorySanctionStore();
         users ??= new FakeOwnerDirectoryUserService(TsnOwner, VincomOwner);
         lots ??= new FakeLotDirectory((OwnerTsn, LotBenThanh), (OwnerTsn, LotTanSonNhat), (OwnerVincom, LotVincom));
-        var useCase = new IssueSanctionUseCase(users, store, store, lots, store, new SanctionSettings(), new FixedTime(Now),
-            NullLogger<IssueSanctionUseCase>.Instance);
+        var useCase = new IssueSanctionUseCase(users, store, store, lots, store, parking ?? new FakeParkingSanctionClient(),
+            notifications ?? new FakeNotificationClient(), new SanctionSettings(), new FixedTime(Now), NullLogger<IssueSanctionUseCase>.Instance);
         return (useCase, store, users, lots);
     }
 
@@ -34,7 +35,9 @@ public class SanctionIssueTests
     [Fact]
     public async Task Warning_on_two_lots_creates_one_sanction_per_lot_with_audit_in_one_transaction()
     {
-        var (useCase, store, users, _) = Create();
+        var notifications = new FakeNotificationClient();
+        var parking = new FakeParkingSanctionClient();
+        var (useCase, store, users, _) = Create(parking: parking, notifications: notifications);
 
         var result = await useCase.ExecuteAsync(Request(SanctionLevel.Warning, [LotBenThanh, LotTanSonNhat, LotBenThanh], correctionDue: NextWeek,
             penalty: 500_000m, evidence: "{\"bookings\":[\"BK-1\",\"BK-2\"]}"), Admin);
@@ -53,10 +56,13 @@ public class SanctionIssueTests
             Assert.Equal(500_000m, s.PenaltyAmount);
             Assert.Equal("{\"bookings\":[\"BK-1\",\"BK-2\"]}", s.EvidenceJson);
             Assert.Equal(SanctionSyncStatus.NotRequired, s.UserServiceSyncStatus);
-            Assert.Equal(SanctionSyncStatus.NotRequired, s.ParkingSyncStatus);
-            Assert.Equal(SanctionSyncStatus.Pending, s.NotificationSyncStatus);
+            Assert.Equal(SanctionSyncStatus.NotRequired, s.ParkingSyncStatus);            // cảnh cáo chỉ cần thông báo
+            Assert.Equal((SanctionSyncStatus.Synced, (DateTime?)NowUtc), (s.NotificationSyncStatus, s.NotificationSentAtUtc));
             Assert.Equal(new DateTime(2026, 11, 13, 16, 59, 59, DateTimeKind.Utc), s.AppealDeadlineUtc);   // T6 → T6 tuần sau 23:59:59 ICT
         });
+        Assert.Empty(parking.Applied);
+        Assert.Equal(2, notifications.Sent.Count);
+        Assert.All(notifications.Sent, n => Assert.Equal((OwnerTsnUser, "SANCTION_ISSUED"), (n.UserId, n.TemplateKey)));
         Assert.Equal(2, store.AuditLogs.Count);
         Assert.All(store.AuditLogs, a => Assert.Equal(("Sanction.Issued", "Sanction"), (a.Action, a.EntityName)));
         Assert.Equal(store.Sanctions.Select(s => s.Id.ToString()), store.AuditLogs.Select(a => a.EntityId));
@@ -104,15 +110,19 @@ public class SanctionIssueTests
     // ===== Cấp 2 – Hạ thứ hạng =====
 
     [Fact]
-    public async Task Ranking_penalty_on_lots_waits_for_parking_sync()
+    public async Task Ranking_penalty_on_lots_is_pushed_to_parking_service_after_saving()
     {
-        var (useCase, store, _, _) = Create();
+        var parking = new FakeParkingSanctionClient();
+        var (useCase, store, _, _) = Create(parking: parking);
 
         await useCase.ExecuteAsync(Request(SanctionLevel.RankingPenalty, [LotBenThanh], endsAt: NowUtc.AddDays(30)), Admin);
 
         var sanction = Assert.Single(store.Sanctions);
-        Assert.Equal(SanctionSyncStatus.Pending, sanction.ParkingSyncStatus);
-        Assert.Equal(SanctionSyncStatus.Pending, sanction.NotificationSyncStatus);
+        Assert.Equal(new ParkingSanctionCommand(sanction.Id, OwnerTsn, LotBenThanh, "RankingPenalty", NowUtc, NowUtc.AddDays(30)),
+            Assert.Single(parking.Applied));
+        Assert.Equal((SanctionSyncStatus.Synced, (DateTime?)NowUtc), (sanction.ParkingSyncStatus, sanction.ParkingSyncedAtUtc));
+        Assert.Equal(SanctionSyncStatus.Synced, sanction.NotificationSyncStatus);
+        Assert.Equal((1, 1), (store.TransactionCount, store.SaveCount));           // chế tài + audit, rồi kết quả đồng bộ
         Assert.Equal(SanctionSyncStatus.NotRequired, sanction.UserServiceSyncStatus);
         Assert.Null(sanction.CorrectionDueAtUtc);
     }
@@ -239,7 +249,7 @@ public class SanctionIssueTests
         Assert.Equal(1_000_000m, sanction.PenaltyAmount);
         Assert.Equal(OwnerTsnUser, sanction.OwnerUserId);
         Assert.Equal(SanctionSyncStatus.Synced, sanction.UserServiceSyncStatus);
-        Assert.Equal(SanctionSyncStatus.Pending, sanction.NotificationSyncStatus);
+        Assert.Equal(SanctionSyncStatus.Synced, sanction.NotificationSyncStatus);    // US-097 báo chủ bãi; US-096 thì không
         Assert.Equal(SanctionSyncStatus.NotRequired, sanction.ParkingSyncStatus);
         Assert.Equal((OwnerTsn, "Từ chối 5 booking trong tuần", (DateTime?)NextWeek), Assert.Single(users.LockCalls));
         var audit = Assert.Single(store.AuditLogs);
