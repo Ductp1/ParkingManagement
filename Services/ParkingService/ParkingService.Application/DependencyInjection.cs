@@ -8,6 +8,7 @@ using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.LotDetails;
+using ParkingService.Application.Features.PhysicalChanges;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
 
@@ -103,6 +104,17 @@ public static class DependencyInjection
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
+
+        // Physical Changes (SLA 48h Protection) (US-061, EP09)
+        services.AddScoped<IDeclarePhysicalChangeUseCase, DeclarePhysicalChangeUseCase>();
+        services.AddScoped<IGetLotPhysicalChangesUseCase, GetLotPhysicalChangesUseCase>();
+        services.AddScoped<IGetPhysicalChangeByIdUseCase, GetPhysicalChangeByIdUseCase>();
+        services.AddScoped<ISendPhysicalChangeReminderUseCase, SendPhysicalChangeReminderUseCase>();
+        services.AddScoped<ICompletePhysicalChangeUseCase, CompletePhysicalChangeUseCase>();
+        services.AddScoped<ICheckPhysicalChangeSlaOverdueUseCase, CheckPhysicalChangeSlaOverdueUseCase>();
+        services.AddScoped<IRecordPhysicalChangeBookingErrorUseCase, RecordPhysicalChangeBookingErrorUseCase>();
+        services.AddScoped<ICancelPhysicalChangeUseCase, CancelPhysicalChangeUseCase>();
+        services.AddScoped<IGetPhysicalChangeSlaSummaryUseCase, GetPhysicalChangeSlaSummaryUseCase>();
 
         return services;
     }

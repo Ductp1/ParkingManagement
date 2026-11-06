@@ -22,4 +22,5 @@ public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options)
     public DbSet<LotIntegration> LotIntegrations => Set<LotIntegration>();
     public DbSet<SlotStateLog> SlotStateLogs => Set<SlotStateLog>();
     public DbSet<ExternalParkingLot> ExternalParkingLots => Set<ExternalParkingLot>();
+    public DbSet<LotPhysicalChange> LotPhysicalChanges => Set<LotPhysicalChange>();
 }
