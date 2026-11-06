@@ -13,10 +13,7 @@
 .pm-navbar-menu {
   display: flex;
   align-items: center;
-  gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  gap: 4px;
 }
 .pm-navbar-menu-link {
   flex: 0 0 auto;
@@ -30,7 +27,7 @@
   text-align: center;
   flex-shrink: 0;
 }
-.pm-navbar :is(a, button):focus-visible { outline: 2px solid #8b5cf6; outline-offset: 3px; }
+.pm-navbar :is(a, button):focus-visible { outline: 2px solid #004ac6; outline-offset: 3px; }
 @media (min-width: 640px) { .pm-navbar-shell { padding-inline: 24px; } }
 @media (min-width: 1024px) {
   .pm-navbar-shell { padding-inline: 32px; }
@@ -44,6 +41,11 @@
   .pm-navbar-actions > a > div:first-child { display: none; }
   .pm-navbar-top { gap: 8px; }
   .pm-navbar-desktop-menu { margin-inline: 0; }
+}
+/* Màn 1024–1279px: menu chỉ còn icon (tên hiện khi rê chuột / đọc màn hình) để vừa một hàng, không cuộn ngang */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .pm-navbar-menu-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pm-navbar-menu-link { padding-inline: 10px; }
 }
 @media (max-width: 639px) {
   .pm-navbar-top { min-height: 64px; gap: 8px; }

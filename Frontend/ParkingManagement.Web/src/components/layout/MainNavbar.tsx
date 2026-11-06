@@ -89,26 +89,26 @@ interface SubNavItem {
 const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
   Driver: [
     { label: 'Trang chủ', path: '/driver', icon: 'home' },
-    { label: 'Bãi đỗ & Sơ đồ', path: '/driver/parking-lots', icon: 'local_parking' },
+    { label: 'Tìm bãi đỗ', path: '/driver/parking-lots', icon: 'local_parking' },
     { label: 'Xe của tôi', path: '/driver/vehicles', icon: 'directions_car' },
-    { label: 'Xác minh KYC', path: '/driver/kyc', icon: 'verified_user' },
-    { label: 'Lịch sử đặt', path: '/driver/history', icon: 'receipt_long' },
-    { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
+    { label: 'Lịch sử', path: '/driver/history', icon: 'receipt_long' },
+    { label: 'Hỗ trợ', path: '/driver/support', icon: 'support_agent' },
   ],
   Owner: [
-    { label: 'Tổng quan & Doanh thu', path: '/owner', icon: 'analytics' },
-    { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
-    { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
-    { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
-    { label: 'Khiếu nại & Đánh giá', path: '/owner/feedback', icon: 'rate_review' },
-    { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
+    { label: 'Tổng quan', path: '/owner', icon: 'analytics' },
+    { label: 'Bãi đỗ', path: '/owner/lots', icon: 'view_quilt' },
+    { label: 'Bảng giá', path: '/owner/pricing', icon: 'payments' },
+    { label: 'Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
+    { label: 'Nhân viên', path: '/owner/staff', icon: 'badge' },
+    { label: 'Đánh giá', path: '/owner/feedback', icon: 'rate_review' },
+    { label: 'Pháp lý', path: '/owner/kyb', icon: 'verified' },
   ],
   Staff: [
-    { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
-    { label: 'Làn vào (ANPR Inbound)', path: '/gate/inbound', icon: 'login' },
-    { label: 'Làn ra (ANPR Outbound)', path: '/gate/outbound', icon: 'logout' },
-    { label: 'Soát vé thủ công', path: '/gate/manual', icon: 'edit_square' },
-    { label: 'Nhật ký trạm', path: '/gate/events', icon: 'history' },
+    { label: 'Điều khiển', path: '/gate', icon: 'tune' },
+    { label: 'Làn vào', path: '/gate/inbound', icon: 'login' },
+    { label: 'Làn ra', path: '/gate/outbound', icon: 'logout' },
+    { label: 'Soát vé', path: '/gate/manual', icon: 'edit_square' },
+    { label: 'Nhật ký', path: '/gate/events', icon: 'history' },
   ],
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
@@ -221,14 +221,15 @@ export const MainNavbar: React.FC = () => {
                   key={sub.path}
                   to={sub.path}
                   end={sub.path === activePortal.path}
+                  title={sub.label}
                   className={`pm-navbar-menu-link flex items-center gap-2 px-3 rounded-lg text-xs transition-colors ${
                     isSubActive
                       ? activePortal.subActiveClass
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[16px]">{sub.icon}</span>
-                  <span>{sub.label}</span>
+                  <span className="material-symbols-outlined text-[16px]" aria-hidden="true">{sub.icon}</span>
+                  <span className="pm-navbar-menu-label">{sub.label}</span>
                 </NavLink>
               );
             })}

@@ -2,6 +2,10 @@ import { LoginPage } from '@/areas/auth/LoginPage';
 import { RegisterPage } from '@/areas/auth/RegisterPage';
 import { ForgotPasswordPage } from '@/areas/auth/ForgotPasswordPage';
 import { ProfilePage } from '@/areas/account/ProfilePage';
+import { AccountLayout } from '@/areas/account/AccountLayout';
+import { KycPage } from '@/areas/account/KycPage';
+import { HistoryPage } from '@/areas/account/HistoryPage';
+import { PrivacyPage } from '@/areas/account/PrivacyPage';
 import { LandingPage } from '@/areas/public/LandingPage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -14,12 +18,12 @@ import { OwnerHomePage } from '@/areas/owner/pages/OwnerHomePage';
 import { OwnerLotsPage } from '@/areas/owner/pages/OwnerLotsPage';
 import { OwnerKybPage } from '@/areas/owner/pages/OwnerKybPage';
 import { OwnerFeedbackPage } from '@/areas/owner/pages/OwnerFeedbackPage';
+import { OwnerStaffPage } from '@/areas/owner/pages/OwnerStaffPage';
 import { GateConsolePage } from '@/areas/gate/pages/GateConsolePage';
 import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 
 import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
 import { SupportPage } from '@/areas/driver/pages/SupportPage';
-import { KycPage } from '@/areas/driver/pages/KycPage';
 import { PaymentResultPage } from '@/areas/driver/pages/PaymentResultPage';
 
 export const AppRoutes: React.FC = () => {
@@ -33,7 +37,13 @@ export const AppRoutes: React.FC = () => {
       <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>
         <Route element={<ProtectedRoute />}>
-          <Route path="/account/profile" element={<ProfilePage />} />
+          <Route path="/account" element={<AccountLayout />}>
+            <Route index element={<Navigate to="profile" replace />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="kyc" element={<KycPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="privacy" element={<PrivacyPage />} />
+          </Route>
         </Route>
 
         {/* 🚗 1. Driver Portal (/driver/*) */}
@@ -56,6 +66,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/owner/lots" element={<OwnerLotsPage />} />
           <Route path="/owner/kyb" element={<OwnerKybPage />} />
           <Route path="/owner/feedback" element={<OwnerFeedbackPage />} />
+          <Route path="/owner/staff" element={<OwnerStaffPage />} />
           <Route path="/owner/*" element={<OwnerHomePage />} />
         </Route>
 

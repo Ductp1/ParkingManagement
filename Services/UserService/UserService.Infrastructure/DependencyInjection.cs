@@ -30,6 +30,9 @@ public static class DependencyInjection
         services.AddServiceDbContext<UserDbContext>(configuration);
         services.AddScoped<IUserQueries, UserQueries>();
         services.AddScoped<IAvatarStorage, UserService.Infrastructure.Storage.LocalAvatarStorage>();
+        services.AddScoped<UserService.Application.Features.Kyc.IKycDocumentStorage, UserService.Infrastructure.Storage.EncryptedKycDocumentStorage>();
+        services.AddScoped<UserService.Application.Features.Kyc.IKycStore, UserService.Infrastructure.Persistence.Repositories.KycStore>();
+        services.AddScoped<UserService.Application.Features.History.IDriverActivitySource, UserService.Infrastructure.Integrations.DriverActivitySource>();
         services.AddScoped<IDataSeeder<UserDbContext>, UserDataSeeder>();
 
         // Đăng ký Auth services
@@ -39,6 +42,9 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Auth.ISessionRepository, UserService.Infrastructure.Persistence.Repositories.SessionRepository>();
         services.AddScoped<UserService.Application.Features.Identity.IIdentityStore, UserService.Infrastructure.Persistence.Repositories.IdentityStore>();
         services.AddScoped<UserService.Application.Features.Users.IOwnerProfileRepository, UserService.Infrastructure.Persistence.Repositories.OwnerProfileRepository>();
+        services.AddScoped<UserService.Application.Features.Staff.IStaffStore, UserService.Infrastructure.Persistence.Repositories.StaffStore>();
+        services.AddScoped<UserService.Application.Features.Staff.IOwnerLotDirectory, UserService.Infrastructure.Integrations.ParkingLotDirectory>();
+        services.AddScoped<UserService.Application.Features.Privacy.IDataRequestStore, UserService.Infrastructure.Persistence.Repositories.DataRequestStore>();
         services.AddScoped<UserService.Application.Features.Identity.ISecretCipher, UserService.Infrastructure.Authentication.AesSecretCipher>();
         services.AddScoped<UserService.Application.Features.Identity.IOtpDeliveryConfiguration, UserService.Infrastructure.Integrations.OtpDeliveryConfiguration>();
         services.AddScoped<ParkingManagement.ServiceDefaults.ITokenPrincipalValidator, UserService.Infrastructure.Authentication.UserPrincipalValidator>();

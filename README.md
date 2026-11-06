@@ -122,3 +122,6 @@ Quy trình phát hành:
 git tag v1.0.0
 git push origin v1.0.0        # CI phải xanh trước khi tag
 ```
+## RabbitMQ local (TV1)
+
+Xem [hướng dẫn Event Bus RabbitMQ](infrastructure/rabbitmq/README.md) để tạo cấu hình local, chạy broker bằng Docker Compose và kiểm thử Outbox/Inbox.
