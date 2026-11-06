@@ -17,8 +17,6 @@ import {
   RefundStatus,
   RiskFlagStatus,
   RiskSeverity,
-  SanctionLevel,
-  SanctionStatus,
   SecurityEventType,
   SettlementStatus,
   ShiftStatus,
@@ -51,23 +49,6 @@ const createAdjustment: FormDialogSpec = {
     { key: 'settlement', kind: 'select', label: 'Settlement', options: [], helper: 'Optional — only Draft / Pending review settlements' },
     { key: 'amount', kind: 'number', label: 'Amount (₫)', required: true, helper: 'Positive = credit, negative = debit', validate: notZero },
     { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 500, requiredMessage: 'A reason is required.' },
-  ],
-};
-
-const issueSanction: FormDialogSpec = {
-  title: 'Issue sanction',
-  description: 'Creates a Sanctions row. Owner-level locks go through Users › Lock owner (US-096).',
-  size: 640,
-  confirmLabel: 'Issue sanction',
-  fields: [
-    { key: 'owner', kind: 'select', label: 'Owner', required: true, options: [], placeholder: 'No owner source yet' },
-    { key: 'lot', kind: 'select', label: 'Lot (optional)', options: [], helper: 'Empty = whole owner' },
-    { key: 'level', kind: 'select', label: 'Level', required: true, options: enumOptions(values(SanctionLevel)) },
-    { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 1000, requiredMessage: 'A reason is required.' },
-    { key: 'evidence', kind: 'upload', label: 'Evidence (EvidenceJson)' },
-    { key: 'starts', kind: 'datetime', label: 'Starts', required: true, half: true },
-    { key: 'ends', kind: 'datetime', label: 'Ends', helper: 'Empty = no end (Permanent ban only)', half: true, validate: endAfterStart('starts') },
-    { key: 'penalty', kind: 'number', label: 'Penalty amount (₫)', helper: 'Optional · deducted from the owner’s settlement' },
   ],
 };
 
@@ -302,19 +283,6 @@ export const UNAVAILABLE_SCREENS = {
     columns: ['Code', 'Category', 'Reporter / booking', 'Lot', 'Priority', 'Status', ''],
     service: 'SupportService',
     missingEndpoint: 'GET /api/v1/complaints?kind=ticket',
-  },
-  sanctions: {
-    title: 'Sanctions',
-    subtitle: 'SLA sanctions on owners / lots · 4 levels (SanctionLevel)',
-    filterGroups: [
-      { param: 'status', title: 'Sanction status', values: values(SanctionStatus) },
-      { param: 'level', title: 'Level', allLabel: 'Any', values: values(SanctionLevel) },
-    ],
-    searchPlaceholder: 'Search owner, lot, reason…',
-    columns: ['#', 'Owner / scope', 'Level', 'Reason', 'Period', 'Penalty', 'User sync', 'Status'],
-    service: 'AdminService',
-    missingEndpoint: 'GET/POST /api/v1/admin/sanctions (today only per owner)',
-    actions: [{ label: 'Issue sanction', dialog: issueSanction }],
   },
   riskFlags: {
     title: 'Risk Flags',
