@@ -6,7 +6,8 @@ namespace AdminService.Application.Features;
 // ===== DTO =====
 /// <summary>Value = giá trị hiệu lực tại thời điểm hỏi; UpdatedAtUtc = mốc giá trị đó bắt đầu hiệu lực (null = vẫn là giá trị gốc).</summary>
 public sealed record SystemConfigDto(string Key, string Value, string DataType, string? Description, DateTime? UpdatedAtUtc);
-public sealed record FeatureFlagDto(string Key, bool IsEnabled, string? Description);
+/// <summary>UpdatedByUserId / UpdatedAtUtc = null khi flag chưa từng đổi từ giá trị seed.</summary>
+public sealed record FeatureFlagDto(string Key, bool IsEnabled, string? Description, int? UpdatedByUserId = null, DateTime? UpdatedAtUtc = null);
 public sealed record PlatformSettingsDto(IReadOnlyList<SystemConfigDto> Configs, IReadOnlyList<FeatureFlagDto> FeatureFlags);
 
 /// <summary>

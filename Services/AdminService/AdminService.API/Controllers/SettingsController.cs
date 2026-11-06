@@ -9,15 +9,32 @@ namespace AdminService.API.Controllers;
 /// <summary>
 /// UC-44 / US-098: Tham số hệ thống. Controller chỉ điều hướng HTTP → Use case.
 /// Đọc giá trị: mọi tài khoản đã đăng nhập (ngưỡng chống gian lận không được lộ công khai qua Gateway).
-/// Đổi / hủy / xem lịch sử: chỉ role Admin.
+/// Đổi / hủy / xem lịch sử: chỉ role Admin. Ngoại lệ: trạng thái bật/tắt feature flag đọc không cần đăng nhập (US-099).
 /// </summary>
 [ApiController]
 [Route("api/v1/admin/settings")]
 [Authorize]
 public sealed class SettingsController(IGetPlatformSettingsUseCase getSettings, IGetSystemConfigByKeyUseCase getConfig,
     IUpdateSystemConfigUseCase updateConfig, IGetSystemConfigHistoryUseCase getHistory, ICancelSystemConfigChangeUseCase cancelChange,
-    ICurrentUser currentUser) : ControllerBase
+    IUpdateFeatureFlagUseCase updateFeatureFlag, IGetFeatureFlagStatesUseCase getFeatureFlagStates, ICurrentUser currentUser) : ControllerBase
 {
+    /// <summary>
+    /// GET /api/v1/admin/settings/feature-flags – Trạng thái bật/tắt của mọi flag (US-099 AC2, Remote Configuration).
+    /// Không cần đăng nhập: trang tìm bãi công khai cũng cần biết flag, và chỉ trả khóa + bật/tắt.
+    /// </summary>
+    [HttpGet("feature-flags")]
+    [AllowAnonymous]
+    public async Task<ActionResult<IReadOnlyList<FeatureFlagStateDto>>> FeatureFlagStates(CancellationToken cancellationToken)
+        => Ok(await getFeatureFlagStates.ExecuteAsync(cancellationToken));
+
+    /// <summary>PUT /api/v1/admin/settings/feature-flags/FEATURE_3D_MAP – Bật/tắt flag, hiệu lực ngay, ghi audit log (US-099 AC3).</summary>
+    [HttpPut("feature-flags/{key}")]
+    [Authorize(Policy = "RequireAdmin")]
+    public async Task<ActionResult<FeatureFlagDto>> UpdateFeatureFlag(string key, [FromBody] UpdateFeatureFlagRequest request, CancellationToken cancellationToken)
+        => currentUser.UserId is { } adminUserId
+            ? Ok(await updateFeatureFlag.ExecuteAsync(key, request, adminUserId, cancellationToken))
+            : Unauthorized();
+
     /// <summary>GET /api/v1/admin/settings?at=2026-10-09T08:00:00Z – 30 tham số nghiệp vụ (giá trị hiệu lực tại <c>at</c>) + 8 feature flag.</summary>
     [HttpGet]
     public async Task<ActionResult<PlatformSettingsDto>> Get([FromQuery] DateTime? at, CancellationToken cancellationToken)
