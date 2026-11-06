@@ -66,13 +66,17 @@ public static class DependencyInjection
         services.AddScoped<IDeleteSlotUseCase, DeleteSlotUseCase>();
         services.AddScoped<IGetSlotsByFloorUseCase, GetSlotsByFloorUseCase>();
 
-        // Layouts (T-502, US-059)
+        // Layouts (T-502, US-059, US-060)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();
         services.AddScoped<IGetFloorLayoutDraftUseCase, GetFloorLayoutDraftUseCase>();
         services.AddScoped<ISaveFloorLayoutDraftUseCase, SaveFloorLayoutDraftUseCase>();
         services.AddScoped<IPublishFloorLayoutUseCase, PublishFloorLayoutUseCase>();
         services.AddScoped<IGetFloorLayoutVersionsUseCase, GetFloorLayoutVersionsUseCase>();
         services.AddScoped<IGetFloorLayoutByVersionUseCase, GetFloorLayoutByVersionUseCase>();
+        services.AddScoped<IRollbackFloorLayoutUseCase, RollbackFloorLayoutUseCase>();
+        services.AddScoped<IGetFloorLayoutDiffUseCase, GetFloorLayoutDiffUseCase>();
+        services.AddScoped<IValidateFloorLayoutSafetyUseCase, ValidateFloorLayoutSafetyUseCase>();
+        services.AddScoped<IDiscardFloorLayoutDraftUseCase, DiscardFloorLayoutDraftUseCase>();
 
         // Capacity & Walk-in Buffer (UI-26, EP10)
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
