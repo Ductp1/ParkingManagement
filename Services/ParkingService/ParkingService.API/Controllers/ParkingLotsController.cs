@@ -72,10 +72,10 @@ public sealed class ParkingLotsController(
 
     /// <summary>POST /api/v1/parking-lots – Chủ bãi đăng ký bãi đỗ mới (UC-07).</summary>
     [HttpPost]
-    [ProducesResponseType<int>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
-    public async Task<ActionResult<int>> Create([FromBody] CreateParkingLotRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult> Create([FromBody] CreateParkingLotRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateParkingLotCommand(
             request.OwnerProfileId,
@@ -94,7 +94,7 @@ public sealed class ParkingLotsController(
             request.HotlinePhone);
 
         var id = await createParkingLot.ExecuteAsync(command, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id }, id);
+        return CreatedAtAction(nameof(GetById), new { id }, new { id });
     }
 
     /// <summary>PUT /api/v1/parking-lots/{id} – Cập nhật thông tin bãi đỗ (UC-10).</summary>
