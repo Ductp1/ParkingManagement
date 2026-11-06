@@ -203,8 +203,16 @@ public sealed class PaymentsController(
         => Ok(await getByBooking.ExecuteAsync(bookingId, cancellationToken));
 
     /// <summary>
-    /// POST /api/v1/payments/gate-settlement – Ghi nhận thanh toán tại cổng do staff xác nhận (UC-22 A2, UC-23, US-048).
+    /// POST /api/v1/payments/gate-settlement – Ghi nhận thanh toán tại bãi/cổng do nhân viên xác nhận hoặc quét VietQR (US-035, US-048, UC-22 A2, UC-23).
     /// </summary>
+    /// <param name="command">{GateSettlementCommand} - Staff App hoặc Kiosk truyền qua Request Body - Thông tin thanh toán tại cổng gồm SessionCode, ParkingSessionId, ParkingLotId, OwnerProfileId, BookingCode nếu có, Amount, Method (Cash/VietQr) và ConfirmedByStaffId.</param>
+    /// <param name="cancellationToken">{CancellationToken} - Hệ thống tự động truyền - Token hủy tác vụ bất đồng bộ khi client ngắt kết nối.</param>
+    /// <returns>
+    /// Đối tượng PaymentDto chứa chi tiết giao dịch thanh toán thành công tại cổng.
+    /// Mã HTTP trả về:
+    /// - 200 OK: Ghi nhận thanh toán tại cổng thành công (hoặc trả lại giao dịch cũ nếu gọi lặp Idempotent).
+    /// - 400 BadRequest: Dữ liệu gửi lên không hợp lệ (SessionCode rỗng, ParkingLotId nhỏ hơn 0, số tiền âm, phương thức không phải Cash/VietQr).
+    /// </returns>
     [HttpPost("gate-settlement")]
     [ProducesResponseType<PaymentDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
