@@ -28,6 +28,10 @@ public static class DependencyInjection
         services.AddScoped<IBookingEventPublisher, BookingEventOutbox>();
         services.AddRabbitMqInboxConsumer<BookingDbContext, BookingIntegrationEventHandler>(configuration);
         services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<BookingDbContext>>();
+        // US-069: chặn booking mới khi bãi bị emergency stop (check qua ParkingService).
+        services.AddScoped<Application.Features.Bookings.ILotStatusProvider, Integrations.LotStatusProvider>();
+        services.AddHttpClient<Application.Features.Bookings.ILotStatusProvider, Integrations.LotStatusProvider>((_, client) =>
+            client.BaseAddress = new Uri(configuration["ParkingService:BaseUrl"] ?? "http://localhost:5103"));
         // US-066 (luat 4): dang ky thue bao nguyen tu theo han muc + doc Q tu GateService.
         services.AddScoped<IMonthlyPassRegistrationStore, MonthlyPassRegistrationStore>();
         services.AddScoped<ILotSubscriberQuotaProvider, GateCapacityQuotaProvider>();

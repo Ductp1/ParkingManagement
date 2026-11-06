@@ -15,6 +15,12 @@ public sealed class LotAdmissionGate(GateDbContext db) : ILotAdmissionGate
     public async Task<(bool Admitted, string? RejectReason)> TryAdmitAsync(
         int parkingLotId, AdmissionType type, CancellationToken cancellationToken = default)
     {
+        // US-069: bãi đóng khẩn cấp → chặn MỌI check-in mới (cả vãng lai lẫn booking QR).
+        var operational = await db.LotOperationalStatuses.AsNoTracking()
+            .SingleOrDefaultAsync(s => s.ParkingLotId == parkingLotId, cancellationToken);
+        if (operational is { IsClosed: true })
+            return (false, $"LOT_CLOSED: Bãi đang tạm đóng khẩn cấp ({operational.ClosedReason}). Vui lòng liên hệ nhân viên.");
+
         var policy = await db.LotCapacityConfigs.AsNoTracking()
             .SingleOrDefaultAsync(c => c.ParkingLotId == parkingLotId, cancellationToken);
         if (policy is null)

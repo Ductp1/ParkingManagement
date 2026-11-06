@@ -105,9 +105,12 @@ public static class DependencyInjection
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
-        // US-068: operations (heartbeat)
         // (IGetOperationsOverviewUseCase sẽ đăng ký ở Infrastructure khi thêm US-067 — cần bind StalenessOptions từ config.)
+        // US-067/068/069: operations (heartbeat, dashboard overview, emergency stop)
+        // (IGetOperationsOverviewUseCase đăng ký ở Infrastructure vì cần bind StalenessOptions từ config.)
         services.AddScoped<IRecordHeartbeatUseCase, RecordHeartbeatUseCase>();
+        services.AddScoped<IEmergencyStopUseCase, EmergencyStopUseCase>();
+        services.AddScoped<ILiftEmergencyStopUseCase, LiftEmergencyStopUseCase>();
 
         return services;
     }

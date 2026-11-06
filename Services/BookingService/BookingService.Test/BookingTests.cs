@@ -90,6 +90,19 @@ internal sealed class FakeEventPublisher : IBookingEventPublisher
     }
 }
 
+
+/// <summary>US-069: bãi luôn Active cho unit test.</summary>
+internal sealed class FakeLotStatus : ILotStatusProvider
+{
+    public Task<bool> IsBookableAsync(int parkingLotId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+}
+
+/// <summary>US-069: bãi đang bị emergency stop (Suspended) — CreateBookingUseCase phải chặn.</summary>
+internal sealed class FakeLotStatusClosed : ILotStatusProvider
+{
+    public Task<bool> IsBookableAsync(int parkingLotId, CancellationToken cancellationToken = default) => Task.FromResult(false);
+}
+
 /// <summary>
 /// Kiểm tra quy tắc chuyển trạng thái trong Domain Entity Booking (Task T-301).
 /// </summary>
@@ -274,12 +287,42 @@ public class BookingFeaturesTests
     }
 
     [Fact]
+    public async Task CreateBooking_blocked_when_lot_is_emergency_stopped()
+    {
+        // US-069: bãi Suspended (emergency stop) → chặn đặt chỗ mới ngay lập tức.
+        var repo = new FakeBookingRepo();
+        var useCase = new CreateBookingUseCase(repo, new QrTokenService(), new FakeEventPublisher(),
+            new FakeLotStatusClosed(), new FixedClock(FixedNow));
+
+        var cmd = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 1,
+            PlateNumber: "51F-123.45",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: 1,
+            SlotId: 2,
+            SlotCode: "B1-A02",
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddHours(1),
+            EndAtUtc: FixedNow.AddHours(3),
+            TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("đóng khẩn cấp", ex.Message);
+        Assert.Empty(repo.SavedBookings); // không tạo booking
+    }
+
+    [Fact]
     public async Task CreateBooking_sets_pending_payment_and_15_minutes_hold()
     {
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -314,7 +357,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -342,7 +385,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -371,7 +414,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -462,7 +505,6 @@ public class BookingFeaturesTests
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
-
 
 /// <summary>US-083: fake publisher — capture event để test assert nội dung outbox.</summary>
 internal sealed class FakeEventPublisher : IBookingEventPublisher

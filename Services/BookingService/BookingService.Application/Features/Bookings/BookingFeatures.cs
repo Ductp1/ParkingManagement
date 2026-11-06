@@ -200,11 +200,20 @@ public interface ICreateBookingUseCase
     Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default);
 }
 
+/// <summary>US-069: port check trạng thái bãi — bãi Suspended (emergency stop) → chặn booking mới.</summary>
+public interface ILotStatusProvider
+{
+    /// <summary>True khi bãi Active (nhận booking). Lỗi kết nối → fail-open (không chặn) để ưu tiên availability.</summary>
+    Task<bool> IsBookableAsync(int parkingLotId, CancellationToken cancellationToken = default);
+}
+
+
 /// <summary>US-022: Tạo booking & giữ chỗ 15 phút (TC-BOOK-01).</summary>
 public sealed class CreateBookingUseCase(
     IBookingRepository repository,
     IQrTokenService qrService,
     IBookingEventPublisher events,
+    ILotStatusProvider lotStatus,
     TimeProvider timeProvider) : ICreateBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
@@ -214,6 +223,10 @@ public sealed class CreateBookingUseCase(
         if (command.ParkingLotId <= 0) throw new ValidationException("ParkingLotId không hợp lệ.");
         if (string.IsNullOrWhiteSpace(command.PlateNumber)) throw new ValidationException("Biển số xe không được để trống.");
         if (command.EndAtUtc <= command.StartAtUtc) throw new ValidationException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+
+        // US-069: bãi Suspended (emergency stop) → chặn đặt chỗ mới ngay lập tức.
+        if (!await lotStatus.IsBookableAsync(command.ParkingLotId, cancellationToken))
+            throw new ValidationException("Bãi đang tạm đóng khẩn cấp — không nhận đặt chỗ mới. Vui lòng chọn bãi khác.");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         if (command.StartAtUtc < now.AddMinutes(15))

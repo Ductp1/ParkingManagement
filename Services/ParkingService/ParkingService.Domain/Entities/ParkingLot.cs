@@ -71,6 +71,29 @@ public class ParkingLot : BaseEntity, ISoftDelete
         return true;
     }
 
+    // ===== US-069: emergency stop =====
+    public DateTime? EmergencyStoppedAtUtc { get; private set; }
+    public string? EmergencyStopReason { get; private set; }
+
+    /// <summary>US-069: đóng bãi khẩn cấp — Status → Suspended (enum đã chú thích "hoặc Emergency Stop").</summary>
+    public void ApplyEmergencyStop(string reason, DateTime nowUtc)
+    {
+        if (Status == ParkingLotStatus.Suspended) return; // idempotent
+        Status = ParkingLotStatus.Suspended;
+        EmergencyStoppedAtUtc = nowUtc;
+        EmergencyStopReason = reason;
+    }
+
+    /// <summary>US-069: gỡ đóng bãi khẩn cấp → Status trở lại Active, nhận booking/check-in bình thường.</summary>
+    public void LiftEmergencyStop(DateTime nowUtc)
+    {
+        if (Status != ParkingLotStatus.Suspended) return;
+        Status = ParkingLotStatus.Active;
+        EmergencyStoppedAtUtc = null;
+        EmergencyStopReason = null;
+        _ = nowUtc;
+    }
+
     public ICollection<Zone> Zones { get; private set; } = new List<Zone>();
     public LotCapacityConfig? CapacityConfig { get; private set; }
     public ICollection<LotOperatingHour> OperatingHours { get; private set; } = new List<LotOperatingHour>();
