@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
+        services.AddScoped<ILotDetailsRepository, LotDetailsRepository>();           // US-064
         services.AddScoped<ILotOperatingHourRepository, LotOperatingHourRepository>();
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
         services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
