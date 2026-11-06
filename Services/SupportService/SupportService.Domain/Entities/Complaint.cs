@@ -53,7 +53,56 @@ public class Complaint : BaseEntity
     /// </summary>
     public byte[] RowVersion { get; set; } = [];
 
+    // ===== US-090: chủ bãi phán quyết tranh chấp (duy nhất 1 lần, không ai khác can thiệp), SLA =====
+
+    /// <summary>AC3: lần đầu chủ bãi phản hồi tài xế (tin nhắn / phán quyết) – tính cùng phản hồi US-089.</summary>
+    public DateTime? FirstResponseAtUtc { get; set; }
+
     public ICollection<ComplaintMessage> Messages { get; set; } = new List<ComplaintMessage>();
+    /// <summary>Phán quyết của chủ bãi (null = chưa phán quyết). Không sửa / xóa được.</summary>
+    public DisputeRuling? Ruling { get; set; }
+    /// <summary>Biên bản phạt xe đậu sai chỗ lập khi chủ bãi phán quyết khiếu nại "chỗ bị chiếm".</summary>
+    public ICollection<ParkingViolation> Violations { get; set; } = new List<ParkingViolation>();
+
+    /// <summary>AC3: phản hồi đầu tiên của chủ bãi – tin nhắn ở US-090 hoặc phản hồi kèm bằng chứng ở US-089.</summary>
+    public DateTime? FirstRespondedAtUtc => FirstResponseAtUtc ?? OwnerRespondedAtUtc;
+
+    /// <summary>AC3: ghi nhận phản hồi đầu tiên (các lần sau không đổi mốc).</summary>
+    public void RecordFirstResponse(DateTime nowUtc) => FirstResponseAtUtc ??= nowUtc;
+
+    /// <summary>
+    /// AC2: chủ bãi phán quyết – đóng ticket qua <see cref="Close"/> (giải phóng khoản giữ) và gắn 1 phán quyết không sửa được.
+    /// Mỗi tranh chấp chỉ 1 phán quyết; dữ liệu phải khớp loại phán quyết.
+    /// </summary>
+    public DisputeRuling ApplyOwnerRuling(int ownerUserId, DisputeDecision decision, decimal? refundAmount, string? newSlotCode,
+        string reason, DateTime nowUtc)
+    {
+        if (!DisputeRules.CanOwnerRule(Status, Category, Ruling is not null))
+            throw new InvalidOperationException($"Tranh chấp {Code} không còn chờ chủ bãi phán quyết.");
+        var valid = decision switch
+        {
+            DisputeDecision.ForceRefund => refundAmount > 0 && newSlotCode is null,
+            DisputeDecision.RejectComplaint => refundAmount is null && newSlotCode is null,
+            DisputeDecision.MoveToSlot => Category == ComplaintCategory.SlotOccupied && !string.IsNullOrWhiteSpace(newSlotCode) && refundAmount is null,
+            _ => false,
+        };
+        if (!valid) throw new ArgumentException($"Dữ liệu không khớp với phán quyết {decision}.");
+
+        Close(DisputeRules.OutcomeOf(decision), reason, refundAmount, ownerUserId, nowUtc);
+        OwnerRespondedAtUtc ??= nowUtc;
+        RecordFirstResponse(nowUtc);
+        Ruling = new DisputeRuling
+        {
+            Decision = decision,
+            RefundAmount = refundAmount,
+            NewSlotCode = newSlotCode,
+            Reason = reason,
+            DecidedByUserId = ownerUserId,
+            Category = Category,
+            ParkingLotId = ParkingLotId,
+        };
+        return Ruling;
+    }
 
     /// <summary>
     /// Đóng tranh chấp khi có phán quyết (US-090) và <b>giải phóng khoản tiền đang giữ</b> (US-089 AC3).

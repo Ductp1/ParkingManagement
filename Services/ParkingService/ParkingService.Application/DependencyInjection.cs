@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Capacity;
+using ParkingService.Application.Features.OperatingHours;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
@@ -38,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IApproveKybApplicationUseCase, ApproveKybApplicationUseCase>();
         services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
         services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
+        services.AddScoped<Features.AdminDashboard.IGetAdminLotsSummaryUseCase, Features.AdminDashboard.GetAdminLotsSummaryUseCase>(); // US-081
 
         // Khai báo sai – Admin (US-056)
         services.AddScoped<IGetLotMisdeclarationUseCase, GetLotMisdeclarationUseCase>();
@@ -65,13 +67,17 @@ public static class DependencyInjection
         services.AddScoped<IDeleteSlotUseCase, DeleteSlotUseCase>();
         services.AddScoped<IGetSlotsByFloorUseCase, GetSlotsByFloorUseCase>();
 
-        // Layouts (T-502, US-059)
+        // Layouts (T-502, US-059, US-060)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();
         services.AddScoped<IGetFloorLayoutDraftUseCase, GetFloorLayoutDraftUseCase>();
         services.AddScoped<ISaveFloorLayoutDraftUseCase, SaveFloorLayoutDraftUseCase>();
         services.AddScoped<IPublishFloorLayoutUseCase, PublishFloorLayoutUseCase>();
         services.AddScoped<IGetFloorLayoutVersionsUseCase, GetFloorLayoutVersionsUseCase>();
         services.AddScoped<IGetFloorLayoutByVersionUseCase, GetFloorLayoutByVersionUseCase>();
+        services.AddScoped<IRollbackFloorLayoutUseCase, RollbackFloorLayoutUseCase>();
+        services.AddScoped<IGetFloorLayoutDiffUseCase, GetFloorLayoutDiffUseCase>();
+        services.AddScoped<IValidateFloorLayoutSafetyUseCase, ValidateFloorLayoutSafetyUseCase>();
+        services.AddScoped<IDiscardFloorLayoutDraftUseCase, DiscardFloorLayoutDraftUseCase>();
 
         // Capacity & Walk-in Buffer (UI-26, EP10)
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
@@ -94,6 +100,9 @@ public static class DependencyInjection
 
         services.AddScoped<IGetLotAttributesUseCase, GetLotAttributesUseCase>();
         services.AddScoped<IUpdateLotAttributesUseCase, UpdateLotAttributesUseCase>();
+        // Operating Hours (US-062, EP09)
+        services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
+        services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
 
         return services;
     }

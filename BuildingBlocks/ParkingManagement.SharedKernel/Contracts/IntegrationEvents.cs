@@ -69,6 +69,21 @@ public sealed record LotFullRefundRequested(string IncidentCode, int BookingId, 
     int RefundPercent, decimal VoucherAmount, int VoucherValidDays) : IntegrationEvent;
 /// <summary>US-091 AC3: bãi bị ghi vi phạm SLA (booking Confirmed nhưng không có chỗ) → AdminService chế tài, ParkingService xếp hạng.</summary>
 public sealed record LotSlaViolated(string IncidentCode, string BookingCode, int ParkingLotId, int? OwnerProfileId) : IntegrationEvent;
+/// <summary>
+/// US-090 AC2: chủ bãi phán quyết tranh chấp (Decision = MoveToSlot / ForceRefund / RejectComplaint; mỗi tranh chấp 1 lần).
+/// MoveToSlot → BookingService (TV3) chuyển booking sang NewSlotCode, giữ nguyên giá;
+/// ForceRefund → PaymentService (TV4) hoàn RefundAmount (RefundReason.DisputeOverride, ComplaintId), chủ bãi chịu;
+/// NotificationService (TV6) báo tài xế (UserId). Khoản quyết toán bị giữ đã được giải phóng.
+/// </summary>
+public sealed record DisputeRuled(int ComplaintId, string Code, string Decision, int UserId, int ParkingLotId, int? OwnerProfileId,
+    int? BookingId, string? BookingCode, decimal? RefundAmount, string? OldSlotCode, string? NewSlotCode, int DecidedByUserId)
+    : IntegrationEvent;
+/// <summary>
+/// US-090: xe đậu sai chỗ (chiếm chỗ người khác đã đặt) bị phạt FineAmount theo mức chủ bãi cấu hình →
+/// GateService (TV7) / PaymentService (TV4) cộng phí phạt khi xe ra cổng (theo PlateNumber + ParkingLotId).
+/// </summary>
+public sealed record ParkingViolationFined(string ViolationCode, int ComplaintId, int ParkingLotId, int? OwnerProfileId,
+    string PlateNumber, string? SlotCode, decimal FineAmount) : IntegrationEvent;
 
 // ===== Mọi service → AdminService =====
 public sealed record AuditRecorded(string SourceService, int? UserId, string Action, string EntityName, string? EntityId,

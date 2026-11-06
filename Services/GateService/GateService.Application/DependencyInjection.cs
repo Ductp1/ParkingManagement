@@ -31,6 +31,7 @@ public static class DependencyInjection
         // US-066: cau hinh suc chua & vung dem vang lai.
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
+        Features.AdminDashboard.AdminGateDashboardRegistration.AddAdminGateDashboard(services); // US-081: Admin dashboard (chỉ đọc)
         return services;
     }
 }
