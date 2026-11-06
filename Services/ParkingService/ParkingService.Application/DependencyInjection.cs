@@ -77,15 +77,6 @@ public static class DependencyInjection
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
-<<<<<<< Updated upstream
-=======
-        // Closures & Maintenance (US-063, EP09)
-        services.AddScoped<ICreateClosureScheduleUseCase, CreateClosureScheduleUseCase>();
-        services.AddScoped<IValidateClosureImpactUseCase, ValidateClosureImpactUseCase>();
-        services.AddScoped<ICancelClosureScheduleUseCase, CancelClosureScheduleUseCase>();
-        services.AddScoped<IGetLotClosureSchedulesUseCase, GetLotClosureSchedulesUseCase>();
-        services.AddScoped<IGetClosureScheduleByIdUseCase, GetClosureScheduleByIdUseCase>();
-
 
         // Lot Details (Amenities, Photos, Attributes) (US-064, EP09)
         services.AddScoped<IGetStandardAmenitiesCatalogUseCase, GetStandardAmenitiesCatalogUseCase>();
@@ -104,7 +95,6 @@ public static class DependencyInjection
         services.AddScoped<IGetLotAttributesUseCase, GetLotAttributesUseCase>();
         services.AddScoped<IUpdateLotAttributesUseCase, UpdateLotAttributesUseCase>();
 
->>>>>>> Stashed changes
         return services;
     }
 }
