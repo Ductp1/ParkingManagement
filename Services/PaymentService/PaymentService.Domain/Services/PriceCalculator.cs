@@ -18,6 +18,18 @@ public sealed record SessionFeeQuote(int DurationMinutes, bool IsWithinBillingGr
     int OverstayMinutes, decimal OverstayAmount, decimal FinalAmount, IReadOnlyList<PriceLine> Lines);
 
 /// <summary>
+/// Kết quả chi tiết của việc tính toán phí phạt đỗ quá giờ (US-047).
+/// </summary>
+public sealed record OverstayPenaltyResult(
+    int OverstayMinutes,
+    bool IsWithinGracePeriod,
+    decimal OverstayMultiplier,
+    decimal BaseRateAmount,
+    decimal PenaltyAmount,
+    string Description,
+    IReadOnlyList<PriceLine> Lines);
+
+/// <summary>
 /// Công cụ tính giá đỗ xe (SRS v2 F3.1, Đặc tả v3 §4.4, US-070, US-071):
 /// - Lượt đỗ ≤ 15 phút (Parking Billing Grace Period) → 0đ.
 /// - Giá lũy tiến theo bậc: mỗi bậc tính theo block, block lẻ làm tròn lên.
@@ -154,16 +166,16 @@ public static class PriceCalculator
             multiplier *= card.OversizedMultiplier;
 
         // US-047: ra sau giờ kết thúc + 15' ân hạn → cước quá giờ tính từ giờ kết thúc × hệ số quá giờ
-        var stayMultiplier = overstayMultiplier ?? card.OverstayMultiplier;
-        int overstayMinutes = 0;
-        decimal overstayAmount = 0m;
-        if (bookedEndUtc is { } endUtc && exitUtc > endUtc.AddMinutes(DefaultGracePeriodMinutes))
+        var overstay = bookedEndUtc is { } endUtc
+            ? CalculateOverstay(card, vehicleType, endUtc, exitUtc, overstayMultiplier, billingGracePeriodMinutes)
+            : null;
+
+        var overstayMinutes = overstay?.OverstayMinutes ?? 0;
+        var overstayAmount = overstay?.PenaltyAmount ?? 0m;
+        if (overstay is not null && !overstay.IsWithinGracePeriod && overstayAmount > 0)
         {
-            overstayMinutes = (int)Math.Ceiling((exitUtc - endUtc).TotalMinutes);
-            var (_, overstayBase) = BuildTieredLines(rules, overstayMinutes);
-            overstayAmount = Math.Round(overstayBase * stayMultiplier, 0);
             lines.Add(new PriceLine(
-                $"Phụ thu quá giờ ({overstayMinutes} phút × hệ số quá giờ {stayMultiplier:0.##})",
+                $"Phụ thu quá giờ ({overstayMinutes} phút × hệ số quá giờ {overstay.OverstayMultiplier:0.##})",
                 overstayMinutes, 0, 0, overstayAmount));
         }
 
@@ -176,6 +188,60 @@ public static class PriceCalculator
         final += overstayAmount;
 
         return new SessionFeeQuote(minutes, false, baseAmount, multiplier, overstayMinutes, overstayAmount, final, lines);
+    }
+
+    /// <summary>
+    /// Tính toán chi tiết phí phụ thu quá giờ cho lượt đỗ xe (US-047, UC-22).
+    /// </summary>
+    /// <param name="card">Biểu giá hiệu lực của bãi đỗ xe.</param>
+    /// <param name="vehicleType">Phân loại phương tiện gửi xe.</param>
+    /// <param name="bookedEndUtc">Thời điểm kết thúc đỗ xe theo đơn đặt chỗ ban đầu (UTC).</param>
+    /// <param name="actualExitUtc">Thời điểm xe thực tế ra qua cổng (UTC).</param>
+    /// <param name="customOverstayMultiplier">Hệ số phạt ghi đè nếu có trong PriceSnapshot (thường 1.5 đến 2.0).</param>
+    /// <param name="gracePeriodMinutes">Thời gian ân hạn miễn phạt (mặc định 15 phút).</param>
+    /// <returns>Đối tượng OverstayPenaltyResult chứa số phút quá giờ, đơn giá gốc, tiền phạt và mô tả chi tiết.</returns>
+    public static OverstayPenaltyResult CalculateOverstay(
+        RateCard card,
+        VehicleType vehicleType,
+        DateTime bookedEndUtc,
+        DateTime actualExitUtc,
+        decimal? customOverstayMultiplier = null,
+        int gracePeriodMinutes = DefaultGracePeriodMinutes)
+    {
+        if (actualExitUtc <= bookedEndUtc)
+        {
+            return new OverstayPenaltyResult(
+                0, true, customOverstayMultiplier ?? card.OverstayMultiplier, 0m, 0m,
+                "Xe ra đúng giờ hoặc trước giờ hẹn, không phát sinh phụ thu quá giờ.", []);
+        }
+
+        var overstayMinutes = (int)Math.Ceiling((actualExitUtc - bookedEndUtc).TotalMinutes);
+        var stayMultiplier = customOverstayMultiplier ?? card.OverstayMultiplier;
+
+        // AC1: Trong vòng 15 phút ân hạn sau giờ kết thúc thì miễn phí phụ thu quá giờ
+        if (overstayMinutes <= gracePeriodMinutes)
+        {
+            return new OverstayPenaltyResult(
+                0, true, stayMultiplier, 0m, 0m,
+                $"Xe ra trễ {overstayMinutes} phút nhưng nằm trong {gracePeriodMinutes} phút ân hạn, không tính phí quá giờ.", []);
+        }
+
+        // AC1: Khi vượt quá 15 phút ân hạn, cước quá giờ tính từ giờ kết thúc theo đơn giá chuẩn × hệ số quá giờ 1.5–2.0
+        var ruleType = ResolveRuleType(card, vehicleType);
+        var rules = ResolveRules(card, vehicleType, ruleType);
+        var (lines, overstayBase) = BuildTieredLines(rules, overstayMinutes);
+
+        // Bù đắp diện tích chiếm dụng vượt tiêu chuẩn khi dùng giá SUV thay thế cho xe quá khổ
+        if (vehicleType == VehicleType.Oversized && ruleType != VehicleType.Oversized)
+        {
+            overstayBase = Math.Round(overstayBase * card.OversizedMultiplier, 0);
+        }
+
+        var penaltyAmount = Math.Round(overstayBase * stayMultiplier, 0);
+        var desc = $"Quá giờ {overstayMinutes} phút (cước chuẩn {overstayBase:N0}đ × hệ số phạt {stayMultiplier:0.##}) = {penaltyAmount:N0}đ.";
+
+        return new OverstayPenaltyResult(
+            overstayMinutes, false, stayMultiplier, overstayBase, penaltyAmount, desc, lines);
     }
 
     /// <summary>Xe quá khổ chiếm diện tích lớn: nếu bãi chưa cấu hình riêng thì lấy giá dòng SUV làm chuẩn gốc.</summary>

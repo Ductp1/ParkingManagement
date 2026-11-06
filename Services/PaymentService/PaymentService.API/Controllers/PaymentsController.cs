@@ -48,59 +48,6 @@ public sealed record CreateVietQrPaymentRequest(
     string BankAccountName);
 
 /// <summary>
-/// Controller xử lý tính toán và báo giá đỗ xe trước khi đặt chỗ (UC-11, US-046, US-070, US-071).
-/// </summary>
-[ApiController]
-[Route("api/v1/pricing")]
-public sealed class PricingController(
-    IQuotePriceUseCase quotePrice,
-    IComputeSessionFeeUseCase sessionFee) : ControllerBase
-{
-    /// <summary>
-    /// GET /api/v1/pricing/quote – Tính toán và báo giá tiền đỗ xe trước khi đặt chỗ (UC-11, US-046, US-070, US-071).
-    /// </summary>
-    [HttpGet("quote")]
-    [ProducesResponseType<PriceQuoteDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<PriceQuoteDto>> Quote(
-        [FromQuery] int parkingLotId,
-        [FromQuery] VehicleType vehicleType,
-        [FromQuery] DateTime startAtUtc,
-        [FromQuery] DateTime endAtUtc,
-        CancellationToken cancellationToken)
-        => Ok(await quotePrice.ExecuteAsync(new QuotePriceQuery(
-            parkingLotId,
-            vehicleType,
-            DateTime.SpecifyKind(startAtUtc.ToUniversalTime(), DateTimeKind.Utc),
-            DateTime.SpecifyKind(endAtUtc.ToUniversalTime(), DateTimeKind.Utc)),
-            cancellationToken));
-
-    /// <summary>
-    /// POST /api/v1/pricing/session-fee – Chốt phí một lượt gửi xe thực tế tại cổng ra (UC-22, US-045 → US-047).
-    /// </summary>
-    [HttpPost("session-fee")]
-    [ProducesResponseType<SessionFeeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SessionFeeDto>> SessionFee(
-        [FromBody] SessionFeeQuery query,
-        CancellationToken cancellationToken)
-    {
-        query = query with
-        {
-            EntryAtUtc = DateTime.SpecifyKind(query.EntryAtUtc.ToUniversalTime(), DateTimeKind.Utc),
-            ExitAtUtc = DateTime.SpecifyKind(query.ExitAtUtc.ToUniversalTime(), DateTimeKind.Utc),
-            BookedEndAtUtc = query.BookedEndAtUtc is null
-                ? null
-                : DateTime.SpecifyKind(query.BookedEndAtUtc.Value.ToUniversalTime(), DateTimeKind.Utc),
-        };
-
-        return Ok(await sessionFee.ExecuteAsync(query, cancellationToken));
-    }
-}
-
-/// <summary>
 /// Controller quản lý và tra cứu các giao dịch thanh toán trong hệ thống.
 /// </summary>
 [ApiController]

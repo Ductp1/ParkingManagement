@@ -20,7 +20,9 @@ public static class DependencyInjection
         services.Configure<VnpayOptions>(configuration.GetSection(VnpayOptions.SectionName));
         services.AddServiceDbContext<PaymentDbContext>(configuration);
         services.AddScoped<IRateCardRepository, RateCardRepository>();
+        services.AddScoped<IRateCardManagementRepository, RateCardManagementRepository>();
         services.AddScoped<IHolidayRepository, HolidayRepository>();
+        services.AddScoped<IHolidayManagementRepository, HolidayManagementRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
         // UC-22: ghi thanh toán tiền mặt staff xác nhận tại cổng ra.
         services.AddScoped<IPaymentWriter, PaymentWriter>();
@@ -28,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<IOwnerRevenueQueries, OwnerRevenueQueries>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IRefundRepository, RefundRepository>();
         services.AddScoped<IVnpayGateway, VnpayGateway>();
         return services;
     }
