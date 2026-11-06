@@ -5,6 +5,7 @@ using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
+using AdminService.Application.Features.Sanctions;
 using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using AdminService.Infrastructure.Documents;
@@ -36,6 +37,9 @@ public static class DependencyInjection
         services.AddScoped<ISanctionQueries, SanctionQueries>();
         services.AddScoped<IPartnerApplicationQueries, PartnerApplicationQueries>();   // US-116
         services.AddScoped<IOwnerLockRepository, OwnerLockRepository>();
+        services.AddScoped<ISanctionAdminQueries, SanctionAdminQueries>();                   // US-097: chế tài SLA 4 cấp
+        services.AddScoped<ISanctionRepository, SanctionRepository>();
+        services.AddSingleton(SanctionSettingsFrom(configuration));
         services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
@@ -78,6 +82,13 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // US-097: danh sách bãi của chủ bãi (xác minh bãi được áp chế tài thuộc đúng chủ bãi).
+        services.AddHttpClient<IParkingLotDirectory, ParkingLotDirectoryClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
 
         // US-081: nguồn chỉ-đọc của Admin dashboard qua Gateway (JWT Admin chuyển tiếp). Timeout từng nguồn đặt ở use case
         // ("Dashboard:SourceTimeoutSeconds:{Service}", mặc định 3 giây); HttpClient.Timeout chỉ là chốt chặn cuối.
@@ -99,6 +110,19 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+
+    /// <summary>
+    /// US-097 – "Sanctions": { "SuggestionWindowDays": 90, "AppealBusinessDays": 5 }. Thiếu / ngoài khoảng (1–365, 1–30) dùng mặc định.
+    /// </summary>
+    private static SanctionSettings SanctionSettingsFrom(IConfiguration configuration)
+    {
+        var defaults = new SanctionSettings();
+        var window = configuration.GetValue<int?>("Sanctions:SuggestionWindowDays");
+        var appeal = configuration.GetValue<int?>("Sanctions:AppealBusinessDays");
+        return new SanctionSettings(
+            window is >= 1 and <= 365 ? window.Value : defaults.SuggestionWindowDays,
+            appeal is >= 1 and <= 30 ? appeal.Value : defaults.AppealBusinessDays);
+    }
 
     /// <summary>"Dashboard:SourceTimeoutSeconds": { "GateService": 3, … } – giá trị thiếu / ≤ 0 / sai định dạng dùng mặc định 3 giây.</summary>
     private static DashboardSourceTimeouts DashboardTimeouts(IConfiguration configuration)
