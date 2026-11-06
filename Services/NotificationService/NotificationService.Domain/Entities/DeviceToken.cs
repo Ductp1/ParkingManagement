@@ -1,5 +1,4 @@
 using ParkingManagement.SharedKernel.Domain;
-using ParkingManagement.SharedKernel.Enums;
 
 namespace NotificationService.Domain.Entities;
 
@@ -9,7 +8,8 @@ public class DeviceToken : BaseEntity
     /// <summary>→ UserService (không FK).</summary>
     public int UserId { get; set; }
     public string Token { get; set; } = string.Empty;
-    public DevicePlatform Platform { get; set; }
+    /// <summary>Platform: "iOS", "Android", "Web", etc.</summary>
+    public string Platform { get; set; } = string.Empty;
     public string? DeviceName { get; set; }
     public DateTime LastUsedAtUtc { get; set; }
     /// <summary>FCM báo token hết hạn → đánh dấu để không gửi nữa.</summary>

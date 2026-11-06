@@ -15,4 +15,5 @@ public class OutboxMessage
     public DateTime? ProcessedAtUtc { get; set; }
     public int AttemptCount { get; set; }
     public string? LastError { get; set; }
+    public DateTime? NextAttemptAtUtc { get; set; }
 }

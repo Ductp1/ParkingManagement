@@ -3,4 +3,7 @@
   <ItemGroup>
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\BuildingBlocks\ParkingManagement.ServiceDefaults\ParkingManagement.ServiceDefaults.csproj" />
+  </ItemGroup>
 </Project>

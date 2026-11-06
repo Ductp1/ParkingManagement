@@ -48,6 +48,13 @@ internal sealed class SystemConfigConfiguration : IEntityTypeConfiguration<Syste
             C("COMPLAINT_WINDOW_DAYS", "7", "int", "Hạn gửi khiếu nại sau sự việc"),
             C("LAYOUT_UPDATE_DEADLINE_HOURS", "48", "int", "Hạn cập nhật sơ đồ sau thay đổi thực tế"),
             C("EV_IDLE_FEE_PER_15_MINUTES", "20000", "decimal", "Phí chiếm dụng trụ sạc sau 30 phút sạc đầy"),
-            C("API_RATE_LIMIT_PER_MINUTE", "100", "int", "Giới hạn request/phút cho mỗi client"));
+            C("API_RATE_LIMIT_PER_MINUTE", "100", "int", "Giới hạn request/phút cho mỗi client"),
+            // US-098: trần/sàn giá + ngưỡng chống gian lận. Khóa ghi "giá trị tạm" chưa có số trong tài liệu nghiệp vụ.
+            C("PRICE_FLOOR_PER_HOUR_VND", "5000", "decimal", "Sàn giá gửi xe mỗi giờ (giá trị tạm, chờ PO)"),
+            C("PRICE_CEILING_PER_HOUR_VND", "200000", "decimal", "Trần giá gửi xe mỗi giờ (giá trị tạm, chờ PO)"),
+            C("PRICE_INCREASE_APPROVAL_THRESHOLD_RATE", "0.30", "decimal", "Tăng giá một lần vượt tỷ lệ này phải được Admin duyệt"),
+            C("FRAUD_BOOKING_CANCEL_MAX_PER_HOUR", "10", "int", "Số lần đặt/hủy trong 1 giờ trước khi tạm chặn và gắn cờ tài khoản"),
+            C("FRAUD_NO_SHOW_RATE_THRESHOLD", "0.30", "decimal", "Tỷ lệ no-show bị hạn chế đặt chỗ (giá trị tạm, chờ PO)"),
+            C("FRAUD_STAFF_CANCEL_MAX_PER_HOUR", "5", "int", "Số booking Staff hủy trong 1 giờ trước khi cảnh báo (giá trị tạm, chờ PO)"));
     }
 }

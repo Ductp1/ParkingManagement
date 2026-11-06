@@ -1,5 +1,6 @@
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace ParkingService.Domain.Entities;
 
@@ -94,6 +95,26 @@ public class ParkingLot : BaseEntity, ISoftDelete
     /// Bãi có mở cửa tại thời điểm <paramref name="time"/> không.
     /// Hỗ trợ cả bãi mở qua đêm (VD 18:00 → 07:00) và 24/7 (Open == Close).
     /// </summary>
+    public bool IsOpenAt(DayOfWeek dayOfWeek, TimeOnly time)
+    {
+        var specificHour = OperatingHours.FirstOrDefault(h => h.DayOfWeek == dayOfWeek);
+        if (specificHour != null)
+        {
+            if (specificHour.IsClosed) return false;
+            if (specificHour.OpenTime == specificHour.CloseTime) return true; // 24/7
+            if (specificHour.OpenTime < specificHour.CloseTime)
+                return time >= specificHour.OpenTime && time < specificHour.CloseTime;
+            return time >= specificHour.OpenTime || time < specificHour.CloseTime; // Mở qua đêm
+        }
+
+        return IsOpenAt(time);
+    }
+
+    public bool IsOpenAt(DateTime dateTime)
+    {
+        return IsOpenAt(dateTime.DayOfWeek, TimeOnly.FromDateTime(dateTime));
+    }
+
     public bool IsOpenAt(TimeOnly time)
     {
         if (OpenTime == CloseTime) return true;                       // 24/7
@@ -111,7 +132,13 @@ public class ParkingLot : BaseEntity, ISoftDelete
     }
 
     /// <summary>Admin duyệt KYB → bãi được công khai.</summary>
-    public void Activate() => Status = ParkingLotStatus.Active;
+    /// <summary>Kích hoạt bãi sau khi KYB được duyệt (US-055): chỉ đi từ PendingApproval → Active.</summary>
+    public void Activate()
+    {
+        if (Status != ParkingLotStatus.PendingApproval)
+            throw new ConflictException($"Chỉ kích hoạt được bãi đang chờ duyệt (hiện tại: {Status}).");
+        Status = ParkingLotStatus.Active;
+    }
 
     /// <summary>Gán quận/thành phố (dùng khi tạo bãi và khi seed dữ liệu).</summary>
     public void SetLocation(string city, string? district)
@@ -120,6 +147,72 @@ public class ParkingLot : BaseEntity, ISoftDelete
         District = district;
     }
 
+    /// <summary>Cập nhật thông tin cơ bản của bãi đỗ xe.</summary>
+    public void UpdateDetails(string name, string address, string? description, string? hotlinePhone,
+                              int maxHeightCm, TimeOnly openTime, TimeOnly closeTime, string? city = null, string? district = null)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Tên bãi không được rỗng.", nameof(name));
+        if (string.IsNullOrWhiteSpace(address)) throw new ArgumentException("Địa chỉ không được rỗng.", nameof(address));
+        if (maxHeightCm <= 0) throw new ArgumentOutOfRangeException(nameof(maxHeightCm), "Chiều cao tối đa phải > 0.");
+
+        Name = name;
+        Address = address;
+        Description = description;
+        HotlinePhone = hotlinePhone;
+        MaxHeightCm = maxHeightCm;
+        OpenTime = openTime;
+        CloseTime = closeTime;
+        if (!string.IsNullOrWhiteSpace(city)) City = city;
+        if (district != null) District = district;
+    }
+
     /// <summary>Chế tài SLA cấp 3 hoặc Emergency Stop.</summary>
     public void Suspend() => Status = ParkingLotStatus.Suspended;
+
+    /// <summary>Tạm khóa niêm yết do khai báo sai (US-056): chỉ Active → Suspended, bãi bị ẩn khỏi tìm kiếm.</summary>
+    public void SuspendListing()
+    {
+        if (Status != ParkingLotStatus.Active)
+            throw new ConflictException($"Chỉ tạm khóa được bãi đang hoạt động (hiện tại: {Status}).");
+        Status = ParkingLotStatus.Suspended;
+    }
+
+    /// <summary>
+    /// Chủ bãi bị cấm vì khai báo gian lận (US-056 AC2): Active / PendingApproval → Suspended vĩnh viễn (không soft-delete, dữ liệu
+    /// giữ lại). Bãi đã Suspended giữ nguyên. Trả true nếu trạng thái thay đổi.
+    /// </summary>
+    public bool SuspendForOwnerBan()
+    {
+        if (Status == ParkingLotStatus.Suspended) return false;
+        Status = ParkingLotStatus.Suspended;
+        return true;
+    }
+
+    /// <summary>Khôi phục bãi sau khi chủ bãi sửa đúng / giải trình hợp lệ (US-056): chỉ Suspended → Active.</summary>
+    public void Reinstate()
+    {
+        if (Status != ParkingLotStatus.Suspended)
+            throw new ConflictException($"Chỉ khôi phục được bãi đang bị tạm khóa (hiện tại: {Status}).");
+        Status = ParkingLotStatus.Active;
+    }
+
+    /// <summary>Cập nhật ảnh bìa chính thức của bãi xe (US-064).</summary>
+    public void SetCoverImageUrl(string? url)
+    {
+        CoverImageUrl = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+    }
+
+    /// <summary>Cập nhật các thuộc tính mô tả, hotline và chiều cao tĩnh không tối đa của bãi xe (US-064).</summary>
+    public void UpdateAttributes(string? description, string? hotlinePhone, int? maxHeightCm)
+    {
+        if (maxHeightCm.HasValue && maxHeightCm.Value <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxHeightCm), "Chiều cao tối đa phải > 0.");
+
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        HotlinePhone = string.IsNullOrWhiteSpace(hotlinePhone) ? null : hotlinePhone.Trim();
+        if (maxHeightCm.HasValue)
+        {
+            MaxHeightCm = maxHeightCm.Value;
+        }
+    }
 }

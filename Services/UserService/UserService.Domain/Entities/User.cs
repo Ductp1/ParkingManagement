@@ -41,4 +41,5 @@ public class User : BaseEntity, ISoftDelete
     public ICollection<SecurityEvent> SecurityEvents { get; set; } = new List<SecurityEvent>();
     public ICollection<DataSubjectRequest> DataRequests { get; set; } = new List<DataSubjectRequest>();
     public OwnerProfile? OwnerProfile { get; set; }
+    public ICollection<StaffAssignment> StaffAssignments { get; set; } = new List<StaffAssignment>();
 }

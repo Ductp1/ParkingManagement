@@ -35,15 +35,97 @@ jobs:
       - name: Build
         run: dotnet build ParkingManagement.slnx -c Release --no-restore --nologo
 
+  # Xác định service nào có code thay đổi để chỉ chạy unit test của các service đó.
+  # - pull_request: dorny/paths-filter so sánh PR với base branch (dùng GitHub API lấy danh sách file thay đổi)
+  # - push thẳng vào main/develop, hoặc thay đổi code dùng chung (BuildingBlocks, Directory.Build.props,
+  #   solution, CI workflow) → chạy unit test của TẤT CẢ service (giữ hành vi an toàn như cũ)
+  changes:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      # JSON dùng làm dynamic matrix cho job unit-tests, ví dụ: {"service":["UserService"]}
+      services: ${{ steps.matrix.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            UserService:
+              - 'Services/UserService/**'
+            VehicleService:
+              - 'Services/VehicleService/**'
+            ParkingService:
+              - 'Services/ParkingService/**'
+            BookingService:
+              - 'Services/BookingService/**'
+            PaymentService:
+              - 'Services/PaymentService/**'
+            NotificationService:
+              - 'Services/NotificationService/**'
+            GateService:
+              - 'Services/GateService/**'
+            AdminService:
+              - 'Services/AdminService/**'
+            SupportService:
+              - 'Services/SupportService/**'
+            # Code/ảnh hưởng dùng chung cho mọi service
+            shared:
+              - 'BuildingBlocks/**'
+              - 'Directory.Build.props'
+              - 'ParkingManagement.slnx'
+              - '.github/workflows/ci.yml'
+
+      - name: Build unit-test matrix
+        id: matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGED_SERVICES: ${{ steps.filter.outputs.changes }}   # JSON array, vd: ["UserService"]
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" nếu code dùng chung thay đổi
+        run: |
+          ALL='["UserService","VehicleService","ParkingService","BookingService","PaymentService","NotificationService","GateService","AdminService","SupportService"]'
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$SHARED_CHANGED" != "true" ]; then
+            # PR chỉ đụng service cụ thể → chỉ test các service đó
+            services="{\"service\":${CHANGED_SERVICES:-[]}}"
+          else
+            services="{\"service\":$ALL}"
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+
   unit-tests:
     name: Unit tests – ${{ matrix.service }}
-    needs: build
+    needs: [build, changes]
     runs-on: ubuntu-latest
+    environment: environment
+
+    # US-066: GateService.Test có 3 test chạy trên PostgreSQL thật (LotAdmissionGateDbTests –
+    # kiểm chứng row-lock chống race condition, không thể giả lập trên InMemory). Job matrix
+    # dùng chung nên các service khác cũng có sẵn postgres (vô hại – không dùng tới).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
+      # T-704: secret HMAC xác thực QR token check-in (BookingService ↔ GateService). Cùng tên với biến môi trường local.
+      QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
     strategy:
       fail-fast: false                       # 1 service đỏ không hủy service khác
-      matrix:
-        service: [UserService, VehicleService, ParkingService, BookingService, PaymentService,
-                  NotificationService, GateService, AdminService, SupportService]
+      # Matrix động từ job "changes": PR chỉ đổi service nào thì chỉ chạy unit test service đó.
+      # Matrix rỗng (PR không đụng service nào) → job này tự skip. Push thẳng/code dùng chung → chạy tất cả.
+      matrix: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +133,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Unit test (Domain + Application) – không cần database
+      # Unit test – đa số không cần database; riêng GateService có 3 test US-066 chạy trên
+      # PostgreSQL thật từ service container postgres khai báo ở trên (localhost:5432).
       - name: Test
         run: >
           dotnet test Services/${{ matrix.service }}/${{ matrix.service }}.Test/${{ matrix.service }}.Test.csproj
@@ -72,6 +155,11 @@ jobs:
     name: Integration tests
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # T-704: GateService đọc secret QR token từ biến môi trường – sẵn sàng khi GateService được
+      # thêm vào integration test. Lưu ý: secret phải là repository/organization secret
+      # (job này không khai báo `environment:` nên không thấy environment-scoped secrets).
+      QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
 
     # PostgreSQL thật cho integration test (WebApplicationFactory → PostgreSQL qua localhost:5432)
     services:
@@ -102,8 +190,19 @@ jobs:
           cid=$(docker ps -q --filter "ancestor=postgres:17-alpine" | head -n1)
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_parking_ci;"
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_booking_ci;"
+          docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_user_ci;"
 
       # Ghi đè ConnectionStrings:ServiceDb bằng biến môi trường (ưu tiên cao hơn appsettings.json)
+      - name: Test – UserService (pm_user_ci)
+        env:
+          TV1_TEST_DB: "Host=localhost;Port=5432;Database=pm_user_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~UserServiceApiTests"
+          --logger "trx;LogFileName=Integration_User.trx"
+          --results-directory ./test-results
+
       - name: Test – ParkingService (pm_parking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_parking_ci;Username=postgres;Password=postgres"
@@ -122,6 +221,19 @@ jobs:
           -c Release --nologo
           --filter "FullyQualifiedName~BookingServiceApiTests"
           --logger "trx;LogFileName=Integration_Booking.trx"
+          --results-directory ./test-results
+
+      # Test – 6 suite per-service còn lại (Vehicle, Payment, Notification, Gate, Admin, Support).
+      # Mỗi suite tự tạo database pm_it_* riêng rồi tự xóa khi chạy xong, nên không cần tạo sẵn DB ở "Prepare databases"
+      # (connection string dưới đây chỉ dùng host/port/user/password; tên database bị fixture ghi đè).
+      - name: Test – Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
+        env:
+          ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~IntegrationTests.PerService"
+          --logger "trx;LogFileName=Integration_PerService.trx"
           --results-directory ./test-results
 
       - name: Upload test results

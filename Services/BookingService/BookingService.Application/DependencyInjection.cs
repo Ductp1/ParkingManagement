@@ -1,4 +1,5 @@
 using BookingService.Application.Features.Bookings;
+using BookingService.Application.Features.MonthlyPasses;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BookingService.Application;
@@ -7,9 +8,22 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddBookingApplication(this IServiceCollection services)
     {
+        services.AddSingleton<IQrTokenService, QrTokenService>();
         services.AddScoped<IGetBookingByCodeUseCase, GetBookingByCodeUseCase>();
         services.AddScoped<IListMyBookingsUseCase, ListMyBookingsUseCase>();
         services.AddScoped<IPreviewCancellationUseCase, PreviewCancellationUseCase>();
+        services.AddScoped<ICreateBookingUseCase, CreateBookingUseCase>();
+        services.AddScoped<ICancelBookingUseCase, CancelBookingUseCase>();
+        services.AddScoped<IModifyBookingUseCase, ModifyBookingUseCase>();
+        services.AddScoped<IExtendBookingUseCase, ExtendBookingUseCase>();
+        services.AddScoped<IReviewBookingUseCase, ReviewBookingUseCase>();
+        services.AddScoped<ILotCancelBookingUseCase, LotCancelBookingUseCase>();
+        services.AddScoped<IGateBookingActionsUseCase, GateBookingActionsUseCase>();
+        // UC-20: danh sách booking trong ca trực cho Staff App (US-076).
+        services.AddScoped<IListGateBookingsUseCase, ListGateBookingsUseCase>();
+        services.AddScoped<IProcessPaymentResultUseCase, ProcessPaymentResultUseCase>();
+        // US-066 (luật 4): đăng ký thuê bao có kiểm tra hạn mức A < Q.
+        services.AddScoped<IRegisterMonthlyPassUseCase, RegisterMonthlyPassUseCase>();
         return services;
     }
 }

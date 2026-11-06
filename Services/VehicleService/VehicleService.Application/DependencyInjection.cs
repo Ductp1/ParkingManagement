@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
-using VehicleService.Application.Features.Vehicles;
+using VehicleService.Application.Interfaces;
+using VehicleService.Application.Services;
 
 namespace VehicleService.Application;
 
@@ -7,8 +8,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddVehicleApplication(this IServiceCollection services)
     {
-        services.AddScoped<IGetVehiclesByUserUseCase, GetVehiclesByUserUseCase>();
-        services.AddScoped<IFindVehicleByPlateUseCase, FindVehicleByPlateUseCase>();
+        services.AddScoped<IVehicleService, VehicleAppService>();
         return services;
     }
 }

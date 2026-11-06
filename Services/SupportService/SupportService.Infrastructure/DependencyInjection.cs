@@ -3,9 +3,14 @@ using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using SupportService.Application.Features;
+using SupportService.Application.Interfaces;
+using SupportService.Application.Services;
+using SupportService.Infrastructure.Http;
 using SupportService.Infrastructure.Persistence;
+using SupportService.Infrastructure.Persistence.Repositories;
 using SupportService.Infrastructure.Persistence.Queries;
 using SupportService.Infrastructure.Persistence.Seeding;
+using SupportService.Infrastructure.Workers;
 
 namespace SupportService.Infrastructure;
 
@@ -15,6 +20,41 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<SupportDbContext>(configuration);
         services.AddScoped<ISupportQueries, SupportQueries>();
+        services.AddScoped<IFaqQueries, FaqQueries>();
+        services.AddScoped<SupportService.Application.Features.AdminDashboard.IAdminComplaintSummaryQueries, AdminComplaintSummaryQueries>(); // US-081
+        services.AddSingleton(configuration.GetSection("HelpCenter").Get<HelpCenterSettings>() ?? new HelpCenterSettings());
+        services.AddScoped<IComplaintRepository, ComplaintRepository>();
+        services.AddScoped<IReviewRepository, ReviewRepository>();
+        services.AddHostedService<ComplaintEscalationWorker>();   // US-089 AC2: quá 48h → Escalated
+        services.AddHttpClient<IBookingLookup, BookingServiceClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:BookingService"] ?? "http://localhost:5104/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddHttpClient<IOwnerLotLookup, ParkingServiceClient>(c =>   // US-094: xác minh bãi của chủ bãi
+        {
+            c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
+        // US-091: bãi hết chỗ – lưu sự cố + Outbox; tìm bãi thay thế bằng API có sẵn của ParkingService (chỉ đọc).
+        services.AddScoped<ILotFullIncidentRepository, LotFullIncidentRepository>();
+        services.AddHttpClient<IParkingLotSearch, ParkingLotSearchClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddScoped<ILotFineRepository, LotFineRepository>();   // US-090: mức phạt + biên bản đậu sai chỗ
+        // US-090: hồ sơ tranh chấp – lịch sử booking (BookingService) và log check-in/out (GateService), chỉ đọc API có sẵn.
+        services.AddHttpClient<IBookingHistoryLookup, BookingHistoryClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:BookingService"] ?? "http://localhost:5104/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddHttpClient<IGateSessionLookup, GateSessionClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:GateService"] ?? "http://localhost:5107/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddScoped<IDataSeeder<SupportDbContext>, SupportDataSeeder>();
         return services;
     }

@@ -1,0 +1,56 @@
+@baseUrl = http://localhost:5102
+@gatewayUrl = http://localhost:5000
+@userId = 5
+
+### 1. GET - Danh sách xe trong Garage của tài xế (UC-07)
+GET {{baseUrl}}/api/v1/vehicles?userId={{userId}}
+Accept: application/json
+
+### 2. POST - Thêm xe mới vào Garage (US-009, US-010, US-012)
+POST {{baseUrl}}/api/v1/vehicles
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "plateNumber": "51H-123.45",
+  "vehicleType": 1,
+  "fuelType": 2,
+  "brand": "VinFast",
+  "model": "VF 8",
+  "color": "Trắng",
+  "heightCm": 168,
+  "lengthCm": 475,
+  "widthCm": 193,
+  "isDefault": true
+}
+
+### 3. GET - Tra cứu xe theo biển số (GateService / ANPR)
+GET {{baseUrl}}/api/v1/vehicles/by-plate/51H-123.45
+Accept: application/json
+
+### 4. PATCH - Đặt xe làm mặc định (US-010)
+PATCH {{baseUrl}}/api/v1/vehicles/1/default?userId={{userId}}
+Accept: application/json
+
+### 5. PUT - Cập nhật thông tin xe (US-011) - Biển số giữ nguyên
+PUT {{baseUrl}}/api/v1/vehicles/1
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "vehicleType": 1,
+  "fuelType": 2,
+  "brand": "VinFast",
+  "model": "VF 8 Plus",
+  "color": "Xanh Deep Ocean",
+  "heightCm": 168,
+  "lengthCm": 475,
+  "widthCm": 193
+}
+
+### 6. DELETE - Xóa mềm xe có kiểm tra ràng buộc booking (US-011)
+DELETE {{baseUrl}}/api/v1/vehicles/1?userId={{userId}}
+
+### 7. Gateway Test - Gọi qua Gateway:5000
+GET {{gatewayUrl}}/api/v1/vehicles?userId={{userId}}
+Accept: application/json

@@ -6,6 +6,12 @@
 # dotenv files
 .env
 
+# Internal docs & agents guidance (local only)
+/AGENTS.md
+/docs/
+/infrastructure/rabbitmq/definitions.local.json
+
+
 # User-specific files
 *.rsuser
 *.suo
@@ -423,6 +429,11 @@ autom4te.cache/
 *.tar.gz
 tarballs/
 test-results/
+/.tools/
+**/App_Data/
+**/Keys/private.key
+**/Keys/*.pem
+**/appsettings.Local.json
 
 # content below from: https://github.com/github/gitignore/blob/main/Global/macOS.gitignore
 # General
@@ -480,3 +491,36 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+.clinerules
+.vscode
+
+
+# Frontend build output and caches
+**/dist/
+**/dist-ssr/
+**/.vite/
+**/.vite-temp/
+*.tsbuildinfo
+
+# Local environment overrides (keep shared config and examples)
+.env.local
+.env.*.local
+.envrc
+
+# Test reports and coverage output
+**/TestResults/
+**/coverage/
+**/playwright-report/
+**/blob-report/
+
+# Runtime logs
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local certificates and private keys
+*.p12
+*.pfx

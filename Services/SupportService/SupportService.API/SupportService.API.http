@@ -1,0 +1,254 @@
+# Gọi API SupportService ngay trong Visual Studio: bấm "Send request" phía trên mỗi request.
+# @gateway: đi qua API Gateway (cần chạy cả Gateway). @direct: gọi thẳng SupportService.
+@gateway = http://localhost:5000
+@direct = http://localhost:5109
+
+### US-092 · FAQ cho tài xế → 200, nhóm theo chủ đề + kênh liên hệ
+GET {{gateway}}/api/v1/faqs?audience=Driver
+
+### US-092 · Lọc theo chủ đề, không phân biệt hoa/thường → 200, chỉ chủ đề Refund
+GET {{gateway}}/api/v1/faqs?audience=driver&category=refund
+
+### US-092 · FAQ cho chủ bãi → 200, không có FAQ của tài xế
+GET {{gateway}}/api/v1/faqs?audience=LotOwner
+
+### US-092 · Không truyền audience → 200, chỉ FAQ chung ("All")
+GET {{gateway}}/api/v1/faqs
+
+### US-092 · audience sai → 400
+GET {{gateway}}/api/v1/faqs?audience=abc
+
+### US-092 · Xem chi tiết → 200, viewCount tăng 1 mỗi lần gửi
+GET {{gateway}}/api/v1/faqs/1
+
+### US-092 · Id không tồn tại → 404
+GET {{gateway}}/api/v1/faqs/999
+
+### US-092 · Id không hợp lệ → 400
+GET {{gateway}}/api/v1/faqs/0
+
+### US-088 · Gửi khiếu nại cho booking của tôi → 201, Status AwaitingOwner, Priority Medium
+# Cần chạy cả BookingService (:5104). Booking phải thuộc userId và kết thúc chưa quá 7 ngày.
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{
+  "userId": 5,
+  "bookingCode": "BK-0002",
+  "category": "Overcharge",
+  "description": "Tôi ra trước giờ kết thúc 10 phút nhưng vẫn bị tính đủ block cuối.",
+  "requestedAmount": 10000,
+  "evidenceUrls": [ "https://cdn.example.com/receipt-bk0002.jpg" ]
+}
+
+### US-088 · Gửi lần 2 cho cùng booking khi ticket cũ chưa xong → 409
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{ "userId": 5, "bookingCode": "BK-0002", "category": "LotFull", "description": "Đến nơi bãi báo hết chỗ dù đã đặt trước." }
+
+### US-088 · Booking của người khác → 404
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{ "userId": 6, "bookingCode": "BK-0002", "category": "Other", "description": "Thử gửi khiếu nại cho booking không phải của tôi." }
+
+### US-088 · Mô tả quá ngắn (dưới 10 ký tự) → 400
+POST {{gateway}}/api/v1/complaints
+Content-Type: application/json
+
+{ "userId": 5, "bookingCode": "BK-0002", "category": "Other", "description": "Sai" }
+
+### US-088 · Khiếu nại của tôi → 200
+GET {{gateway}}/api/v1/complaints/my?userId=5
+
+### US-088 · Chi tiết ticket (thay mã CP-... vừa tạo) → 200, kèm hội thoại
+GET {{gateway}}/api/v1/complaints/CP-0001?userId=5
+
+### US-088 · Ticket của người khác → 404
+GET {{gateway}}/api/v1/complaints/CP-0001?userId=6
+
+### US-089 · Các API của chủ bãi cần JWT có role LotOwner + claim OwnerProfileId (đăng nhập tài khoản chủ bãi demo).
+@ownerToken = DAN_ACCESS_TOKEN_CHU_BAI_VAO_DAY
+
+### US-089 · Chủ bãi xem tranh chấp về bãi của mình (CP-0001 thuộc chủ bãi Vincom)
+GET {{gateway}}/api/v1/complaints/CP-0001/owner-view
+Authorization: Bearer {{ownerToken}}
+
+### US-089 · Chủ bãi phản hồi trong 48 giờ kèm bằng chứng → 200, Status OwnerResponded
+POST {{gateway}}/api/v1/complaints/CP-0001/owner-response
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{
+  "response": "Log cổng cho thấy xe ra lúc 11:52, đúng giờ tính phí. Đính kèm log check-out và ảnh camera.",
+  "evidenceUrls": [ "https://cdn.example.com/gate-log-bk0001.pdf", "https://cdn.example.com/camera-1152.jpg" ]
+}
+
+### US-089 · Phản hồi lần 2 / quá hạn 48 giờ → 409
+POST {{gateway}}/api/v1/complaints/CP-0001/owner-response
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "response": "Phản hồi bổ sung cho tranh chấp đã trả lời." }
+
+### US-089 · Khoản quyết toán đang bị phong tỏa vì tranh chấp (AC3)
+GET {{gateway}}/api/v1/complaints/payout-holds
+Authorization: Bearer {{ownerToken}}
+
+### US-094 · Chủ bãi phản hồi công khai 1 lần cho đánh giá về bãi mình (review 1 thuộc bãi Vincom) → 200; lần 2 → 409
+POST {{gateway}}/api/v1/reviews/1/owner-reply
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "reply": "Cảm ơn anh đã tin dùng, bãi sẽ tiếp tục giữ chất lượng phục vụ." }
+
+### US-094 · Chủ bãi khiếu nại đánh giá → chờ Admin xem xét (chủ bãi không tự gỡ được)
+POST {{gateway}}/api/v1/reviews/1/report
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "reason": "Tài xế không đỗ tại bãi vào ngày được đánh giá." }
+
+### US-094 · Admin: hàng chờ đánh giá bị khiếu nại (cần JWT role Admin)
+@adminToken = DAN_ACCESS_TOKEN_ADMIN_VAO_DAY
+GET {{gateway}}/api/v1/reviews/reported
+Authorization: Bearer {{adminToken}}
+
+### US-094 · Admin gỡ đánh giá → ẩn khỏi trang bãi + ghi audit log
+POST {{gateway}}/api/v1/reviews/1/hide
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Nội dung sai sự thật, đã đối chiếu log cổng." }
+
+### US-094 · Admin bác khiếu nại, giữ nguyên đánh giá
+POST {{gateway}}/api/v1/reviews/1/dismiss-report
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "reason": "Đánh giá đúng với trải nghiệm thực tế của tài xế." }
+
+### US-091 · Tài xế đến nơi nhưng bãi hết chỗ → "Báo sự cố" (cần booking Confirmed, từ 30' trước giờ bắt đầu đến hết khung giờ) → 201
+# Gọi thẳng SupportService (@direct) – Gateway chưa có route /api/v1/lot-full-incidents (nhờ TV1 thêm).
+POST {{direct}}/api/v1/lot-full-incidents
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0002", "note": "Bảo vệ báo bãi đã hết chỗ dù tôi đã đặt trước." }
+
+### US-091 · Xem sự cố (thay LF-... vừa tạo) – có danh sách bãi thay thế trong 1 km
+GET {{direct}}/api/v1/lot-full-incidents/LF-20261120-1234
+Authorization: Bearer {{driverToken}}
+
+### US-091 · AC2: đồng ý chuyển miễn phí sang 1 bãi trong danh sách gợi ý → TransferAccepted
+POST {{direct}}/api/v1/lot-full-incidents/LF-20261120-1234/accept-transfer
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "parkingLotId": 4 }
+
+### US-091 · AC3: không nhận bãi thay thế → RefundRequested (hoàn 100% + voucher 20.000đ), bãi bị ghi vi phạm SLA
+POST {{direct}}/api/v1/lot-full-incidents/LF-20261120-1234/decline
+Authorization: Bearer {{driverToken}}
+
+### US-091 · Admin: sự cố + vi phạm SLA theo bãi
+GET {{direct}}/api/v1/lot-full-incidents?parkingLotId=1&slaViolationOnly=true
+Authorization: Bearer {{adminToken}}
+
+### US-090 · Chủ bãi đặt mức phạt xe đậu sai chỗ cho bãi của mình (bãi 1 = Vincom của chủ bãi demo)
+PUT {{gateway}}/api/v1/complaints/fine-rates/1
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "wrongSlotFine": 200000 }
+
+### US-090 · AC3: hàng chờ tranh chấp của chủ bãi kèm SLA (phản hồi đầu 24h, kết luận 3–5 ngày làm việc). Chỉ chủ bãi – Admin/tài xế → 403
+GET {{gateway}}/api/v1/complaints/disputes?slaBreachedOnly=false
+Authorization: Bearer {{ownerToken}}
+
+### US-090 · AC1: hồ sơ tranh chấp – hội thoại, lịch sử booking (BookingService :5104), log check-in/out (GateService :5107), phán quyết
+GET {{gateway}}/api/v1/complaints/CP-0001/case-file
+Authorization: Bearer {{ownerToken}}
+
+### US-090 · AC3: chủ bãi nhắn cho tài xế (tính mốc phản hồi đầu tiên)
+POST {{gateway}}/api/v1/complaints/CP-0001/dispute-messages
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "message": "Nhân viên đang kiểm tra chỗ của anh, vui lòng chờ 5 phút." }
+
+### US-090 · AC2: chỗ đã đặt bị chiếm → chủ bãi chuyển tài xế sang chỗ trống + phạt xe đậu sai chỗ theo mức phạt của bãi
+POST {{gateway}}/api/v1/complaints/CP-0001/rulings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "decision": "MoveToSlot", "reason": "Xe 51A-999.99 đậu sai vào chỗ A-05 đã đặt, chuyển tài xế sang chỗ B-12.", "newSlotCode": "B-12", "violatorPlate": "51A-999.99" }
+
+### US-090 · AC2: hoặc chủ bãi ép hoàn tiền (tối đa số đã trả) – có thể kèm "violatorPlate" để phạt xe chiếm chỗ
+POST {{gateway}}/api/v1/complaints/CP-0001/rulings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "decision": "ForceRefund", "reason": "Không còn chỗ trống phù hợp, hoàn toàn bộ cho tài xế.", "refundAmount": 50000, "violatorPlate": "51A-999.99" }
+
+### US-090 · AC2: hoặc bác khiếu nại (không kèm tiền / chỗ mới)
+# AC4: mỗi tranh chấp chỉ 1 phán quyết – gửi lại → 409; phán quyết ghi audit log, không sửa / xóa được.
+POST {{gateway}}/api/v1/complaints/CP-0001/rulings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "decision": "RejectComplaint", "reason": "Camera cho thấy tài xế đến sau giờ giữ chỗ, chỗ đã giải phóng đúng quy định." }
+
+### US-090 · Biên bản xe đậu sai chỗ ở các bãi của mình
+GET {{gateway}}/api/v1/complaints/violations?parkingLotId=1
+Authorization: Bearer {{ownerToken}}
+
+### US-090 · AC2: tiền lệ phán quyết theo loại khiếu nại
+GET {{gateway}}/api/v1/complaints/disputes/precedents?category=SlotOccupied
+Authorization: Bearer {{ownerToken}}
+
+### US-093 · Các API đánh giá cần JWT của tài xế: userId lấy từ claim "sub", không gửi trong body/query.
+# Lấy token bằng POST {{gateway}}/api/v1/auth/login (tài khoản tài xế demo) rồi dán accessToken vào @driverToken.
+@driverToken = DAN_ACCESS_TOKEN_VAO_DAY
+
+### US-093 · Booking có được đánh giá không? (BK-0001 đã được đánh giá → canReview = false)
+GET {{gateway}}/api/v1/reviews/bookings/BK-0001/eligibility
+Authorization: Bearer {{driverToken}}
+
+### US-093 · Booking chưa hoàn tất (BK-0002 Confirmed) → canReview = false
+GET {{gateway}}/api/v1/reviews/bookings/BK-0002/eligibility
+Authorization: Bearer {{driverToken}}
+
+### US-093 · Không gửi token → 401
+GET {{gateway}}/api/v1/reviews/bookings/BK-0001/eligibility
+
+### US-093 · Đánh giá bãi sau khi hoàn tất → 201 (booking phải Completed và chưa được đánh giá)
+POST {{gateway}}/api/v1/reviews
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0001", "rating": 4, "comment": "Bãi rộng, dễ tìm chỗ, nhân viên thân thiện.", "reviewerName": "Nguyễn Văn An" }
+
+### US-093 · Đánh giá booking chưa hoàn tất → 400
+POST {{gateway}}/api/v1/reviews
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0002", "rating": 5 }
+
+### US-093 · Số sao ngoài 1–5 → 400
+POST {{gateway}}/api/v1/reviews
+Authorization: Bearer {{driverToken}}
+Content-Type: application/json
+
+{ "bookingCode": "BK-0001", "rating": 6 }
+
+### US-093 · Điểm trung bình + đánh giá mới nhất của bãi (AC3)
+GET {{gateway}}/api/v1/reviews?parkingLotId=1
+
+### Gọi thẳng service (bỏ qua Gateway) – dùng khi nghi Gateway route sai
+GET {{direct}}/api/v1/faqs?audience=Driver
+
+### Tài liệu OpenAPI của service (JSON)
+GET {{direct}}/openapi/v1.json
