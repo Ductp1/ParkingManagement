@@ -284,42 +284,28 @@ public sealed class UserServiceApiTests(Tv1ApiFixture fixture)
         }
         using var client = fixture.Client();
         client.DefaultRequestHeaders.Authorization = new("Bearer", driver.AccessToken);
-        using var image = new SkiaSharp.SKBitmap(1200, 760);
-        using var encoded = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
-        MultipartFormDataContent Form(string number)
-        {
-            var form = new MultipartFormDataContent { { new StringContent("CitizenId"), "documentType" }, { new StringContent(number), "documentNumber" } };
-            form.Add(new ByteArrayContent(encoded.ToArray()), "frontImage", "front.png");
-            form.Add(new ByteArrayContent(encoded.ToArray()), "backImage", "back.png");
-            return form;
-        }
+        Task<HttpResponseMessage> Submit(string number) => client.PostAsJsonAsync(path + "/citizen-id", new { documentNumber = number });
         Assert.Equal("NotSubmitted", (await client.GetFromJsonAsync<UserService.Application.Features.Kyc.KycStatusDto>(path))!.Status);
-        using (var bad = Form("12345")) Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsync(path, bad)).StatusCode);
-        using (var form = Form("079201008921"))
+        using (var bad = await Submit("12345")) Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+        using (var submitted = await Submit("0792 0100 8921"))
         {
-            using var submitted = await client.PostAsync(path, form);
             Assert.Equal(HttpStatusCode.Accepted, submitted.StatusCode);
             var status = (await submitted.Content.ReadFromJsonAsync<UserService.Application.Features.Kyc.KycStatusDto>())!;
             Assert.Equal(("Pending", "CitizenId", "••••••••8921"), (status.Status, status.DocumentType, status.MaskedNumber));
         }
-        using (var again = Form("079201008921")) Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync(path, again)).StatusCode);
-
-        using var front = await client.GetAsync(path + "/images/front");
-        Assert.Equal(HttpStatusCode.OK, front.StatusCode);
-        Assert.Equal("image/jpeg", front.Content.Headers.ContentType!.MediaType);
-        Assert.True(front.Headers.CacheControl?.NoStore);
+        using (var again = await Submit("079201008921")) Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
         using (var anonymous = fixture.Client())
-            Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path + "/images/front")).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(path)).StatusCode);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<UserDbContext>();
             var user = await db.Users.SingleAsync(u => u.Email == driver.Contact);
             Assert.DoesNotContain("079201008921", user.KycNumberEncrypted);
-            Assert.StartsWith("kyc:", user.KycFrontImageUrl);
+            Assert.Null(user.KycFrontImageUrl);
         }
 
         var view = await client.GetFromJsonAsync<UserService.Application.Features.Privacy.PersonalDataView>("/api/v1/users/me/personal-data");
-        Assert.Equal(("••••••••8921", true), (view!.KycMaskedNumber, view.KycImagesStored));
+        Assert.Equal("••••••••8921", view!.KycMaskedNumber);
         Assert.Contains(view.RecentSecurityEvents, e => e.Type == "KycSubmitted");
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/v1/users/kyc")).StatusCode);
@@ -329,7 +315,6 @@ public sealed class UserServiceApiTests(Tv1ApiFixture fixture)
         var driverId = await UserIdAsync(driver.Contact);
         var mine = Assert.Single(queue, q => q.UserId == driverId);
         Assert.Equal("••••••••8921", mine.MaskedNumber);
-        Assert.Equal(HttpStatusCode.OK, (await adminClient.GetAsync("/api/v1/users/kyc/" + driverId + "/images/back")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await adminClient.PostAsync("/api/v1/users/kyc/" + driverId + "/approve", null)).StatusCode);
         Assert.Equal("Verified", (await client.GetFromJsonAsync<UserService.Application.Features.Kyc.KycStatusDto>(path))!.Status);
         using var me = JsonDocument.Parse(await client.GetStringAsync("/api/v1/users/me"));
@@ -451,7 +436,6 @@ public sealed class Tv1ApiFixture : IDisposable
         Set("Integrations__ParkingServiceUrl", "https://parking.test/");
         Set("Integrations__BookingServiceUrl", "https://booking.test/");
         Set("Integrations__PaymentServiceUrl", "https://payment.test/");
-        Set("Security__KycPath", Path.Combine(root, "kyc"));
         Set("Otp__Transport","Http");Set("Otp__DeliveryUrl","https://otp.test/delivery");
         if(Environment.GetEnvironmentVariable("TV1_TEST_DB") is {Length:>0} db)Set("ConnectionStrings__ServiceDb",db);
         factory=new ApiFactory(delivery);

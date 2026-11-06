@@ -15,7 +15,6 @@ public class KycAndHistoryUseCaseTests
     private static readonly DateTime Now = new(2026, 11, 6, 8, 0, 0, DateTimeKind.Utc);
     private const int DriverId = 7, AdminId = 99;
     private readonly Store store = new();
-    private readonly Files files = new();
     private readonly Current current = new() { UserId = DriverId };
     private readonly User driver;
 
@@ -26,94 +25,60 @@ public class KycAndHistoryUseCaseTests
         store.Users.Add(driver);
     }
 
-    private KycUseCases Kyc => new(store, store, files, new Cipher(), current, new Clock());
-    private static SubmitKycCommand Command(KycDocumentType type = KycDocumentType.CitizenId, string number = "0792 0100 8921")
-        => new(type, number, new KycImageUpload(new MemoryStream([1]), 1), new KycImageUpload(new MemoryStream([2]), 1));
+    private KycUseCases Kyc => new(store, store, new Cipher(), current, new Clock());
+    private Task<KycStatusDto> Submit(string number = "0792 0100 8921") => Kyc.SubmitCitizenIdAsync(number, default);
 
     // ===== US-005 =====
     [Theory]
+    [InlineData("")]
     [InlineData("07920100892")]
     [InlineData("0792010089211")]
-    [InlineData("07920100892a")]
-    [InlineData("")]
-    public async Task Document_number_must_be_twelve_digits(string number)
+    [InlineData("07920100892A")]
+    public async Task Citizen_id_number_must_be_twelve_digits(string number)
     {
-        await Assert.ThrowsAsync<ValidationException>(() => Kyc.SubmitAsync(Command(number: number), default));
-        Assert.Empty(files.Saved);
+        await Assert.ThrowsAsync<ValidationException>(() => Submit(number));
+        Assert.Equal(KycStatus.NotSubmitted, driver.KycStatus);
+        Assert.Equal(0, store.Commits);
     }
 
     [Fact]
-    public async Task Submit_encrypts_number_stores_images_and_masks_on_read()
+    public async Task Citizen_id_is_encrypted_and_masked_on_read()
     {
-        var result = await Kyc.SubmitAsync(Command(), default);
+        var result = await Submit();
         Assert.Equal(KycStatus.Pending, driver.KycStatus);
         Assert.Equal(KycDocumentType.CitizenId, driver.KycDocumentType);
         Assert.DoesNotContain("079201008921", driver.KycNumberEncrypted);
         Assert.Equal("079201008921", new Cipher().Decrypt(driver.KycNumberEncrypted!, KycUseCases.CipherPurpose));
-        Assert.Equal(2, files.Saved.Count);
-        Assert.Equal(("Pending", "••••••••8921", true, true), (result.Status, result.MaskedNumber, result.HasFrontImage, result.HasBackImage));
+        Assert.Null(driver.KycFrontImageUrl);
+        Assert.Equal(("Pending", "••••••••8921"), (result.Status, result.MaskedNumber));
         Assert.Contains(store.Events, e => e.EventType == SecurityEventType.KycSubmitted);
         Assert.Equal(1, store.Commits);
     }
 
     [Fact]
-    public async Task Citizen_id_number_alone_submits_encrypted_without_images()
-    {
-        var result = await Kyc.SubmitCitizenIdAsync("0792 0100 8921", default);
-        Assert.Equal(KycStatus.Pending, driver.KycStatus);
-        Assert.Equal(KycDocumentType.CitizenId, driver.KycDocumentType);
-        Assert.Equal("079201008921", new Cipher().Decrypt(driver.KycNumberEncrypted!, KycUseCases.CipherPurpose));
-        Assert.Empty(files.Saved);
-        Assert.Equal(("Pending", "••••••••8921", false, false), (result.Status, result.MaskedNumber, result.HasFrontImage, result.HasBackImage));
-        Assert.Contains(store.Events, e => e.EventType == SecurityEventType.KycSubmitted);
-        await Assert.ThrowsAsync<ConflictException>(() => Kyc.SubmitCitizenIdAsync("079201008921", default));
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("07920100892")]
-    [InlineData("07920100892A")]
-    public async Task Citizen_id_number_must_be_twelve_digits(string number)
-    {
-        await Assert.ThrowsAsync<ValidationException>(() => Kyc.SubmitCitizenIdAsync(number, default));
-        Assert.Equal(KycStatus.NotSubmitted, driver.KycStatus);
-    }
-
-    [Fact]
     public async Task Pending_or_verified_cannot_resubmit()
     {
-        await Kyc.SubmitAsync(Command(), default);
-        await Assert.ThrowsAsync<ConflictException>(() => Kyc.SubmitAsync(Command(KycDocumentType.DriverLicense), default));
+        await Submit();
+        await Assert.ThrowsAsync<ConflictException>(() => Submit("012345678901"));
         driver.KycStatus = KycStatus.Verified;
-        await Assert.ThrowsAsync<ConflictException>(() => Kyc.SubmitAsync(Command(), default));
-        Assert.Equal(2, files.Saved.Count);
+        await Assert.ThrowsAsync<ConflictException>(() => Submit());
+        Assert.Equal(1, store.Commits);
     }
 
     [Fact]
-    public async Task Failed_save_deletes_new_images()
+    public async Task Admin_rejects_with_reason_which_erases_number_then_user_resubmits()
     {
-        store.FailSave = true;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => Kyc.SubmitAsync(Command(), default));
-        Assert.Equal(files.Saved, files.Deleted);
-    }
-
-    [Fact]
-    public async Task Admin_rejects_with_reason_which_erases_document_then_user_resubmits()
-    {
-        await Kyc.SubmitAsync(Command(), default);
-        var oldImages = files.Saved.ToList();
+        await Submit();
         current.UserId = AdminId;
         await Assert.ThrowsAsync<ValidationException>(() => Kyc.RejectAsync(DriverId, new(" "), default));
-        await Kyc.RejectAsync(DriverId, new("Ảnh mặt sau bị lóa"), default);
+        await Kyc.RejectAsync(DriverId, new("Số CCCD không khớp họ tên"), default);
         Assert.Equal(KycStatus.Rejected, driver.KycStatus);
         Assert.Null(driver.KycNumberEncrypted);
-        Assert.Null(driver.KycFrontImageUrl);
-        Assert.Equal(oldImages, files.Deleted);
 
         current.UserId = DriverId;
         var status = await Kyc.GetMineAsync(default);
-        Assert.Equal(("Rejected", "Ảnh mặt sau bị lóa"), (status.Status, status.RejectionReason));
-        await Kyc.SubmitAsync(Command(KycDocumentType.DriverLicense, "012345678901"), default);
+        Assert.Equal(("Rejected", "Số CCCD không khớp họ tên"), (status.Status, status.RejectionReason));
+        await Submit("012345678901");
         Assert.Equal(KycStatus.Pending, driver.KycStatus);
     }
 
@@ -123,17 +88,11 @@ public class KycAndHistoryUseCaseTests
         current.UserId = AdminId;
         await Assert.ThrowsAsync<ConflictException>(() => Kyc.ApproveAsync(DriverId, default));
         current.UserId = DriverId;
-        await Kyc.SubmitAsync(Command(), default);
+        await Submit();
         await Assert.ThrowsAsync<ForbiddenException>(() => Kyc.ApproveAsync(DriverId, default));
         current.UserId = AdminId;
         await Kyc.ApproveAsync(DriverId, default);
         Assert.Equal((KycStatus.Verified, (DateTime?)Now), (driver.KycStatus, driver.KycVerifiedAtUtc));
-    }
-
-    [Fact]
-    public async Task Missing_image_is_not_found()
-    {
-        await Assert.ThrowsAsync<NotFoundException>(() => Kyc.ReadMyImageAsync(KycImageSide.Front, default));
     }
 
     // ===== US-082 =====
@@ -190,14 +149,6 @@ public class KycAndHistoryUseCaseTests
         public IReadOnlyList<string> Roles => [];
         public int? OwnerProfileId => null;
         public bool IsAuthenticated => UserId is not null;
-    }
-    private sealed class Files : IKycDocumentStorage
-    {
-        public List<string> Saved = [];
-        public List<string> Deleted = [];
-        public Task<string> SaveAsync(Stream image, CancellationToken ct) { var key = $"kyc:{Saved.Count}"; Saved.Add(key); return Task.FromResult(key); }
-        public Task<byte[]?> ReadAsync(string? key, CancellationToken ct) => Task.FromResult<byte[]?>(null);
-        public Task DeleteAsync(string? key, CancellationToken ct) { if (key is not null) Deleted.Add(key); return Task.CompletedTask; }
     }
     private sealed class Activity : IDriverActivitySource
     {

@@ -1,5 +1,5 @@
-import { adminFileRequest, adminRequest, cleanParams } from './adminClientApi';
-import type { AdminDataRequestDto, AdminDataRequestQuery, AdminKycItemDto, KycImageSide } from '@/types/adminIdentity';
+import { adminRequest, cleanParams } from './adminClientApi';
+import type { AdminDataRequestDto, AdminDataRequestQuery, AdminKycItemDto } from '@/types/adminIdentity';
 
 /** US-005 – route dưới "users" để Gateway chuyển sang UserService. */
 const KYC = '/api/v1/users/kyc';
@@ -11,13 +11,10 @@ export const adminKycApi = {
   listPending: (page: number) =>
     adminRequest<AdminKycItemDto[]>({ method: 'GET', url: KYC, params: cleanParams({ page }) }),
 
-  /** Ảnh giấy tờ chỉ đọc được qua phiên đăng nhập (không có URL công khai) → tải Blob rồi tạo object URL. */
-  image: async (userId: number, side: KycImageSide) => (await adminFileRequest({ method: 'GET', url: `${KYC}/${userId}/images/${side}` })).blob,
-
   /** Pending → Verified. */
   approve: (userId: number) => adminRequest<void>({ method: 'POST', url: `${KYC}/${userId}/approve` }),
 
-  /** Pending → Rejected; lý do bắt buộc (≤ 500 ký tự), số giấy tờ và ảnh bị xóa. */
+  /** Pending → Rejected; lý do bắt buộc (≤ 500 ký tự), số giấy tờ bị xóa. */
   reject: (userId: number, reason: string) =>
     adminRequest<void>({ method: 'POST', url: `${KYC}/${userId}/reject`, data: { reason } }),
 };

@@ -23,7 +23,7 @@ public sealed record HandleDataRequest(string? Note);
 public sealed record SecurityActivity(string Type, DateTime OccurredAtUtc, string? IpAddress);
 public sealed record PersonalDataView(int Id, string FullName, string? Email, bool EmailConfirmed, string? PhoneNumber, bool PhoneConfirmed,
     string? AvatarUrl, IReadOnlyList<string> Roles, string Status, DateTime CreatedAtUtc, DateTime? LastLoginAtUtc,
-    string KycStatus, string? KycDocumentType, string? KycMaskedNumber, bool KycImagesStored, DateTime? KycVerifiedAtUtc,
+    string KycStatus, string? KycDocumentType, string? KycMaskedNumber, DateTime? KycVerifiedAtUtc,
     string? BusinessName, int ActiveSessions, IReadOnlyList<SecurityActivity> RecentSecurityEvents);
 
 // ===== PORT =====
@@ -45,7 +45,7 @@ public interface IDataRequestStore
 /// Xóa = ẩn danh hóa tài khoản trong UserService; dữ liệu giao dịch ở service khác vẫn giữ theo quy định kế toán.
 /// </summary>
 public sealed class DataRequestUseCases(IIdentityStore store, IDataRequestStore requests, ICurrentUser current,
-    IPasswordHasher passwords, IAvatarStorage avatars, IKycDocumentStorage kycFiles, ISecretCipher cipher, TimeProvider clock)
+    IPasswordHasher passwords, IAvatarStorage avatars, ISecretCipher cipher, TimeProvider clock)
 {
     public const int PageSize = 20;
     public const int MaxReauthFailures = 5;
@@ -67,7 +67,7 @@ public sealed class DataRequestUseCases(IIdentityStore store, IDataRequestStore 
         return new PersonalDataView(user.Id, user.FullName, user.Email, user.EmailConfirmed, user.PhoneNumber, user.PhoneConfirmed,
             user.AvatarUrl, user.Roles.Select(r => r.Role.ToString()).ToList(), user.Status.ToString(), user.CreatedAtUtc,
             user.LastLoginAtUtc, user.KycStatus.ToString(), user.KycDocumentType?.ToString(), MaskKyc(user.KycNumberEncrypted),
-            user.KycFrontImageUrl is not null || user.KycBackImageUrl is not null, user.KycVerifiedAtUtc,
+            user.KycVerifiedAtUtc,
             user.OwnerProfile?.BusinessName, await requests.ActiveSessionCountAsync(userId, now, ct),
             await requests.RecentSecurityEventsAsync(userId, 10, ct));
     }
@@ -164,7 +164,6 @@ public sealed class DataRequestUseCases(IIdentityStore store, IDataRequestStore 
     {
         var adminId = UserId();
         string? avatar;
-        string?[] kycImages = [];
         DataSubjectRequest request;
         await using (var tx = await store.BeginAsync(ct))
         {
@@ -183,7 +182,6 @@ public sealed class DataRequestUseCases(IIdentityStore store, IDataRequestStore 
                 if (user.OwnerProfile is { Status: not OwnerStatus.Terminated })
                     throw new ConflictException("Chủ bãi phải hoàn tất thủ tục ngừng hợp tác trước khi xóa dữ liệu.");
                 avatar = user.AvatarUrl;
-                kycImages = [user.KycFrontImageUrl, user.KycBackImageUrl];
                 await AnonymizeAsync(user, now, ct);
             }
 
@@ -196,7 +194,6 @@ public sealed class DataRequestUseCases(IIdentityStore store, IDataRequestStore 
         }
         // Chỉ dọn file sau khi commit; lỗi dọn file không làm hỏng thao tác đã thành công.
         await avatars.DeleteAsync(avatar, CancellationToken.None);
-        foreach (var image in kycImages) await kycFiles.DeleteAsync(image, CancellationToken.None);
         return AdminItem(request);
     }
 

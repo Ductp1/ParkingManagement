@@ -3,7 +3,6 @@ import { RegisterPage } from '@/areas/auth/RegisterPage';
 import { ForgotPasswordPage } from '@/areas/auth/ForgotPasswordPage';
 import { ProfilePage } from '@/areas/account/ProfilePage';
 import { AccountLayout } from '@/areas/account/AccountLayout';
-import { KycPage } from '@/areas/account/KycPage';
 import { HistoryPage } from '@/areas/account/HistoryPage';
 import { PrivacyPage } from '@/areas/account/PrivacyPage';
 import { LandingPage } from '@/areas/public/LandingPage';
@@ -40,7 +39,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/account" element={<AccountLayout />}>
             <Route index element={<Navigate to="profile" replace />} />
             <Route path="profile" element={<ProfilePage />} />
-            <Route path="kyc" element={<KycPage />} />
+            <Route path="kyc" element={<Navigate to="/account/profile#identity" replace />} />
             <Route path="history" element={<HistoryPage />} />
             <Route path="privacy" element={<PrivacyPage />} />
           </Route>
@@ -55,7 +54,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="parking-lots/:id" element={<LotDetailPage />} />
             <Route path="history" element={<BookingHistoryPage />} />
             <Route path="support" element={<SupportPage />} />
-            <Route path="kyc" element={<KycPage />} />
+            <Route path="kyc" element={<Navigate to="/account/profile#identity" replace />} />
             <Route path="payment-result" element={<PaymentResultPage />} />
           </Route>
         </Route>

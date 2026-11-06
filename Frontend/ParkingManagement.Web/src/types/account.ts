@@ -1,6 +1,5 @@
 export type KycDocumentType = 'CitizenId' | 'DriverLicense';
 export type KycState = 'NotSubmitted' | 'Pending' | 'Verified' | 'Rejected';
-export type KycImageSide = 'front' | 'back';
 
 export interface KycStatusView {
   status: KycState;
@@ -9,8 +8,6 @@ export interface KycStatusView {
   submittedAtUtc?: string | null;
   verifiedAtUtc?: string | null;
   rejectionReason?: string | null;
-  hasFrontImage: boolean;
-  hasBackImage: boolean;
 }
 
 export type HistoryFilter = 'all' | 'upcoming' | 'active' | 'completed' | 'cancelled';
@@ -71,7 +68,6 @@ export interface PersonalDataView {
   kycStatus: string;
   kycDocumentType?: string | null;
   kycMaskedNumber?: string | null;
-  kycImagesStored: boolean;
   kycVerifiedAtUtc?: string | null;
   businessName?: string | null;
   activeSessions: number;

@@ -58,7 +58,6 @@ export function PrivacyPage() {
           <Row label="Trạng thái" value={kycLabels[data.kycStatus]?.text ?? data.kycStatus} edit={data.kycStatus === 'NotSubmitted' || data.kycStatus === 'Rejected' ? '/account/kyc' : undefined} editLabel="Xác minh" />
           {data.kycDocumentType && <Row label="Loại giấy tờ" value={documentLabels[data.kycDocumentType] ?? data.kycDocumentType} />}
           {data.kycMaskedNumber && <Row label="Số giấy tờ" value={<span className="acct-num" style={{ fontSize: 16 }}>{data.kycMaskedNumber}</span>} />}
-          <Row label="Ảnh giấy tờ" value={data.kycImagesStored ? 'Đang lưu, đã mã hóa' : 'Không lưu'} />
         </div>
         <div className="inventory-group"><h3>Tài khoản</h3>
           <Row label="Mã tài khoản" value={`#${data.id}`} />

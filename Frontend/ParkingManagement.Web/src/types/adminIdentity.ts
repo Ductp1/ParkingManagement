@@ -12,8 +12,6 @@ export interface AdminKycItemDto {
   submittedAtUtc: string | null;
 }
 
-export type KycImageSide = 'Front' | 'Back';
-
 /** US-007 – yêu cầu dữ liệu cá nhân, khớp UserService AdminDataRequestItem (DataRequestUseCases.cs). */
 export interface AdminDataRequestDto {
   id: number;

@@ -30,7 +30,6 @@ public static class DependencyInjection
         services.AddServiceDbContext<UserDbContext>(configuration);
         services.AddScoped<IUserQueries, UserQueries>();
         services.AddScoped<IAvatarStorage, UserService.Infrastructure.Storage.LocalAvatarStorage>();
-        services.AddScoped<UserService.Application.Features.Kyc.IKycDocumentStorage, UserService.Infrastructure.Storage.EncryptedKycDocumentStorage>();
         services.AddScoped<UserService.Application.Features.Kyc.IKycStore, UserService.Infrastructure.Persistence.Repositories.KycStore>();
         services.AddScoped<UserService.Application.Features.History.IDriverActivitySource, UserService.Infrastructure.Integrations.DriverActivitySource>();
         services.AddScoped<IDataSeeder<UserDbContext>, UserDataSeeder>();

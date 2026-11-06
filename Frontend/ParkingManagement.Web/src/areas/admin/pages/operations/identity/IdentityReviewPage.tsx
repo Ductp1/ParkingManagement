@@ -14,7 +14,6 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { useAdminToast } from '../../../hooks/useAdminToast';
 import { useListParams } from '../../../hooks/useListParams';
 import { formatDateTimeIct } from '../../../utils/format';
-import { KycImage } from './KycImage';
 
 export const IDENTITY_BASE = '/admin/operations/identity-review';
 
@@ -32,7 +31,7 @@ const waitingFor = (submittedAtUtc: string | null): string => {
 
 type ReviewDialog = 'approve' | 'reject' | null;
 
-/** Slide-over duyệt một hồ sơ: ảnh hai mặt + thông tin, nút Approve / Reject. */
+/** Slide-over duyệt một hồ sơ: thông tin số CCCD đã che, nút Approve / Reject. */
 const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; onDone: () => void }> = ({ item, onClose, onDone }) => {
   const toast = useAdminToast();
   const [dialog, setDialog] = useState<ReviewDialog>(null);
@@ -53,11 +52,6 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
         onClose={onClose}
       >
         <div className="adm-motion-fade flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <KycImage userId={item.userId} side="Front" />
-            <KycImage userId={item.userId} side="Back" />
-          </div>
-
           <section className="border border-(--admin-border-default) p-3">
             <DetailList>
               <DetailRow label="Full name">{item.fullName}</DetailRow>
@@ -70,8 +64,8 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
           </section>
 
           <Banner tone="info">
-            Users can verify with the Citizen ID number only, or with photos of both sides. When photos exist, check that the name matches
-            the account and both sides are readable. The full number stays encrypted; only the last digits are shown.
+            Users verify with their 12-digit Citizen ID number through the VNeID link simulation. Check that the number belongs to the
+            account holder before approving. The full number stays encrypted; only the last digits are shown.
           </Banner>
 
           <div className="flex flex-wrap justify-end gap-2 border-t border-(--admin-border-default) pt-4">
@@ -102,7 +96,7 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
       <ActionDialog
         open={dialog === 'reject'}
         title="Reject identity"
-        description="KycStatus → Rejected. The document number and both images are deleted; the user can submit again."
+        description="KycStatus → Rejected. The document number is deleted; the user can submit again."
         confirmLabel="Reject"
         destructive
         field={{
@@ -170,8 +164,7 @@ export const IdentityReviewPage: React.FC = () => {
       }
       top={
         <Banner tone="info">
-          Citizen ID and driver licence submissions (US-005). Numbers are stored encrypted and shown masked; images load only through your
-          signed-in session.
+          Citizen ID verifications submitted through the VNeID link simulation (US-005). Numbers are stored encrypted and shown masked.
         </Banner>
       }
     >

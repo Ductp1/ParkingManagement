@@ -21,7 +21,6 @@ public class StaffAndPrivacyUseCaseTests
     private readonly Lots lots = new([LotA, LotB]);
     private readonly Current current = new() { UserId = OwnerUserId, OwnerProfileId = OwnerProfileId };
     private readonly Files files = new();
-    private readonly KycFiles kycFiles = new();
 
     public StaffAndPrivacyUseCaseTests()
     {
@@ -34,7 +33,7 @@ public class StaffAndPrivacyUseCaseTests
     }
 
     private StaffUseCases Staff => new(store, store, lots, current, new Passwords(), new Delivery(), new Cipher(), new Clock());
-    private DataRequestUseCases Privacy => new(store, store, current, new Passwords(), files, kycFiles, new Cipher(), new Clock());
+    private DataRequestUseCases Privacy => new(store, store, current, new Passwords(), files, new Cipher(), new Clock());
 
     // ===== US-075 =====
     [Fact]
@@ -224,8 +223,6 @@ public class StaffAndPrivacyUseCaseTests
         driver.PhoneNumber = "0901234567";
         driver.AvatarUrl = "/api/v1/users/avatars/x.png";
         driver.KycNumberEncrypted = "secret";
-        driver.KycFrontImageUrl = "kyc:front";
-        driver.KycBackImageUrl = "kyc:back";
         driver.KycStatus = KycStatus.Verified;
         store.Add(new StaffAssignment { StaffUserId = driver.Id, OwnerProfileId = OwnerProfileId, ParkingLotId = LotA });
         store.Add(new OtpCode { UserId = driver.Id, Purpose = OtpPurpose.ResetPassword, ExpiresAtUtc = Now.AddMinutes(5) });
@@ -250,8 +247,6 @@ public class StaffAndPrivacyUseCaseTests
         Assert.Contains(driver.Id, store.DeactivatedStaff);
         Assert.All(store.Otps.Where(o => o.UserId == driver.Id), o => Assert.Equal(Now, o.ConsumedAtUtc));
         Assert.Contains("/api/v1/users/avatars/x.png", files.Deleted);
-        Assert.Equal(["kyc:front", "kyc:back"], kycFiles.Deleted);
-        Assert.Null(driver.KycFrontImageUrl);
 
         await Assert.ThrowsAsync<ConflictException>(() => Privacy.ApproveDeletionAsync(item.Id, new(null), default));
         await Assert.ThrowsAsync<ConflictException>(() => Privacy.RejectAsync(item.Id, new("Muộn"), default));
@@ -358,13 +353,6 @@ public class StaffAndPrivacyUseCaseTests
         public Task<string> SaveAsync(Stream image, CancellationToken ct) => Task.FromResult("new");
         public Task DeleteAsync(string? url, CancellationToken ct) { Deleted.Add(url); return Task.CompletedTask; }
         public Task<byte[]?> ReadAsync(Guid id, CancellationToken ct) => Task.FromResult<byte[]?>(null);
-    }
-    private sealed class KycFiles : IKycDocumentStorage
-    {
-        public List<string?> Deleted = [];
-        public Task<string> SaveAsync(Stream image, CancellationToken ct) => Task.FromResult("kyc:new");
-        public Task<byte[]?> ReadAsync(string? key, CancellationToken ct) => Task.FromResult<byte[]?>(null);
-        public Task DeleteAsync(string? key, CancellationToken ct) { Deleted.Add(key); return Task.CompletedTask; }
     }
     private sealed class Current : ICurrentUser
     {
