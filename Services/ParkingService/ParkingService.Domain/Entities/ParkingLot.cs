@@ -95,6 +95,26 @@ public class ParkingLot : BaseEntity, ISoftDelete
     /// Bãi có mở cửa tại thời điểm <paramref name="time"/> không.
     /// Hỗ trợ cả bãi mở qua đêm (VD 18:00 → 07:00) và 24/7 (Open == Close).
     /// </summary>
+    public bool IsOpenAt(DayOfWeek dayOfWeek, TimeOnly time)
+    {
+        var specificHour = OperatingHours.FirstOrDefault(h => h.DayOfWeek == dayOfWeek);
+        if (specificHour != null)
+        {
+            if (specificHour.IsClosed) return false;
+            if (specificHour.OpenTime == specificHour.CloseTime) return true; // 24/7
+            if (specificHour.OpenTime < specificHour.CloseTime)
+                return time >= specificHour.OpenTime && time < specificHour.CloseTime;
+            return time >= specificHour.OpenTime || time < specificHour.CloseTime; // Mở qua đêm
+        }
+
+        return IsOpenAt(time);
+    }
+
+    public bool IsOpenAt(DateTime dateTime)
+    {
+        return IsOpenAt(dateTime.DayOfWeek, TimeOnly.FromDateTime(dateTime));
+    }
+
     public bool IsOpenAt(TimeOnly time)
     {
         if (OpenTime == CloseTime) return true;                       // 24/7

@@ -87,16 +87,23 @@ public sealed class ComplaintRepository(SupportDbContext db) : IComplaintReposit
     public Task<Complaint?> FindByIdAsync(int id, CancellationToken cancellationToken = default)
         => db.Complaints.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
-    public async Task UpdateAsync(Complaint complaint, IntegrationEvent integrationEvent, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(Complaint complaint, IntegrationEvent integrationEvent, CancellationToken cancellationToken = default)
+        => UpdateAsync(complaint, [integrationEvent], cancellationToken);
+
+    public async Task UpdateAsync(Complaint complaint, IReadOnlyList<IntegrationEvent> integrationEvents,
+        CancellationToken cancellationToken = default)
     {
-        // Transactional Outbox: thay đổi của ticket (kèm tin nhắn mới) và sự kiện cùng thành công hoặc cùng thất bại.
+        // Transactional Outbox: thay đổi của ticket (kèm tin nhắn / phán quyết mới) và sự kiện cùng thành công hoặc cùng thất bại.
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        db.OutboxMessages.Add(new OutboxMessage
+        foreach (var integrationEvent in integrationEvents)
         {
-            EventType = integrationEvent.GetType().Name,
-            PayloadJson = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()),
-            OccurredAtUtc = integrationEvent.OccurredAtUtc,
-        });
+            db.OutboxMessages.Add(new OutboxMessage
+            {
+                EventType = integrationEvent.GetType().Name,
+                PayloadJson = JsonSerializer.Serialize(integrationEvent, integrationEvent.GetType()),
+                OccurredAtUtc = integrationEvent.OccurredAtUtc,
+            });
+        }
         try
         {
             // UPDATE "Complaints" ... WHERE "Id" = @id AND "RowVersion" = @original → 0 dòng nếu bên khác đã cập nhật trước.
@@ -125,6 +132,37 @@ public sealed class ComplaintRepository(SupportDbContext db) : IComplaintReposit
 
         return rows.Select(c => new PayoutHoldDto(c.Code, c.Status.ToString(), c.ParkingLotId, c.OwnerProfileId, c.BookingCode,
             c.RequestedAmount ?? 0, c.CreatedAtUtc)).ToList();
+    }
+
+    // ===== US-090 =====
+
+    public Task<Complaint?> FindByCodeAsync(string code, CancellationToken cancellationToken = default)
+        => db.Complaints.Include(c => c.Ruling).FirstOrDefaultAsync(c => c.Code == code, cancellationToken);
+
+    public Task<Complaint?> GetCaseFileAsync(string code, CancellationToken cancellationToken = default)
+        => db.Complaints.AsNoTracking().AsSplitQuery()
+            .Include(c => c.Messages)
+            .Include(c => c.Ruling)
+            .Include(c => c.Violations)
+            .FirstOrDefaultAsync(c => c.Code == code, cancellationToken);
+
+    public async Task<IReadOnlyList<Complaint>> ListOpenForOwnerAsync(int ownerProfileId, IReadOnlyCollection<int> parkingLotIds,
+        ComplaintStatus? status, int take, CancellationToken cancellationToken = default)
+    {
+        // Ticket đã gắn chủ bãi này, hoặc chưa gắn chủ bãi nhưng thuộc bãi của chủ bãi (BookingService chưa trả OwnerProfileId).
+        var query = db.Complaints.AsNoTracking()
+            .Where(c => c.Status != ComplaintStatus.Resolved && c.Status != ComplaintStatus.Rejected)
+            .Where(c => c.OwnerProfileId == ownerProfileId || (c.OwnerProfileId == null && parkingLotIds.Contains(c.ParkingLotId)));
+        if (status is { } s) query = query.Where(c => c.Status == s);
+        return await query.OrderBy(c => c.CreatedAtUtc).Take(take).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DisputeRuling>> ListRulingsAsync(IReadOnlyCollection<int> parkingLotIds, ComplaintCategory? category,
+        int take, CancellationToken cancellationToken = default)
+    {
+        var query = db.DisputeRulings.AsNoTracking().Include(r => r.Complaint).Where(r => parkingLotIds.Contains(r.ParkingLotId));
+        if (category is { } c) query = query.Where(r => r.Category == c);
+        return await query.OrderByDescending(r => r.CreatedAtUtc).Take(take).ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ComplaintSummaryDto>> ListForUserAsync(int userId, CancellationToken cancellationToken = default)

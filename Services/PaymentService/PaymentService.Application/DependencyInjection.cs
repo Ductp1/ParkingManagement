@@ -5,6 +5,7 @@ using PaymentService.Application.Features.Payments;
 using PaymentService.Application.Features.Pricing;
 using PaymentService.Application.Features.RateCards;
 using PaymentService.Application.Features.Refunds;
+using PaymentService.Application.Features.Reports;
 
 namespace PaymentService.Application;
 
@@ -32,6 +33,11 @@ public static class DependencyInjection
         services.AddScoped<ICreateVietQrPaymentUseCase, CreateVietQrPaymentUseCase>();
         services.AddScoped<IProcessVnpayReturnUseCase, ProcessVnpayReturnUseCase>();
         services.AddScoped<IProcessVnpayIpnUseCase, ProcessVnpayIpnUseCase>();
+        // US-078: báo cáo doanh thu chủ bãi (chỉ đọc).
+        services.AddScoped<IGetOwnerRevenueSummaryUseCase, GetOwnerRevenueSummaryUseCase>();
+        services.AddScoped<IGetOwnerRevenueSeriesUseCase, GetOwnerRevenueSeriesUseCase>();
+        services.AddScoped<IListOwnerRevenueTransactionsUseCase, ListOwnerRevenueTransactionsUseCase>();
+        services.AddScoped<IExportOwnerRevenueTransactionsUseCase, ExportOwnerRevenueTransactionsUseCase>();
         return services;
     }
 }

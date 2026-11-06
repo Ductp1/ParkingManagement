@@ -23,9 +23,11 @@ public static class DependencyInjection
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
+        services.AddScoped<ILotOperatingHourRepository, LotOperatingHourRepository>();
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
         services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
         services.AddScoped<IAdminKybQueries, AdminKybQueries>();               // US-055 (đọc)
+        services.AddScoped<IAdminLotSummaryQueries, AdminLotSummaryQueries>(); // US-081 (đọc)
         services.AddScoped<ILotMisdeclarationRepository, LotMisdeclarationRepository>(); // US-056 (ghi)
         services.AddScoped<ILotMisdeclarationQueries, LotMisdeclarationQueries>();       // US-056 (đọc)
         // US-056: hạn sửa mặc định của sai sót nhẹ ("KybMisdeclaration:MinorCorrectionDays", 1–30, mặc định 7) – sai cấu hình → lỗi lúc khởi động.

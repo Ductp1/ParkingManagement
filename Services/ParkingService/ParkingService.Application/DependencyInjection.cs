@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Capacity;
+using ParkingService.Application.Features.OperatingHours;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
@@ -37,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IApproveKybApplicationUseCase, ApproveKybApplicationUseCase>();
         services.AddScoped<IRejectKybApplicationUseCase, RejectKybApplicationUseCase>();
         services.AddScoped<IRequestKybMoreInfoUseCase, RequestKybMoreInfoUseCase>();
+        services.AddScoped<Features.AdminDashboard.IGetAdminLotsSummaryUseCase, Features.AdminDashboard.GetAdminLotsSummaryUseCase>(); // US-081
 
         // Khai báo sai – Admin (US-056)
         services.AddScoped<IGetLotMisdeclarationUseCase, GetLotMisdeclarationUseCase>();
@@ -75,6 +77,10 @@ public static class DependencyInjection
         // Capacity & Walk-in Buffer (UI-26, EP10)
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
+
+        // Operating Hours (US-062, EP09)
+        services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
+        services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
 
         return services;
     }
