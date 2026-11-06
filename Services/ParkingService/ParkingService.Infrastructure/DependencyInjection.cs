@@ -1,13 +1,16 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Application.Abstractions;
 using ParkingService.Application.Features.KybMisdeclaration;
+using ParkingService.Application.Features.LotOperations;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Infrastructure.Persistence.Queries;
 using ParkingService.Infrastructure.Persistence.Repositories;
 using ParkingService.Infrastructure.Persistence.Seeding;
+using ParkingService.Infrastructure.Workers;
 
 namespace ParkingService.Infrastructure;
 
@@ -36,6 +39,15 @@ public static class DependencyInjection
             configuration.GetValue<int?>($"{KybMisdeclarationSettings.SectionName}:MinorCorrectionDays")
             ?? KybMisdeclarationSettings.DefaultMinorCorrectionDays));
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
+
+        // ===== US-068: operations (heartbeat + stale monitor) =====
+        services.AddScoped<Application.Features.LotOperations.ILotOperationsRepository, Persistence.Repositories.LotOperationsRepository>();
+        services.AddScoped<Application.Features.LotOperations.ILotEventPublisher, Integrations.ParkingEventOutbox>();
+        services.AddRabbitMqEventBus(configuration);
+        services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<ParkingDbContext>>();
+        services.AddHostedService<Workers.StalenessMonitorWorker>();
+        services.Configure<Application.Features.LotOperations.StalenessOptions>(configuration.GetSection(Application.Features.LotOperations.StalenessOptions.SectionName));
+
         return services;
     }
 }

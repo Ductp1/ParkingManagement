@@ -46,6 +46,31 @@ public class ParkingLot : BaseEntity, ISoftDelete
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
 
+    // ===== US-068: heartbeat & stale data =====
+    /// <summary>Lần heartbeat cuối từ thiết bị/controller của bãi (null = chưa từng nhận).</summary>
+    public DateTime? LastHeartbeatAtUtc { get; private set; }
+    /// <summary>Đang ở chế độ "dữ liệu cũ" (quá hạn ngưỡng không heartbeat) — dashboard hiển thị cảnh báo.</summary>
+    public bool IsDataStale { get; private set; }
+
+    /// <summary>US-068: thiết bị gửi heartbeat → dữ liệu tươi trở lại. Trả true nếu VỪA phục hồi từ stale.</summary>
+    public bool RecordHeartbeat(DateTime nowUtc)
+    {
+        LastHeartbeatAtUtc = nowUtc;
+        var recovered = IsDataStale;
+        IsDataStale = false;
+        return recovered;
+    }
+
+    /// <summary>US-068: đánh dấu stale khi quá hạn ngưỡng. Trả true nếu VỪA chuyển sang stale (lần đầu).</summary>
+    public bool MarkStaleIfOverdue(DateTime nowUtc, TimeSpan threshold)
+    {
+        if (IsDataStale) return false;
+        var overdue = LastHeartbeatAtUtc is null || nowUtc - LastHeartbeatAtUtc.Value > threshold;
+        if (!overdue) return false;
+        IsDataStale = true;
+        return true;
+    }
+
     public ICollection<Zone> Zones { get; private set; } = new List<Zone>();
     public LotCapacityConfig? CapacityConfig { get; private set; }
     public ICollection<LotOperatingHour> OperatingHours { get; private set; } = new List<LotOperatingHour>();

@@ -11,6 +11,8 @@ using ParkingService.Application.Features.LotDetails;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
 
+using ParkingService.Application.Features.LotOperations;
+
 namespace ParkingService.Application;
 
 public static class DependencyInjection
@@ -103,6 +105,9 @@ public static class DependencyInjection
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
+        // US-068: operations (heartbeat)
+        // (IGetOperationsOverviewUseCase sẽ đăng ký ở Infrastructure khi thêm US-067 — cần bind StalenessOptions từ config.)
+        services.AddScoped<IRecordHeartbeatUseCase, RecordHeartbeatUseCase>();
 
         return services;
     }
