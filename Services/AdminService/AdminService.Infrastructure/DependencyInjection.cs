@@ -78,6 +78,35 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+
+        // US-081: nguồn chỉ-đọc của Admin dashboard qua Gateway (JWT Admin chuyển tiếp). Timeout từng nguồn đặt ở use case
+        // ("Dashboard:SourceTimeoutSeconds:{Service}", mặc định 3 giây); HttpClient.Timeout chỉ là chốt chặn cuối.
+        AddDashboardSource<IGateServiceClient, GateServiceClient>(services, gatewayUri);
+        AddDashboardSource<ISupportServiceClient, SupportServiceClient>(services, gatewayUri);
+        AddDashboardSource<IParkingDashboardClient, ParkingDashboardClient>(services, gatewayUri);
+        AddDashboardSource<IPaymentServiceClient, PaymentServiceClient>(services, gatewayUri);
+        AddDashboardSource<IBookingServiceClient, BookingServiceClient>(services, gatewayUri);
+        AddDashboardSource<IUserDataRequestsClient, UserDataRequestsClient>(services, gatewayUri);
+        services.AddSingleton(DashboardTimeouts(configuration));
         return services;
+    }
+
+    private static void AddDashboardSource<TPort, TClient>(IServiceCollection services, Uri gatewayUri)
+        where TPort : class where TClient : class, TPort
+        => services.AddHttpClient<TPort, TClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+
+    /// <summary>"Dashboard:SourceTimeoutSeconds": { "GateService": 3, … } – giá trị thiếu / ≤ 0 / sai định dạng dùng mặc định 3 giây.</summary>
+    private static DashboardSourceTimeouts DashboardTimeouts(IConfiguration configuration)
+    {
+        var perService = configuration.GetSection("Dashboard:SourceTimeoutSeconds").GetChildren()
+            .Where(s => double.TryParse(s.Value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture,
+                out var seconds) && seconds > 0)
+            .ToDictionary(s => s.Key, s => TimeSpan.FromSeconds(double.Parse(s.Value!, System.Globalization.CultureInfo.InvariantCulture)));
+        return new DashboardSourceTimeouts(perService);
     }
 }

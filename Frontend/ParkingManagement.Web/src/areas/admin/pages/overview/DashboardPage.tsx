@@ -1,196 +1,293 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AdminTitleBar } from '../../layout/AdminTitleBar';
-import { KpiStrip, KpiTile } from '../../components/KpiTile';
-import { DetailColumns, QueryState } from '../../components/PageLayout';
-import { Panel } from '../../components/Panel';
-import { DataTable } from '../../components/DataTable';
 import { AdminButton } from '../../components/AdminButton';
-import { useAdminQuery } from '../../hooks/useAdminQuery';
-import { useVisibleInterval } from '../../hooks/useVisibleInterval';
-import { formatDate, formatDateTimeIct, formatNumber, formatTimeIct, ictDateParam } from '../../utils/format';
-import { adminDashboardApi } from './adminDashboardApi';
-import type { DashboardOverviewDto, DashboardWidget, NoValue } from './dashboardTypes';
-import { QueueRow, WidgetTablePlaceholder, WidgetUnavailableNote } from './DashboardWidgetState';
+import { KpiStrip } from '../../components/KpiTile';
+import { DetailColumns } from '../../components/PageLayout';
+import { Panel } from '../../components/Panel';
+import { StateBlock } from '../../components/StateBlock';
+import { formatClockIct, formatDate, formatDateTimeIct, formatNumber, formatVnd, ictDateParam } from '../../utils/format';
+import { KpiWidget, QueueRow } from './DashboardWidgetState';
+import { DashboardRetryContext } from './dashboardRetry';
+import { GateDevicesPanel, LotOccupancyPanel, PaymentsByMethodPanel } from './DashboardTables';
+import { REFRESH_INTERVAL_MS, useDashboardOverview } from './useDashboardOverview';
+import type { BookingsTodayDto, DashboardOverviewDto } from './dashboardTypes';
 
-/** US-081: tự làm mới khi tab đang hiển thị; Admin vẫn có nút Refresh. */
-const REFRESH_INTERVAL_MS = 60_000;
+const auditLink = (todayParam: string | null, service?: string) => {
+  const params = new URLSearchParams();
+  if (todayParam) {
+    params.set('from', todayParam);
+    params.set('to', todayParam);
+  }
+  if (service) params.set('service', service);
+  const query = params.toString();
+  return `/admin/access/audit-log${query ? `?${query}` : ''}`;
+};
 
-const KPIS: Array<{ label: string; pick: (d: DashboardOverviewDto) => DashboardWidget<NoValue> }> = [
-  { label: 'Revenue today (succeeded payments)', pick: (d) => d.kpis.revenueToday },
-  { label: 'Active parking sessions', pick: (d) => d.kpis.activeSessions },
-  { label: 'Bookings today', pick: (d) => d.kpis.bookingsToday },
-  { label: 'Open disputes', pick: (d) => d.kpis.openDisputes },
-];
+/** Breakdown booking: chỉ hiện phần nguồn đã tách được (null = chưa tách, không hiện 0). */
+const bookingBreakdown = (v: BookingsTodayDto) => {
+  const parts = [`Hoàn tất ${formatNumber(v.completed)}`, `Hủy ${formatNumber(v.cancelled + v.cancelledNoRefund)}`];
+  if (v.noShow !== null) parts.push(`No-show ${formatNumber(v.noShow)}`);
+  if (v.cancelledByDriver !== null && v.cancelledByLot !== null)
+    parts.push(`Khách hủy ${formatNumber(v.cancelledByDriver)} · Bãi hủy ${formatNumber(v.cancelledByLot)}`);
+  return parts.join(' · ');
+};
 
-const LOT_COLUMNS = ['Parking lot', 'Occupancy', 'Integration', 'Lot status', 'Capacity flag'];
-const PAYMENT_COLUMNS = ['Payment', 'Booking', 'Method', 'Purpose', 'Amount', 'Status', 'Paid at'];
-const DEVICE_COLUMNS = ['Device type', 'Online', 'Offline', 'Maint.'];
-
-const LOADING_COPY = { emptyTitle: '', emptyMessage: '', errorTitle: '', service: 'AdminService' };
-
-/** Bảng chưa có nguồn: header đúng Figma + trạng thái nguồn, không vẽ dòng mẫu. */
-const SourceTable: React.FC<{ columns: string[]; widget: DashboardWidget<NoValue> | null }> = ({ columns, widget }) => (
-  <DataTable
-    bare
-    rows={[]}
-    rowKey={() => 0}
-    columns={columns.map((h) => ({ key: h, header: h, render: () => null }))}
-    placeholder={widget ? <WidgetTablePlaceholder widget={widget} /> : <QueryState status="loading" error={null} onRetry={() => undefined} copy={LOADING_COPY} />}
-  />
+const Badge: React.FC<{ tone: 'danger' | 'muted'; children: React.ReactNode }> = ({ tone, children }) => (
+  <span
+    className={`adm-type-body-small inline-block rounded-[2px] border px-1.5 ${
+      tone === 'danger' ? 'border-(--admin-status-danger) text-(--admin-status-danger)' : 'border-(--admin-border-default) text-(--admin-text-secondary)'
+    }`}
+  >
+    {children}
+  </span>
 );
 
+/** Dải KPI: doanh thu (gộp + ròng), phiên đang hoạt động (+ badge bất thường), booking hôm nay, tranh chấp đang mở. */
+const KpiRow: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) => (
+  <KpiStrip>
+    <KpiWidget
+      label="Doanh thu hôm nay (gộp)"
+      widget={data?.kpis.revenueToday ?? null}
+      count={(v) => v.gross}
+      format={formatVnd}
+      detail={(v) => `Ròng ${formatVnd(v.net)} · đã hoàn ${formatVnd(v.refunded)} · ${formatNumber(v.succeededCount)} giao dịch`}
+    />
+    <KpiWidget
+      label="Phiên gửi xe đang hoạt động"
+      widget={data?.kpis.activeSessions ?? null}
+      count={(v) => v.total}
+      to="/admin/operations/gate-activity"
+      detail={(v) => (
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span>
+            Vãng lai {formatNumber(v.walkIn)} · Đặt trước {formatNumber(v.booked)}
+          </span>
+          <Badge tone={v.abnormal > 0 ? 'danger' : 'muted'}>Bất thường {formatNumber(v.abnormal)}</Badge>
+        </span>
+      )}
+    />
+    <KpiWidget label="Booking tạo hôm nay" widget={data?.kpis.bookingsToday ?? null} count={(v) => v.created} detail={bookingBreakdown} />
+    <KpiWidget
+      label="Tranh chấp đang mở"
+      widget={data?.kpis.openDisputes ?? null}
+      count={(v) => v.unresolved}
+      detail={(v) =>
+        `Mới ${formatNumber(v.open)} · Chờ chủ bãi ${formatNumber(v.awaitingOwner)} · Đã phản hồi ${formatNumber(v.ownerResponded)} · Leo thang ${formatNumber(v.escalated)}`
+      }
+    />
+  </KpiStrip>
+);
+
+const QueuesPanel: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) => {
+  const q = data?.queues ?? null;
+  return (
+    <Panel title="Hàng đợi xử lý" padded={false}>
+      <QueueRow
+        label="Hồ sơ KYB cần duyệt"
+        to="/admin/operations/kyb-review?status=Submitted"
+        widget={q?.kybApplications ?? null}
+        count={(v) => v.toReview}
+        detail={(v) => `${formatNumber(v.underReview)} đang duyệt · ${formatNumber(v.needsMoreInfo)} chờ chủ bãi bổ sung`}
+      />
+      <QueueRow
+        label="Hồ sơ đối tác"
+        to="/admin/operations/partner-onboarding?status=Submitted"
+        widget={q?.partnerApplications ?? null}
+        count={(v) => v.toReview}
+        detail={(v) => `${formatNumber(v.needsMoreInfo)} chờ bổ sung · ${formatNumber(v.accountIssued)} chờ kích hoạt`}
+      />
+      <QueueRow
+        label="Hợp đồng bãi chờ ký"
+        to="/admin/operations/lot-contracts?status=Pending"
+        widget={q?.lotContractsToSign ?? null}
+        count={(v) => v.pending}
+      />
+      <QueueRow
+        label="Risk flag chưa xử lý"
+        widget={q?.riskFlags ?? null}
+        count={(v) => v.unresolved}
+        urgent={(v) => v.critical > 0 || v.overdue > 0}
+        detail={(v) => (
+          <span className="flex flex-wrap gap-1.5">
+            <Badge tone={v.critical > 0 ? 'danger' : 'muted'}>Nghiêm trọng {formatNumber(v.critical)}</Badge>
+            <Badge tone={v.overdue > 0 ? 'danger' : 'muted'}>Quá hạn {formatNumber(v.overdue)}</Badge>
+            <span>{formatNumber(v.investigating)} đang điều tra</span>
+          </span>
+        )}
+      />
+      <QueueRow label="Yêu cầu hoàn tiền chờ duyệt" widget={q?.refundsRequested ?? null} count={(v) => v.requested} />
+      <QueueRow label="Kỳ quyết toán chờ duyệt" widget={q?.settlementsPendingReview ?? null} count={(v) => v.pendingReview} />
+      <QueueRow
+        label="Tranh chấp chờ chủ bãi quá hạn 48 giờ"
+        widget={q?.disputesAwaitingOwner ?? null}
+        count={(v) => v.overdue}
+        urgent={(v) => v.overdue > 0}
+        detail={(v) => `Trong ${formatNumber(v.awaitingOwner)} tranh chấp đang chờ chủ bãi`}
+      />
+      <QueueRow
+        label="Yêu cầu dữ liệu cá nhân"
+        widget={q?.dataSubjectRequestsDue ?? null}
+        count={(v) => v.open}
+        urgent={(v) => v.overdue > 0}
+        detail={(v) => (
+          <span className="flex flex-wrap gap-1.5">
+            <Badge tone="muted">Sắp đến hạn {formatNumber(v.dueSoon)}</Badge>
+            <Badge tone={v.overdue > 0 ? 'danger' : 'muted'}>Quá hạn {formatNumber(v.overdue)}</Badge>
+          </span>
+        )}
+      />
+    </Panel>
+  );
+};
+
+const GovernancePanel: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) => {
+  const g = data?.governance ?? null;
+  const todayParam = data ? ictDateParam(data.todayFromUtc) : null;
+  const next = g?.scheduledConfigChanges.status === 'available' ? g.scheduledConfigChanges.value : null;
+  return (
+    <Panel title="Quản trị nền tảng" description="Chế tài · thay đổi cấu hình · audit log hôm nay (ICT)" padded={false}>
+      <QueueRow
+        label="Chế tài đang hiệu lực"
+        widget={g?.activeSanctions ?? null}
+        count={(v) => v.total}
+        detail={(v) =>
+          `Cảnh cáo ${formatNumber(v.warning)} · Hạ hạng ${formatNumber(v.rankingPenalty)} · Tạm khóa ${formatNumber(v.temporarySuspension)} · Cấm vĩnh viễn ${formatNumber(v.permanentBan)}`
+        }
+      />
+      <QueueRow
+        label="Thay đổi cấu hình sắp hiệu lực"
+        to={next?.nextKey ? `/admin/access/system-settings/${encodeURIComponent(next.nextKey)}` : '/admin/access/system-settings'}
+        widget={g?.scheduledConfigChanges ?? null}
+        count={(v) => v.count}
+        detail={(v) => (v.nextKey ? `Tiếp theo: ${v.nextKey} lúc ${formatDateTimeIct(v.nextEffectiveFromUtc)}` : 'Không có thay đổi nào đã hẹn')}
+      />
+      <QueueRow
+        label="Audit log hôm nay"
+        to={auditLink(todayParam)}
+        widget={g?.auditLogsToday ?? null}
+        count={(v) => v.total}
+        detail={(v) =>
+          v.bySource.length === 0 ? (
+            'Chưa có bản ghi nào hôm nay'
+          ) : (
+            <span className="flex flex-wrap gap-x-2">
+              {v.bySource.map((s) => (
+                <Link
+                  key={s.sourceService}
+                  to={auditLink(todayParam, s.sourceService)}
+                  aria-label={`Audit log hôm nay của ${s.sourceService}: ${formatNumber(s.count)} bản ghi`}
+                  className="rounded-[2px] text-(--admin-brand-navy-900) hover:underline focus-visible:outline-2 focus-visible:outline-(--admin-brand-navy-900)"
+                >
+                  {s.sourceService} {formatNumber(s.count)}
+                </Link>
+              ))}
+            </span>
+          )
+        }
+      />
+    </Panel>
+  );
+};
+
 /**
- * Overview / Dashboard (US-081, UC-45): GET /api/v1/admin/dashboard/overview. Mỗi widget tự mang trạng thái: có số (count-up
- * lần đầu), chưa có nguồn ("No data source yet · needs X") hoặc nguồn lỗi – một nguồn lỗi không làm hỏng cả trang.
- * Không có số mẫu: widget chưa có API nguồn hiện "—", không hiện 0.
+ * Overview / Dashboard (US-081, UC-45): GET /api/v1/admin/dashboard/overview. Mỗi widget tự mang trạng thái: có số (count-up lần
+ * đầu), chưa có nguồn ("Chưa có nguồn dữ liệu · X") hoặc nguồn lỗi (+ "Thử lại") – một nguồn lỗi không làm hỏng cả trang.
+ * Không có số mẫu, không có số 0 giả. Làm mới: nút thủ công + tự động 60 giây khi tab đang hiển thị, không gửi chồng request,
+ * giữ dữ liệu cũ trong lúc tải lại.
  */
 export const DashboardPage: React.FC = () => {
-  const query = useAdminQuery(() => adminDashboardApi.overview(), []);
-  const refresh = query.refetch;
-  useVisibleInterval(refresh, REFRESH_INTERVAL_MS);
-
+  const query = useDashboardOverview();
+  const { data, refresh, isFetching } = query;
   // Ngày hiển thị trước khi có dữ liệu: chốt một lần lúc mở màn (không gọi Date trong mỗi lần render).
-  const [openedToday] = useState(() => formatDate(new Date().toISOString()));
-  const data = query.data;
-  const today = data ? formatDate(data.generatedAtUtc) : openedToday;
-  const todayParam = data ? ictDateParam(data.todayFromUtc) : null;
-  const auditLink = todayParam ? `/admin/access/audit-log?from=${todayParam}&to=${todayParam}` : '/admin/access/audit-log';
+  const [openedAt] = useState(() => new Date().toISOString());
 
+  const dayLabel = formatDate(data?.todayFromUtc ?? openedAt);
+  const generated = data ? `cập nhật lúc ${formatClockIct(data.generatedAtUtc)}` : 'đang tải…';
   const titleBar = (
     <AdminTitleBar
-      title="Platform overview"
-      subtitle={`Today ${today} · ICT · ${data ? `updated ${formatTimeIct(data.generatedAtUtc)}` : 'loading…'} · refreshes every 60 s while this tab is open`}
+      title="Tổng quan nền tảng"
+      subtitle={`Dữ liệu ngày ${dayLabel} (ICT) · ${generated} · tự làm mới mỗi ${REFRESH_INTERVAL_MS / 1000} giây khi tab đang mở`}
       actions={
-        <AdminButton variant="onNavy" icon="refresh" onClick={refresh} disabled={query.isFetching} loading={query.isFetching && data !== null} loadingLabel="Refreshing…">
-          Refresh
+        <AdminButton
+          variant="onNavy"
+          icon="refresh"
+          onClick={refresh}
+          disabled={isFetching}
+          loading={isFetching && data !== null}
+          loadingLabel="Đang làm mới…"
+          aria-label="Làm mới số liệu dashboard"
+        >
+          Làm mới
         </AdminButton>
       }
     />
   );
+  const liveRegion = (
+    <p className="sr-only" aria-live="polite" role="status" data-testid="dashboard-live">
+      {data && !isFetching ? `Đã cập nhật số liệu lúc ${formatClockIct(data.generatedAtUtc)}` : ''}
+    </p>
+  );
 
-  // Cả endpoint lỗi (AdminService không phản hồi / không có quyền): Figma "Dashboard – Error / No permission".
+  // Cả request lỗi lần đầu (mạng / 401 / 500…): StateBlock + Thử lại; 403 = không có quyền. Dữ liệu cũ (nếu có) thì giữ – nhánh dưới.
   if (!data && query.status !== 'loading') {
+    const status = query.error?.status ?? 0;
     return (
       <>
         {titleBar}
-        <QueryState
-          status={query.status}
-          error={query.error}
-          onRetry={refresh}
-          bare={false}
-          copy={{ emptyTitle: 'Nothing to show', emptyMessage: 'The dashboard returned no data.', errorTitle: 'Could not load the dashboard', service: 'AdminService' }}
-        />
+        {liveRegion}
+        {query.status === 'forbidden' ? (
+          <StateBlock type="noPermission" title="Không có quyền xem dashboard" message={query.error?.message} />
+        ) : (
+          <StateBlock
+            type="error"
+            title="Không tải được dashboard"
+            message={
+              status === 0
+                ? `Không kết nối được AdminService qua API Gateway (${query.error?.message ?? 'lỗi mạng'}).`
+                : `${query.error?.message ?? 'AdminService không phản hồi'} (HTTP ${status}).`
+            }
+            onRetry={refresh}
+            retryLabel="Thử lại"
+          />
+        )}
       </>
     );
   }
 
-  const q = data?.queues ?? null;
-  const g = data?.governance ?? null;
-  const t = data?.tables ?? null;
-
   return (
-    <>
+    <DashboardRetryContext.Provider value={refresh}>
       {titleBar}
-      <KpiStrip>
-        {KPIS.map((k) => {
-          const widget = data ? k.pick(data) : null;
-          return (
-            <KpiTile
-              key={k.label}
-              label={k.label}
-              value="—"
-              loading={widget === null}
-              muted
-              note={widget && <WidgetUnavailableNote widget={widget} />}
-            />
-          );
-        })}
-      </KpiStrip>
+      {liveRegion}
+      {data && query.error && (
+        <div
+          role="alert"
+          className="adm-motion-fade flex flex-wrap items-center gap-2 border border-(--admin-status-danger) bg-(--admin-surface-card) px-3 py-2"
+        >
+          <span className="adm-type-body-small text-(--admin-status-danger)">
+            Không làm mới được ({query.error.message}). Đang hiển thị số liệu lúc {formatClockIct(data.generatedAtUtc)}.
+          </span>
+          <AdminButton variant="secondary" icon="refresh" onClick={refresh} disabled={isFetching}>
+            Thử lại
+          </AdminButton>
+        </div>
+      )}
+      <KpiRow data={data} />
       <DetailColumns
         main={
           <>
-            <Panel title="Lot occupancy & capacity" description="ParkingLots.AvailableSlots / TotalSlots · LotCapacityConfigs flags" action={{ label: 'View all lots →', to: '/admin/operations/parking-lots' }} padded={false}>
-              <SourceTable columns={LOT_COLUMNS} widget={t?.lotOccupancy ?? null} />
-            </Panel>
-            <Panel title="Recent payments" action={{ label: 'All transactions →', to: '/admin/finance/transactions' }} padded={false}>
-              <SourceTable columns={PAYMENT_COLUMNS} widget={t?.recentPayments ?? null} />
-            </Panel>
-            <Panel title="Gate devices" description="GateDevices.Status by DeviceType" padded={false}>
-              <SourceTable columns={DEVICE_COLUMNS} widget={t?.gateDevices ?? null} />
-            </Panel>
+            <LotOccupancyPanel widget={data?.tables.lotOccupancy ?? null} busy={isFetching && data !== null} />
+            <PaymentsByMethodPanel widget={data?.tables.paymentsByMethodToday ?? null} busy={isFetching && data !== null} />
           </>
         }
         side={
           <>
-            <Panel title="Work queues" padded={false}>
-              <QueueRow
-                label="KYB applications to review"
-                to="/admin/operations/kyb-review?status=Submitted"
-                widget={q?.kybApplications ?? null}
-                count={(v) => v.toReview}
-                detail={(v) => `${formatNumber(v.underReview)} under review · ${formatNumber(v.needsMoreInfo)} waiting for owner info`}
-              />
-              <QueueRow
-                label="Partner applications"
-                to="/admin/operations/partner-onboarding?status=Submitted"
-                widget={q?.partnerApplications ?? null}
-                count={(v) => v.toReview}
-                detail={(v) => `${formatNumber(v.needsMoreInfo)} waiting for info · ${formatNumber(v.accountIssued)} awaiting activation`}
-              />
-              <QueueRow label="Lot contracts to sign" to="/admin/operations/lot-contracts?status=Pending" widget={q?.lotContractsToSign ?? null} count={(v) => v.pending} />
-              <QueueRow label="Refunds requested" to="/admin/finance/refunds?status=Requested" widget={q?.refundsRequested ?? null} />
-              <QueueRow label="Settlements pending review" to="/admin/finance/settlements?status=PendingReview" widget={q?.settlementsPendingReview ?? null} />
-              <QueueRow label="Disputes awaiting owner > 48h" to="/admin/support/disputes?status=AwaitingOwner" widget={q?.disputesAwaitingOwner ?? null} />
-              <QueueRow
-                label={
-                  q?.riskFlags.status === 'available' && q.riskFlags.value
-                    ? `Open risk flags (${formatNumber(q.riskFlags.value.critical)} critical)`
-                    : 'Open risk flags'
-                }
-                to="/admin/support/risk-flags"
-                widget={q?.riskFlags ?? null}
-                count={(v) => v.unresolved}
-                detail={(v) => `${formatNumber(v.overdue)} past due · ${formatNumber(v.investigating)} investigating`}
-              />
-              <QueueRow label="Data subject requests due ≤ 7 days" to="/admin/access/security-privacy" widget={q?.dataSubjectRequestsDue ?? null} />
-            </Panel>
-            <Panel title="Platform governance" description="Sanctions · SystemConfigChanges · AuditLogs (today, ICT)" padded={false}>
-              <QueueRow
-                label="Active sanctions"
-                to="/admin/support/sanctions"
-                widget={g?.activeSanctions ?? null}
-                count={(v) => v.total}
-                detail={(v) => `${formatNumber(v.temporarySuspension)} suspended · ${formatNumber(v.permanentBan)} banned · ${formatNumber(v.warning + v.rankingPenalty)} other`}
-              />
-              <QueueRow
-                label="Scheduled setting changes"
-                to={
-                  g?.scheduledConfigChanges.status === 'available' && g.scheduledConfigChanges.value?.nextKey
-                    ? `/admin/access/system-settings/${encodeURIComponent(g.scheduledConfigChanges.value.nextKey)}`
-                    : '/admin/access/system-settings'
-                }
-                widget={g?.scheduledConfigChanges ?? null}
-                count={(v) => v.count}
-                detail={(v) => (v.nextKey ? `Next: ${v.nextKey} from ${formatDateTimeIct(v.nextEffectiveFromUtc)}` : 'Nothing scheduled')}
-              />
-              <QueueRow
-                label="Audit log entries today"
-                to={auditLink}
-                widget={g?.auditLogsToday ?? null}
-                count={(v) => v.total}
-                detail={(v) =>
-                  v.bySource.length === 0
-                    ? 'No entries yet today'
-                    : v.bySource
-                        .slice(0, 3)
-                        .map((s) => `${s.sourceService} ${formatNumber(s.count)}`)
-                        .join(' · ')
-                }
-              />
-            </Panel>
+            <QueuesPanel data={data} />
+            <GateDevicesPanel widget={data?.tables.gateDevices ?? null} busy={isFetching && data !== null} />
+            <GovernancePanel data={data} />
           </>
         }
       />
-    </>
+    </DashboardRetryContext.Provider>
   );
 };
