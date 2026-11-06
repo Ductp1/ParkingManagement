@@ -1,4 +1,4 @@
-using BookingService.Application.Features.Bookings;
+﻿using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
 using ParkingManagement.SharedKernel.Enums;
@@ -441,6 +441,9 @@ public class BookingFeaturesTests
 
         public Task<Booking?> GetEntityByCodeAsync(string code, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Code == code));
+
+        public Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default)
+            => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Id == id));
 
         public Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
         {

@@ -62,6 +62,18 @@ export const formatTimeIct = (value: string | null | undefined): string => {
   return d ? `${timeFmt.format(d)} ICT` : EMPTY;
 };
 
+/** 14:02 (giờ ICT, không hậu tố) */
+export const formatClockIct = (value: string | null | undefined): string => {
+  const d = parse(value);
+  return d ? timeFmt.format(d) : EMPTY;
+};
+
+const percentFmt = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 });
+
+/** 87,5% */
+export const formatPercent = (value: number | null | undefined): string =>
+  value === null || value === undefined ? EMPTY : `${percentFmt.format(value)}%`;
+
 /** Ngày theo giờ ICT dạng YYYY-MM-DD (tham số lọc ngày trên URL). */
 export const ictDateParam = (value: string | null | undefined): string | null => {
   const d = parse(value);

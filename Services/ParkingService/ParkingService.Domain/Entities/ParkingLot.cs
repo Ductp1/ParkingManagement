@@ -95,6 +95,26 @@ public class ParkingLot : BaseEntity, ISoftDelete
     /// Bãi có mở cửa tại thời điểm <paramref name="time"/> không.
     /// Hỗ trợ cả bãi mở qua đêm (VD 18:00 → 07:00) và 24/7 (Open == Close).
     /// </summary>
+    public bool IsOpenAt(DayOfWeek dayOfWeek, TimeOnly time)
+    {
+        var specificHour = OperatingHours.FirstOrDefault(h => h.DayOfWeek == dayOfWeek);
+        if (specificHour != null)
+        {
+            if (specificHour.IsClosed) return false;
+            if (specificHour.OpenTime == specificHour.CloseTime) return true; // 24/7
+            if (specificHour.OpenTime < specificHour.CloseTime)
+                return time >= specificHour.OpenTime && time < specificHour.CloseTime;
+            return time >= specificHour.OpenTime || time < specificHour.CloseTime; // Mở qua đêm
+        }
+
+        return IsOpenAt(time);
+    }
+
+    public bool IsOpenAt(DateTime dateTime)
+    {
+        return IsOpenAt(dateTime.DayOfWeek, TimeOnly.FromDateTime(dateTime));
+    }
+
     public bool IsOpenAt(TimeOnly time)
     {
         if (OpenTime == CloseTime) return true;                       // 24/7
@@ -174,5 +194,25 @@ public class ParkingLot : BaseEntity, ISoftDelete
         if (Status != ParkingLotStatus.Suspended)
             throw new ConflictException($"Chỉ khôi phục được bãi đang bị tạm khóa (hiện tại: {Status}).");
         Status = ParkingLotStatus.Active;
+    }
+
+    /// <summary>Cập nhật ảnh bìa chính thức của bãi xe (US-064).</summary>
+    public void SetCoverImageUrl(string? url)
+    {
+        CoverImageUrl = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+    }
+
+    /// <summary>Cập nhật các thuộc tính mô tả, hotline và chiều cao tĩnh không tối đa của bãi xe (US-064).</summary>
+    public void UpdateAttributes(string? description, string? hotlinePhone, int? maxHeightCm)
+    {
+        if (maxHeightCm.HasValue && maxHeightCm.Value <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxHeightCm), "Chiều cao tối đa phải > 0.");
+
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        HotlinePhone = string.IsNullOrWhiteSpace(hotlinePhone) ? null : hotlinePhone.Trim();
+        if (maxHeightCm.HasValue)
+        {
+            MaxHeightCm = maxHeightCm.Value;
+        }
     }
 }

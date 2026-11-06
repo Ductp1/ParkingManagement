@@ -1,4 +1,5 @@
 using ParkingManagement.SharedKernel.Contracts;
+using ParkingManagement.SharedKernel.Enums;
 using SupportService.Application.DTOs;
 using SupportService.Domain.Entities;
 
@@ -40,4 +41,26 @@ public interface IComplaintRepository
 
     /// <summary>Khoản tiền đang bị giữ vì tranh chấp chưa xong; null = mọi chủ bãi (Admin).</summary>
     Task<IReadOnlyList<PayoutHoldDto>> ListPayoutHoldsAsync(int? ownerProfileId, CancellationToken cancellationToken = default);
+
+    // ===== US-090: chủ bãi phán quyết tranh chấp =====
+
+    /// <summary>Ticket (được EF theo dõi, nạp kèm phán quyết) theo mã; null nếu không có.</summary>
+    Task<Complaint?> FindByCodeAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <summary>Ticket kèm tin nhắn, phán quyết và biên bản vi phạm, chỉ đọc; null nếu không có.</summary>
+    Task<Complaint?> GetCaseFileAsync(string code, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ticket chưa đóng của chủ bãi (chỉ đọc): đã gắn <paramref name="ownerProfileId"/>, hoặc chưa gắn chủ bãi nhưng thuộc
+    /// <paramref name="parkingLotIds"/>. <paramref name="status"/> null = mọi trạng thái chưa đóng.
+    /// </summary>
+    Task<IReadOnlyList<Complaint>> ListOpenForOwnerAsync(int ownerProfileId, IReadOnlyCollection<int> parkingLotIds, ComplaintStatus? status,
+        int take, CancellationToken cancellationToken = default);
+
+    /// <summary>Phán quyết mới nhất trước, của các bãi <paramref name="parkingLotIds"/>, lọc theo loại khiếu nại.</summary>
+    Task<IReadOnlyList<DisputeRuling>> ListRulingsAsync(IReadOnlyCollection<int> parkingLotIds, ComplaintCategory? category, int take,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Như <see cref="UpdateAsync(Complaint, IntegrationEvent, CancellationToken)"/> nhưng ghi nhiều sự kiện (có thể rỗng).</summary>
+    Task UpdateAsync(Complaint complaint, IReadOnlyList<IntegrationEvent> integrationEvents, CancellationToken cancellationToken = default);
 }

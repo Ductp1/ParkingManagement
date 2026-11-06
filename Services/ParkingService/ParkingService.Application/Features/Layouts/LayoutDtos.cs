@@ -114,3 +114,87 @@ public sealed record PublishFloorLayoutRequest(
     int Rows,
     IReadOnlyList<LayoutCellInputDto> Cells,
     string? ChangeNote = null);
+
+
+/// <summary>
+/// Request DTO cho API khôi phục sơ đồ về phiên bản cũ (US-060).
+/// </summary>
+public sealed record RollbackFloorLayoutRequest(
+    string? ChangeNote = null);
+
+/// <summary>
+/// Lệnh khôi phục layout sơ đồ tầng về phiên bản lịch sử TargetVersionNo (US-060).
+/// Bảo vệ tuyệt đối ô đỗ đang có xe (Occupied) hoặc giữ chỗ (Reserved).
+/// </summary>
+public sealed record RollbackFloorLayoutCommand(
+    int FloorId,
+    int TargetVersionNo,
+    string? ChangeNote = null,
+    int UserId = 0);
+
+/// <summary>
+/// DTO thông tin khác biệt của một ô đỗ khi so sánh giữa 2 phiên bản sơ đồ (US-060).
+/// </summary>
+public sealed record LayoutSlotDiffDto(
+    string Code,
+    string DiffType,
+    int? OldX,
+    int? OldY,
+    int? NewX,
+    int? NewY,
+    string? OldSlotType,
+    string? NewSlotType,
+    string? OldMaxVehicleType,
+    string? NewMaxVehicleType,
+    string? CurrentSlotState,
+    bool HasActiveBooking,
+    bool IsSafetyBlocker,
+    string? BlockerReason = null);
+
+/// <summary>
+/// DTO kết quả so sánh (Diff) giữa 2 phiên bản sơ đồ mặt bằng (US-060).
+/// </summary>
+public sealed record FloorLayoutDiffDto(
+    int FloorId,
+    int FromVersionNo,
+    int? ToVersionNo,
+    bool GridSizeChanged,
+    int OldColumns,
+    int OldRows,
+    int NewColumns,
+    int NewRows,
+    IReadOnlyList<LayoutSlotDiffDto> AddedSlots,
+    IReadOnlyList<LayoutSlotDiffDto> RemovedSlots,
+    IReadOnlyList<LayoutSlotDiffDto> ModifiedSlots,
+    bool CanSafelyApply,
+    IReadOnlyList<string> SafetyBlockers,
+    IReadOnlyList<string> Warnings);
+
+/// <summary>
+/// Request DTO kiểm tra an toàn sơ đồ trước khi xuất bản hoặc lưu (US-060).
+/// </summary>
+public sealed record FloorLayoutSafetyCheckRequest(
+    int Columns,
+    int Rows,
+    IReadOnlyList<LayoutCellInputDto> Cells);
+
+/// <summary>
+/// Command kiểm tra an toàn sơ đồ trước khi xuất bản (US-060).
+/// </summary>
+public sealed record FloorLayoutSafetyCheckCommand(
+    int FloorId,
+    int Columns,
+    int Rows,
+    IReadOnlyList<LayoutCellInputDto> Cells);
+
+/// <summary>
+/// DTO kết quả kiểm tra tác động an toàn trước xuất bản (US-060).
+/// </summary>
+public sealed record FloorLayoutSafetyCheckResultDto(
+    bool CanProceed,
+    int TotalActiveSlotsInDb,
+    int TotalSlotsInNewLayout,
+    int RemovedSlotsCount,
+    IReadOnlyList<string> ActiveBookingAtRiskSlots,
+    IReadOnlyList<string> SafetyBlockers,
+    IReadOnlyList<string> Warnings);
