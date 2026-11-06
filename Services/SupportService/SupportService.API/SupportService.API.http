@@ -156,6 +156,58 @@ Authorization: Bearer {{driverToken}}
 GET {{direct}}/api/v1/lot-full-incidents?parkingLotId=1&slaViolationOnly=true
 Authorization: Bearer {{adminToken}}
 
+### US-090 · Chủ bãi đặt mức phạt xe đậu sai chỗ cho bãi của mình (bãi 1 = Vincom của chủ bãi demo)
+PUT {{gateway}}/api/v1/complaints/fine-rates/1
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "wrongSlotFine": 200000 }
+
+### US-090 · AC3: hàng chờ tranh chấp của chủ bãi kèm SLA (phản hồi đầu 24h, kết luận 3–5 ngày làm việc). Chỉ chủ bãi – Admin/tài xế → 403
+GET {{gateway}}/api/v1/complaints/disputes?slaBreachedOnly=false
+Authorization: Bearer {{ownerToken}}
+
+### US-090 · AC1: hồ sơ tranh chấp – hội thoại, lịch sử booking (BookingService :5104), log check-in/out (GateService :5107), phán quyết
+GET {{gateway}}/api/v1/complaints/CP-0001/case-file
+Authorization: Bearer {{ownerToken}}
+
+### US-090 · AC3: chủ bãi nhắn cho tài xế (tính mốc phản hồi đầu tiên)
+POST {{gateway}}/api/v1/complaints/CP-0001/dispute-messages
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "message": "Nhân viên đang kiểm tra chỗ của anh, vui lòng chờ 5 phút." }
+
+### US-090 · AC2: chỗ đã đặt bị chiếm → chủ bãi chuyển tài xế sang chỗ trống + phạt xe đậu sai chỗ theo mức phạt của bãi
+POST {{gateway}}/api/v1/complaints/CP-0001/rulings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "decision": "MoveToSlot", "reason": "Xe 51A-999.99 đậu sai vào chỗ A-05 đã đặt, chuyển tài xế sang chỗ B-12.", "newSlotCode": "B-12", "violatorPlate": "51A-999.99" }
+
+### US-090 · AC2: hoặc chủ bãi ép hoàn tiền (tối đa số đã trả) – có thể kèm "violatorPlate" để phạt xe chiếm chỗ
+POST {{gateway}}/api/v1/complaints/CP-0001/rulings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "decision": "ForceRefund", "reason": "Không còn chỗ trống phù hợp, hoàn toàn bộ cho tài xế.", "refundAmount": 50000, "violatorPlate": "51A-999.99" }
+
+### US-090 · AC2: hoặc bác khiếu nại (không kèm tiền / chỗ mới)
+# AC4: mỗi tranh chấp chỉ 1 phán quyết – gửi lại → 409; phán quyết ghi audit log, không sửa / xóa được.
+POST {{gateway}}/api/v1/complaints/CP-0001/rulings
+Authorization: Bearer {{ownerToken}}
+Content-Type: application/json
+
+{ "decision": "RejectComplaint", "reason": "Camera cho thấy tài xế đến sau giờ giữ chỗ, chỗ đã giải phóng đúng quy định." }
+
+### US-090 · Biên bản xe đậu sai chỗ ở các bãi của mình
+GET {{gateway}}/api/v1/complaints/violations?parkingLotId=1
+Authorization: Bearer {{ownerToken}}
+
+### US-090 · AC2: tiền lệ phán quyết theo loại khiếu nại
+GET {{gateway}}/api/v1/complaints/disputes/precedents?category=SlotOccupied
+Authorization: Bearer {{ownerToken}}
+
 ### US-093 · Các API đánh giá cần JWT của tài xế: userId lấy từ claim "sub", không gửi trong body/query.
 # Lấy token bằng POST {{gateway}}/api/v1/auth/login (tài khoản tài xế demo) rồi dán accessToken vào @driverToken.
 @driverToken = DAN_ACCESS_TOKEN_VAO_DAY

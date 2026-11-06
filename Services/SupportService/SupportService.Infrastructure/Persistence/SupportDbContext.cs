@@ -12,4 +12,7 @@ public sealed class SupportDbContext(DbContextOptions<SupportDbContext> options)
     public DbSet<ComplaintMessage> ComplaintMessages => Set<ComplaintMessage>();
     public DbSet<FaqArticle> FaqArticles => Set<FaqArticle>();
     public DbSet<LotFullIncident> LotFullIncidents => Set<LotFullIncident>();
+    public DbSet<DisputeRuling> DisputeRulings => Set<DisputeRuling>();
+    public DbSet<LotFineRate> LotFineRates => Set<LotFineRate>();
+    public DbSet<ParkingViolation> ParkingViolations => Set<ParkingViolation>();
 }

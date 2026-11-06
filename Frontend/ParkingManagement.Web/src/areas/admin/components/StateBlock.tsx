@@ -10,6 +10,8 @@ interface StateBlockProps {
   title?: string;
   message?: string;
   onRetry?: () => void;
+  /** Nhãn nút thử lại (mặc định "Retry"; màn tiếng Việt truyền "Thử lại"). */
+  retryLabel?: string;
   /** Bỏ viền khi nằm trong panel/bảng đã có viền. */
   bare?: boolean;
   className?: string;
@@ -29,7 +31,7 @@ const DEFAULT_COPY: Record<Exclude<StateBlockType, 'loading'>, { title: string; 
 };
 
 /** Shell/State block: Empty / Error + Retry / No permission / Loading skeleton. */
-export const StateBlock: React.FC<StateBlockProps> = ({ type, title, message, onRetry, bare, className }) => {
+export const StateBlock: React.FC<StateBlockProps> = ({ type, title, message, onRetry, retryLabel = 'Retry', bare, className }) => {
   const frame = `${bare ? '' : 'border border-(--admin-border-default)'} bg-(--admin-surface-card) ${className ?? ''}`;
 
   if (type === 'loading') {
@@ -53,7 +55,7 @@ export const StateBlock: React.FC<StateBlockProps> = ({ type, title, message, on
       <p className="adm-type-body-regular-12 m-0 max-w-[560px] text-(--admin-text-secondary)">{message ?? copy.message}</p>
       {type === 'error' && onRetry && (
         <AdminButton variant="secondary" icon="refresh" onClick={onRetry} className="mt-1">
-          Retry
+          {retryLabel}
         </AdminButton>
       )}
     </div>

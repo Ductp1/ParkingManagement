@@ -13,6 +13,7 @@ public enum SettlementStatus { Draft = 0, PendingReview = 1, Approved = 2, Paid 
 
 public enum SettlementLineType { Booking = 1, WalkIn = 2, Refund = 3, Adjustment = 4, DisputeHold = 5 }
 
-public enum ComplaintCategory { LotFull = 1, Overcharge = 2, RefundRequest = 3, Damage = 4, StaffBehavior = 5, AppError = 6, Other = 9 }
+/// <remarks>SlotOccupied (US-090): chỗ đã đặt bị xe khác chiếm – chủ bãi đổi chỗ / hoàn tiền và phạt xe đậu sai chỗ.</remarks>
+public enum ComplaintCategory { LotFull = 1, Overcharge = 2, RefundRequest = 3, Damage = 4, StaffBehavior = 5, AppError = 6, SlotOccupied = 7, Other = 9 }
 
 public enum ComplaintStatus { Open = 0, AwaitingOwner = 1, OwnerResponded = 2, Escalated = 3, Resolved = 4, Rejected = 5 }
