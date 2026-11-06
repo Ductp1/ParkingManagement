@@ -43,6 +43,18 @@ public static class DependencyInjection
             c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
             c.Timeout = TimeSpan.FromSeconds(10);
         });
+        services.AddScoped<ILotFineRepository, LotFineRepository>();   // US-090: mức phạt + biên bản đậu sai chỗ
+        // US-090: hồ sơ tranh chấp – lịch sử booking (BookingService) và log check-in/out (GateService), chỉ đọc API có sẵn.
+        services.AddHttpClient<IBookingHistoryLookup, BookingHistoryClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:BookingService"] ?? "http://localhost:5104/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
+        services.AddHttpClient<IGateSessionLookup, GateSessionClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:GateService"] ?? "http://localhost:5107/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddScoped<IDataSeeder<SupportDbContext>, SupportDataSeeder>();
         return services;
     }
