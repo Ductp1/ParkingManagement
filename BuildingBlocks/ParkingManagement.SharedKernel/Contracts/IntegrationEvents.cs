@@ -52,6 +52,23 @@ public sealed record ReviewCreated(int ReviewId, int ParkingLotId, byte Rating) 
 public sealed record ReviewOwnerReplied(int ReviewId, int ParkingLotId, int UserId) : IntegrationEvent;
 /// <summary>US-094 AC2: Admin gỡ đánh giá → ParkingService trừ đánh giá này khỏi điểm xếp hạng của bãi.</summary>
 public sealed record ReviewHidden(int ReviewId, int ParkingLotId, byte Rating) : IntegrationEvent;
+/// <summary>US-091 AC1: tài xế báo bãi hết chỗ dù booking Confirmed – sự cố ưu tiên cao → báo CSKH + chủ bãi (NotificationService).</summary>
+public sealed record LotFullIncidentReported(string IncidentCode, string BookingCode, int UserId, int ParkingLotId,
+    int? OwnerProfileId, int AlternativeCount) : IntegrationEvent;
+/// <summary>
+/// US-091 AC2: tài xế đồng ý chuyển miễn phí sang bãi thay thế → BookingService (TV3) hủy booking cũ, tạo booking mới
+/// cùng khung giờ / số tiền đã trả ở bãi mới, cấp QR mới.
+/// </summary>
+public sealed record LotFullTransferAccepted(string IncidentCode, int BookingId, string BookingCode, int UserId,
+    int OldParkingLotId, int NewParkingLotId, string NewParkingLotName) : IntegrationEvent;
+/// <summary>
+/// US-091 AC3: tài xế không nhận bãi thay thế → BookingService (TV3) hủy booking; PaymentService (TV4) hoàn RefundPercent%
+/// các khoản đã trả (RefundReason.LotFault) và phát CompensationVoucher trị giá VoucherAmount, chủ bãi chịu.
+/// </summary>
+public sealed record LotFullRefundRequested(string IncidentCode, int BookingId, string BookingCode, int UserId, int? OwnerProfileId,
+    int RefundPercent, decimal VoucherAmount, int VoucherValidDays) : IntegrationEvent;
+/// <summary>US-091 AC3: bãi bị ghi vi phạm SLA (booking Confirmed nhưng không có chỗ) → AdminService chế tài, ParkingService xếp hạng.</summary>
+public sealed record LotSlaViolated(string IncidentCode, string BookingCode, int ParkingLotId, int? OwnerProfileId) : IntegrationEvent;
 
 // ===== Mọi service → AdminService =====
 public sealed record AuditRecorded(string SourceService, int? UserId, string Action, string EntityName, string? EntityId,

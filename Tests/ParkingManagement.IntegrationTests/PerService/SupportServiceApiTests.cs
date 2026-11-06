@@ -113,6 +113,26 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 TotalAmount = 40000,
                 PaidAmount = 40000,
             });
+            // US-091: 2 booking Confirmed ở bãi Vincom bắt đầu sau 10 phút (tài xế đã đến bãi) – 1 nhận chuyển bãi, 1 từ chối.
+            foreach (var code in new[] { "BK-IT-FULL-MOVE", "BK-IT-FULL-REFUND" })
+            {
+                db.Bookings.Add(new Booking
+                {
+                    Code = code,
+                    UserId = DemoIds.Driver1User,
+                    VehicleId = DemoIds.Driver1Car,
+                    PlateNumber = "51F12345",
+                    VehicleType = VehicleType.Sedan,
+                    ParkingLotId = DemoIds.LotVincom,
+                    OwnerProfileId = DemoIds.OwnerVincom,
+                    ParkingLotName = "Bãi xe Vincom Đồng Khởi",
+                    StartAtUtc = DateTime.UtcNow.AddMinutes(10),
+                    EndAtUtc = DateTime.UtcNow.AddHours(3),
+                    Status = BookingStatus.Confirmed,
+                    TotalAmount = 60000,
+                    PaidAmount = 60000,
+                });
+            }
             await db.SaveChangesAsync();
         }
 
@@ -135,6 +155,8 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 });
                 // US-094: fixture không dựng ParkingService → tra bãi của chủ bãi bằng dữ liệu cố định.
                 services.AddScoped<IOwnerLotLookup, StubOwnerLots>();
+                // US-091: fixture không dựng ParkingService → bãi thay thế quanh Vincom là dữ liệu cố định.
+                services.AddScoped<IParkingLotSearch, StubParkingLotSearch>();
             }).ConfigureTestServices(services =>
                 // Program.cs nạp Keys/public.key thật; test thay bằng public key của cặp khóa test để kiểm tra token tự mint.
                 services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -201,6 +223,21 @@ public sealed class StubOwnerLots : IOwnerLotLookup
             DemoIds.OwnerTsn => [DemoIds.LotTsn, DemoIds.LotBenThanh],
             _ => [],
         });
+}
+
+/// <summary>US-091: ParkingService giả – quanh Vincom có Bến Thành (0,6 km, còn chỗ) và 1 bãi ngoài bán kính 1 km.</summary>
+public sealed class StubParkingLotSearch : IParkingLotSearch
+{
+    public Task<LotLocation?> GetLotAsync(int parkingLotId, CancellationToken cancellationToken = default)
+        => Task.FromResult<LotLocation?>(new LotLocation(parkingLotId, "Bãi xe Vincom Đồng Khởi", 10.7781, 106.7019, 0));
+
+    public Task<IReadOnlyList<SupportService.Application.DTOs.AlternativeLotDto>> SearchAvailableAsync(double latitude, double longitude,
+        double radiusKm, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<SupportService.Application.DTOs.AlternativeLotDto>>(
+        [
+            new(DemoIds.LotBenThanh, "Bãi xe chợ Bến Thành", "Lê Lợi, Q.1", 0.6, 15, true),
+            new(DemoIds.LotLandmark, "Bãi xe Landmark 81", "Bình Thạnh", 4.2, 30, true),
+        ]);
 }
 
 /// <summary>Collection: SupportService (+ BookingService thật làm phụ thuộc) trên database pm_it_* riêng.</summary>
@@ -633,6 +670,77 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
             Assert.Contains("AuditRecorded", types);
         }
     }
+
+    [Fact] // US-091
+    public async Task Driver_reports_lot_full_then_accepts_transfer_or_declines_for_refund_and_events_are_published()
+    {
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        var bookingApi = fixture.BookingFactory.CreateClient();
+
+        // Quyền: không token 401; booking của tài xế khác 404
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await fixture.SupportClient.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-MOVE" })).StatusCode);
+        var otherDriver = fixture.CreateAuthenticatedClient(DemoIds.Driver2User, "Driver");
+        await Asserts.NotFoundAsync(await otherDriver.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-MOVE" }));
+
+        // AC1 + AC2: sự cố ưu tiên cao; gợi ý Bến Thành (0,6 km), bỏ bãi ngoài 1 km; báo lần 2 → 409
+        var reported = await driver.PostAsJsonAsync("/api/v1/lot-full-incidents",
+            new { bookingCode = "BK-IT-FULL-MOVE", note = "Bảo vệ báo bãi đã hết chỗ." });
+        Assert.Equal(HttpStatusCode.Created, reported.StatusCode);
+        var move = (await reported.Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        Assert.Equal(("Reported", "High", 60000m), (move.Status, move.Priority, move.PaidAmount));
+        Assert.Equal([DemoIds.LotBenThanh], move.Alternatives.Select(a => a.ParkingLotId));
+        await Asserts.ConflictAsync(await driver.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-MOVE" }), "đã được báo");
+        await Asserts.NotFoundAsync(await otherDriver.GetAsync($"/api/v1/lot-full-incidents/{move.Code}"));
+
+        // AC2: chọn bãi ngoài danh sách → 400; chọn Bến Thành → TransferAccepted; quyết định lần 2 → 409
+        Assert.Equal(HttpStatusCode.BadRequest, (await driver.PostAsJsonAsync($"/api/v1/lot-full-incidents/{move.Code}/accept-transfer",
+            new { parkingLotId = DemoIds.LotLandmark })).StatusCode);
+        var accepted = await driver.PostAsJsonAsync($"/api/v1/lot-full-incidents/{move.Code}/accept-transfer",
+            new { parkingLotId = DemoIds.LotBenThanh });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var moved = (await accepted.Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        Assert.Equal(("TransferAccepted", DemoIds.LotBenThanh, false), (moved.Status, moved.NewParkingLotId!.Value, moved.IsSlaViolation));
+        await Asserts.ConflictAsync(await driver.PostAsync($"/api/v1/lot-full-incidents/{move.Code}/decline", null), "đã được xử lý");
+
+        // AC3: từ chối → yêu cầu hoàn 100% + voucher, ghi vi phạm SLA
+        var refundIncident = (await (await driver.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-REFUND" }))
+            .Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        var declined = await driver.PostAsync($"/api/v1/lot-full-incidents/{refundIncident.Code}/decline", null);
+        Assert.Equal(HttpStatusCode.OK, declined.StatusCode);
+        var refunded = (await declined.Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        Assert.Equal(("RefundRequested", 100, 20000m, true),
+            (refunded.Status, refunded.RefundPercent!.Value, refunded.VoucherAmount!.Value, refunded.IsSlaViolation));
+
+        // SupportService KHÔNG tự sửa booking – BookingService/PaymentService xử lý khi nhận sự kiện
+        Assert.Equal("Confirmed", (await bookingApi.GetFromJsonAsync<BookingJson>("/api/v1/bookings/BK-IT-FULL-MOVE"))!.Status);
+
+        // Admin theo dõi vi phạm SLA; tài xế không xem được danh sách
+        var admin = fixture.CreateAuthenticatedClient(DemoIds.AdminUser, "Admin");
+        var sla = await admin.GetFromJsonAsync<List<LotFullIncidentJson>>($"/api/v1/lot-full-incidents?parkingLotId={DemoIds.LotVincom}&slaViolationOnly=true");
+        Assert.Equal([refundIncident.Code], sla!.Select(i => i.Code));
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.GetAsync("/api/v1/lot-full-incidents")).StatusCode);
+
+        // Outbox: thông báo sự cố, yêu cầu chuyển booking, yêu cầu hoàn tiền + voucher, vi phạm SLA (kèm đúng dữ liệu)
+        await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var outbox = await scope.ServiceProvider.GetRequiredService<SupportDbContext>().OutboxMessages
+            .Where(o => o.EventType.StartsWith("LotFull") || o.EventType == "LotSlaViolated")
+            .Select(o => new { o.EventType, o.PayloadJson }).ToListAsync();
+        Assert.Equal(2, outbox.Count(o => o.EventType == "LotFullIncidentReported"));
+        var transfer = System.Text.Json.JsonDocument.Parse(outbox.Single(o => o.EventType == "LotFullTransferAccepted").PayloadJson).RootElement;
+        Assert.Equal(("BK-IT-FULL-MOVE", DemoIds.LotBenThanh),
+            (transfer.GetProperty("BookingCode").GetString(), transfer.GetProperty("NewParkingLotId").GetInt32()));
+        var refundEvt = System.Text.Json.JsonDocument.Parse(outbox.Single(o => o.EventType == "LotFullRefundRequested").PayloadJson).RootElement;
+        Assert.Equal(("BK-IT-FULL-REFUND", 100), (refundEvt.GetProperty("BookingCode").GetString(), refundEvt.GetProperty("RefundPercent").GetInt32()));
+        Assert.Single(outbox, o => o.EventType == "LotSlaViolated");
+    }
+
+    public sealed record LotFullIncidentJson(string Code, string Status, string Priority, string BookingCode, decimal PaidAmount,
+        IReadOnlyList<AlternativeJson> Alternatives, int? NewParkingLotId, int? RefundPercent, decimal? VoucherAmount, bool IsSlaViolation);
+
+    public sealed record AlternativeJson(int ParkingLotId, string Name, double DistanceKm);
+
+    public sealed record BookingJson(string Code, string Status);
 
     public sealed record ModeratedReviewJson(int Id, int ParkingLotId, int Rating, string? OwnerReply, bool IsReported, bool IsHidden);
 

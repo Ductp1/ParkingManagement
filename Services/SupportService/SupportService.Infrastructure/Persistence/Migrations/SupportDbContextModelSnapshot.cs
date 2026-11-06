@@ -279,6 +279,118 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.ToTable("FaqArticles", (string)null);
                 });
 
+            modelBuilder.Entity("SupportService.Domain.Entities.LotFullIncident", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlternativesJson")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("text");
+
+                    b.Property<string>("BookingCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("BookingId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsSlaViolation")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("LotAvailableSlotsAtReport")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NewParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NewParkingLotName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int?>("RefundPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("VoucherAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("VoucherValidDays")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .IsUnique();
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("ParkingLotId", "IsSlaViolation");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.ToTable("LotFullIncidents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LotFullIncidents_PaidAmount", "\"PaidAmount\" >= 0");
+
+                            t.HasCheckConstraint("CK_LotFullIncidents_RefundRequested", "\"Status\" <> 'RefundRequested' OR (\"RefundPercent\" = 100 AND \"VoucherAmount\" > 0 AND \"IsSlaViolation\" AND \"DecidedAtUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_LotFullIncidents_TransferAccepted", "\"Status\" <> 'TransferAccepted' OR (\"NewParkingLotId\" IS NOT NULL AND \"DecidedAtUtc\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("SupportService.Domain.Entities.Review", b =>
                 {
                     b.Property<int>("Id")

@@ -11,4 +11,5 @@ public sealed class SupportDbContext(DbContextOptions<SupportDbContext> options)
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<ComplaintMessage> ComplaintMessages => Set<ComplaintMessage>();
     public DbSet<FaqArticle> FaqArticles => Set<FaqArticle>();
+    public DbSet<LotFullIncident> LotFullIncidents => Set<LotFullIncident>();
 }

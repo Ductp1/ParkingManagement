@@ -36,6 +36,13 @@ public static class DependencyInjection
             c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
             c.Timeout = TimeSpan.FromSeconds(10);
         });
+        // US-091: bãi hết chỗ – lưu sự cố + Outbox; tìm bãi thay thế bằng API có sẵn của ParkingService (chỉ đọc).
+        services.AddScoped<ILotFullIncidentRepository, LotFullIncidentRepository>();
+        services.AddHttpClient<IParkingLotSearch, ParkingLotSearchClient>(c =>
+        {
+            c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
+            c.Timeout = TimeSpan.FromSeconds(10);
+        });
         services.AddScoped<IDataSeeder<SupportDbContext>, SupportDataSeeder>();
         return services;
     }

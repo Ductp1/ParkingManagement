@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IComplaintEscalationService, ComplaintEscalationService>();
         services.AddScoped<IReviewModerationService, ReviewModerationService>();
         services.AddScoped<Features.AdminDashboard.IGetAdminComplaintSummaryUseCase, Features.AdminDashboard.GetAdminComplaintSummaryUseCase>(); // US-081
+        services.AddScoped<ILotFullIncidentService, LotFullIncidentService>();   // US-091
         // ComplaintAppService cần giờ hệ thống. AddServiceDefaults() đã đăng ký sẵn; TryAdd chỉ thêm khi chưa có (không trùng).
         services.TryAddSingleton(TimeProvider.System);
         return services;
