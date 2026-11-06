@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.AuditLogs;
+using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
@@ -39,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
+        services.AddScoped<ICommissionRateQueries, CommissionRateQueries>();                 // US-079: tỷ lệ hoa hồng theo hợp đồng
         services.AddScoped<ILotContractRepository, LotContractRepository>();
         services.AddScoped<IContractTemplateQueries, ContractTemplateQueries>();             // US-116: mẫu hợp đồng bãi
         services.AddScoped<IContractTemplateRepository, ContractTemplateRepository>();

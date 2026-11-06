@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.AuditLogs;
+using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
@@ -18,6 +19,9 @@ public static class DependencyInjection
         services.AddScoped<IGetPlatformSettingsUseCase, GetPlatformSettingsUseCase>();
         // US-081: Admin Dashboard – tổng quan toàn sàn
         services.AddScoped<IGetDashboardOverviewUseCase, GetDashboardOverviewUseCase>();
+        // US-079: tỷ lệ hoa hồng – giải cho PaymentService (nội bộ) + danh sách cho Admin portal
+        services.AddScoped<IResolveCommissionRatesUseCase, ResolveCommissionRatesUseCase>();
+        services.AddScoped<IListCommissionRatesUseCase, ListCommissionRatesUseCase>();
         // US-098: đọc tham số theo khóa (giá trị hiệu lực theo thời điểm)
         services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
         // US-098: đổi giá trị tham số có Effective Date
