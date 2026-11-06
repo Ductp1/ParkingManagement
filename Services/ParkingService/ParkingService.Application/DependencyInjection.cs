@@ -83,7 +83,6 @@ public static class DependencyInjection
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
-
         // Lot Details (Amenities, Photos, Attributes) (US-064, EP09)
         services.AddScoped<IGetStandardAmenitiesCatalogUseCase, GetStandardAmenitiesCatalogUseCase>();
         services.AddScoped<IGetLotAmenitiesUseCase, GetLotAmenitiesUseCase>();
@@ -100,10 +99,29 @@ public static class DependencyInjection
 
         services.AddScoped<IGetLotAttributesUseCase, GetLotAttributesUseCase>();
         services.AddScoped<IUpdateLotAttributesUseCase, UpdateLotAttributesUseCase>();
+
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
 
+<<<<<<< Updated upstream
+=======
+        // Physical Changes (SLA 48h Protection) (US-061, EP09)
+        services.AddScoped<IDeclarePhysicalChangeUseCase, DeclarePhysicalChangeUseCase>();
+        services.AddScoped<IGetLotPhysicalChangesUseCase, GetLotPhysicalChangesUseCase>();
+        services.AddScoped<IGetPhysicalChangeByIdUseCase, GetPhysicalChangeByIdUseCase>();
+        services.AddScoped<ISendPhysicalChangeReminderUseCase, SendPhysicalChangeReminderUseCase>();
+        services.AddScoped<ICompletePhysicalChangeUseCase, CompletePhysicalChangeUseCase>();
+        services.AddScoped<ICheckPhysicalChangeSlaOverdueUseCase, CheckPhysicalChangeSlaOverdueUseCase>();
+        services.AddScoped<IRecordPhysicalChangeBookingErrorUseCase, RecordPhysicalChangeBookingErrorUseCase>();
+        services.AddScoped<ICancelPhysicalChangeUseCase, CancelPhysicalChangeUseCase>();
+        services.AddScoped<IGetPhysicalChangeSlaSummaryUseCase, GetPhysicalChangeSlaSummaryUseCase>();
+
+        // Owner Platform Exit (US-057, EP08)
+        services.AddScoped<IGetOwnerExitImpactUseCase, GetOwnerExitImpactUseCase>();
+        services.AddScoped<ISuspendOwnerLotsUseCase, SuspendOwnerLotsUseCase>();
+
+>>>>>>> Stashed changes
         return services;
     }
 }
