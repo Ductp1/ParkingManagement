@@ -6,6 +6,7 @@ using ParkingService.Application.Features.Layouts;
 using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
+using ParkingService.Application.Features.LotDetails;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
 
@@ -76,6 +77,34 @@ public static class DependencyInjection
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
+<<<<<<< Updated upstream
+=======
+        // Closures & Maintenance (US-063, EP09)
+        services.AddScoped<ICreateClosureScheduleUseCase, CreateClosureScheduleUseCase>();
+        services.AddScoped<IValidateClosureImpactUseCase, ValidateClosureImpactUseCase>();
+        services.AddScoped<ICancelClosureScheduleUseCase, CancelClosureScheduleUseCase>();
+        services.AddScoped<IGetLotClosureSchedulesUseCase, GetLotClosureSchedulesUseCase>();
+        services.AddScoped<IGetClosureScheduleByIdUseCase, GetClosureScheduleByIdUseCase>();
+
+
+        // Lot Details (Amenities, Photos, Attributes) (US-064, EP09)
+        services.AddScoped<IGetStandardAmenitiesCatalogUseCase, GetStandardAmenitiesCatalogUseCase>();
+        services.AddScoped<IGetLotAmenitiesUseCase, GetLotAmenitiesUseCase>();
+        services.AddScoped<IUpdateLotAmenitiesUseCase, UpdateLotAmenitiesUseCase>();
+        services.AddScoped<IAddLotAmenityUseCase, AddLotAmenityUseCase>();
+        services.AddScoped<IDeleteLotAmenityUseCase, DeleteLotAmenityUseCase>();
+
+        services.AddScoped<IGetLotPhotosUseCase, GetLotPhotosUseCase>();
+        services.AddScoped<IAddLotPhotoUseCase, AddLotPhotoUseCase>();
+        services.AddScoped<IUpdateLotPhotoUseCase, UpdateLotPhotoUseCase>();
+        services.AddScoped<ISetCoverPhotoUseCase, SetCoverPhotoUseCase>();
+        services.AddScoped<IReorderLotPhotosUseCase, ReorderLotPhotosUseCase>();
+        services.AddScoped<IDeleteLotPhotoUseCase, DeleteLotPhotoUseCase>();
+
+        services.AddScoped<IGetLotAttributesUseCase, GetLotAttributesUseCase>();
+        services.AddScoped<IUpdateLotAttributesUseCase, UpdateLotAttributesUseCase>();
+
+>>>>>>> Stashed changes
         return services;
     }
 }

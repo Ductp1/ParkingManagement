@@ -175,4 +175,24 @@ public class ParkingLot : BaseEntity, ISoftDelete
             throw new ConflictException($"Chỉ khôi phục được bãi đang bị tạm khóa (hiện tại: {Status}).");
         Status = ParkingLotStatus.Active;
     }
+
+    /// <summary>Cập nhật ảnh bìa chính thức của bãi xe (US-064).</summary>
+    public void SetCoverImageUrl(string? url)
+    {
+        CoverImageUrl = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+    }
+
+    /// <summary>Cập nhật các thuộc tính mô tả, hotline và chiều cao tĩnh không tối đa của bãi xe (US-064).</summary>
+    public void UpdateAttributes(string? description, string? hotlinePhone, int? maxHeightCm)
+    {
+        if (maxHeightCm.HasValue && maxHeightCm.Value <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxHeightCm), "Chiều cao tối đa phải > 0.");
+
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        HotlinePhone = string.IsNullOrWhiteSpace(hotlinePhone) ? null : hotlinePhone.Trim();
+        if (maxHeightCm.HasValue)
+        {
+            MaxHeightCm = maxHeightCm.Value;
+        }
+    }
 }

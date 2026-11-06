@@ -23,6 +23,11 @@ public static class DependencyInjection
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
+<<<<<<< Updated upstream
+=======
+        services.AddScoped<IClosureScheduleRepository, ClosureScheduleRepository>(); // US-063
+        services.AddScoped<ILotDetailsRepository, LotDetailsRepository>();           // US-064
+>>>>>>> Stashed changes
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
         services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
         services.AddScoped<IAdminKybQueries, AdminKybQueries>();               // US-055 (đọc)
