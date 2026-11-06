@@ -1,5 +1,7 @@
 using BookingService.Application.Features.Bookings;
+using BookingService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ParkingManagement.SharedKernel.Enums;
 
 namespace BookingService.API.Controllers;
@@ -17,8 +19,35 @@ public sealed class BookingsController(
     IReviewBookingUseCase reviewBooking,
     ILotCancelBookingUseCase lotCancelBooking,
     IGateBookingActionsUseCase gateActions,
-    IListGateBookingsUseCase listGateBookings) : ControllerBase
+    IListGateBookingsUseCase listGateBookings,
+    BookingDbContext db) : ControllerBase
 {
+    /// <summary>
+    /// GET /api/v1/bookings/internal/lots/{lotId}/overview – nội bộ US-067/069 cho ParkingService:
+    /// số booking đang đỗ (active) + sắp đến (upcoming) + danh sách booking bị ảnh hưởng khi emergency stop.
+    /// </summary>
+    [HttpGet("internal/lots/{lotId:int}/overview")]
+    public async Task<ActionResult> LotOverview(int lotId, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var bookings = await db.Bookings
+            .Where(b => b.ParkingLotId == lotId
+                && (b.Status == BookingStatus.Created || b.Status == BookingStatus.PendingPayment
+                    || b.Status == BookingStatus.PendingOwnerApproval || b.Status == BookingStatus.Confirmed
+                    || b.Status == BookingStatus.CheckedIn || b.Status == BookingStatus.Parking))
+            .OrderBy(b => b.StartAtUtc)
+            .Take(500)
+            .ToListAsync(cancellationToken);
+
+        var active = bookings.Count(b => b.Status is BookingStatus.CheckedIn or BookingStatus.Parking);
+        var upcoming = bookings.Count(b => b.Status == BookingStatus.Confirmed && b.StartAtUtc > now);
+        var affected = bookings
+            .Where(b => b.Status is not BookingStatus.Parking)
+            .Select(b => new { b.Id, b.Code, b.UserId, Status = b.Status.ToString(), b.StartAtUtc, b.EndAtUtc })
+            .ToList();
+        return Ok(new { activeBookings = active, upcomingBookings = upcoming, affectedEmergency = affected });
+    }
+
     /// <summary>GET /api/v1/bookings/BK-0002 – Chi tiết booking kèm giá đã khóa và lịch sử trạng thái.</summary>
     [HttpGet("{code}")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]

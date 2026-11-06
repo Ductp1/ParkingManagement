@@ -40,9 +40,17 @@ public static class DependencyInjection
             ?? KybMisdeclarationSettings.DefaultMinorCorrectionDays));
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
 
-        // ===== US-068: operations (heartbeat + stale monitor) =====
+        // ===== US-067/068/069: operations (heartbeat, dashboard overview, emergency stop) =====
         services.AddScoped<Application.Features.LotOperations.ILotOperationsRepository, Persistence.Repositories.LotOperationsRepository>();
         services.AddScoped<Application.Features.LotOperations.ILotEventPublisher, Integrations.ParkingEventOutbox>();
+        services.AddHttpClient<Application.Features.LotOperations.ILotBookingLookup, Integrations.BookingLotLookupClient>((_, client) =>
+            client.BaseAddress = new Uri(configuration["BookingService:BaseUrl"] ?? "http://localhost:5104"));
+        // Overview cần ngưỡng stale từ cấu hình (bind "LotHeartbeat") — đăng ký factory thay vì type-scan.
+        services.AddScoped<Application.Features.LotOperations.IGetOperationsOverviewUseCase>(sp =>
+            new Application.Features.LotOperations.GetOperationsOverviewUseCase(
+                sp.GetRequiredService<Application.Features.LotOperations.ILotOperationsRepository>(),
+                sp.GetRequiredService<Application.Features.LotOperations.ILotBookingLookup>(),
+                sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Application.Features.LotOperations.StalenessOptions>>().Value));
         services.AddRabbitMqEventBus(configuration);
         services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<ParkingDbContext>>();
         services.AddHostedService<Workers.StalenessMonitorWorker>();

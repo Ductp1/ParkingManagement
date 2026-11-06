@@ -24,9 +24,13 @@ public class LotOperationsTests
     private sealed class FakeRepo(List<ParkingLot> lots) : ILotOperationsRepository
     {
         public int SaveCalls { get; private set; }
+        public Dictionary<int, Dictionary<string, int>> SlotCounts { get; } = new();
 
         public Task<ParkingLot?> GetLotAsync(int lotId, CancellationToken cancellationToken = default)
             => Task.FromResult(lots.FirstOrDefault(l => l.Id == lotId));
+
+        public Task<Dictionary<string, int>> CountSlotsByStateAsync(int lotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(SlotCounts.TryGetValue(lotId, out var counts) ? counts : []);
 
         public Task<List<ParkingLot>> GetActiveLotsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(lots.Where(l => l.Status == ParkingLotStatus.Active).ToList());
@@ -185,5 +189,61 @@ public class LotOperationsTests
         Assert.Empty(events.Events);
         Assert.False(fresh.IsDataStale);
     }
+
+    private sealed class FakeBookings : ILotBookingLookup
+    {
+        public (int Active, int Upcoming) Counts { get; set; } = (2, 5);
+        public bool Down { get; set; }
+
+        public Task<IReadOnlyList<EmergencyAffectedBooking>> GetAffectedBookingsAsync(int lotId, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<EmergencyAffectedBooking>>([]);
+
+        public Task<(int Active, int Upcoming)> GetBookingCountsAsync(int lotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Down ? (0, 0) : Counts);
+    }
+
+    // ===== US-067: GetOperationsOverviewUseCase =====
+
+    [Fact]
+    public async Task Overview_combines_occupancy_bookings_and_freshness()
+    {
+        var lot = Lot(total: 100, available: 42);
+        lot.RecordHeartbeat(Now.AddSeconds(-30));
+        var repo = new FakeRepo([lot]);
+        repo.SlotCounts[3] = new Dictionary<string, int> { ["Available"] = 42, ["Occupied"] = 50, ["Reserved"] = 8 };
+        var bookings = new FakeBookings { Counts = (2, 5) };
+
+        var dto = await new GetOperationsOverviewUseCase(repo, bookings, new StalenessOptions()).ExecuteAsync(3);
+
+        Assert.Equal("Active", dto.Status);
+        Assert.Equal(100, dto.TotalSlots);
+        Assert.Equal(58, dto.OccupiedSlots);   // total - available
+        Assert.Equal(42, dto.AvailableSlots);
+        Assert.Equal(2, dto.ActiveBookings);
+        Assert.Equal(5, dto.UpcomingBookings);
+        Assert.False(dto.IsDataStale);
+        Assert.Equal(Now.AddSeconds(-30), dto.LastHeartbeatAtUtc);
+        Assert.Equal(3, dto.StaleThresholdMinutes);
+        Assert.Contains("\"Occupied\":50", dto.SlotBreakdownJson);
+    }
+
+    [Fact]
+    public async Task Overview_degrades_to_zero_bookings_when_booking_service_down()
+    {
+        var lot = Lot();
+        var repo = new FakeRepo([lot]);
+        var bookings = new FakeBookings { Down = true };
+
+        var dto = await new GetOperationsOverviewUseCase(repo, bookings, new StalenessOptions()).ExecuteAsync(3);
+
+        Assert.Equal(0, dto.ActiveBookings);
+        Assert.Equal(0, dto.UpcomingBookings);
+        Assert.Null(dto.LastHeartbeatAtUtc);
+    }
+
+    [Fact]
+    public async Task Overview_throws_for_unknown_lot()
+        => await Assert.ThrowsAsync<NotFoundException>(() =>
+            new GetOperationsOverviewUseCase(new FakeRepo([]), new FakeBookings(), new StalenessOptions()).ExecuteAsync(99));
 }
 
