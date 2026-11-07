@@ -801,6 +801,61 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ParkingService.Domain.Entities.SanctionState", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AppliedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EndsAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("LiftedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("LiftedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SanctionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SanctionId")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerProfileId", "LiftedAtUtc");
+
+                    b.HasIndex("ParkingLotId", "LiftedAtUtc");
+
+                    b.ToTable("SanctionStates", (string)null);
+                });
+
             modelBuilder.Entity("ParkingService.Domain.Entities.Slot", b =>
                 {
                     b.Property<int>("Id")
@@ -1090,6 +1145,14 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("ParkingLot");
+                });
+
+            modelBuilder.Entity("ParkingService.Domain.Entities.SanctionState", b =>
+                {
+                    b.HasOne("ParkingService.Domain.Entities.ParkingLot", null)
+                        .WithMany()
+                        .HasForeignKey("ParkingLotId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ParkingService.Domain.Entities.Slot", b =>

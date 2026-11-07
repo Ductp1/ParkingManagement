@@ -15,7 +15,7 @@ namespace AdminService.Application.Features.Owners;
 /// </summary>
 public sealed record LockOwnerRequest(int OwnerUserId, string? Reason, DateTime? LockedUntilUtc = null);
 
-/// <summary>Mở khóa chủ bãi (US-096). Reason = lý do mở khóa, chỉ lưu trong audit log (Sanction.Reason vẫn là lý do khóa).</summary>
+/// <summary>Mở khóa chủ bãi (US-096). Reason = lý do mở khóa, lưu trong audit log và (US-097) RevokeReason của chế tài.</summary>
 public sealed record UnlockOwnerRequest(string? Reason);
 
 // ===== PORT (ghi) =====
@@ -24,8 +24,8 @@ public interface IOwnerLockRepository
     /// <summary>Chế tài khóa cấp chủ bãi đang Active (tối đa 1 – unique index), entity có tracking để cập nhật.</summary>
     Task<Sanction?> FindActiveOwnerLockTrackedAsync(int ownerProfileId, CancellationToken cancellationToken);
     /// <summary>
-    /// Ghi chế tài khóa mới + audit log trong CÙNG 1 lần SaveChanges. Chế tài cũ vừa bị đóng (quá hạn) được ghi trước,
-    /// chung transaction. Hai request khóa cùng lúc: request đến sau bị unique index chặn → ConflictException.
+    /// Ghi chế tài khóa mới + audit log trong CÙNG 1 lần SaveChanges. Chế tài cũ vừa bị đóng (quá hạn / bị thay thế) được ghi
+    /// trước, chung transaction. Hai request khóa cùng lúc: request đến sau bị unique index chặn → ConflictException.
     /// </summary>
     Task AddLockAsync(Sanction sanction, AuditLog auditLog, CancellationToken cancellationToken);
     /// <summary>Chế tài khóa cấp chủ bãi mới nhất (mọi trạng thái), entity có tracking để cập nhật.</summary>
@@ -50,7 +50,7 @@ public interface ILockOwnerUseCase
 public sealed class LockOwnerUseCase(IUserServiceClient userService, IOwnerLockRepository repository,
     TimeProvider timeProvider, ILogger<LockOwnerUseCase> logger) : ILockOwnerUseCase
 {
-    private static readonly JsonSerializerOptions AuditJson = new(JsonSerializerDefaults.Web);
+    private readonly OwnerLockCore core = new(userService, timeProvider, logger);
 
     public async Task<SanctionDto> ExecuteAsync(int ownerProfileId, LockOwnerRequest request, int performedByUserId, CancellationToken cancellationToken = default)
     {
@@ -61,15 +61,12 @@ public sealed class LockOwnerUseCase(IUserServiceClient userService, IOwnerLockR
         if (performedByUserId <= 0) throw new ValidationException("performedByUserId phải là số nguyên dương.");
         if (string.IsNullOrWhiteSpace(request.Reason)) throw new ValidationException("Lý do khóa không được để trống.");
         var reason = request.Reason.Trim();
-        if (reason.Length > 1000) throw new ValidationException("Lý do khóa tối đa 1000 ký tự.");
+        if (reason.Length > Sanction.ReasonMaxLength) throw new ValidationException("Lý do khóa tối đa 1000 ký tự.");
         var lockedUntilUtc = UtcDateTime.ToUtc(request.LockedUntilUtc);
         if (lockedUntilUtc <= now) throw new ValidationException("lockedUntilUtc phải sau thời điểm hiện tại.");
 
         // Xác minh hồ sơ chủ bãi có thật trước khi ghi – không lưu chế tài cho OwnerProfileId không tồn tại.
-        var owner = await userService.FindUserByIdAsync(request.OwnerUserId, cancellationToken)
-            ?? throw new NotFoundException("Người dùng", request.OwnerUserId);
-        if (owner.OwnerProfile?.Id != ownerProfileId)
-            throw new ValidationException($"Người dùng {request.OwnerUserId} không sở hữu hồ sơ chủ bãi {ownerProfileId}.");
+        await core.VerifyOwnerAsync(ownerProfileId, request.OwnerUserId, cancellationToken);
 
         var sanction = await repository.FindActiveOwnerLockTrackedAsync(ownerProfileId, cancellationToken);
         if (sanction is not null && sanction.IsInEffect(now))
@@ -82,15 +79,78 @@ public sealed class LockOwnerUseCase(IUserServiceClient userService, IOwnerLockR
         {
             sanction?.Expire();
             sanction = Sanction.CreateOwnerLock(ownerProfileId, reason, performedByUserId, now, lockedUntilUtc);
-            await repository.AddLockAsync(sanction, BuildAuditLog(sanction, request.OwnerUserId), cancellationToken);
+            sanction.OwnerUserId = request.OwnerUserId;      // US-097: lưu người sở hữu hồ sơ đã xác minh
+            await repository.AddLockAsync(sanction, OwnerLockCore.BuildLockAuditLog(sanction, request.OwnerUserId), cancellationToken);
         }
 
-        await SyncToUserServiceAsync(sanction, cancellationToken);
+        await core.SyncLockAsync(sanction, cancellationToken);
         await repository.SaveAsync(cancellationToken);
         return SanctionMapper.ToDto(sanction);
     }
+}
 
-    private async Task SyncToUserServiceAsync(Sanction sanction, CancellationToken cancellationToken)
+public interface IUnlockOwnerUseCase
+{
+    Task<SanctionDto> ExecuteAsync(int ownerProfileId, UnlockOwnerRequest request, int performedByUserId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// US-096 (UC-40): Admin mở khóa tài khoản chủ bãi, bắt buộc có lý do.
+/// Thứ tự: chuyển chế tài khóa sang Revoked + ghi AuditLog (1 lần SaveChanges) → gọi UserService mở khóa → ghi kết quả đồng bộ.
+/// UserService lỗi: chế tài vẫn Revoked, gọi lại chính API này để thử lại (không ghi thêm audit log).
+/// </summary>
+public sealed class UnlockOwnerUseCase(IUserServiceClient userService, IOwnerLockRepository repository,
+    TimeProvider timeProvider, ILogger<UnlockOwnerUseCase> logger) : IUnlockOwnerUseCase
+{
+    private readonly OwnerLockCore core = new(userService, timeProvider, logger);
+
+    public async Task<SanctionDto> ExecuteAsync(int ownerProfileId, UnlockOwnerRequest request, int performedByUserId, CancellationToken cancellationToken = default)
+    {
+        if (ownerProfileId <= 0) throw new ValidationException("ownerProfileId phải là số nguyên dương.");
+        if (performedByUserId <= 0) throw new ValidationException("performedByUserId phải là số nguyên dương.");
+        if (string.IsNullOrWhiteSpace(request.Reason)) throw new ValidationException("Lý do mở khóa không được để trống.");
+        var reason = request.Reason.Trim();
+        if (reason.Length > Sanction.ReasonMaxLength) throw new ValidationException("Lý do mở khóa tối đa 1000 ký tự.");
+
+        var sanction = await repository.FindLatestOwnerLockTrackedAsync(ownerProfileId, cancellationToken);
+        if (sanction is { Status: SanctionStatus.Active })
+        {
+            var auditLog = OwnerLockCore.BuildUnlockAuditLog(sanction, reason, performedByUserId);   // chụp trạng thái trước khi gỡ
+            // US-097: ghi thêm người / lúc / lý do gỡ trên chính chế tài; luồng mở khóa không đổi.
+            sanction.Revoke(reason, performedByUserId, timeProvider.GetUtcNow().UtcDateTime);
+            await repository.SaveWithAuditAsync(auditLog, cancellationToken);
+        }
+        else if (sanction is not { Status: SanctionStatus.Revoked, UserServiceSyncStatus: SanctionSyncStatus.Pending or SanctionSyncStatus.Failed })
+        {
+            throw new ConflictException($"Chủ bãi {ownerProfileId} hiện không bị khóa.");
+        }
+        // Còn lại: đã Revoked nhưng UserService chưa nhận lệnh mở khóa → gọi lại = thử đồng bộ lại.
+
+        await core.SyncUnlockAsync(sanction, reason, performedByUserId, cancellationToken);
+        await repository.SaveAsync(cancellationToken);
+        return SanctionMapper.ToDto(sanction);
+    }
+}
+
+/// <summary>
+/// Lõi dùng chung của khóa / mở khóa chủ bãi (US-096), tái dùng cho chế tài cấp 3 toàn chủ bãi / cấp 4 của US-097 thay vì
+/// nhân bản: xác minh chủ bãi qua UserService, dựng audit log, gọi UserService và ghi kết quả đồng bộ lên chế tài.
+/// Không tự lưu – use case gọi SaveAsync sau khi đồng bộ.
+/// </summary>
+internal sealed class OwnerLockCore(IUserServiceClient userService, TimeProvider timeProvider, ILogger logger)
+{
+    private static readonly JsonSerializerOptions AuditJson = new(JsonSerializerDefaults.Web);
+
+    /// <summary>OwnerUserId phải là user sở hữu đúng hồ sơ chủ bãi: không có user → 404, sai hồ sơ → 400.</summary>
+    public async Task VerifyOwnerAsync(int ownerProfileId, int ownerUserId, CancellationToken cancellationToken)
+    {
+        var owner = await userService.FindUserByIdAsync(ownerUserId, cancellationToken)
+            ?? throw new NotFoundException("Người dùng", ownerUserId);
+        if (owner.OwnerProfile?.Id != ownerProfileId)
+            throw new ValidationException($"Người dùng {ownerUserId} không sở hữu hồ sơ chủ bãi {ownerProfileId}.");
+    }
+
+    public async Task SyncLockAsync(Sanction sanction, CancellationToken cancellationToken)
     {
         try
         {
@@ -113,63 +173,7 @@ public sealed class LockOwnerUseCase(IUserServiceClient userService, IOwnerLockR
         }
     }
 
-    private static AuditLog BuildAuditLog(Sanction sanction, int ownerUserId) => new()
-    {
-        SourceService = "AdminService",
-        UserId = sanction.IssuedByUserId,
-        OwnerProfileId = sanction.OwnerProfileId,
-        Action = "Owner.Locked",
-        EntityName = "OwnerProfile",
-        EntityId = sanction.OwnerProfileId.ToString(),
-        OldValuesJson = JsonSerializer.Serialize(new { isLocked = false }, AuditJson),
-        NewValuesJson = JsonSerializer.Serialize(
-            new { isLocked = true, ownerUserId, level = sanction.Level.ToString(), lockedUntilUtc = sanction.EndsAtUtc }, AuditJson),
-        Reason = sanction.Reason,
-    };
-}
-
-public interface IUnlockOwnerUseCase
-{
-    Task<SanctionDto> ExecuteAsync(int ownerProfileId, UnlockOwnerRequest request, int performedByUserId, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// US-096 (UC-40): Admin mở khóa tài khoản chủ bãi, bắt buộc có lý do.
-/// Thứ tự: chuyển chế tài khóa sang Revoked + ghi AuditLog (1 lần SaveChanges) → gọi UserService mở khóa → ghi kết quả đồng bộ.
-/// UserService lỗi: chế tài vẫn Revoked, gọi lại chính API này để thử lại (không ghi thêm audit log).
-/// </summary>
-public sealed class UnlockOwnerUseCase(IUserServiceClient userService, IOwnerLockRepository repository,
-    TimeProvider timeProvider, ILogger<UnlockOwnerUseCase> logger) : IUnlockOwnerUseCase
-{
-    private static readonly JsonSerializerOptions AuditJson = new(JsonSerializerDefaults.Web);
-
-    public async Task<SanctionDto> ExecuteAsync(int ownerProfileId, UnlockOwnerRequest request, int performedByUserId, CancellationToken cancellationToken = default)
-    {
-        if (ownerProfileId <= 0) throw new ValidationException("ownerProfileId phải là số nguyên dương.");
-        if (performedByUserId <= 0) throw new ValidationException("performedByUserId phải là số nguyên dương.");
-        if (string.IsNullOrWhiteSpace(request.Reason)) throw new ValidationException("Lý do mở khóa không được để trống.");
-        var reason = request.Reason.Trim();
-        if (reason.Length > 1000) throw new ValidationException("Lý do mở khóa tối đa 1000 ký tự.");
-
-        var sanction = await repository.FindLatestOwnerLockTrackedAsync(ownerProfileId, cancellationToken);
-        if (sanction is { Status: SanctionStatus.Active })
-        {
-            var auditLog = BuildAuditLog(sanction, reason, performedByUserId);   // chụp trạng thái trước khi gỡ
-            sanction.Revoke();
-            await repository.SaveWithAuditAsync(auditLog, cancellationToken);
-        }
-        else if (sanction is not { Status: SanctionStatus.Revoked, UserServiceSyncStatus: SanctionSyncStatus.Pending or SanctionSyncStatus.Failed })
-        {
-            throw new ConflictException($"Chủ bãi {ownerProfileId} hiện không bị khóa.");
-        }
-        // Còn lại: đã Revoked nhưng UserService chưa nhận lệnh mở khóa → gọi lại = thử đồng bộ lại.
-
-        await SyncToUserServiceAsync(sanction, reason, performedByUserId, cancellationToken);
-        await repository.SaveAsync(cancellationToken);
-        return SanctionMapper.ToDto(sanction);
-    }
-
-    private async Task SyncToUserServiceAsync(Sanction sanction, string reason, int performedByUserId, CancellationToken cancellationToken)
+    public async Task SyncUnlockAsync(Sanction sanction, string reason, int performedByUserId, CancellationToken cancellationToken)
     {
         try
         {
@@ -191,7 +195,24 @@ public sealed class UnlockOwnerUseCase(IUserServiceClient userService, IOwnerLoc
         }
     }
 
-    private static AuditLog BuildAuditLog(Sanction sanction, string reason, int performedByUserId) => new()
+    /// <summary>supersededSanctionId: khóa tạm vừa được thay bằng khóa vĩnh viễn (US-097); null ở luồng US-096 (nội dung giữ nguyên).</summary>
+    public static AuditLog BuildLockAuditLog(Sanction sanction, int ownerUserId, int? supersededSanctionId = null) => new()
+    {
+        SourceService = "AdminService",
+        UserId = sanction.IssuedByUserId,
+        OwnerProfileId = sanction.OwnerProfileId,
+        Action = "Owner.Locked",
+        EntityName = "OwnerProfile",
+        EntityId = sanction.OwnerProfileId.ToString(),
+        OldValuesJson = supersededSanctionId is null
+            ? JsonSerializer.Serialize(new { isLocked = false }, AuditJson)
+            : JsonSerializer.Serialize(new { isLocked = true, sanctionId = supersededSanctionId }, AuditJson),
+        NewValuesJson = JsonSerializer.Serialize(
+            new { isLocked = true, ownerUserId, level = sanction.Level.ToString(), lockedUntilUtc = sanction.EndsAtUtc }, AuditJson),
+        Reason = sanction.Reason,
+    };
+
+    public static AuditLog BuildUnlockAuditLog(Sanction sanction, string reason, int performedByUserId) => new()
     {
         SourceService = "AdminService",
         UserId = performedByUserId,

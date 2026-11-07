@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { adminOperationsApi } from '@/api/adminOperationsApi';
 import type { AdminParkingLotDto, ParkingLotHierarchyDto } from '@/types/adminOperations';
+import { SanctionLevel } from '@/types/adminEnums';
 import { AdminTitleBar } from '../../../layout/AdminTitleBar';
 import { AdminButton } from '../../../components/AdminButton';
 import { DetailColumns, QueryState, SummaryRow } from '../../../components/PageLayout';
@@ -15,6 +16,9 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatNumber, orEmpty } from '../../../utils/format';
+import { IssueSanctionDialog, type IssueSanctionPreset } from '../../support/sanctions/IssueSanctionDialog';
+import { LotSanctionsPanel } from '../../support/sanctions/LotSanctionsPanel';
+import { useLotSanctions } from '../../support/sanctions/useLotSanctions';
 
 const TABS = [
   { key: '', label: 'Information' },
@@ -36,7 +40,7 @@ const MISSING: Record<string, string> = {
 
 const NO_ENDPOINT = 'No admin endpoint for this action yet';
 
-const InformationTab: React.FC<{ lot: AdminParkingLotDto }> = ({ lot }) => (
+const InformationTab: React.FC<{ lot: AdminParkingLotDto; sanctionsPanel: React.ReactNode }> = ({ lot, sanctionsPanel }) => (
   <DetailColumns
     main={
       <>
@@ -76,9 +80,7 @@ const InformationTab: React.FC<{ lot: AdminParkingLotDto }> = ({ lot }) => (
             ParkingLotDto does not include the owner; open the owner from Users › Lot owner.
           </p>
         </Panel>
-        <Panel title="Lot-level sanctions">
-          <StateBlock type="unavailable" bare className="min-h-0 py-4" message="AdminService has no per-lot sanctions endpoint yet." />
-        </Panel>
+        {sanctionsPanel}
       </>
     }
   />
@@ -131,6 +133,12 @@ export const ParkingLotDetailPage: React.FC = () => {
   const query = useAdminQuery(valid ? () => adminOperationsApi.getParkingLot(lotId) : null, [lotId]);
   const lot = query.data;
   useAdminBreadcrumb(lot ? lot.name : valid ? `Lot #${lotId}` : null);
+  // US-097: chế tài của bãi + dialog áp chế tài (bãi và chủ bãi chọn sẵn).
+  const sanctions = useLotSanctions(valid ? lotId : null);
+  const [issuePreset, setIssuePreset] = useState<IssueSanctionPreset | null>(null);
+  const ownerProfileId = sanctions.state.data?.ownerProfileId;
+  const openIssue = (level?: SanctionLevel) =>
+    ownerProfileId !== undefined && setIssuePreset({ ownerProfileId, lotIds: [lotId], level });
 
   if (!lot) {
     return (
@@ -170,7 +178,12 @@ export const ParkingLotDetailPage: React.FC = () => {
           { label: 'Open now', value: <span className="adm-type-body-strong">{lot.isOpenNow ? 'Yes' : 'No'}</span> },
         ]}
         actions={
-          <AdminButton variant="destructive" disabled title={NO_ENDPOINT}>
+          <AdminButton
+            variant="destructive"
+            disabled={ownerProfileId === undefined}
+            title={ownerProfileId === undefined ? 'Loading the lot owner…' : 'Issue an L3 listing suspension for this lot'}
+            onClick={() => openIssue(SanctionLevel.TemporarySuspension)}
+          >
             Suspend lot
           </AdminButton>
         }
@@ -181,7 +194,9 @@ export const ParkingLotDetailPage: React.FC = () => {
           { label: '3D view · Phase 2', to: base, disabled: true },
         ]}
       />
-      {tab === '' && <InformationTab lot={lot} />}
+      {tab === '' && (
+        <InformationTab lot={lot} sanctionsPanel={<LotSanctionsPanel lotId={lot.id} sanctions={sanctions} onIssue={() => openIssue()} />} />
+      )}
       {tab === 'layout' && <LayoutTab lotId={lot.id} />}
       {MISSING[tab] && (
         <StateBlock
@@ -189,6 +204,7 @@ export const ParkingLotDetailPage: React.FC = () => {
           message={`ParkingService has no endpoint for ${humanizeEnum(TABS.find((t) => t.key === tab)?.label ?? tab)} yet (${MISSING[tab]}).`}
         />
       )}
+      {issuePreset && <IssueSanctionDialog preset={issuePreset} onClose={() => setIssuePreset(null)} onIssued={sanctions.reload} />}
     </>
   );
 };
