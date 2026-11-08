@@ -21,6 +21,16 @@ public sealed class RefundRepository(PaymentDbContext db) : IRefundRepository
     }
 
     /// <summary>
+    /// Tìm kiếm bản ghi hoàn tiền theo khóa chính Id (US-041).
+    /// </summary>
+    public async Task<Refund?> GetRefundByIdAsync(int refundId, CancellationToken cancellationToken)
+    {
+        return await db.Refunds
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == refundId, cancellationToken);
+    }
+
+    /// <summary>
     /// Lưu đồng thời các thay đổi: cập nhật trạng thái đơn thanh toán, thêm bản ghi hoàn tiền mới và đẩy OutboxMessage trong cùng một giao dịch.
     /// </summary>
     public async Task SaveAutoRefundTransactionAsync(
