@@ -29,6 +29,8 @@ public static class DependencyInjection
         // US-098: lịch sử thay đổi + hủy thay đổi chưa hiệu lực
         services.AddScoped<IGetSystemConfigHistoryUseCase, GetSystemConfigHistoryUseCase>();
         services.AddScoped<ICancelSystemConfigChangeUseCase, CancelSystemConfigChangeUseCase>();
+        services.AddScoped<IUpdateFeatureFlagUseCase, UpdateFeatureFlagUseCase>();          // US-099
+        services.AddScoped<IGetFeatureFlagStatesUseCase, GetFeatureFlagStatesUseCase>();    // US-099
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
