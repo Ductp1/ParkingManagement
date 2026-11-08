@@ -84,7 +84,6 @@ public static class DependencyInjection
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
-
         // Lot Details (Amenities, Photos, Attributes) (US-064, EP09)
         services.AddScoped<IGetStandardAmenitiesCatalogUseCase, GetStandardAmenitiesCatalogUseCase>();
         services.AddScoped<IGetLotAmenitiesUseCase, GetLotAmenitiesUseCase>();
@@ -101,6 +100,7 @@ public static class DependencyInjection
 
         services.AddScoped<IGetLotAttributesUseCase, GetLotAttributesUseCase>();
         services.AddScoped<IUpdateLotAttributesUseCase, UpdateLotAttributesUseCase>();
+
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
@@ -115,6 +115,9 @@ public static class DependencyInjection
         services.AddScoped<IRecordPhysicalChangeBookingErrorUseCase, RecordPhysicalChangeBookingErrorUseCase>();
         services.AddScoped<ICancelPhysicalChangeUseCase, CancelPhysicalChangeUseCase>();
         services.AddScoped<IGetPhysicalChangeSlaSummaryUseCase, GetPhysicalChangeSlaSummaryUseCase>();
+        // Owner Platform Exit (US-057, EP08)
+        services.AddScoped<IGetOwnerExitImpactUseCase, GetOwnerExitImpactUseCase>();
+        services.AddScoped<ISuspendOwnerLotsUseCase, SuspendOwnerLotsUseCase>();
 
         return services;
     }

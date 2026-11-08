@@ -9,6 +9,7 @@ using BookingService.Infrastructure.Workers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace BookingService.Infrastructure;
@@ -22,6 +23,14 @@ public static class DependencyInjection
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
         services.AddHostedService<HoldExpiryWorker>();
+
+        // T-302: Saga Booking ↔ Payment (RabbitMQ Inbox Event Handler)
+        services.AddScoped<PaymentIntegrationEventHandler>();
+        if (configuration.GetSection("EventBus:Subscription").Exists())
+        {
+            services.AddRabbitMqInboxConsumer<BookingDbContext, PaymentIntegrationEventHandler>(configuration);
+        }
+
         // US-066 (luat 4): dang ky thue bao nguyen tu theo han muc + doc Q tu GateService.
         services.AddScoped<IMonthlyPassRegistrationStore, MonthlyPassRegistrationStore>();
         services.AddScoped<ILotSubscriberQuotaProvider, GateCapacityQuotaProvider>();

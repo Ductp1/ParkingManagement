@@ -28,7 +28,9 @@ public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options)
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
+
         // Bỏ qua cảnh báo pending model changes khi chạy migrate trong môi trường test/CI
-        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(RelationalEventId.PendingModelChangesWarning));
     }
 }

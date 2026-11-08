@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using ParkingManagement.ServiceDefaults.Persistence;
 using UserService.Domain.Entities;
 using ParkingManagement.ServiceDefaults.Messaging;
@@ -16,6 +17,13 @@ public sealed class UserDbContext(DbContextOptions<UserDbContext> options) : Ser
     public DbSet<StaffAssignment> StaffAssignments => Set<StaffAssignment>();
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
     public DbSet<DataSubjectRequest> DataSubjectRequests => Set<DataSubjectRequest>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

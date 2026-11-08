@@ -38,9 +38,9 @@ public class OwnerRevenueSeriesTests
         Assert.Equal("Day", series.Granularity);
         Assert.Equal(
         [
-            new OwnerRevenuePointDto(At(10, 1), At(10, 2), 30_000, 0, 30_000, 2),
-            new OwnerRevenuePointDto(At(10, 2), At(10, 3), 40_000, 0, 40_000, 1),
-            new OwnerRevenuePointDto(At(10, 3), At(10, 4), 0, 0, 0, 0),
+            new OwnerRevenuePointDto(At(10, 1), At(10, 2), 30_000, 0, 30_000, 2, 0, 2),
+            new OwnerRevenuePointDto(At(10, 2), At(10, 3), 40_000, 0, 40_000, 1, 0, 1),
+            new OwnerRevenuePointDto(At(10, 3), At(10, 4), 0, 0, 0, 0, 0, 0),
         ], series.Points);
         Assert.Equal(TimeSpan.FromHours(7), series.Points[0].PeriodStart.Offset);
         Assert.Equal("OriginalPaymentPeriod", series.RefundBasis);
@@ -54,7 +54,7 @@ public class OwnerRevenueSeriesTests
 
         var series = await UseCase(queries).ExecuteAsync(OwnerA, Range(10, 1, 10, 2), "day");
 
-        Assert.Equal(new OwnerRevenuePointDto(At(10, 1), At(10, 2), 100_000, 25_000, 75_000, 1), Assert.Single(series.Points));
+        Assert.Equal(new OwnerRevenuePointDto(At(10, 1), At(10, 2), 100_000, 25_000, 75_000, 1, 0, 1), Assert.Single(series.Points));
     }
 
     // ----- Week / Month -----
@@ -76,10 +76,10 @@ public class OwnerRevenueSeriesTests
 
         Assert.Equal(
         [
-            new OwnerRevenuePointDto(At(10, 1), At(10, 5), 1_000, 0, 1_000, 1),
-            new OwnerRevenuePointDto(At(10, 5), At(10, 12), 2_000, 0, 2_000, 1),
-            new OwnerRevenuePointDto(At(10, 12), At(10, 19), 4_000, 0, 4_000, 1),
-            new OwnerRevenuePointDto(At(10, 19), At(10, 20), 8_000, 0, 8_000, 1),
+            new OwnerRevenuePointDto(At(10, 1), At(10, 5), 1_000, 0, 1_000, 1, 0, 1),
+            new OwnerRevenuePointDto(At(10, 5), At(10, 12), 2_000, 0, 2_000, 1, 0, 1),
+            new OwnerRevenuePointDto(At(10, 12), At(10, 19), 4_000, 0, 4_000, 1, 0, 1),
+            new OwnerRevenuePointDto(At(10, 19), At(10, 20), 8_000, 0, 8_000, 1, 0, 1),
         ], series.Points);
     }
 
@@ -97,9 +97,9 @@ public class OwnerRevenueSeriesTests
 
         Assert.Equal(
         [
-            new OwnerRevenuePointDto(At(9, 15), At(10, 1), 1_000, 0, 1_000, 1),
-            new OwnerRevenuePointDto(At(10, 1), At(11, 1), 2_000, 0, 2_000, 1),
-            new OwnerRevenuePointDto(At(11, 1), At(11, 10), 4_000, 0, 4_000, 1),
+            new OwnerRevenuePointDto(At(9, 15), At(10, 1), 1_000, 0, 1_000, 1, 0, 1),
+            new OwnerRevenuePointDto(At(10, 1), At(11, 1), 2_000, 0, 2_000, 1, 0, 1),
+            new OwnerRevenuePointDto(At(11, 1), At(11, 10), 4_000, 0, 4_000, 1, 0, 1),
         ], series.Points);
     }
 
@@ -139,8 +139,8 @@ public class OwnerRevenueSeriesTests
         var series = await UseCase(queries).ExecuteAsync(OwnerA, Range(10, 5, 10, 6), "hour");
 
         Assert.Equal(24, series.Points.Count);
-        Assert.Equal(new OwnerRevenuePointDto(At(10, 5, 0), At(10, 5, 1), 10_000, 0, 10_000, 1), series.Points[0]);
-        Assert.Equal(new OwnerRevenuePointDto(At(10, 5, 8), At(10, 5, 9), 50_000, 0, 50_000, 2), series.Points[8]);
+        Assert.Equal(new OwnerRevenuePointDto(At(10, 5, 0), At(10, 5, 1), 10_000, 0, 10_000, 1, 0, 1), series.Points[0]);
+        Assert.Equal(new OwnerRevenuePointDto(At(10, 5, 8), At(10, 5, 9), 50_000, 0, 50_000, 2, 0, 2), series.Points[8]);
         Assert.Equal(At(10, 6, 0), series.Points[^1].PeriodEnd);
         Assert.Equal(60_000, series.Points.Sum(p => p.GrossRevenue));
     }
