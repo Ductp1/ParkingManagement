@@ -18,6 +18,7 @@ using ParkingManagement.SharedKernel.Enums;
 using PaymentService.API.Controllers;
 using PaymentService.Application;
 using PaymentService.Application.Features;
+using PaymentService.Application.Features.Commission;
 using PaymentService.Application.Features.Reports;
 using PaymentService.Application.Interfaces;
 using PaymentService.Domain.Entities;
@@ -82,6 +83,52 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
     {
         var response = await host.Client.GetAsync("/api/v1/payments?bookingId=1");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    // ----- US-079: hoa hồng toàn sàn – chỉ Admin -----
+
+    private const string CommissionUrl = "/api/v1/payments/admin/commission-summary?fromUtc=2026-09-30T17:00:00Z&toUtc=2026-10-31T17:00:00Z";
+
+    [Fact]
+    public async Task AdminCommissionSummary_WithoutToken_Returns401()
+        => Assert.Equal(HttpStatusCode.Unauthorized, (await host.Client.GetAsync(CommissionUrl)).StatusCode);
+
+    [Theory]
+    [InlineData("LotOwner")]
+    [InlineData("Staff")]
+    [InlineData("Driver")]
+    public async Task AdminCommissionSummary_NonAdmin_Returns403(string role)
+        => Assert.Equal(HttpStatusCode.Forbidden, (await host.GetAsync(CommissionUrl, host.MintToken(role, OwnerA))).StatusCode);
+
+    [Fact]
+    public async Task AdminCommissionSummary_Admin_Returns200WithAggregatesOnly()
+    {
+        var response = await host.GetAsync(CommissionUrl, host.MintToken("Admin", ownerProfileId: null));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var summary = System.Text.Json.JsonSerializer.Deserialize<AdminCommissionSummaryDto>(body, host.Json)!;
+        Assert.Equal((200_000m, 15_000m, 0.075m), (summary.Totals.GrossAmount, summary.Totals.CommissionAmount, summary.Totals.EffectiveRate));
+        Assert.Equal(LotA1, Assert.Single(summary.ByLot).ParkingLotId);
+        Assert.Equal(31, summary.Series.Count);
+        Assert.DoesNotContain("userId", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("\"code\"", body);                                  // không có mã giao dịch từng khách
+    }
+
+    [Theory]
+    [InlineData("/api/v1/payments/admin/commission-summary")]
+    [InlineData("/api/v1/payments/admin/commission-summary?fromUtc=2026-10-31T17:00:00Z&toUtc=2026-09-30T17:00:00Z")]
+    public async Task AdminCommissionSummary_InvalidRange_Returns400(string url)
+        => Assert.Equal(HttpStatusCode.BadRequest, (await host.GetAsync(url, host.MintToken("Admin", null))).StatusCode);
+
+    [Fact]
+    public async Task OwnerRevenueSummary_IncludesCommissionBlock_PendingWhenNotCalculated()
+    {
+        var response = await host.GetAsync(SummaryUrl, host.MintToken("LotOwner", OwnerA));
+        var summary = await response.Content.ReadFromJsonAsync<OwnerRevenueSummaryDto>(host.Json);
+
+        Assert.Equal(("Pending", 0m, 1), (summary!.Commission.Status, summary.Commission.CommissionAmount, summary.Commission.PendingCount));
+        Assert.Equal("NotSettled", summary.Settlement.SettlementStatus);
     }
 
     // ----- Báo cáo doanh thu chủ bãi: chỉ LotOwner -----
@@ -265,6 +312,11 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
                 Paid(OwnerA, LotA1, 100_000, Utc(2026, 10, 5, 2)),
                 Paid(OwnerB, LotB1, 70_000, Utc(2026, 10, 5, 2)),
             ]));
+            // US-079: báo cáo hoa hồng toàn sàn cho Admin.
+            var commissioned = Paid(OwnerA, LotA1, 200_000, Utc(2026, 10, 6, 2)).WithId(10);
+            builder.Services.AddSingleton<IAdminCommissionQueries>(new InMemoryAdminCommissionQueries([commissioned],
+                [Accrual(commissioned, 0.075m, "LotContract", "HD-SP-2026-0011")]));
+            builder.Services.AddScoped<IGetAdminCommissionSummaryUseCase, GetAdminCommissionSummaryUseCase>();
 
             _app = builder.Build();
             _app.UseServiceDefaults();
