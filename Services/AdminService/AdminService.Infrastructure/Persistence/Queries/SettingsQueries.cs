@@ -40,6 +40,6 @@ public sealed class SettingsQueries(AdminDbContext db) : ISettingsQueries
     public async Task<IReadOnlyList<FeatureFlagDto>> ListFeatureFlagsAsync(CancellationToken cancellationToken)
         => await db.FeatureFlags.AsNoTracking()
             .OrderBy(f => f.Key)
-            .Select(f => new FeatureFlagDto(f.Key, f.IsEnabled, f.Description))
+            .Select(f => new FeatureFlagDto(f.Key, f.IsEnabled, f.Description, f.UpdatedByUserId, f.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
 }

@@ -24,6 +24,7 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<GateDbContext>(configuration);
         services.AddScoped<IParkingSessionQueries, ParkingSessionQueries>();
+        services.AddScoped<GateService.Application.Features.AdminDashboard.IAdminGateDashboardQueries, AdminGateDashboardQueries>(); // US-081
         services.AddScoped<IDataSeeder<GateDbContext>, GateDataSeeder>();
         // T-701: MVP dùng ManualPlateRecognizer; Phase 2 chỉ cần đổi dòng này sang OcrPlateRecognizer.
         services.AddScoped<IPlateRecognizer, ManualPlateRecognizer>();

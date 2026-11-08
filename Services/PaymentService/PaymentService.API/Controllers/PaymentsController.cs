@@ -48,59 +48,6 @@ public sealed record CreateVietQrPaymentRequest(
     string BankAccountName);
 
 /// <summary>
-/// Controller xử lý tính toán và báo giá đỗ xe trước khi đặt chỗ (UC-11, US-046, US-070, US-071).
-/// </summary>
-[ApiController]
-[Route("api/v1/pricing")]
-public sealed class PricingController(
-    IQuotePriceUseCase quotePrice,
-    IComputeSessionFeeUseCase sessionFee) : ControllerBase
-{
-    /// <summary>
-    /// GET /api/v1/pricing/quote – Tính toán và báo giá tiền đỗ xe trước khi đặt chỗ (UC-11, US-046, US-070, US-071).
-    /// </summary>
-    [HttpGet("quote")]
-    [ProducesResponseType<PriceQuoteDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<PriceQuoteDto>> Quote(
-        [FromQuery] int parkingLotId,
-        [FromQuery] VehicleType vehicleType,
-        [FromQuery] DateTime startAtUtc,
-        [FromQuery] DateTime endAtUtc,
-        CancellationToken cancellationToken)
-        => Ok(await quotePrice.ExecuteAsync(new QuotePriceQuery(
-            parkingLotId,
-            vehicleType,
-            DateTime.SpecifyKind(startAtUtc.ToUniversalTime(), DateTimeKind.Utc),
-            DateTime.SpecifyKind(endAtUtc.ToUniversalTime(), DateTimeKind.Utc)),
-            cancellationToken));
-
-    /// <summary>
-    /// POST /api/v1/pricing/session-fee – Chốt phí một lượt gửi xe thực tế tại cổng ra (UC-22, US-045 → US-047).
-    /// </summary>
-    [HttpPost("session-fee")]
-    [ProducesResponseType<SessionFeeDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<SessionFeeDto>> SessionFee(
-        [FromBody] SessionFeeQuery query,
-        CancellationToken cancellationToken)
-    {
-        query = query with
-        {
-            EntryAtUtc = DateTime.SpecifyKind(query.EntryAtUtc.ToUniversalTime(), DateTimeKind.Utc),
-            ExitAtUtc = DateTime.SpecifyKind(query.ExitAtUtc.ToUniversalTime(), DateTimeKind.Utc),
-            BookedEndAtUtc = query.BookedEndAtUtc is null
-                ? null
-                : DateTime.SpecifyKind(query.BookedEndAtUtc.Value.ToUniversalTime(), DateTimeKind.Utc),
-        };
-
-        return Ok(await sessionFee.ExecuteAsync(query, cancellationToken));
-    }
-}
-
-/// <summary>
 /// Controller quản lý và tra cứu các giao dịch thanh toán trong hệ thống.
 /// </summary>
 [ApiController]
@@ -256,8 +203,16 @@ public sealed class PaymentsController(
         => Ok(await getByBooking.ExecuteAsync(bookingId, cancellationToken));
 
     /// <summary>
-    /// POST /api/v1/payments/gate-settlement – Ghi nhận thanh toán tại cổng do staff xác nhận (UC-22 A2, UC-23, US-048).
+    /// POST /api/v1/payments/gate-settlement – Ghi nhận thanh toán tại bãi/cổng do nhân viên xác nhận hoặc quét VietQR (US-035, US-048, UC-22 A2, UC-23).
     /// </summary>
+    /// <param name="command">{GateSettlementCommand} - Staff App hoặc Kiosk truyền qua Request Body - Thông tin thanh toán tại cổng gồm SessionCode, ParkingSessionId, ParkingLotId, OwnerProfileId, BookingCode nếu có, Amount, Method (Cash/VietQr) và ConfirmedByStaffId.</param>
+    /// <param name="cancellationToken">{CancellationToken} - Hệ thống tự động truyền - Token hủy tác vụ bất đồng bộ khi client ngắt kết nối.</param>
+    /// <returns>
+    /// Đối tượng PaymentDto chứa chi tiết giao dịch thanh toán thành công tại cổng.
+    /// Mã HTTP trả về:
+    /// - 200 OK: Ghi nhận thanh toán tại cổng thành công (hoặc trả lại giao dịch cũ nếu gọi lặp Idempotent).
+    /// - 400 BadRequest: Dữ liệu gửi lên không hợp lệ (SessionCode rỗng, ParkingLotId nhỏ hơn 0, số tiền âm, phương thức không phải Cash/VietQr).
+    /// </returns>
     [HttpPost("gate-settlement")]
     [ProducesResponseType<PaymentDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

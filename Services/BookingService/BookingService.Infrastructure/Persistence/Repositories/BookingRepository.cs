@@ -13,6 +13,13 @@ public sealed class BookingRepository(BookingDbContext db) : IBookingRepository
             .Include(b => b.PriceSnapshot)
             .FirstOrDefaultAsync(b => b.Code == code, cancellationToken);
 
+    public Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default)
+        => db.Bookings
+            .Include(b => b.StatusLogs)
+            .Include(b => b.Modifications)
+            .Include(b => b.PriceSnapshot)
+            .FirstOrDefaultAsync(b => b.Id == id, cancellationToken);
+
     public async Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
     {
         await db.Bookings.AddAsync(booking, cancellationToken);

@@ -10,7 +10,9 @@ export interface ReportSpec {
 export const REPORTS: Record<string, ReportSpec> = {
   revenue: {
     title: 'Revenue',
-    source: 'Derived · Payments (Status = Succeeded) grouped by PaidAtUtc, Method; Refunds; Settlements.CommissionAmount',
+    // US-079: "Platform commission" đã có nguồn thật – sổ CommissionEntries (Finance › Commission), không còn chờ Settlements.
+    source:
+      'Derived · Payments (Status = Succeeded) grouped by PaidAtUtc, Method; Refunds; Platform commission = CommissionEntries (US-079 · GET /api/v1/payments/admin/commission-summary)',
     kpis: ['Gross revenue', 'Platform commission', 'Refunds', 'Succeeded payments'],
     panels: [
       { title: 'Gross revenue by day', description: 'Payments.Amount where Status = Succeeded, by PaidAtUtc (ICT)' },
