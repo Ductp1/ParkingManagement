@@ -125,6 +125,11 @@ export const SmartParkingFinderPage: React.FC = () => {
   const [bookingNote, setBookingNote] = useState<string>('');
   const [isBookingSubmitting, setIsBookingSubmitting] = useState<boolean>(false);
 
+  // UI-13: Mã khuyến mãi (Voucher Code)
+  const [voucherInput, setVoucherInput] = useState<string>('');
+  const [appliedVoucher, setAppliedVoucher] = useState<{ code: string; discount: number; label: string } | null>(null);
+  const [voucherMessage, setVoucherMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
   // 8. Modal xác nhận thành công
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
   const [bookingSuccessCode, setBookingSuccessCode] = useState<string | null>(null);
@@ -528,10 +533,27 @@ export const SmartParkingFinderPage: React.FC = () => {
     }
   };
 
+  // UI-13: Xử lý áp dụng mã khuyến mãi
+  const handleApplyVoucher = () => {
+    const code = voucherInput.trim().toUpperCase();
+    if (!code) {
+      setVoucherMessage({ text: 'Vui lòng nhập mã khuyến mãi', isError: true });
+      return;
+    }
+    if (code === 'PARKNEW' || code === 'VIP2026' || code === 'EV2026' || code === 'PARK10') {
+      const discount = 20000;
+      setAppliedVoucher({ code, discount, label: 'Ưu đãi đặt trước' });
+      setVoucherMessage({ text: `Áp dụng thành công mã ${code} (-20.000 đ)`, isError: false });
+    } else {
+      setVoucherMessage({ text: 'Mã không tồn tại hoặc đã hết lượt áp dụng', isError: true });
+    }
+  };
+
   const baseParkingFee = currentSelectedLot?.pricePerHour || 30000;
   const evFee = hasEvService ? 50000 : 0;
   const washFee = hasWashService ? 80000 : 0;
-  const totalAmount = baseParkingFee + evFee + washFee;
+  const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
+  const totalAmount = Math.max(0, baseParkingFee + evFee + washFee - voucherDiscount);
 
   const handleOpenCheckout = () => {
     if (!selectedSlotCode) {
@@ -569,6 +591,9 @@ export const SmartParkingFinderPage: React.FC = () => {
     if (hasEvService) servicesList.push('Sạc nhanh EV 120kW');
     if (hasWashService) servicesList.push('Rửa xe bọt tuyết');
     servicesList.push('Bảo hiểm ParkMaster Care');
+    if (appliedVoucher) {
+      servicesList.push(`Voucher: ${appliedVoucher.code} (-${appliedVoucher.discount.toLocaleString('vi-VN')} đ)`);
+    }
 
     const paymentLabelMap: Record<string, string> = {
       momo: 'Ví MoMo / VNPay QR',
@@ -1140,6 +1165,22 @@ export const SmartParkingFinderPage: React.FC = () => {
                             {(currentSelectedLot.pricePerHour ?? 30000).toLocaleString('vi-VN')} đ/h
                           </span>
                         </div>
+
+                        {/* UI-07: Chi tiết bãi đỗ (Giờ mở cửa, Chiều cao tối đa, Tiện ích) */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2 text-[10.5px]">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+                            <span className="material-symbols-outlined text-[12px]">schedule</span>
+                            {currentSelectedLot.isOpenNow ? 'Mở cửa 24/7' : '06:00 - 23:00'}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold border border-slate-200">
+                            <span className="material-symbols-outlined text-[12px] text-slate-500">height</span>
+                            Cao tối đa: {currentSelectedLot.maxHeightCm ? `${(currentSelectedLot.maxHeightCm / 100).toFixed(1)}m` : '2.2m'}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-semibold border border-blue-200">
+                            <span className="material-symbols-outlined text-[12px]">shield</span>
+                            Camera AI ANPR
+                          </span>
+                        </div>
                       </div>
 
                       <button
@@ -1560,6 +1601,54 @@ export const SmartParkingFinderPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* UI-13: Mã khuyến mãi / Voucher */}
+              <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-amber-500">loyalty</span>
+                  <span>Mã khuyến mãi / Voucher (UI-13)</span>
+                </span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={voucherInput}
+                    onChange={(e) => {
+                      setVoucherInput(e.target.value.toUpperCase());
+                      setVoucherMessage(null);
+                    }}
+                    placeholder="VD: PARKNEW, VIP2026, EV2026"
+                    className="flex-1 h-9 px-3 rounded-lg bg-white border border-slate-300 text-xs font-mono font-bold uppercase text-slate-800 focus:outline-hidden focus:border-blue-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyVoucher}
+                    className="px-3.5 h-9 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+                {voucherMessage && (
+                  <p className={`text-[11px] font-semibold ${voucherMessage.isError ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {voucherMessage.text}
+                  </p>
+                )}
+                {appliedVoucher && (
+                  <div className="flex items-center justify-between text-[11px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md font-semibold mt-1">
+                    <span>Mã {appliedVoucher.code} đã áp dụng: -{appliedVoucher.discount.toLocaleString('vi-VN')} đ</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedVoucher(null);
+                        setVoucherInput('');
+                        setVoucherMessage(null);
+                      }}
+                      className="text-slate-400 hover:text-red-600 ml-2 cursor-pointer"
+                    >
+                      Gỡ
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Ghi chú điều phối (Tùy chọn) */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700">Ghi chú điều phối (Tùy chọn)</label>
@@ -1584,6 +1673,12 @@ export const SmartParkingFinderPage: React.FC = () => {
                   <div className="flex justify-between text-slate-500">
                     <span>Phí dịch vụ tiện ích cộng thêm:</span>
                     <span className="font-semibold text-blue-700">+{(evFee + washFee).toLocaleString('vi-VN')} đ</span>
+                  </div>
+                )}
+                {voucherDiscount > 0 && (
+                  <div className="flex justify-between text-emerald-600 font-bold">
+                    <span>Ưu đãi voucher ({appliedVoucher?.code}):</span>
+                    <span>-{voucherDiscount.toLocaleString('vi-VN')} đ</span>
                   </div>
                 )}
                 <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
