@@ -95,7 +95,7 @@ public class RateCardUseCaseTests
             lotId,
             ownerId,
             name,
-            new DateTime(2026, 11, 1, 0, 0, 0, DateTimeKind.Utc),
+            DateTime.UtcNow.AddHours(24),
             null,
             overnightSurcharge,
             weekendMultiplier,
@@ -253,7 +253,7 @@ public class RateCardUseCaseTests
             ParkingLotId = 1,
             OwnerProfileId = 2,
             Name = "Bảng giá cũ",
-            EffectiveFromUtc = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+            EffectiveFromUtc = DateTime.UtcNow.AddDays(-10),
             EffectiveToUtc = null,
             IsActive = true
         };

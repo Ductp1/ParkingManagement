@@ -833,6 +833,61 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PaymentService.Domain.Entities.RateCardAuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("ChangedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("MaxPriceIncreasePercentage")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("numeric(6,2)");
+
+                    b.Property<string>("NewValueJson")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("OldValueJson")
+                        .HasMaxLength(500)
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RateCardId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RequiresAdminApproval")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RateCardId");
+
+                    b.HasIndex("ParkingLotId", "CreatedAtUtc");
+
+                    b.HasIndex("RequiresAdminApproval", "CreatedAtUtc");
+
+                    b.ToTable("RateCardAuditLogs", (string)null);
+                });
+
             modelBuilder.Entity("PaymentService.Domain.Entities.RateRule", b =>
                 {
                     b.Property<int>("Id")
@@ -1155,6 +1210,15 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.Navigation("Payment");
 
                     b.Navigation("Promotion");
+                });
+
+            modelBuilder.Entity("PaymentService.Domain.Entities.RateCardAuditLog", b =>
+                {
+                    b.HasOne("PaymentService.Domain.Entities.RateCard", null)
+                        .WithMany()
+                        .HasForeignKey("RateCardId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PaymentService.Domain.Entities.RateRule", b =>

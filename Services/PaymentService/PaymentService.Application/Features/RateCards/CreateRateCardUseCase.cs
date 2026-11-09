@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using PaymentService.Application.Interfaces;
@@ -17,7 +18,7 @@ public sealed record CreateRateRuleRequest(
     int SortOrder);
 
 /// <summary>
-/// DTO gửi lên để tạo mới bảng giá kèm toàn bộ mức phụ thu và block giá (US-070, US-071).
+/// DTO gửi lên để tạo mới bảng giá kèm toàn bộ mức phụ thu và block giá (US-070, US-071, US-072).
 /// </summary>
 public sealed record CreateRateCardCommand(
     int ParkingLotId,
@@ -34,7 +35,7 @@ public sealed record CreateRateCardCommand(
     IReadOnlyList<CreateRateRuleRequest> Rules);
 
 /// <summary>
-/// DTO trả về kết quả chi tiết của bảng giá.
+/// DTO trả về kết quả chi tiết của bảng giá kèm cờ cảnh báo duyệt tăng giá (US-072).
 /// </summary>
 public sealed record RateCardDetailDto(
     int Id,
@@ -50,7 +51,10 @@ public sealed record RateCardDetailDto(
     decimal OversizedMultiplier,
     decimal OverstayMultiplier,
     decimal? MaxDailyAmount,
-    IReadOnlyList<RateRuleDto> Rules);
+    IReadOnlyList<RateRuleDto> Rules,
+    bool RequiresAdminApproval = false,
+    decimal MaxPriceIncreasePercentage = 0m,
+    string? WarningMessage = null);
 
 /// <summary>
 /// DTO mô tả một dòng quy tắc giá block giờ.
@@ -73,10 +77,24 @@ public interface ICreateRateCardUseCase
 }
 
 /// <summary>
-/// Cài đặt ca sử dụng tạo mới bảng giá độc lập (US-070, US-071).
+/// Cài đặt ca sử dụng tạo mới bảng giá độc lập có kiểm soát thay đổi giá (US-070, US-071, US-072).
 /// </summary>
-public sealed class CreateRateCardUseCase(IRateCardManagementRepository repo) : ICreateRateCardUseCase
+public sealed class CreateRateCardUseCase : ICreateRateCardUseCase
 {
+    private readonly IRateCardManagementRepository repo;
+    private readonly IRateCardAuditLogRepository? auditRepo;
+    private readonly TimeProvider timeProvider;
+
+    public CreateRateCardUseCase(
+        IRateCardManagementRepository repo,
+        IRateCardAuditLogRepository? auditRepo = null,
+        TimeProvider? timeProvider = null)
+    {
+        this.repo = repo;
+        this.auditRepo = auditRepo;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
+    }
+
     public async Task<RateCardDetailDto> ExecuteAsync(CreateRateCardCommand command, CancellationToken cancellationToken = default)
     {
         // 1. Kiểm tra tính hợp lệ cơ bản của bãi xe và chủ bãi
@@ -88,6 +106,18 @@ public sealed class CreateRateCardUseCase(IRateCardManagementRepository repo) : 
 
         if (string.IsNullOrWhiteSpace(command.Name))
             throw new ValidationException("Tên bảng giá không được để trống.");
+
+        // US-072 AC1: Kiểm soát ngày hiệu lực (Effective Date) phải sau thời điểm hiện tại ít nhất 12 giờ
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        if (command.EffectiveFromUtc < now)
+            throw new ValidationException("Ngày bắt đầu hiệu lực (EffectiveFromUtc) không thể ở trong quá khứ.");
+
+        var minEffectiveTime = now.AddHours(12);
+        if (command.EffectiveFromUtc < minEffectiveTime)
+            throw new ValidationException($"Ngày bắt đầu hiệu lực phải sau thời điểm hiện tại ít nhất 12 giờ (tối thiểu từ {minEffectiveTime:dd/MM/yyyy HH:mm} UTC) để thông báo cho khách hàng.");
+
+        if (command.EffectiveToUtc.HasValue && command.EffectiveToUtc.Value <= command.EffectiveFromUtc)
+            throw new ValidationException("Ngày kết thúc hiệu lực (EffectiveToUtc) phải lớn hơn ngày bắt đầu hiệu lực (EffectiveFromUtc).");
 
         // 2. Kiểm tra các hệ số phụ thu (US-071)
         if (command.OvernightSurcharge < 0)
@@ -124,15 +154,61 @@ public sealed class CreateRateCardUseCase(IRateCardManagementRepository repo) : 
                 throw new ValidationException($"Khoảng thời gian không hợp lệ: ToMinute ({rule.ToMinute.Value}) phải lớn hơn FromMinute ({rule.FromMinute}).");
         }
 
-        // 4. Nếu bãi đang có bảng giá hiệu lực tại mốc thời gian này, tự động đóng hiệu lực bảng giá cũ để kích hoạt bảng giá mới
-        var currentActive = await repo.GetCurrentActiveAsync(command.ParkingLotId, command.EffectiveFromUtc, cancellationToken);
+        // 4. Lấy bảng giá đang chạy hiện tại của bãi để so sánh tỷ lệ tăng giá (US-072 AC2)
+        var currentActive = await repo.GetCurrentActiveAsync(command.ParkingLotId, now, cancellationToken);
+        decimal maxIncreasePercentage = 0m;
+
         if (currentActive != null)
+        {
+            // So sánh đơn giá block đầu tiên của từng loại xe
+            foreach (var newRule in command.Rules)
+            {
+                var oldRule = currentActive.Rules
+                    .FirstOrDefault(r => r.VehicleType == newRule.VehicleType && r.FromMinute == newRule.FromMinute);
+
+                if (oldRule != null && oldRule.PricePerBlock > 0)
+                {
+                    var blockIncrease = ((newRule.PricePerBlock - oldRule.PricePerBlock) / oldRule.PricePerBlock) * 100m;
+                    if (blockIncrease > maxIncreasePercentage)
+                    {
+                        maxIncreasePercentage = blockIncrease;
+                    }
+                }
+            }
+
+            // So sánh phụ thu qua đêm
+            if (currentActive.OvernightSurcharge > 0 && command.OvernightSurcharge > currentActive.OvernightSurcharge)
+            {
+                var overnightIncrease = ((command.OvernightSurcharge - currentActive.OvernightSurcharge) / currentActive.OvernightSurcharge) * 100m;
+                if (overnightIncrease > maxIncreasePercentage)
+                {
+                    maxIncreasePercentage = overnightIncrease;
+                }
+            }
+
+            // So sánh hệ số phạt quá giờ
+            if (currentActive.OverstayMultiplier > 0 && command.OverstayMultiplier > currentActive.OverstayMultiplier)
+            {
+                var overstayIncrease = ((command.OverstayMultiplier - currentActive.OverstayMultiplier) / currentActive.OverstayMultiplier) * 100m;
+                if (overstayIncrease > maxIncreasePercentage)
+                {
+                    maxIncreasePercentage = overstayIncrease;
+                }
+            }
+        }
+
+        // US-072 AC2: Nếu tăng > 30% thì đánh dấu cần Admin phê duyệt và tạm thời chưa kích hoạt
+        var requiresApproval = maxIncreasePercentage > 30m;
+        var isActive = !requiresApproval;
+
+        // 5. Nếu bảng giá mới hợp lệ và tự động kích hoạt, đóng thời hạn bảng giá cũ tại mốc bắt đầu giá mới
+        if (isActive && currentActive != null)
         {
             currentActive.EffectiveToUtc = command.EffectiveFromUtc;
             await repo.UpdateAsync(currentActive, cancellationToken);
         }
 
-        // 5. Khởi tạo thực thể RateCard mới cùng danh sách RateRule
+        // 6. Khởi tạo thực thể RateCard mới
         var newCard = new RateCard
         {
             ParkingLotId = command.ParkingLotId,
@@ -140,7 +216,7 @@ public sealed class CreateRateCardUseCase(IRateCardManagementRepository repo) : 
             Name = command.Name.Trim(),
             EffectiveFromUtc = command.EffectiveFromUtc,
             EffectiveToUtc = command.EffectiveToUtc,
-            IsActive = true,
+            IsActive = isActive,
             OvernightSurcharge = command.OvernightSurcharge,
             WeekendMultiplier = command.WeekendMultiplier,
             HolidayMultiplier = command.HolidayMultiplier,
@@ -162,17 +238,41 @@ public sealed class CreateRateCardUseCase(IRateCardManagementRepository repo) : 
             });
         }
 
-        // 6. Lưu xuống cơ sở dữ liệu
+        // Lưu bảng giá xuống cơ sở dữ liệu
         await repo.AddAsync(newCard, cancellationToken);
 
-        // 7. Ánh xạ sang DTO trả về
-        return MapToDto(newCard);
+        // 7. US-072 AC3: Ghi vết Audit Log (ai, lúc nào, giá cũ/mới, phần trăm tăng)
+        var auditLog = new RateCardAuditLog
+        {
+            RateCardId = newCard.Id,
+            ParkingLotId = command.ParkingLotId,
+            ChangedByUserId = command.OwnerProfileId,
+            Action = requiresApproval ? "PriceIncreaseWarning" : "CreateRateCard",
+            OldValueJson = currentActive != null ? JsonSerializer.Serialize(MapToDto(currentActive)) : null,
+            NewValueJson = JsonSerializer.Serialize(MapToDto(newCard)),
+            MaxPriceIncreasePercentage = Math.Round(maxIncreasePercentage, 2),
+            RequiresAdminApproval = requiresApproval
+        };
+        if (auditRepo != null)
+        {
+            await auditRepo.AddAsync(auditLog, cancellationToken);
+        }
+
+        string? warningMsg = requiresApproval
+            ? $"Mức giá mới tăng {maxIncreasePercentage:N1}% (> 30% so với giá hiện tại). Bảng giá đã được gửi yêu cầu phê duyệt tới Admin/Partner Ops trước khi có hiệu lực."
+            : null;
+
+        return MapToDto(newCard, requiresApproval, Math.Round(maxIncreasePercentage, 2), warningMsg);
     }
 
     /// <summary>
-    /// Phương thức tiện ích ánh xạ từ Entity sang DTO.
+    /// Phương thức tiện ích ánh xạ từ Entity sang DTO kèm thông tin cảnh báo kiểm soát giá.
     /// </summary>
-    public static RateCardDetailDto MapToDto(RateCard card)
+    public static RateCardDetailDto MapToDto(
+        RateCard card, 
+        bool requiresApproval = false, 
+        decimal increasePercentage = 0m, 
+        string? warningMessage = null)
     {
         return new RateCardDetailDto(
             card.Id,
@@ -196,8 +296,10 @@ public sealed class CreateRateCardUseCase(IRateCardManagementRepository repo) : 
                 r.BlockMinutes,
                 r.PricePerBlock,
                 r.SortOrder
-            )).ToList()
+            )).ToList(),
+            requiresApproval,
+            increasePercentage,
+            warningMessage
         );
     }
 }
-
