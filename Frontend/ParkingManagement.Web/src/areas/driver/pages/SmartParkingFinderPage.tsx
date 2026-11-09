@@ -108,6 +108,9 @@ export const SmartParkingFinderPage: React.FC = () => {
   const [activeViewTab, setActiveViewTab] = useState<'map' | 'layout2d'>('map');
   const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState<boolean>(false);
 
+  // Tối ưu Mobile: Chuyển đổi giữa Danh sách bãi và Bản đồ tương tác
+  const [mobileTab, setMobileTab] = useState<'list' | 'map'>('list');
+
   // 6. Cấu trúc tầng & Sơ đồ ma trận 2D
   const [availableFloors, setAvailableFloors] = useState<
     Array<{ id: number; name: string; level: number; zoneName: string; slots?: SlotHierarchyDto[] }>
@@ -373,12 +376,12 @@ export const SmartParkingFinderPage: React.FC = () => {
 
   // Cập nhật kích thước bản đồ khi chuyển tab hoặc đổi kích thước cửa sổ
   useEffect(() => {
-    if (activeViewTab === 'map' && mapInstanceRef.current) {
+    if ((activeViewTab === 'map' || mobileTab === 'map') && mapInstanceRef.current) {
       setTimeout(() => {
         mapInstanceRef.current?.invalidateSize();
-      }, 100);
+      }, 120);
     }
-  }, [activeViewTab, rankedLots]);
+  }, [activeViewTab, rankedLots, mobileTab]);
 
   // ==========================================
   // LIFECYCLE 4: FETCH CẤU TRÚC TẦNG & SƠ ĐỒ 2D CHUẨN
@@ -637,9 +640,41 @@ export const SmartParkingFinderPage: React.FC = () => {
       {/* ======================================================== */}
       {/* CỘT TRÁI: SIDEBAR BỘ LỌC GỌN GÀNG & DANH SÁCH BÃI XE PHÂN TRANG */}
       {/* ======================================================== */}
-      <aside className="w-full md:w-[380px] lg:w-[410px] bg-white border-r border-slate-200 flex flex-col shrink-0 h-full shadow-xs z-20">
+      <aside
+        className={`w-full md:w-[380px] lg:w-[410px] bg-white border-r border-slate-200 flex-col shrink-0 h-full shadow-xs z-20 ${
+          mobileTab === 'list' ? 'flex' : 'hidden md:flex'
+        }`}
+      >
         {/* Header gọn gàng kèm nút định vị GPS */}
         <div className="p-3.5 border-b border-slate-200 bg-slate-50/70 shrink-0">
+          {/* Mobile Switcher (Chuyển nhanh Danh sách <-> Bản đồ) */}
+          <div className="flex md:hidden items-center gap-1 p-1 bg-slate-200/80 rounded-xl mb-2.5">
+            <button
+              type="button"
+              onClick={() => setMobileTab('list')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                mobileTab === 'list'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">list_alt</span>
+              <span>Danh sách ({parkingLots.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('map')}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                mobileTab === 'map'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">map</span>
+              <span>Bản đồ</span>
+            </button>
+          </div>
+
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse"></span>
@@ -853,7 +888,11 @@ export const SmartParkingFinderPage: React.FC = () => {
                 return (
                   <div
                     key={lot.id}
-                    onClick={() => setSelectedLotId(lot.id)}
+                    onClick={() => {
+                      setSelectedLotId(lot.id);
+                      setIsBottomCardCollapsed(false);
+                      setMobileTab('map');
+                    }}
                     className={`p-3 rounded-xl border transition-all cursor-pointer relative bg-white ${
                       isSelected
                         ? 'border-blue-600 border-l-4 border-l-blue-600 bg-blue-50/40 ring-1 ring-blue-500/20 shadow-sm'
@@ -965,11 +1004,24 @@ export const SmartParkingFinderPage: React.FC = () => {
       {/* CỘT PHẢI: WORKSPACE TƯƠNG TÁC (MAP VIEW & 2D MATRIX VIEW) */}
       {/* KHÔNG BAO GIỜ UNMOUNT BẢN ĐỒ ĐỂ TRÁNH LỖI MÀN HÌNH TRẮNG */}
       {/* ======================================================== */}
-      <main className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden relative">
+      <main
+        className={`flex-1 flex-col h-full bg-slate-50 overflow-hidden relative ${
+          mobileTab === 'map' ? 'flex' : 'hidden md:flex'
+        }`}
+      >
         {/* Top Header của Main Workspace */}
         <header className="p-3.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-2xs z-10">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-sm shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileTab('list')}
+              className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer shrink-0"
+              title="Quay lại danh sách bãi"
+            >
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              <span>Danh sách</span>
+            </button>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs sm:text-sm shrink-0">
               P
             </div>
             <div className="min-w-0">
@@ -1092,7 +1144,7 @@ export const SmartParkingFinderPage: React.FC = () => {
 
             {/* Floating Action Box (Overlay chỉ đường & Chi tiết bãi) khi có bãi chọn */}
             {currentSelectedLot && (
-              <div className="absolute bottom-4 left-4 right-4 md:left-6 md:right-auto md:w-[460px] z-500 transition-all duration-200">
+              <div className="absolute bottom-20 md:bottom-4 left-3 right-3 md:left-6 md:right-auto md:w-[460px] z-500 transition-all duration-200">
                 {isBottomCardCollapsed ? (
                   <div className="bg-white/95 backdrop-blur-md rounded-2xl px-4 py-2.5 shadow-xl border border-slate-200/90 flex items-center justify-between gap-3">
                     <div
@@ -1780,6 +1832,20 @@ export const SmartParkingFinderPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Floating Action Pill trên Mobile (Chuyển nhanh Bản đồ / Danh sách - Chuẩn Google Maps / Airbnb) */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-600 md:hidden animate-in fade-in">
+        <button
+          type="button"
+          onClick={() => setMobileTab(mobileTab === 'list' ? 'map' : 'list')}
+          className="px-5 py-2.5 bg-slate-900/95 backdrop-blur-md text-white rounded-full font-bold text-xs shadow-2xl flex items-center gap-2 hover:bg-slate-800 active:scale-95 transition-all border border-slate-700 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[18px]">
+            {mobileTab === 'list' ? 'map' : 'format_list_bulleted'}
+          </span>
+          <span>{mobileTab === 'list' ? `Xem bản đồ (${parkingLots.length})` : 'Xem danh sách bãi'}</span>
+        </button>
+      </div>
     </div>
   );
 };
