@@ -93,6 +93,22 @@ const RATING_DESCRIPTIONS: Record<number, string> = {
   5: 'Rất hài lòng (5 sao)',
 };
 
+/** Chuẩn hóa hiển thị thời gian để không làm vỡ layout bảng */
+const formatDisplayTime = (raw: string) => {
+  if (!raw) return { main: '--:--', holdBadge: null };
+  const holdMatch = raw.match(/Đến lúc\s*([0-9:]+)\)\s*-\s*([0-9:]+)/i);
+  if (holdMatch) {
+    return {
+      main: `${holdMatch[1]} – ${holdMatch[2]}`,
+      holdBadge: 'Giữ chỗ 15p',
+    };
+  }
+  return {
+    main: raw.replace(/-/g, '–'),
+    holdBadge: null,
+  };
+};
+
 export const BookingHistoryPage: React.FC = () => {
   const navigate = useNavigate();
   const { vehicles } = useAppSelector((state) => state.vehicle);
@@ -552,16 +568,16 @@ export const BookingHistoryPage: React.FC = () => {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-separate border-spacing-0">
+              <table className="w-full min-w-[1080px] text-left border-separate border-spacing-0">
                 <thead>
                   <tr className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3 px-3 sm:px-4 border-b border-slate-200">Mã đặt chỗ & Xe</th>
-                    <th className="py-3 px-3 sm:px-4 border-b border-slate-200">Bãi đỗ & Vị trí</th>
-                    <th className="py-3 px-3 sm:px-4 border-b border-slate-200">Thời gian</th>
-                    <th className="py-3 px-3 sm:px-4 border-b border-slate-200">Dịch vụ</th>
-                    <th className="py-3 px-2 sm:px-3 border-b border-slate-200">Tổng tiền</th>
-                    <th className="py-3 px-2 sm:px-3 border-b border-slate-200">Trạng thái</th>
-                    <th className="py-3 px-3 sm:px-4 text-right border-b border-slate-200">Thao tác</th>
+                    <th className="py-3.5 px-4 border-b border-slate-200 w-[21%]">Mã đặt chỗ & Xe</th>
+                    <th className="py-3.5 px-4 border-b border-slate-200 w-[18%]">Bãi đỗ & Vị trí</th>
+                    <th className="py-3.5 px-4 border-b border-slate-200 w-[16%]">Thời gian</th>
+                    <th className="py-3.5 px-4 border-b border-slate-200 w-[15%]">Dịch vụ</th>
+                    <th className="py-3.5 px-3 border-b border-slate-200 w-[11%]">Tổng tiền</th>
+                    <th className="py-3.5 px-3 border-b border-slate-200 w-[9%]">Trạng thái</th>
+                    <th className="py-3.5 px-4 text-right border-b border-slate-200 w-[10%]">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs">
@@ -576,6 +592,7 @@ export const BookingHistoryPage: React.FC = () => {
                       const isUpcoming = b.status === 'upcoming';
                       const isCancelled = b.status === 'cancelled';
                       const isHighlighted = highlightId === b.id;
+                      const timeInfo = formatDisplayTime(b.timeRange);
 
                       const cellBaseClass = isHighlighted
                         ? 'bg-blue-50/75 border-y-2 border-blue-500'
@@ -591,180 +608,214 @@ export const BookingHistoryPage: React.FC = () => {
                           id={`booking-row-${b.id}`}
                           className="transition-colors group"
                         >
-                          <td className={`py-3 px-3 sm:px-4 relative transition-colors ${cellBaseClass} ${isHighlighted ? 'border-l-2 border-blue-500 rounded-l-xl' : ''}`}>
+                          {/* Cột 1: Mã đặt chỗ & Phương tiện */}
+                          <td className={`py-3.5 px-4 relative transition-colors ${cellBaseClass} ${isHighlighted ? 'border-l-2 border-blue-500 rounded-l-xl' : ''}`}>
                             {isUpcoming && (
                               <div className={`absolute top-2.5 bottom-2.5 w-1 bg-blue-600 rounded-full ${isHighlighted ? 'left-1.5' : 'left-0.5'}`}></div>
                             )}
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`font-bold font-mono text-xs ${isUpcoming ? 'text-blue-600' : isCancelled ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`font-mono font-bold text-[11px] px-2 py-0.5 rounded border ${
+                                  isUpcoming
+                                    ? 'text-blue-700 bg-blue-50/90 border-blue-200'
+                                    : isCancelled
+                                    ? 'text-slate-400 bg-slate-50 border-slate-200 line-through'
+                                    : 'text-slate-700 bg-slate-50 border-slate-200'
+                                }`}>
                                   {b.code}
                                 </span>
                                 {isUpcoming && (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-bold">
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
                                     <span className="material-symbols-outlined text-[12px]">camera</span>
                                     ANPR
                                   </span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1 text-slate-500 text-[11px]">
-                                <span className="material-symbols-outlined text-[13px] text-slate-400">directions_car</span>
-                                <span className="font-semibold text-slate-800">{b.plate}</span>
+                              <div className="flex items-center gap-1 text-slate-600 text-[11px]">
+                                <span className="material-symbols-outlined text-[14px] text-slate-400">directions_car</span>
+                                <span className="font-bold text-slate-900">{b.plate}</span>
                                 <span className="text-slate-300">·</span>
-                                <span className="text-slate-600 truncate max-w-[110px]">{b.carModel}</span>
+                                <span className="text-slate-500 text-[11px] truncate max-w-[100px]" title={b.carModel}>{b.carModel}</span>
                               </div>
                             </div>
                           </td>
 
-                          <td className={`py-3 px-3 sm:px-4 transition-colors ${cellBaseClass}`}>
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-bold text-slate-900 hover:text-blue-600 transition-colors cursor-pointer">
+                          {/* Cột 2: Bãi đỗ & Vị trí đỗ */}
+                          <td className={`py-3.5 px-4 transition-colors ${cellBaseClass}`}>
+                            <div className="flex flex-col gap-1">
+                              <span className="font-bold text-slate-900 text-xs hover:text-blue-600 transition-colors cursor-pointer truncate max-w-[190px]" title={b.location}>
                                 {b.location}
                               </span>
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md w-fit">
-                                <span className="material-symbols-outlined text-[12px]">local_parking</span>
-                                {b.spot}
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-md w-fit">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                                <span className="truncate max-w-[160px]">{b.spot}</span>
                               </span>
                             </div>
                           </td>
 
-                          <td className={`py-3 px-3 sm:px-4 transition-colors ${cellBaseClass}`}>
+                          {/* Cột 3: Thời gian */}
+                          <td className={`py-3.5 px-4 transition-colors ${cellBaseClass}`}>
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold text-slate-800">{b.timeRange}</span>
-                              <span className="text-[11px] text-slate-400">{b.dateLabel}</span>
+                              <div className="flex items-center gap-1 text-slate-900 font-bold text-xs">
+                                <span className="material-symbols-outlined text-[13px] text-blue-600 shrink-0">schedule</span>
+                                <span>{timeInfo.main}</span>
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[11px] text-slate-400 font-medium">{b.dateLabel}</span>
+                                {timeInfo.holdBadge && (
+                                  <span className="text-[9.5px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.2 rounded shrink-0">
+                                    {timeInfo.holdBadge}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
 
-                          <td className={`py-3 px-3 sm:px-4 transition-colors ${cellBaseClass}`}>
-                            <div className="flex flex-wrap gap-1 max-w-[180px]">
-                              {b.services.map((srv, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-medium"
-                                >
-                                  {srv.includes('EV') ? (
-                                    <span className="material-symbols-outlined text-[11px] text-emerald-600">bolt</span>
-                                  ) : srv.includes('Gia hạn') ? (
-                                    <span className="material-symbols-outlined text-[11px] text-indigo-600">more_time</span>
-                                  ) : (
-                                    <span className="material-symbols-outlined text-[11px] text-blue-500">check</span>
-                                  )}
-                                  {srv}
-                                </span>
-                              ))}
+                          {/* Cột 4: Dịch vụ */}
+                          <td className={`py-3.5 px-4 transition-colors ${cellBaseClass}`}>
+                            <div className="flex flex-col gap-1 max-w-[170px]">
+                              {b.services.map((srv, idx) => {
+                                const isEv = srv.includes('EV');
+                                const isExt = srv.includes('Gia hạn');
+                                return (
+                                  <span
+                                    key={idx}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border truncate w-fit ${
+                                      isEv
+                                        ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+                                        : isExt
+                                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
+                                        : 'bg-slate-50 text-slate-600 border-slate-200/60'
+                                    }`}
+                                  >
+                                    {isEv ? (
+                                      <span className="material-symbols-outlined text-[11px] text-amber-600 shrink-0">bolt</span>
+                                    ) : isExt ? (
+                                      <span className="material-symbols-outlined text-[11px] text-indigo-600 shrink-0">more_time</span>
+                                    ) : (
+                                      <span className="material-symbols-outlined text-[11px] text-blue-500 shrink-0">check</span>
+                                    )}
+                                    <span className="truncate">{srv}</span>
+                                  </span>
+                                );
+                              })}
                             </div>
                           </td>
 
-                          <td className={`py-3 px-2 sm:px-3 transition-colors ${cellBaseClass}`}>
+                          {/* Cột 5: Tổng tiền */}
+                          <td className={`py-3.5 px-3 transition-colors ${cellBaseClass}`}>
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-bold text-slate-900">
+                              <span className="font-extrabold text-slate-900 text-xs">
                                 {b.totalPrice > 0 ? `${b.totalPrice.toLocaleString('vi-VN')} đ` : '0 đ'}
                               </span>
-                              <span className="text-[11px] text-slate-500">{b.paymentMethod}</span>
+                              <span className="text-[10.5px] text-slate-500 line-clamp-1">{b.paymentMethod}</span>
                             </div>
                           </td>
 
-                          <td className={`py-3 px-2 sm:px-3 transition-colors ${cellBaseClass}`}>
+                          {/* Cột 6: Trạng thái (Không bao giờ rớt dòng) */}
+                          <td className={`py-3.5 px-3 transition-colors ${cellBaseClass} whitespace-nowrap`}>
                             {isUpcoming && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-[11px] font-bold">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
-                                Sắp diễn ra
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/70 text-[11px] font-bold whitespace-nowrap">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse shrink-0"></span>
+                                <span>Sắp diễn ra</span>
                               </span>
                             )}
                             {b.status === 'completed' && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                                Đã hoàn thành
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/70 text-[11px] font-bold whitespace-nowrap">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0"></span>
+                                <span>Đã hoàn thành</span>
                               </span>
                             )}
                             {isCancelled && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-700 text-[11px] font-bold">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
-                                {b.statusText}
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/70 text-[11px] font-bold whitespace-nowrap">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0"></span>
+                                <span>{b.statusText}</span>
                               </span>
                             )}
                           </td>
 
-                          <td className={`py-3 px-3 sm:px-4 text-right transition-colors ${cellBaseClass} ${isHighlighted ? 'border-r-2 border-blue-500 rounded-r-xl' : ''}`}>
-                            <div className="inline-flex items-center gap-1.5 justify-end flex-wrap">
+                          {/* Cột 7: Thao tác (Hàng ngang chuẩn, không bao giờ rớt 2 tầng) */}
+                          <td className={`py-3.5 px-4 text-right transition-colors ${cellBaseClass} ${isHighlighted ? 'border-r-2 border-blue-500 rounded-r-xl' : ''}`}>
+                            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                               {isUpcoming ? (
                                 <>
+                                  {/* Vé QR */}
                                   <button
                                     type="button"
                                     onClick={() => setActiveQrBooking(b)}
                                     title="Xem vé QR Barie"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold shadow-xs transition-all cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
                                   >
-                                    <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
+                                    <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
                                     <span>Vé QR</span>
                                   </button>
 
-                                  {/* UI-11: Nút Sửa booking */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenEditModal(b)}
-                                    title="Sửa thông tin đặt chỗ (Xe/Giờ)"
-                                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
-                                  >
-                                    <span className="material-symbols-outlined text-[15px] text-slate-500">edit_calendar</span>
-                                    <span>Sửa</span>
-                                  </button>
-
-                                  {/* UI-11: Nút Gia hạn giờ đỗ */}
+                                  {/* Gia hạn giờ đỗ */}
                                   <button
                                     type="button"
                                     onClick={() => handleOpenExtendModal(b)}
                                     title="Gia hạn thêm thời gian đỗ"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
                                   >
                                     <span className="material-symbols-outlined text-[15px] text-indigo-600">more_time</span>
                                     <span>Gia hạn</span>
                                   </button>
 
-                                  {/* UI-10: Nút Hủy booking */}
+                                  {/* Sửa thông tin (Icon button) */}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditModal(b)}
+                                    title="Sửa thông tin đặt chỗ (Xe/Giờ)"
+                                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
+                                  </button>
+
+                                  {/* Hủy đặt chỗ (Icon button) */}
                                   <button
                                     type="button"
                                     onClick={() => handleOpenCancelModal(b)}
                                     title="Hủy giữ chỗ (Chính sách hoàn tiền)"
-                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
                                   >
-                                    <span className="material-symbols-outlined text-[18px]">cancel</span>
+                                    <span className="material-symbols-outlined text-[16px]">close</span>
                                   </button>
                                 </>
                               ) : b.status === 'completed' ? (
                                 <>
-                                  {/* UI-13: Nút Hóa đơn điện tử VAT */}
+                                  {/* Hóa đơn điện tử VAT */}
                                   <button
                                     type="button"
                                     onClick={() => setActiveInvoiceBooking(b)}
                                     title="Xem & Tải hóa đơn điện tử VAT"
-                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                                   >
-                                    <span className="material-symbols-outlined text-[15px] text-blue-600">receipt</span>
+                                    <span className="material-symbols-outlined text-[15px] text-blue-600">receipt_long</span>
                                     <span>Hóa đơn</span>
                                   </button>
 
                                   {b.reviewed ? (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200">
-                                      <span className="material-symbols-outlined text-[14px] text-amber-500">star</span>
-                                      {b.rating} sao
+                                      <span className="material-symbols-outlined text-[13px] text-amber-500">star</span>
+                                      <span>{b.rating}★</span>
                                     </span>
                                   ) : (
                                     <button
                                       type="button"
                                       onClick={() => handleOpenFeedback(b)}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-all shadow-2xs cursor-pointer"
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-all cursor-pointer"
                                     >
-                                      <span className="material-symbols-outlined text-[15px] text-amber-500">star</span>
+                                      <span className="material-symbols-outlined text-[14px] text-amber-500">star</span>
                                       <span>Đánh giá</span>
                                     </button>
                                   )}
                                   <button
                                     type="button"
                                     onClick={() => setActiveQrBooking(b)}
-                                    className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition-colors cursor-pointer"
+                                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs transition-colors cursor-pointer"
+                                    title="Chi tiết vé"
                                   >
-                                    Chi tiết
+                                    <span className="material-symbols-outlined text-[16px]">visibility</span>
                                   </button>
                                 </>
                               ) : (
