@@ -300,11 +300,16 @@ export const SmartParkingFinderPage: React.FC = () => {
     const userMarkerHtml = `
       <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);font-family:'Be Vietnam Pro',Inter,sans-serif;">
         <div style="position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;">
-          <div style="position:relative;width:32px;height:32px;border-radius:50%;background:#1d4ed8;border:2.5px solid #ffffff;box-shadow:0 4px 14px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;">
-            🚗
+          <div style="position:absolute;width:34px;height:34px;border-radius:50%;background:rgba(37,99,235,0.25);"></div>
+          <div style="position:relative;width:30px;height:30px;border-radius:50%;background:#2563eb;border:2.5px solid #ffffff;box-shadow:0 4px 12px rgba(15,23,42,0.25);display:flex;align-items:center;justify-content:center;color:#ffffff;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.85 7h10.29l1.04 3H5.81l1.04-3zM19 17H5v-4.66l.12-.34h13.77l.11.34V17z"/>
+              <circle cx="7.5" cy="14.5" r="1.5"/>
+              <circle cx="16.5" cy="14.5" r="1.5"/>
+            </svg>
           </div>
         </div>
-        <span style="margin-top:3px;padding:2px 8px;border-radius:12px;background:#0f172a;color:#ffffff;font-size:10.5px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3);letter-spacing:0.1px;">
+        <span style="margin-top:3px;padding:2px 8px;border-radius:8px;background:#0f172a;color:#ffffff;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.25);letter-spacing:0.1px;">
           Bạn ở đây
         </span>
       </div>
@@ -316,27 +321,30 @@ export const SmartParkingFinderPage: React.FC = () => {
     });
     L.marker([coords.lat, coords.lng], { icon: userIcon, zIndexOffset: 800 }).addTo(markersLayerRef.current);
 
-    // 2. Marker cho các bãi đỗ xe
+    // 2. Marker cho các bãi đỗ xe (Thiết kế Card Pin hiện đại kiểu Google Maps)
     rankedLots.forEach((lot) => {
       const isSelected = lot.id === currentSelectedLot?.id;
       const isFull = lot.availableSlots === 0;
       const displayName = formatLotMarkerName(lot.name);
 
-      const bg = isSelected ? '#1d4ed8' : isFull ? '#e11d48' : '#059669';
+      const pBg = isSelected ? '#2563eb' : isFull ? '#ef4444' : '#0284c7';
+      const borderStyle = isSelected ? 'border: 2px solid #2563eb;' : 'border: 1px solid #cbd5e1;';
       const shadowStyle = isSelected
-        ? 'box-shadow: 0 0 0 4px rgba(37,99,235,0.4), 0 8px 18px rgba(0,0,0,0.32); transform: scale(1.08);'
-        : 'box-shadow: 0 3px 10px rgba(0,0,0,0.22);';
+        ? 'box-shadow: 0 0 0 3px rgba(37,99,235,0.25), 0 8px 20px -3px rgba(15,23,42,0.28); transform: scale(1.06);'
+        : 'box-shadow: 0 4px 14px -2px rgba(15,23,42,0.16);';
+
+      const availabilityBadge = isFull
+        ? `<span style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;white-space:nowrap;">Hết chỗ</span>`
+        : `<span style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:10px;font-weight:700;padding:1.5px 7px;border-radius:12px;display:inline-flex;align-items:center;gap:3.5px;white-space:nowrap;"><span style="width:5px;height:5px;border-radius:50%;background:#10b981;display:inline-block;"></span>${lot.availableSlots} chỗ trống</span>`;
 
       const lotMarkerHtml = `
-        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;font-family:'Be Vietnam Pro',Inter,sans-serif;transition:transform 0.15s ease;">
-          <div style="padding:4px 9px;border-radius:20px;background:${bg};color:#ffffff;font-size:11px;font-weight:700;border:2px solid #ffffff;display:flex;align-items:center;gap:4px;white-space:nowrap;${shadowStyle}">
-            <span style="font-weight:900;font-size:10px;background:rgba(255,255,255,0.25);border-radius:50%;width:17px;height:17px;display:flex;align-items:center;justify-content:center;">P</span>
-            <span style="letter-spacing:-0.1px;">${displayName}</span>
-            <span style="background:rgba(0,0,0,0.25);padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;">
-              ${isFull ? 'Hết chỗ' : lot.availableSlots + ' ô'}
-            </span>
+        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;font-family:'Be Vietnam Pro',Inter,sans-serif;transition:all 0.15s ease;">
+          <div style="padding:4px 8px 4px 5px;border-radius:22px;background:#ffffff;display:flex;align-items:center;gap:6px;white-space:nowrap;${borderStyle}${shadowStyle}">
+            <span style="font-weight:800;font-size:11px;background:${pBg};color:#ffffff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">P</span>
+            <span style="font-size:11.5px;font-weight:700;color:#0f172a;letter-spacing:-0.1px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</span>
+            ${availabilityBadge}
           </div>
-          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid ${bg};margin-top:-1px;"></div>
+          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid ${isSelected ? '#2563eb' : '#ffffff'};margin-top:-1px;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.12));"></div>
         </div>
       `;
       const lotIcon = L.divIcon({
@@ -353,14 +361,25 @@ export const SmartParkingFinderPage: React.FC = () => {
       marker.addTo(markersLayerRef.current!);
     });
 
-    // 3. Xử lý khung nhìn Camera
+    // 3. Xử lý khung nhìn Camera & Lộ trình dẫn đường đa tầng cao cấp
     if (currentSelectedLot) {
-      // Có bãi chọn: Vẽ đường nét đứt và fit bao trùm lộ trình
+      // Lớp 1: Glow aura định hướng mềm mại
+      L.polyline([[coords.lat, coords.lng], [currentSelectedLot.latitude, currentSelectedLot.longitude]], {
+        color: '#3b82f6',
+        weight: 8,
+        opacity: 0.22,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(markersLayerRef.current);
+
+      // Lớp 2: Lộ trình định tuyến sắc nét, nét bo tròn hiện đại
       L.polyline([[coords.lat, coords.lng], [currentSelectedLot.latitude, currentSelectedLot.longitude]], {
         color: '#2563eb',
-        weight: 4,
-        dashArray: '8, 8',
-        opacity: 0.85,
+        weight: 3.5,
+        dashArray: '8, 10',
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round',
       }).addTo(markersLayerRef.current);
 
       const bounds = L.latLngBounds([
@@ -771,7 +790,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                 className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
               />
               <span className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                <span className="text-amber-500">⚡</span> Có trạm sạc EV
+                <span className="material-symbols-outlined text-[15px] text-amber-500">bolt</span> Có trạm sạc EV
               </span>
             </label>
 
@@ -936,12 +955,15 @@ export const SmartParkingFinderPage: React.FC = () => {
                             : `${lot.distanceKm.toFixed(1)}km`}
                         </span>
                         <span className="text-slate-300">•</span>
-                        <span>🚗 ~{lot.estimatedTravelTimeMinutes || Math.max(1, Math.round(lot.distanceKm * 3))} ph</span>
+                        <span className="flex items-center gap-0.5">
+                          <span className="material-symbols-outlined text-[13px] text-slate-400">directions_car</span>
+                          ~{lot.estimatedTravelTimeMinutes || Math.max(1, Math.round(lot.distanceKm * 3))} ph
+                        </span>
                         {hasEv && (
                           <>
                             <span className="text-slate-300">•</span>
-                            <span className="text-[9.5px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-200 flex items-center">
-                              ⚡ EV
+                            <span className="text-[9.5px] font-bold text-amber-600 bg-amber-50 px-1 py-0.2 rounded border border-amber-200 flex items-center gap-0.5">
+                              <span className="material-symbols-outlined text-[11px]">bolt</span> EV
                             </span>
                           </>
                         )}
@@ -1042,7 +1064,7 @@ export const SmartParkingFinderPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Toggle View: 🗺️ Bản đồ vs 📐 Sơ đồ 2D */}
+          {/* Toggle View: Ban do vs So do 2D */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg shrink-0">
             <button
               type="button"
@@ -1195,7 +1217,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                           </h4>
                           {currentSelectedLot.amenities?.some((a) => a.toLowerCase().includes('sạc') || a.toLowerCase().includes('ev')) && (
                             <span className="px-1.5 py-0.2 text-[9.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded-md shrink-0 flex items-center gap-0.5">
-                              ⚡ EV
+                              <span className="material-symbols-outlined text-[11px]">bolt</span> EV
                             </span>
                           )}
                         </div>
@@ -1308,7 +1330,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                       <span className="w-3 h-3 rounded bg-slate-400"></span> Đã đỗ (Occupied)
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="w-3 h-3 rounded bg-emerald-700 flex items-center justify-center text-[10px] text-white">⚡</span> Sạc EV
+                      <span className="w-3.5 h-3.5 rounded bg-amber-500 flex items-center justify-center text-white"><span className="material-symbols-outlined text-[10px]">bolt</span></span> Sạc EV
                     </span>
                   </div>
                 </div>
@@ -1350,9 +1372,10 @@ export const SmartParkingFinderPage: React.FC = () => {
                           return (
                             <div
                               key={idx}
-                              className="w-12 h-12 rounded bg-blue-100 border border-blue-300 flex items-center justify-center text-[10px] font-bold text-blue-800"
+                              className="w-12 h-12 rounded bg-blue-100 border border-blue-300 flex items-center justify-center text-[10px] font-bold text-blue-800 gap-0.5"
                             >
-                              VÀO ➔
+                              <span>VÀO</span>
+                              <span className="material-symbols-outlined text-[12px]">east</span>
                             </div>
                           );
                         }
@@ -1361,9 +1384,10 @@ export const SmartParkingFinderPage: React.FC = () => {
                           return (
                             <div
                               key={idx}
-                              className="w-12 h-12 rounded bg-rose-100 border border-rose-300 flex items-center justify-center text-[10px] font-bold text-rose-800"
+                              className="w-12 h-12 rounded bg-rose-100 border border-rose-300 flex items-center justify-center text-[10px] font-bold text-rose-800 gap-0.5"
                             >
-                              ➔ RA
+                              <span className="material-symbols-outlined text-[12px]">east</span>
+                              <span>RA</span>
                             </div>
                           );
                         }
@@ -1386,7 +1410,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                             >
                               <span>{cell.code}</span>
                               {isEv && (
-                                <span className="text-[10px] text-amber-500 absolute top-0.5 right-0.5">⚡</span>
+                                <span className="material-symbols-outlined text-[11px] text-amber-500 absolute top-0.5 right-0.5">bolt</span>
                               )}
                               {!isAvailable && (
                                 <span className="material-symbols-outlined text-[12px] opacity-70">directions_car</span>
