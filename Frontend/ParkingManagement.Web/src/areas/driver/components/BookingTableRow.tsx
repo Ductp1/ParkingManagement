@@ -267,7 +267,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
       </td>
 
       {/* CỘT 6: Trạng thái (Luôn nằm trên 1 dòng, không bao giờ rớt dòng) */}
-      <td className={`py-3.5 px-3 transition-colors ${cellBaseClass} whitespace-nowrap`}>
+      <td className={`py-3.5 px-3 transition-colors ${cellBaseClass} whitespace-nowrap overflow-hidden`}>
         {isUpcoming && (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/70 text-[11px] font-bold whitespace-nowrap">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse shrink-0" />
@@ -288,7 +288,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
         )}
       </td>
 
-      {/* CỘT 7: Thao tác (Hàng ngang chuẩn) */}
+      {/* CỘT 7: Thao tác (Rộng 270px, thoải mái cho cả 4 nút thẳng hàng mà không tràn sang cột 6) */}
       <td
         className={`py-3.5 px-4 text-right transition-colors ${cellBaseClass} ${
           isHighlighted ? 'border-r-2 border-blue-500 rounded-r-xl' : ''
@@ -302,7 +302,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
                 type="button"
                 onClick={() => onViewQr(b)}
                 title="Xem vé QR Check-in Barie"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
                 <span>Vé QR</span>
@@ -313,7 +313,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
                 type="button"
                 onClick={() => onExtend(b)}
                 title="Gia hạn thêm thời gian đỗ"
-                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-[15px] text-indigo-600">
                   more_time
@@ -326,7 +326,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
                 type="button"
                 onClick={() => onEdit(b)}
                 title="Sửa thông tin đặt chỗ (Xe/Giờ)"
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-blue-600 transition-colors cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-[16px]">edit_calendar</span>
               </button>
@@ -336,7 +336,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
                 type="button"
                 onClick={() => onCancel(b)}
                 title="Hủy giữ chỗ (Chính sách hoàn tiền)"
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
@@ -348,7 +348,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
                 type="button"
                 onClick={() => onInvoice(b)}
                 title="Xem & Tải hóa đơn điện tử VAT"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shrink-0"
               >
                 <span className="material-symbols-outlined text-[15px] text-blue-600">
                   receipt_long
@@ -357,7 +357,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
               </button>
 
               {b.reviewed ? (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200">
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200 shrink-0">
                   <span className="material-symbols-outlined text-[13px] text-amber-500">
                     star
                   </span>
@@ -367,7 +367,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
                 <button
                   type="button"
                   onClick={() => onFeedback(b)}
-                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs transition-all cursor-pointer shrink-0"
                 >
                   <span className="material-symbols-outlined text-[14px] text-amber-500">
                     star
@@ -378,7 +378,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
               <button
                 type="button"
                 onClick={() => onViewQr(b)}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs transition-colors cursor-pointer shrink-0"
                 title="Chi tiết vé"
               >
                 <span className="material-symbols-outlined text-[16px]">visibility</span>
@@ -388,7 +388,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
             <button
               type="button"
               onClick={() => onRefundDetail(b)}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors shadow-2xs"
+              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer transition-colors shadow-2xs shrink-0"
             >
               Chi tiết hoàn
             </button>

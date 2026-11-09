@@ -536,13 +536,13 @@ export const BookingHistoryPage: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full table-fixed min-w-[1190px] text-left border-separate border-spacing-0">
                 <colgroup>
-                  <col style={{ width: '200px' }} />
-                  <col style={{ width: '210px' }} />
+                  <col style={{ width: '180px' }} />
                   <col style={{ width: '190px' }} />
                   <col style={{ width: '160px' }} />
+                  <col style={{ width: '150px' }} />
+                  <col style={{ width: '110px' }} />
                   <col style={{ width: '130px' }} />
-                  <col style={{ width: '140px' }} />
-                  <col style={{ width: '160px' }} />
+                  <col style={{ width: '270px' }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
