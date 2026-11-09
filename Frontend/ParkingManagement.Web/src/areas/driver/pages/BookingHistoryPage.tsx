@@ -534,23 +534,23 @@ export const BookingHistoryPage: React.FC = () => {
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed min-w-[1190px] text-left border-separate border-spacing-0">
+              <table className="w-full table-fixed min-w-[1350px] text-left border-separate border-spacing-0">
                 <colgroup>
-                  <col style={{ width: '180px' }} />
                   <col style={{ width: '190px' }} />
-                  <col style={{ width: '160px' }} />
-                  <col style={{ width: '150px' }} />
-                  <col style={{ width: '110px' }} />
-                  <col style={{ width: '130px' }} />
-                  <col style={{ width: '270px' }} />
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '180px' }} />
+                  <col style={{ width: '210px' }} />
+                  <col style={{ width: '170px' }} />
+                  <col style={{ width: '140px' }} />
+                  <col style={{ width: '260px' }} />
                 </colgroup>
                 <thead>
                   <tr className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3.5 px-4 border-b border-slate-200">Mã đặt chỗ & Xe</th>
                     <th className="py-3.5 px-4 border-b border-slate-200">Bãi đỗ & Vị trí</th>
                     <th className="py-3.5 px-4 border-b border-slate-200">Thời gian</th>
-                    <th className="py-3.5 px-4 border-b border-slate-200">Dịch vụ</th>
-                    <th className="py-3.5 px-3 border-b border-slate-200">Tổng tiền</th>
+                    <th className="py-3.5 pl-4 pr-6 border-b border-slate-200">Dịch vụ</th>
+                    <th className="py-3.5 pl-2 pr-4 border-b border-slate-200">Tổng tiền</th>
                     <th className="py-3.5 px-3 border-b border-slate-200">Trạng thái</th>
                     <th className="py-3.5 px-4 text-right border-b border-slate-200">Thao tác</th>
                   </tr>

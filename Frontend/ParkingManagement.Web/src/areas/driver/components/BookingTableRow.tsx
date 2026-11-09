@@ -208,22 +208,23 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
         </div>
       </td>
 
-      {/* CỘT 4: Dịch vụ */}
-      <td className={`py-3.5 px-4 transition-colors ${cellBaseClass}`}>
-        <div className="flex flex-col gap-1 max-w-[150px]">
+      {/* CỘT 4: Dịch vụ (Đệm phải pr-6 để không bao giờ chạm cột tiền) */}
+      <td className={`py-3.5 pl-4 pr-6 transition-colors ${cellBaseClass}`}>
+        <div className="flex flex-col gap-1 max-w-[195px]">
           {b.services.map((srv, idx) => {
             const isEv = srv.includes('EV');
             const isExt = srv.includes('Gia hạn');
             return (
               <span
                 key={idx}
-                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border truncate w-fit ${
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10.5px] font-medium border truncate w-fit ${
                   isEv
                     ? 'bg-amber-50 text-amber-800 border-amber-200/80'
                     : isExt
                     ? 'bg-indigo-50 text-indigo-700 border-indigo-200/80'
                     : 'bg-slate-50 text-slate-600 border-slate-200/60'
                 }`}
+                title={srv}
               >
                 {isEv ? (
                   <span className="material-symbols-outlined text-[11px] text-amber-600 shrink-0">
@@ -245,9 +246,9 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
         </div>
       </td>
 
-      {/* CỘT 5: Tổng tiền */}
-      <td className={`py-3.5 px-3 transition-colors ${cellBaseClass}`}>
-        <div className="flex flex-col gap-0.5">
+      {/* CỘT 5: Tổng tiền (Rộng 170px, thoải mái hiển thị đầy đủ thông tin thanh toán/hoàn) */}
+      <td className={`py-3.5 pl-2 pr-4 transition-colors ${cellBaseClass}`}>
+        <div className="flex flex-col gap-0.5 max-w-[160px]">
           <span
             className={`font-extrabold text-xs ${
               isCancelled ? 'text-slate-500' : 'text-slate-900'
@@ -256,7 +257,7 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
             {b.totalPrice > 0 ? `${b.totalPrice.toLocaleString('vi-VN')} đ` : '0 đ'}
           </span>
           <span
-            className={`text-[10.5px] truncate max-w-[120px] block ${
+            className={`text-[11px] leading-snug break-words ${
               isCancelled ? 'text-emerald-700 font-semibold' : 'text-slate-500'
             }`}
             title={b.paymentMethod}
