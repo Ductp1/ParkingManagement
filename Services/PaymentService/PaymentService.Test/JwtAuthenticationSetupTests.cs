@@ -51,7 +51,7 @@ public class JwtAuthenticationSetupTests
     {
         var controllers = typeof(PaymentsController).Assembly.GetTypes()
             .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract && t != typeof(OwnerRevenueReportsController)
-                        && t != typeof(AdminCommissionController))
+                        && t != typeof(AdminCommissionController) && t != typeof(AdminSettlementsController))
             .ToList();
 
         Assert.Contains(typeof(PaymentsController), controllers);
@@ -81,5 +81,13 @@ public class JwtAuthenticationSetupTests
         var authorize = typeof(AdminCommissionController).GetCustomAttribute<AuthorizeAttribute>(inherit: true);
         Assert.Equal("RequireAdmin", authorize?.Policy);
         Assert.DoesNotContain(typeof(AdminCommissionController).GetMethods(), m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null);
+    }
+
+    [Fact]
+    public void AdminSettlementsController_RequiresAdminPolicy()
+    {
+        var authorize = typeof(AdminSettlementsController).GetCustomAttribute<AuthorizeAttribute>(inherit: true);
+        Assert.Equal("RequireAdmin", authorize?.Policy);
+        Assert.DoesNotContain(typeof(AdminSettlementsController).GetMethods(), m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null);
     }
 }
