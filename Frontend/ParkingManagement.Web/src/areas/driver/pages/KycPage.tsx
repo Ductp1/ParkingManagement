@@ -22,8 +22,9 @@ interface KycFormData {
 export const KycPage: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
 
-  // Status for demo / testing
-  const [kycStatus, setKycStatus] = useState<KycStatus>('unverified');
+  const [kycStatus, setKycStatus] = useState<KycStatus>(() => {
+    return (localStorage.getItem('parkmaster_driver_kyc_status') as KycStatus) || 'unverified';
+  });
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [agreementChecked, setAgreementChecked] = useState(false);
@@ -31,12 +32,12 @@ export const KycPage: React.FC = () => {
   // Form State
   const [formData, setFormData] = useState<KycFormData>({
     docType: 'cccd',
-    idNumber: '079201008921',
-    fullName: (user?.fullName || 'BÙI PHẠM CHÍ NHÂN').toUpperCase(),
-    dateOfBirth: '2001-08-15',
+    idNumber: '',
+    fullName: (user?.fullName || '').toUpperCase(),
+    dateOfBirth: '',
     gender: 'male',
-    issueDate: '2022-04-10',
-    issuePlace: 'Cục Cảnh sát QLHC về TTXH',
+    issueDate: '',
+    issuePlace: '',
     licenseClass: 'B2',
     frontImage: null,
     backImage: null,
@@ -44,11 +45,6 @@ export const KycPage: React.FC = () => {
   });
 
   const [previewZoom, setPreviewZoom] = useState<string | null>(null);
-
-  // Mock sample image URLs for quick testing without uploading real files
-  const SAMPLE_FRONT = 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=800&q=80';
-  const SAMPLE_BACK = 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=800&q=80';
-  const SAMPLE_SELFIE = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80';
 
   const handleFileUpload = (
     field: 'frontImage' | 'backImage' | 'selfieImage',
@@ -67,15 +63,6 @@ export const KycPage: React.FC = () => {
     }
   };
 
-  const handleUseDemoImages = () => {
-    setFormData((prev) => ({
-      ...prev,
-      frontImage: SAMPLE_FRONT,
-      backImage: SAMPLE_BACK,
-      selfieImage: SAMPLE_SELFIE,
-    }));
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.frontImage || !formData.backImage) {
@@ -91,18 +78,27 @@ export const KycPage: React.FC = () => {
     setTimeout(() => {
       setIsSubmitting(false);
       setKycStatus('pending');
+      localStorage.setItem('parkmaster_driver_kyc_status', 'pending');
     }, 1200);
   };
 
   const resetForm = () => {
     setKycStatus('unverified');
+    localStorage.removeItem('parkmaster_driver_kyc_status');
     setStep(1);
-    setFormData((prev) => ({
-      ...prev,
+    setFormData({
+      docType: 'cccd',
+      idNumber: '',
+      fullName: (user?.fullName || '').toUpperCase(),
+      dateOfBirth: '',
+      gender: 'male',
+      issueDate: '',
+      issuePlace: '',
+      licenseClass: 'B2',
       frontImage: null,
       backImage: null,
       selfieImage: null,
-    }));
+    });
   };
 
   return (
@@ -122,53 +118,28 @@ export const KycPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Demo State Switcher for Reviewing all UI States */}
-        <div className="flex flex-col gap-1.5 bg-slate-100 p-2 rounded-2xl border border-slate-200 self-start lg:self-auto">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-2 flex items-center justify-between">
-            <span>Giả lập trạng thái duyệt (Demo):</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => { setKycStatus('unverified'); setStep(1); }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                kycStatus === 'unverified'
-                  ? 'bg-white text-slate-800 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Chưa nộp
-            </button>
-            <button
-              onClick={() => setKycStatus('pending')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                kycStatus === 'pending'
-                  ? 'bg-amber-500 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Chờ duyệt
-            </button>
-            <button
-              onClick={() => setKycStatus('verified')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                kycStatus === 'verified'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Đã xác thực
-            </button>
-            <button
-              onClick={() => setKycStatus('rejected')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                kycStatus === 'rejected'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Bị từ chối
-            </button>
-          </div>
+        {/* Trạng thái xác thực */}
+        <div className="flex items-center gap-2 self-start lg:self-auto">
+          {kycStatus === 'verified' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span> Đã xác thực danh tính
+            </span>
+          )}
+          {kycStatus === 'pending' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Đang chờ duyệt hồ sơ
+            </span>
+          )}
+          {kycStatus === 'rejected' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-xs font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-rose-500"></span> Yêu cầu nộp lại hồ sơ
+            </span>
+          )}
+          {kycStatus === 'unverified' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-600 border border-slate-200 text-xs font-bold shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-slate-400"></span> Chưa xác thực
+            </span>
+          )}
         </div>
       </div>
 
@@ -637,14 +608,6 @@ export const KycPage: React.FC = () => {
                       Chụp rõ 4 góc, đủ sáng, không bị bóng đèn lóa sáng hoặc nhòe mờ.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleUseDemoImages}
-                    className="px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer self-start sm:self-auto"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">auto_fix_high</span>
-                    <span>Tải ảnh mẫu (Test nhanh)</span>
-                  </button>
                 </div>
 
                 {/* Upload Zones */}
