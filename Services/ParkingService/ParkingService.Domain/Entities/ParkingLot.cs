@@ -49,6 +49,7 @@ public class ParkingLot : BaseEntity, ISoftDelete
     public ICollection<Zone> Zones { get; private set; } = new List<Zone>();
     public LotCapacityConfig? CapacityConfig { get; private set; }
     public ICollection<LotOperatingHour> OperatingHours { get; private set; } = new List<LotOperatingHour>();
+    public ICollection<LotOperatingHourOverride> OperatingHourOverrides { get; private set; } = new List<LotOperatingHourOverride>();
     public ICollection<LotAmenity> Amenities { get; private set; } = new List<LotAmenity>();
     public ICollection<LotPhoto> Photos { get; private set; } = new List<LotPhoto>();
 
