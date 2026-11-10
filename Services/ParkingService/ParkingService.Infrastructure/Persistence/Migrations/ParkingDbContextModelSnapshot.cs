@@ -693,6 +693,55 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.ToTable("LotOperatingHours", (string)null);
                 });
 
+            modelBuilder.Entity("ParkingService.Domain.Entities.LotOperatingHourOverride", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<TimeOnly>("CloseTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DayOfWeek")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly>("OpenTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WeekOfYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId", "Year", "WeekOfYear", "DayOfWeek")
+                        .IsUnique();
+
+                    b.ToTable("LotOperatingHourOverrides", (string)null);
+                });
+
             modelBuilder.Entity("ParkingService.Domain.Entities.LotPhoto", b =>
                 {
                     b.Property<int>("Id")
@@ -1144,6 +1193,17 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.Navigation("ParkingLot");
                 });
 
+            modelBuilder.Entity("ParkingService.Domain.Entities.LotOperatingHourOverride", b =>
+                {
+                    b.HasOne("ParkingService.Domain.Entities.ParkingLot", "ParkingLot")
+                        .WithMany("OperatingHourOverrides")
+                        .HasForeignKey("ParkingLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ParkingLot");
+                });
+
             modelBuilder.Entity("ParkingService.Domain.Entities.LotPhoto", b =>
                 {
                     b.HasOne("ParkingService.Domain.Entities.ParkingLot", "ParkingLot")
@@ -1200,6 +1260,8 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.Navigation("Amenities");
 
                     b.Navigation("CapacityConfig");
+
+                    b.Navigation("OperatingHourOverrides");
 
                     b.Navigation("OperatingHours");
 

@@ -18,6 +18,7 @@ public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options)
     public DbSet<LotMisdeclarationCase> LotMisdeclarationCases => Set<LotMisdeclarationCase>();
     public DbSet<LotCapacityConfig> LotCapacityConfigs => Set<LotCapacityConfig>();
     public DbSet<LotOperatingHour> LotOperatingHours => Set<LotOperatingHour>();
+    public DbSet<LotOperatingHourOverride> LotOperatingHourOverrides => Set<LotOperatingHourOverride>();
     public DbSet<ClosureSchedule> ClosureSchedules => Set<ClosureSchedule>();
     public DbSet<LotAmenity> LotAmenities => Set<LotAmenity>();
     public DbSet<LotPhoto> LotPhotos => Set<LotPhoto>();
