@@ -236,3 +236,24 @@ public sealed class GetEmergencyLogsUseCase(ILotOperationsRepository repository)
             l.Id, l.ParkingLotId, l.Action, l.ActorUserId, l.ActorRole, l.Reason, l.AffectedBookings, l.CreatedAtUtc)).ToList();
     }
 }
+
+// =====================================================================================
+// US-069: GetOperationalStatusUseCase – trạng thái rút gọn cho service nội bộ
+// (GET /parking-lots/{id}/operations-status – anonymous service-to-service qua Gateway)
+// =====================================================================================
+
+public sealed class GetOperationalStatusUseCase(ILotOperationsRepository repository) : IGetOperationalStatusUseCase
+{
+    public async Task<LotOperationalStatusDto?> ExecuteAsync(int lotId, CancellationToken cancellationToken = default)
+    {
+        var lot = await repository.GetLotAsync(lotId, cancellationToken);
+        if (lot is null)
+            return null;
+
+        // EmergencyStopped = bãi đang Suspended do Emergency Stop (Suspend() của SLA/admin không set mốc thời gian).
+        var emergencyStopped = lot.EmergencyStoppedAtUtc is not null && lot.Status == ParkingLotStatus.Suspended;
+        return new LotOperationalStatusDto(
+            lot.Id, lot.Name, lot.Status.ToString(), emergencyStopped,
+            lot.EmergencyStopReason, lot.IsDataStale, lot.LastHeartbeatAtUtc);
+    }
+}

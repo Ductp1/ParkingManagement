@@ -35,3 +35,16 @@ public sealed record OperationsOverviewDto(
     DateTime? LastHeartbeatAtUtc,
     int StaleThresholdMinutes,
     string SlotBreakdownJson);
+
+/// <summary>
+/// US-069: trạng thái vận hành rút gọn của bãi — endpoint nội bộ service-to-service
+/// (BookingService pull trước khi tạo booking, GateService pull trước khi cho xe vào).
+/// </summary>
+public sealed record LotOperationalStatusDto(
+    int ParkingLotId,
+    string Name,
+    string Status,
+    bool EmergencyStopped,
+    string? EmergencyStopReason,
+    bool IsDataStale,
+    DateTime? LastHeartbeatAtUtc);

@@ -70,6 +70,13 @@ public static class DependencyInjection
         services.AddScoped<ILotAdmissionGate, LotAdmissionGate>();
         services.AddScoped<ILotCapacityRealtimePublisher, NotificationCapacityPublisher>();
         services.AddScoped<IActiveSubscriberCounter, BookingSubscriberCounter>();
+        // US-069: pull trạng thái vận hành bãi từ ParkingService khi xe vào —
+        // chặn nếu bãi đang TẠM ĐÓNG KHẨN CẤP (fail-open khi ParkingService chết).
+        services.AddHttpClient<ILotOperationalStatusProvider, ParkingServiceOperationalStatusClient>((_, client) =>
+        {
+            client.BaseAddress = new Uri(configuration["Services:ParkingService:BaseUrl"] ?? "http://localhost:5103");
+            client.Timeout = TimeSpan.FromSeconds(3);
+        });
         services.AddHttpClient<NotificationCapacityPublisher>((_, client) =>
             client.BaseAddress = new Uri(configuration["NotificationService:BaseUrl"] ?? "http://localhost:5106"));
         services.AddHttpClient<BookingSubscriberCounter>((_, client) =>

@@ -1,5 +1,6 @@
 using BookingService.Application.Features.Bookings;
 using BookingService.Application.Features.MonthlyPasses;
+using BookingService.Infrastructure.HttpClients;
 using BookingService.Infrastructure.Integrations;
 using BookingService.Infrastructure.Persistence;
 using BookingService.Infrastructure.Persistence.Queries;
@@ -37,6 +38,12 @@ public static class DependencyInjection
         services.AddScoped<ILotSubscriberQuotaProvider, GateCapacityQuotaProvider>();
         services.AddHttpClient<GateCapacityQuotaProvider>((_, client) =>
             client.BaseAddress = new Uri(configuration["GateService:BaseUrl"] ?? "http://localhost:5107"));
+        // US-069: check trang thai van hanh bai truoc khi tao booking (fail-open khi ParkingService chet).
+        services.AddHttpClient<ILotOperationalStatusProvider, ParkingServiceOperationalStatusClient>((_, client) =>
+        {
+            client.BaseAddress = new Uri(configuration["ParkingService:BaseUrl"] ?? "http://localhost:5103/");
+            client.Timeout = TimeSpan.FromSeconds(3); // nhanh de khai bao dat cho khong bi treo khi ParkingService chet
+        });
         return services;
     }
 }

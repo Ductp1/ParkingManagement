@@ -73,7 +73,7 @@ export const OperationsPanel: React.FC<OperationsPanelProps> = ({ lotId, lotName
   }, [loadOverview, loadLogs]);
 
   // US-065/066: có thay đổi capacity qua SignalR → refresh ngay dashboard (không đợi 30s).
-  useParkingHub(lotId, () => { void loadOverview(true); });
+  useParkingHub(lotId, () => { void loadOverview(true); }, () => { void loadOverview(true); });
 
   const reasonValid = reason.trim().length >= 5;
 

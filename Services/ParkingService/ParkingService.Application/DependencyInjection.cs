@@ -121,6 +121,7 @@ public static class DependencyInjection
         services.AddScoped<IEmergencyStopUseCase, EmergencyStopUseCase>();
         services.AddScoped<ILiftEmergencyStopUseCase, LiftEmergencyStopUseCase>();
         services.AddScoped<IGetEmergencyLogsUseCase, GetEmergencyLogsUseCase>();
+        services.AddScoped<IGetOperationalStatusUseCase, GetOperationalStatusUseCase>();
 
         // Physical Changes (SLA 48h Protection) (US-061, EP09)
         services.AddScoped<IDeclarePhysicalChangeUseCase, DeclarePhysicalChangeUseCase>();

@@ -221,7 +221,8 @@ public sealed class CreateBookingUseCase(
     IBookingRepository repository,
     IQrTokenService qrService,
     IBookingEventPublisher events,
-    TimeProvider timeProvider) : ICreateBookingUseCase
+    TimeProvider timeProvider,
+    ILotOperationalStatusProvider? lotStatusProvider = null) : ICreateBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
     {
@@ -237,6 +238,16 @@ public sealed class CreateBookingUseCase(
 
         if (command.StartAtUtc > now.AddDays(30))
             throw new ValidationException("Chỉ được đặt chỗ trước tối đa 30 ngày.");
+
+        // US-069: bãi đang TẠM ĐÓNG KHẨN CẤP → chặn tạo booking mới (pull real-time từ ParkingService).
+        // FAIL-OPEN: không tra cứu được trạng thái (ParkingService chết) → vẫn cho đặt (spec assumption 3:
+        // ưu tiên availability — ParkingService chết không chặn toàn bộ booking).
+        var lotStatus = lotStatusProvider is null
+            ? null
+            : await lotStatusProvider.GetAsync(command.ParkingLotId, cancellationToken);
+        if (lotStatus is { EmergencyStopped: true })
+            throw new ConflictException(
+                $"Bãi {lotStatus.Name} đang TẠM ĐÓNG KHẨN CẤP ({lotStatus.EmergencyStopReason}) – không nhận đặt chỗ mới lúc này. Vui lòng chọn bãi khác hoặc thử lại sau.");
 
         var code = $"BK-{now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
         var qrToken = qrService.GenerateToken(code, command.PlateNumber, command.ParkingLotId, command.EndAtUtc.AddHours(2));

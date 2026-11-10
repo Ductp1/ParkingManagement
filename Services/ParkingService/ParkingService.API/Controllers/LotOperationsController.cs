@@ -23,6 +23,7 @@ public sealed class LotOperationsController(
     IEmergencyStopUseCase emergencyStop,
     ILiftEmergencyStopUseCase liftEmergencyStop,
     IGetEmergencyLogsUseCase emergencyLogs,
+    IGetOperationalStatusUseCase operationalStatus,
     ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>GET /api/v1/parking-lots/{lotId}/dashboard – tổng quan vận hành (US-067).</summary>
@@ -72,6 +73,21 @@ public sealed class LotOperationsController(
     public async Task<ActionResult<IReadOnlyList<EmergencyStopLogDto>>> EmergencyLogs(
         int lotId, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
         => Ok(await emergencyLogs.ExecuteAsync(lotId, take, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/parking-lots/{lotId}/operations-status – trạng thái vận hành rút gọn (US-069).
+    /// Endpoint nội bộ service-to-service: BookingService chặn tạo booking mới, GateService chặn
+    /// xe vào khi bãi đang TẠM ĐÓNG KHẨN CẤP. Pull real-time (không qua event → luôn tươi).
+    /// </summary>
+    [HttpGet("operations-status")]
+    [ProducesResponseType<LotOperationalStatusDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotOperationalStatusDto>> OperationalStatus(
+        int lotId, CancellationToken cancellationToken)
+    {
+        var status = await operationalStatus.ExecuteAsync(lotId, cancellationToken);
+        return status is null ? NotFound() : Ok(status);
+    }
 
     /// <summary>Actor từ JWT (UserId); chưa đăng ký auth → 0 (demo/local). Role ưu tiên Admin &gt; LotOwner &gt; Staff.</summary>
     private int ResolveActorUserId() => currentUser.UserId ?? 0;

@@ -68,3 +68,13 @@ public static class StalenessEvaluator
     public static bool NeedsTransitionToStale(DateTime? lastHeartbeatAtUtc, bool isStale, DateTime nowUtc, TimeSpan staleAfter)
         => !isStale && (lastHeartbeatAtUtc is null || nowUtc - lastHeartbeatAtUtc.Value > staleAfter);
 }
+
+/// <summary>
+/// US-069: trạng thái vận hành rút gọn cho service nội bộ — BookingService pull trước khi tạo
+/// booking, GateService pull trước khi cho xe vào (fail-open khi ParkingService chết — caller xử lý).
+/// </summary>
+public interface IGetOperationalStatusUseCase
+{
+    /// <summary>null khi bãi không tồn tại (caller tự quyết định hành vi).</summary>
+    Task<LotOperationalStatusDto?> ExecuteAsync(int lotId, CancellationToken cancellationToken = default);
+}
