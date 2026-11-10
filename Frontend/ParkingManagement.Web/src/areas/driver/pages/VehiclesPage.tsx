@@ -25,6 +25,8 @@ export const VehiclesPage: React.FC = () => {
     setEditingVehicle(v);
   };
 
+  const defaultVehicle = vehicles.find((v) => v.isDefault) || vehicles[0];
+
   const evCount = vehicles.filter(
     (v) =>
       v.fuelType === 'Electric' ||
@@ -40,7 +42,7 @@ export const VehiclesPage: React.FC = () => {
         <div className="flex flex-col gap-2 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            SMART GARAGE V2.4 • HỆ THỐNG ANPR TỰ ĐỘNG NHẬN DIỆN
+            QUẢN LÝ PHƯƠNG TIỆN • NHẬN DIỆN BIỂN SỐ ANPR
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Phương tiện của tôi
@@ -170,18 +172,22 @@ export const VehiclesPage: React.FC = () => {
         {/* Metric 4 */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">Ví ParkMaster Pay</span>
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">Xe ưu tiên nhận diện</span>
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[20px]">star</span>
             </div>
           </div>
           <div>
-            <div className="text-3xl font-extrabold text-slate-900">
-              2.450.000 <span className="text-sm font-semibold">đ</span>
+            <div className="text-xl sm:text-2xl font-extrabold text-slate-900 truncate">
+              {defaultVehicle ? defaultVehicle.plateDisplay || defaultVehicle.plateNumber : 'Chưa liên kết'}
             </div>
             <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
-              <span className="material-symbols-outlined text-blue-600 text-[14px]">bolt</span>
-              <span>Tự động trừ tiền vé khi xuất cổng</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span className="truncate">
+                {defaultVehicle
+                  ? `${defaultVehicle.brand || ''} ${defaultVehicle.model || 'Xe'} (Cao ${defaultVehicle.heightCm} cm)`
+                  : 'Hãy thêm xe vào Garage'}
+              </span>
             </div>
           </div>
         </div>
@@ -264,7 +270,9 @@ export const VehiclesPage: React.FC = () => {
                   </div>
                   <div>
                     <span className="font-bold text-slate-900">Thẻ ParkMaster Virtual Tag</span>
-                    <p className="text-slate-500 text-[11px]">Mã ID: PKM-RFID-88932 (Hoạt động tốt)</p>
+                    <p className="text-slate-500 text-[11px]">
+                      Mã định danh: PKM-TAG-{defaultVehicle?.plateNumber?.replace(/[^a-zA-Z0-9]/g, '') || user?.id || 'VN'} (Kích hoạt)
+                    </p>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-bold text-[10px]">
