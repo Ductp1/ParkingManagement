@@ -82,6 +82,10 @@ public static class DependencyInjection
         services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
         services.AddScoped<IGetAuditLogFilterOptionsUseCase, GetAuditLogFilterOptionsUseCase>();
         services.AddScoped<IExportAuditLogsUseCase, ExportAuditLogsUseCase>();
+        // US-080: quyết toán định kỳ – chu kỳ quyết toán cho PaymentService (nội bộ) + tài khoản nhận tiền của chủ bãi
+        services.AddScoped<IResolveInternalSystemConfigUseCase, ResolveInternalSystemConfigUseCase>();
+        services.AddScoped<IGetOwnerPayoutAccountUseCase, GetOwnerPayoutAccountUseCase>();
+        services.AddScoped<IListOwnerPayoutAccountsUseCase, ListOwnerPayoutAccountsUseCase>();
         return services;
     }
 }
