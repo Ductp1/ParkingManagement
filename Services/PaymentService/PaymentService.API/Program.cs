@@ -5,6 +5,9 @@ using ParkingManagement.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Ghi đè cấu hình máy local (RabbitMQ password...) — file bị gitignore, xem UserService.API cùng pattern.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddEnvironmentVariables();
+
 // ===== Composition Root: lắp ráp các layer của PaymentService =====
 builder.AddServiceDefaults("PaymentService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
 // JWT do UserService phát hành (RS256): kiểm tra chữ ký bằng public key + policy RBAC dùng chung (T-102).
