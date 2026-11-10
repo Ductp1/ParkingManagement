@@ -22,6 +22,9 @@ import { GATE_SUB_TABS } from './pages/operations/gate/gateTabs';
 import { FaqListPage } from './pages/communications/FaqListPage';
 import { SendNotificationPage } from './pages/communications/SendNotificationPage';
 import { CommissionPage } from './pages/finance/commission/CommissionPage';
+import { AdjustmentsPage } from './pages/finance/settlements/AdjustmentsPage';
+import { PayoutsPage } from './pages/finance/settlements/PayoutsPage';
+import { SettlementsPage } from './pages/finance/settlements/SettlementsPage';
 import { ExportsPage, ReportPage } from './pages/reports/ReportPages';
 import { REPORTS } from './pages/reports/reportSpecs';
 import { SystemSettingsListPage } from './pages/access/SystemSettingsListPage';
@@ -90,13 +93,14 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/gate-activity/shifts" element={unavailable('gateShifts', { subTabs: GATE_SUB_TABS })} />
 
         {/* Finance */}
-        <Route path="finance/settlements" element={unavailable('settlements')} />
-        <Route path="finance/payouts" element={unavailable('payouts')} />
+        {/* US-080: quyết toán định kỳ – kỳ (chi tiết ?settlement=), chi trả, bút toán điều chỉnh. */}
+        <Route path="finance/settlements" element={<SettlementsPage />} />
+        <Route path="finance/payouts" element={<PayoutsPage />} />
         {/* US-079: hoa hồng nền tảng – theo bãi / chủ bãi / nguồn tỷ lệ (bộ lọc trên URL, đổi tab giữ nguyên). */}
         <Route path="finance/commission" element={<CommissionPage tab="lots" />} />
         <Route path="finance/commission/owners" element={<CommissionPage tab="owners" />} />
         <Route path="finance/commission/sources" element={<CommissionPage tab="sources" />} />
-        <Route path="finance/adjustments" element={unavailable('adjustments')} />
+        <Route path="finance/adjustments" element={<AdjustmentsPage />} />
         <Route path="finance/transactions" element={unavailable('transactions')} />
         <Route path="finance/refunds" element={unavailable('refunds')} />
 
