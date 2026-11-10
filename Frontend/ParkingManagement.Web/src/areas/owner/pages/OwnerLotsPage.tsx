@@ -8,6 +8,7 @@ import {
   RefreshCw,
   FolderTree,
   Sliders,
+  Activity,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
@@ -36,6 +37,7 @@ import { RegisterLotModal } from '../components/RegisterLotModal';
 import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
 import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
 import { CapacityConfigSection } from '../components/capacity/CapacityConfigSection';
+import { OperationsPanel } from '../components/operations/OperationsPanel';
 
 export const OwnerLotsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -48,10 +50,10 @@ export const OwnerLotsPage: React.FC = () => {
   const [loadingLots, setLoadingLots] = useState(true);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26)
-  const [activeTab, setActiveTab] = useState<'structure' | 'capacity'>(() => {
+  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operations' (US-067/068/069)
+  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operations'>(() => {
     const tabParam = searchParams.get('tab');
-    return tabParam === 'capacity' ? 'capacity' : 'structure';
+    return tabParam === 'capacity' || tabParam === 'operations' ? tabParam : 'structure';
   });
 
   // Cấu hình Sức chứa & Vùng đệm vãng lai (UI-26)
@@ -224,7 +226,7 @@ export const OwnerLotsPage: React.FC = () => {
     }
   }, [selectedLotId, activeTab, loadStructureData, loadCapacityConfig, setSearchParams]);
 
-  const handleTabChange = (tab: 'structure' | 'capacity') => {
+  const handleTabChange = (tab: 'structure' | 'capacity' | 'operations') => {
     setActiveTab(tab);
     if (selectedLotId) {
       setSearchParams((prev) => {
@@ -562,6 +564,19 @@ export const OwnerLotsPage: React.FC = () => {
             <Sliders size={16} />
             Sức chứa & Vùng đệm (UI-26)
           </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('operations')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'operations'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Activity size={16} />
+            Vận hành Real-time (US-067)
+          </button>
         </div>
       )}
 
@@ -727,7 +742,19 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          3. CÁC MODALS THAO TÁC
+          3. TAB 3 CONTENT: VẬN HÀNH REAL-TIME (US-067 dashboard / US-068 heartbeat / US-069 emergency)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'operations' && (
+        <OperationsPanel
+          key={selectedLot.id}
+          lotId={selectedLot.id}
+          lotName={selectedLot.name}
+          onLotChanged={() => { void loadOwnerLots(selectedLot.id); }}
+        />
+      )}
+
+      {/* =====================================================================
+          4. CÁC MODALS THAO TÁC
       ====================================================================== */}
       {/* Modal Thêm / Sửa Zone */}
       <ZoneModal

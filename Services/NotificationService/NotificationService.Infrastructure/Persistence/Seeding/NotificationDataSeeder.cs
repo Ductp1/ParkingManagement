@@ -63,6 +63,24 @@ public sealed class NotificationDataSeeder(ILogger<NotificationDataSeeder> logge
                 new DeviceToken { UserId = DemoIds.OwnerVincomUser, Token = "demo-fcm-token-owner-vincom-web", Platform = "Web", DeviceName = "Chrome – Owner portal", LastUsedAtUtc = DateTime.UtcNow });
         }
 
+        // US-086: mẫu LOT_EMERGENCY_LIFTED (InApp vi/en) seed runtime idempotent — DB cũ đã có Id 38
+        // của bản Us086_EmergencyNotifications trước đó nên không đưa vào HasData (đụng PK khi migrate).
+        foreach (var (language, title, body) in new[]
+        {
+            ("vi", "Bãi đã mở lại", "Bãi {LotName} đã được gỡ đóng khẩn cấp. Lý do: {Reason}. Bãi nhận đặt chỗ và check-in bình thường."),
+            ("en", "Lot reopened", "Lot {LotName} emergency closure has been lifted. Reason: {Reason}. The lot is accepting bookings and check-ins again."),
+        })
+        {
+            var exists = await db.NotificationTemplates.AnyAsync(
+                t => t.Key == "LOT_EMERGENCY_LIFTED" && t.Channel == NotificationChannel.InApp && t.Language == language, cancellationToken);
+            if (!exists)
+                db.NotificationTemplates.Add(new NotificationTemplate
+                {
+                    Key = "LOT_EMERGENCY_LIFTED", Channel = NotificationChannel.InApp, Language = language,
+                    TitleTemplate = title, BodyTemplate = body, IsActive = true,
+                });
+        }
+
         await db.SaveChangesAsync(cancellationToken);
     }
 }

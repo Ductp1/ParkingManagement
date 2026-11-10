@@ -18,6 +18,7 @@ public sealed class NotificationIntegrationEventHandler(
     IBookingConfirmationNotifications bookingConfirmations,
     IBookingReminderScheduler reminderScheduler,
     IOwnerBookingNotifications ownerNotifications,
+    ILotEmergencyAlertNotifications emergencyAlerts,
     ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -61,7 +62,24 @@ public sealed class NotificationIntegrationEventHandler(
                     Deserialize<BookingCreated>(envelope), envelope.EventId, cancellationToken);
                 break;
 
-            // US-086 bổ sung: LotEmergencyStopped (fan-out đa kênh + tracking).
+            // ===== US-086 + US-068/069: cảnh báo khẩn cấp đa kênh + stale/recovered cho chủ bãi =====
+            case nameof(LotEmergencyStopped):
+                await emergencyAlerts.HandleLotEmergencyStoppedAsync(
+                    Deserialize<LotEmergencyStopped>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotEmergencyLifted):
+                await emergencyAlerts.HandleLotEmergencyLiftedAsync(
+                    Deserialize<LotEmergencyLifted>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotDataMarkedStale):
+                await emergencyAlerts.HandleLotDataMarkedStaleAsync(
+                    Deserialize<LotDataMarkedStale>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotDataRecovered):
+                await emergencyAlerts.HandleLotDataRecoveredAsync(
+                    Deserialize<LotDataRecovered>(envelope), envelope.EventId, cancellationToken);
+                break;
+
             default:
                 logger.LogInformation("Event {EventType} (eventId={EventId}) chưa có handler nghiệp vụ — bỏ qua an toàn.",
                     envelope.EventType, envelope.EventId);

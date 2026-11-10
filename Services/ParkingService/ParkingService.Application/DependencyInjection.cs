@@ -6,6 +6,7 @@ using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
 using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
+using ParkingService.Application.Features.LotOperations;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.LotDetails;
 using ParkingService.Application.Features.Slots;
@@ -103,6 +104,13 @@ public static class DependencyInjection
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
+
+        // Lot Operations – Dashboard / Heartbeat / Emergency Stop (US-067, US-068, US-069)
+        services.AddScoped<IRecordHeartbeatUseCase, RecordHeartbeatUseCase>();
+        services.AddScoped<IGetOperationsOverviewUseCase, GetOperationsOverviewUseCase>();
+        services.AddScoped<IEmergencyStopUseCase, EmergencyStopUseCase>();
+        services.AddScoped<ILiftEmergencyStopUseCase, LiftEmergencyStopUseCase>();
+        services.AddScoped<IGetEmergencyLogsUseCase, GetEmergencyLogsUseCase>();
 
         return services;
     }

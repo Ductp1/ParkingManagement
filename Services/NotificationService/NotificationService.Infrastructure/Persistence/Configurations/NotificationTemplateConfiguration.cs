@@ -63,5 +63,7 @@ internal sealed class NotificationTemplateConfiguration : IEntityTypeConfigurati
             T("LOT_DATA_STALE", NotificationChannel.InApp, "Stale lot data", "Lot {LotName} has received no device heartbeat since {LastHeartbeat}. The dashboard is showing stale data — please check your devices.", "en"),
             T("LOT_DATA_RECOVERED", NotificationChannel.InApp, "Dữ liệu bãi đã phục hồi", "Bãi {LotName} đã nhận lại tín hiệu lúc {Heartbeat}. Dashboard trở lại chế độ real-time."),
             T("LOT_DATA_RECOVERED", NotificationChannel.InApp, "Lot data recovered", "Lot {LotName} received a heartbeat at {Heartbeat}. The dashboard is back to real-time.", "en"));
+        // Lưu ý US-086: mẫu LOT_EMERGENCY_LIFTED (InApp vi/en) seed qua NotificationDataSeeder.SeedExtrasAsync —
+        // KHÔNG thêm vào HasData: DB cũ đã có dòng Id 38 (bản Us086_EmergencyNotifications đời trước), HasData sẽ đụng PK.
     }
 }

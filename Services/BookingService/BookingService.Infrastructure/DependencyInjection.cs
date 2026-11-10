@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddServiceDbContext<BookingDbContext>(configuration);
         services.AddScoped<IBookingQueries, BookingQueries>();
         services.AddScoped<IBookingRepository, BookingRepository>();
+        services.AddScoped<ILotBookingSummaryQueries, LotBookingQueries>(); // US-067/069: đọc-only cho ParkingService
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
         services.AddHostedService<HoldExpiryWorker>();
         // US-083: outbox publisher + consumer kết quả thanh toán (PaymentSucceeded → ConfirmPayment → BookingConfirmed).
