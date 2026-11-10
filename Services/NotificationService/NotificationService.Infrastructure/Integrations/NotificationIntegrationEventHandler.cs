@@ -76,6 +76,7 @@ public sealed class NotificationIntegrationEventHandler(
                     Deserialize<LotDataMarkedStale>(envelope), envelope.EventId, cancellationToken);
                 break;
             case nameof(LotDataRecovered):
+                await emergencyNotifications.HandleLotDataRecoveredAsync(
                     Deserialize<LotDataRecovered>(envelope), envelope.EventId, cancellationToken);
                 break;
 
