@@ -80,6 +80,8 @@ public static class DependencyInjection
 
         // ===== US-084: nhắc lịch booking (đặt/hủy/reschedule job + worker quét due) =====
         services.Configure<ReminderOptions>(configuration.GetSection(ReminderOptions.SectionName));
+        // Use case nhận ReminderOptions trực tiếp → đăng ký cả instance (host DI validation cần).
+        services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ReminderOptions>>().Value);
         services.AddScoped<Application.Features.Reminders.IReminderJobRepository, ReminderJobRepository>();
         services.AddScoped<Application.Features.Reminders.IBookingReminderScheduler, Application.Features.Reminders.BookingReminderScheduler>();
         services.AddHostedService<Workers.ReminderSchedulerWorker>();
