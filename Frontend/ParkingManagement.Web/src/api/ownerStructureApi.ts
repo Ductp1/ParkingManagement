@@ -7,11 +7,14 @@ import type {
   UpdateZoneRequest,
   CreateFloorRequest,
   UpdateFloorRequest,
+  CreateSlotRequest,
+  UpdateSlotRequest,
+  BatchCreateSlotsRequest,
   ParkingLotHierarchyDto,
 } from '@/types/ownerStructure';
 
 /**
- * Service API quản lý Cấu trúc phân tầng bãi xe: Zone -> Floor -> Slot (US-058).
+ * Service API quản lý Cấu trúc phân tầng bãi xe: Zone -> Floor -> Slot (US-058 & US-063).
  * Backend: ParkingService / ParkingLotStructureController & ParkingLotsController.
  */
 export const ownerStructureApi = {
@@ -42,7 +45,7 @@ export const ownerStructureApi = {
   },
 
   /**
-   * Cập nhật thông tin Khu vực (Zone).
+   * Cập nhật thông tin Khu vực (Zone), bao gồm trạng thái tạm đóng (isClosed) và lý do (closedReason).
    */
   updateZone: async (
     id: number,
@@ -89,7 +92,7 @@ export const ownerStructureApi = {
   },
 
   /**
-   * Cập nhật thông số Tầng (Floor).
+   * Cập nhật thông số Tầng (Floor), bao gồm trạng thái tạm đóng tầng (isClosed).
    */
   updateFloor: async (
     id: number,
@@ -129,5 +132,54 @@ export const ownerStructureApi = {
       `/api/v1/parking-lots/floors/${floorId}/slots`
     );
     return response.data;
+  },
+
+  /**
+   * Tạo ô đỗ đơn lẻ trên tầng.
+   */
+  createSlot: async (
+    floorId: number,
+    data: CreateSlotRequest
+  ): Promise<SlotDto> => {
+    const response = await apiClient.post<SlotDto>(
+      `/api/v1/parking-lots/floors/${floorId}/slots`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Tạo hàng loạt ô đỗ tự động trên tầng.
+   */
+  batchCreateSlots: async (
+    floorId: number,
+    data: BatchCreateSlotsRequest
+  ): Promise<number> => {
+    const response = await apiClient.post<number>(
+      `/api/v1/parking-lots/floors/${floorId}/slots/batch`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Cập nhật cấu hình ô đỗ, bao gồm bật/tắt kích hoạt hoạt động (isActive - US-063).
+   */
+  updateSlot: async (
+    id: number,
+    data: UpdateSlotRequest
+  ): Promise<SlotDto> => {
+    const response = await apiClient.put<SlotDto>(
+      `/api/v1/parking-lots/slots/${id}`,
+      data
+    );
+    return response.data;
+  },
+
+  /**
+   * Xóa ô đỗ khỏi CSDL. Chặn xóa nếu ô đỗ đang có xe hoặc có booking.
+   */
+  deleteSlot: async (id: number): Promise<void> => {
+    await apiClient.delete(`/api/v1/parking-lots/slots/${id}`);
   },
 };
