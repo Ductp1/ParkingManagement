@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
+        services.AddScoped<IClosureScheduleRepository, ClosureScheduleRepository>(); // US-063
         services.AddScoped<ILotDetailsRepository, LotDetailsRepository>();           // US-064
         services.AddScoped<ILotOperatingHourRepository, LotOperatingHourRepository>();
         services.AddScoped<ILotPhysicalChangeRepository, LotPhysicalChangeRepository>(); // US-061

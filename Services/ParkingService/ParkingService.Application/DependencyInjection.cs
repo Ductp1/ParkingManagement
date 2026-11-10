@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Capacity;
+using ParkingService.Application.Features.Closures;
 using ParkingService.Application.Features.OperatingHours;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
@@ -83,6 +84,13 @@ public static class DependencyInjection
         // Capacity & Walk-in Buffer (UI-26, EP10)
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
+
+        // Closures & Maintenance (US-063, EP09)
+        services.AddScoped<ICreateClosureScheduleUseCase, CreateClosureScheduleUseCase>();
+        services.AddScoped<IValidateClosureImpactUseCase, ValidateClosureImpactUseCase>();
+        services.AddScoped<ICancelClosureScheduleUseCase, CancelClosureScheduleUseCase>();
+        services.AddScoped<IGetLotClosureSchedulesUseCase, GetLotClosureSchedulesUseCase>();
+        services.AddScoped<IGetClosureScheduleByIdUseCase, GetClosureScheduleByIdUseCase>();
 
         // Lot Details (Amenities, Photos, Attributes) (US-064, EP09)
         services.AddScoped<IGetStandardAmenitiesCatalogUseCase, GetStandardAmenitiesCatalogUseCase>();
