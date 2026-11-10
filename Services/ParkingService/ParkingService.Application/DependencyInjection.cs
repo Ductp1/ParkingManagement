@@ -104,6 +104,7 @@ public static class DependencyInjection
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
+        services.AddScoped<IDeleteLotOperatingHoursOverrideUseCase, DeleteLotOperatingHoursOverrideUseCase>();
 
         // Physical Changes (SLA 48h Protection) (US-061, EP09)
         services.AddScoped<IDeclarePhysicalChangeUseCase, DeclarePhysicalChangeUseCase>();
