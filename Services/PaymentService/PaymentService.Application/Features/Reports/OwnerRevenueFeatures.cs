@@ -1,6 +1,7 @@
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
+using PaymentService.Application.Features.Commission;
 using PaymentService.Domain.Entities;
 
 namespace PaymentService.Application.Features.Reports;
@@ -29,11 +30,22 @@ public sealed record OwnerRefundByReasonDto(string Reason, int RefundCount, deci
 public sealed record OwnerSettlementSummaryDto(string SettlementStatus, int SettledPeriodCount, DateOnly? SettledFrom, DateOnly? SettledTo,
     decimal? CommissionAmount, decimal? PayoutAmount);
 
+/// <summary>US-079: hoa hồng nền tảng tự tính của một bãi (Accrual + Reversal), PendingCount = giao dịch còn chờ job tính.</summary>
+public sealed record OwnerCommissionByLotDto(int ParkingLotId, decimal CommissionAmount, int PendingCount, string Status);
+
+/// <summary>
+/// US-079: hoa hồng nền tảng do hệ thống tự tính (sổ CommissionEntries) cho các giao dịch trong khoảng lọc – theo kỳ giao dịch gốc như
+/// refundBasis. Khác block Settlement (số đã quyết toán, US-080). Status = Calculated | Partial | Pending: PendingCount &gt; 0 nghĩa là
+/// CommissionAmount CHƯA đủ (không phải 0).
+/// </summary>
+public sealed record OwnerCommissionSummaryDto(string Status, decimal CommissionAmount, int PendingCount,
+    IReadOnlyList<OwnerCommissionByLotDto> ByLot);
+
 /// <summary>US-078 AC1: báo cáo doanh thu của chủ bãi đang đăng nhập. From bao gồm, To loại trừ (ngày theo giờ Việt Nam).</summary>
 public sealed record OwnerRevenueSummaryDto(DateOnly From, DateOnly To, int? ParkingLotId, string Currency, string RefundBasis,
     OwnerRevenueTotalsDto Totals, IReadOnlyList<OwnerRevenueByLotDto> ByLot, IReadOnlyList<OwnerRevenueByKeyDto> ByMethod,
     IReadOnlyList<OwnerRevenueByKeyDto> ByPurpose, IReadOnlyList<OwnerRevenueByHourDto> ByHourOfDay,
-    IReadOnlyList<OwnerRefundByReasonDto> ByRefundReason, OwnerSettlementSummaryDto Settlement);
+    IReadOnlyList<OwnerRefundByReasonDto> ByRefundReason, OwnerSettlementSummaryDto Settlement, OwnerCommissionSummaryDto Commission);
 
 /// <summary>Tham số lọc nhận từ query string (chưa kiểm tra). Không có ownerProfileId: chủ bãi luôn lấy từ token.</summary>
 public sealed record OwnerRevenueQuery(DateOnly? From = null, DateOnly? To = null, int? ParkingLotId = null);
@@ -63,8 +75,40 @@ public sealed record OwnerRevenueDayRow(int Year, int Month, int Day, decimal Gr
 public sealed record OwnerRevenueDayHourRow(int Year, int Month, int Day, int HourOfDay, decimal GrossAmount, decimal RefundedAmount,
     int TransactionCount);
 
+// ----- US-079: hoa hồng (sổ CommissionEntries, lọc theo OwnerProfileId / ParkingLotId / PaidAtUtc chép từ Payment) -----
+public sealed record OwnerCommissionLotRow(int ParkingLotId, decimal CommissionAmount);
+
+public sealed record OwnerCommissionDayRow(int Year, int Month, int Day, decimal CommissionAmount);
+
+public sealed record OwnerCommissionDayHourRow(int Year, int Month, int Day, int HourOfDay, decimal CommissionAmount);
+
+/// <summary>Số giao dịch còn chờ tính theo (bãi, ngày, giờ Việt Nam) – thường rất ít (job chạy mỗi phút).</summary>
+public sealed record OwnerCommissionPendingRow(int ParkingLotId, int Year, int Month, int Day, int HourOfDay, int PendingCount);
+
+/// <summary>Hoa hồng của một giao dịch: Rate / RateSource của Accrual; CoveredAmount = RefundedAmount đã được bù bởi Reversal.</summary>
+public sealed record PaymentCommissionRow(int PaymentId, bool HasAccrual, decimal CommissionAmount, decimal? Rate, string? RateSource,
+    decimal CoveredAmount);
+
 public interface IOwnerRevenueQueries
 {
+    /// <summary>US-079: tổng hoa hồng theo bãi – GROUP BY ở database.</summary>
+    Task<IReadOnlyList<OwnerCommissionLotRow>> SumCommissionByLotAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>US-079: tổng hoa hồng theo ngày Việt Nam.</summary>
+    Task<IReadOnlyList<OwnerCommissionDayRow>> SumCommissionByVietnamDayAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
+
+    /// <summary>US-079: tổng hoa hồng theo (ngày, giờ) Việt Nam.</summary>
+    Task<IReadOnlyList<OwnerCommissionDayHourRow>> SumCommissionByVietnamDayHourAsync(OwnerRevenueFilter filter,
+        CancellationToken cancellationToken);
+
+    /// <summary>US-079: giao dịch được tính doanh thu nhưng còn chờ tính hoa hồng (trừ mục đích bị loại).</summary>
+    Task<IReadOnlyList<OwnerCommissionPendingRow>> CountCommissionPendingAsync(OwnerRevenueFilter filter,
+        IReadOnlyCollection<PaymentPurpose> excludedPurposes, CancellationToken cancellationToken);
+
+    /// <summary>US-079: hoa hồng của các giao dịch đang hiển thị (một trang / file CSV).</summary>
+    Task<IReadOnlyList<PaymentCommissionRow>> ListCommissionByPaymentAsync(IReadOnlyCollection<int> paymentIds,
+        CancellationToken cancellationToken);
+
     /// <summary>Doanh thu theo (bãi, phương thức, mục đích) – GROUP BY ở database.</summary>
     Task<IReadOnlyList<OwnerRevenueGroupRow>> SumByLotMethodPurposeAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken);
 
@@ -165,8 +209,11 @@ public interface IGetOwnerRevenueSummaryUseCase
 /// US-078 (UC-35) AC1–AC2, AC4: chủ bãi xem doanh thu gộp, tiền hoàn, doanh thu ròng, số giao dịch; chia theo bãi, phương thức,
 /// mục đích, giờ trong ngày, lý do hoàn; kèm hoa hồng/khoản nhận về nếu đã quyết toán. Chỉ đọc.
 /// </summary>
-public sealed class GetOwnerRevenueSummaryUseCase(IOwnerRevenueQueries queries, TimeProvider timeProvider) : IGetOwnerRevenueSummaryUseCase
+public sealed class GetOwnerRevenueSummaryUseCase(IOwnerRevenueQueries queries, TimeProvider timeProvider, CommissionPolicy? policy = null)
+    : IGetOwnerRevenueSummaryUseCase
 {
+    private readonly CommissionPolicy policy = policy ?? CommissionPolicy.Default;
+
     public async Task<OwnerRevenueSummaryDto> ExecuteAsync(int? ownerProfileId, OwnerRevenueQuery query,
         CancellationToken cancellationToken = default)
     {
@@ -176,6 +223,8 @@ public sealed class GetOwnerRevenueSummaryUseCase(IOwnerRevenueQueries queries, 
         var hours = await queries.SumByHourOfDayAsync(filter, cancellationToken);
         var refunds = await queries.SumCompletedRefundsByReasonAsync(filter, cancellationToken);
         var settlements = await queries.ListSettledPeriodsAsync(filter, cancellationToken);
+        var commissionByLot = await queries.SumCommissionByLotAsync(filter, cancellationToken);
+        var pending = await queries.CountCommissionPendingAsync(filter, policy.ExcludedPurposes, cancellationToken);
 
         var totals = Totals(groups);
         var byLot = groups.GroupBy(g => g.ParkingLotId)
@@ -204,7 +253,31 @@ public sealed class GetOwnerRevenueSummaryUseCase(IOwnerRevenueQueries queries, 
 
         return new OwnerRevenueSummaryDto(filter.From, filter.To, filter.ParkingLotId, OwnerRevenueRules.Currency,
             OwnerRevenueRules.RefundBasis, totals, byLot, byMethod, byPurpose, byHour, byRefundReason,
-            Settlement(settlements, filter.ParkingLotId is not null));
+            Settlement(settlements, filter.ParkingLotId is not null), Commission(byLot, commissionByLot, pending));
+    }
+
+    /// <summary>US-079: hoa hồng theo bãi (mọi bãi có giao dịch hoặc có bút toán), sắp như ByLot.</summary>
+    private static OwnerCommissionSummaryDto Commission(IReadOnlyList<OwnerRevenueByLotDto> revenueByLot,
+        IReadOnlyList<OwnerCommissionLotRow> commissionByLot, IReadOnlyList<OwnerCommissionPendingRow> pending)
+    {
+        var amountByLot = commissionByLot.GroupBy(r => r.ParkingLotId).ToDictionary(g => g.Key, g => g.Sum(r => r.CommissionAmount));
+        var pendingByLot = pending.GroupBy(r => r.ParkingLotId).ToDictionary(g => g.Key, g => g.Sum(r => r.PendingCount));
+        var countByLot = revenueByLot.ToDictionary(r => r.ParkingLotId, r => r.TransactionCount);
+
+        var lots = revenueByLot.Select(r => r.ParkingLotId)
+            .Concat(amountByLot.Keys.Where(id => !countByLot.ContainsKey(id)).Order())
+            .Select(lotId =>
+            {
+                var count = countByLot.GetValueOrDefault(lotId);
+                var pendingCount = pendingByLot.GetValueOrDefault(lotId);
+                return new OwnerCommissionByLotDto(lotId, OwnerRevenueRules.Vnd(amountByLot.GetValueOrDefault(lotId)), pendingCount,
+                    CommissionStatuses.ForGroup(count, pendingCount));
+            })
+            .ToList();
+
+        var totalPending = lots.Sum(l => l.PendingCount);
+        return new OwnerCommissionSummaryDto(CommissionStatuses.ForGroup(revenueByLot.Sum(r => r.TransactionCount), totalPending),
+            OwnerRevenueRules.Vnd(lots.Sum(l => l.CommissionAmount)), totalPending, lots);
     }
 
     private static OwnerRevenueTotalsDto Totals(IEnumerable<OwnerRevenueGroupRow> rows)

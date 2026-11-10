@@ -11,6 +11,17 @@ public sealed class OwnerProfileRepository(UserDbContext db) : IOwnerProfileRepo
             .Include(o => o.User)
             .FirstOrDefaultAsync(o => o.Id == ownerProfileId, cancellationToken);
 
+    public Task<OwnerProfile?> FindByIdWithStaffAssignmentsAsync(int ownerProfileId, CancellationToken cancellationToken)
+        => db.OwnerProfiles
+            .Include(o => o.User)
+            .Include(o => o.StaffAssignments)
+            .FirstOrDefaultAsync(o => o.Id == ownerProfileId, cancellationToken);
+
+    public Task<OwnerProfile?> FindByUserIdAsync(int userId, CancellationToken cancellationToken)
+        => db.OwnerProfiles
+            .Include(o => o.User)
+            .FirstOrDefaultAsync(o => o.UserId == userId, cancellationToken);
+
     public Task UpdateAsync(OwnerProfile ownerProfile, CancellationToken cancellationToken)
         => db.SaveChangesAsync(cancellationToken);
 }

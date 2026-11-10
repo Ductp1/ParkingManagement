@@ -234,15 +234,6 @@ export const UNAVAILABLE_SCREENS = {
     service: 'PaymentService',
     missingEndpoint: 'GET /api/v1/settlements?status=Approved',
   },
-  commission: {
-    title: 'Commission',
-    subtitle: 'Read-only · rates per owner',
-    banner: { tone: 'info', text: 'Default rate comes from DEFAULT_COMMISSION_RATE (System Settings). Owner-specific rates come from OwnerProfiles.CommissionRateOverride.' },
-    columns: ['Owner', 'Effective rate', 'Source', 'Contract (Future)', 'Commission this cycle', 'Owner status'],
-    service: 'UserService / PaymentService',
-    missingEndpoint: 'GET /api/v1/admin/commission-rates',
-    actions: [{ label: 'Change default rate', variant: 'onNavy', to: '/admin/access/system-settings/DEFAULT_COMMISSION_RATE' }],
-  },
   adjustments: {
     title: 'Adjustments',
     subtitle: 'FinancialAdjustments · positive = credit to owner, negative = debit',
