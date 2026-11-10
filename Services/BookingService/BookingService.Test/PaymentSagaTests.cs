@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using ParkingManagement.SharedKernel.Contracts;
@@ -223,6 +223,9 @@ public class PaymentSagaTests
         public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
             DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
+        public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository

@@ -129,6 +129,12 @@ public class OwnerProfileUseCaseTests
         public Task<OwnerProfile?> FindByIdWithUserAsync(int ownerProfileId, CancellationToken cancellationToken)
             => Task.FromResult(profile?.Id == ownerProfileId ? profile : null);
 
+        public Task<OwnerProfile?> FindByIdWithStaffAssignmentsAsync(int ownerProfileId, CancellationToken cancellationToken)
+            => Task.FromResult(profile?.Id == ownerProfileId ? profile : null);
+
+        public Task<OwnerProfile?> FindByUserIdAsync(int userId, CancellationToken cancellationToken)
+            => Task.FromResult(profile?.UserId == userId ? profile : null);
+
         public Task UpdateAsync(OwnerProfile ownerProfile, CancellationToken cancellationToken)
             => Task.CompletedTask;
     }

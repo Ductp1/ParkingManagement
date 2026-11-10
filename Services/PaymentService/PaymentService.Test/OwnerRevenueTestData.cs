@@ -1,4 +1,6 @@
+using System.Reflection;
 using ParkingManagement.SharedKernel.Contracts;
+using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
 using PaymentService.Application.Features.Reports;
 using PaymentService.Domain.Entities;
@@ -10,11 +12,31 @@ namespace PaymentService.Test;
 /// US-078: port báo cáo doanh thu chạy trong bộ nhớ bằng ĐÚNG hình dạng truy vấn của Infrastructure (OwnerRevenueQueryShapes),
 /// nên test kiểm tra được lọc chủ bãi / trạng thái / ranh giới ngày thật, không chỉ logic cộng của use case.
 /// </summary>
-internal sealed class InMemoryOwnerRevenueQueries(IEnumerable<Payment>? payments = null, IEnumerable<Settlement>? settlements = null)
-    : IOwnerRevenueQueries
+internal sealed class InMemoryOwnerRevenueQueries(IEnumerable<Payment>? payments = null, IEnumerable<Settlement>? settlements = null,
+    IEnumerable<CommissionEntry>? commissionEntries = null) : IOwnerRevenueQueries
 {
     private readonly List<Payment> _payments = payments?.ToList() ?? [];
     private readonly List<Settlement> _settlements = settlements?.ToList() ?? [];
+    private readonly List<CommissionEntry> _entries = commissionEntries?.ToList() ?? [];
+
+    public Task<IReadOnlyList<OwnerCommissionLotRow>> SumCommissionByLotAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
+        => Run(filter, OwnerRevenueQueryShapes.SumCommissionByLot(_entries.AsQueryable(), filter));
+
+    public Task<IReadOnlyList<OwnerCommissionDayRow>> SumCommissionByVietnamDayAsync(OwnerRevenueFilter filter, CancellationToken cancellationToken)
+        => Run(filter, OwnerRevenueQueryShapes.SumCommissionByVietnamDay(_entries.AsQueryable(), filter));
+
+    public Task<IReadOnlyList<OwnerCommissionDayHourRow>> SumCommissionByVietnamDayHourAsync(OwnerRevenueFilter filter,
+        CancellationToken cancellationToken)
+        => Run(filter, OwnerRevenueQueryShapes.SumCommissionByVietnamDayHour(_entries.AsQueryable(), filter));
+
+    public Task<IReadOnlyList<OwnerCommissionPendingRow>> CountCommissionPendingAsync(OwnerRevenueFilter filter,
+        IReadOnlyCollection<PaymentPurpose> excludedPurposes, CancellationToken cancellationToken)
+        => Run(filter, OwnerRevenueQueryShapes.CountCommissionPending(_payments.AsQueryable(), _entries.AsQueryable(), filter, excludedPurposes));
+
+    public Task<IReadOnlyList<PaymentCommissionRow>> ListCommissionByPaymentAsync(IReadOnlyCollection<int> paymentIds,
+        CancellationToken cancellationToken)
+        => Task.FromResult(OwnerRevenueQueryShapes.ToPaymentCommission(
+            OwnerRevenueQueryShapes.EntriesOfPayments(_entries.AsQueryable(), paymentIds).ToList()));
 
     public OwnerRevenueFilter? LastFilter { get; private set; }
 
@@ -84,6 +106,26 @@ internal static class OwnerRevenueTestData
 
     public static DateTime Utc(int year, int month, int day, int hour = 0, int minute = 0, int second = 0)
         => new(year, month, day, hour, minute, second, DateTimeKind.Utc);
+
+    private static readonly PropertyInfo IdProperty = typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id))!;
+
+    /// <summary>Id do database cấp – test gán tay để liên kết bút toán hoa hồng theo PaymentId.</summary>
+    public static T WithId<T>(this T entity, int id) where T : BaseEntity
+    {
+        IdProperty.SetValue(entity, id);
+        return entity;
+    }
+
+    /// <summary>US-079: Accrual của giao dịch với tỷ lệ (phân số) cho sẵn.</summary>
+    public static CommissionEntry Accrual(Payment payment, decimal rate, string source = "DefaultConfig", string? contractNumber = null)
+        => CommissionEntry.Accrual(payment.Id, payment.ParkingLotId, payment.OwnerProfileId, payment.Amount, payment.PaidAtUtc!.Value, rate, source,
+            contractNumber, contractNumber is null ? null : 1, payment.PaidAtUtc!.Value);
+
+    /// <summary>US-079: Reversal bù tới mức <paramref name="refundedAmount"/> (lũy kế).</summary>
+    public static CommissionEntry Reversal(Payment payment, decimal rate, decimal refundedAmount, decimal coveredSoFar = 0, decimal reversedSoFar = 0,
+        string source = "DefaultConfig")
+        => CommissionEntry.Reversal(payment.Id, payment.ParkingLotId, payment.OwnerProfileId, payment.PaidAtUtc!.Value, rate, source, null, null,
+            refundedAmount, coveredSoFar, reversedSoFar, payment.PaidAtUtc!.Value);
 }
 
 internal sealed class FixedTimeProvider(DateTime utcNow) : TimeProvider

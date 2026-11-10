@@ -13,6 +13,13 @@ public static class DependencyInjection
         services.AddScoped<AvatarUseCases>();
         services.AddScoped<ILockOwnerProfileUseCase, LockOwnerProfileUseCase>();
         services.AddScoped<IUnlockOwnerProfileUseCase, UnlockOwnerProfileUseCase>();
+
+        // US-057: Chủ bãi xin rời nền tảng
+        services.AddScoped<IRequestOwnerExitUseCase, RequestOwnerExitUseCase>();
+        services.AddScoped<ICancelOwnerExitUseCase, CancelOwnerExitUseCase>();
+        services.AddScoped<ITerminateOwnerExitUseCase, TerminateOwnerExitUseCase>();
+        services.AddScoped<IGetOwnerExitStatusUseCase, GetOwnerExitStatusUseCase>();
+
         services.AddScoped<UserService.Application.Features.Auth.ILoginUseCase, UserService.Application.Features.Auth.LoginUseCase>();
         services.AddScoped<UserService.Application.Features.Auth.IRefreshSessionUseCase, UserService.Application.Features.Auth.RefreshSessionUseCase>();
         services.AddScoped<UserService.Application.Features.Auth.ILogoutUseCase, UserService.Application.Features.Auth.LogoutUseCase>();

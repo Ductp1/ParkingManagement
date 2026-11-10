@@ -1,5 +1,6 @@
 using BookingService.Application.Features.Bookings;
 using Microsoft.AspNetCore.Mvc;
+using ParkingManagement.SharedKernel.Contracts;
 
 namespace BookingService.API.Controllers;
 
