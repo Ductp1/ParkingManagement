@@ -60,4 +60,57 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
                 b.TotalAmount))
             .ToListAsync(cancellationToken);
     }
+
+    // T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.
+    public async Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+    {
+        var query = db.BookingStatusLogs.AsNoTracking()
+            .Include(l => l.Booking)
+            .Where(l => l.FromStatus == BookingStatus.PendingOwnerApproval
+                     && (l.ToStatus == BookingStatus.Confirmed || l.ToStatus == BookingStatus.Cancelled));
+
+        if (parkingLotId.HasValue && parkingLotId > 0)
+        {
+            query = query.Where(l => l.Booking.ParkingLotId == parkingLotId.Value);
+        }
+
+        if (fromUtc.HasValue)
+        {
+            query = query.Where(l => l.CreatedAtUtc >= fromUtc.Value);
+        }
+
+        if (toUtc.HasValue)
+        {
+            query = query.Where(l => l.CreatedAtUtc <= toUtc.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(result))
+        {
+            var trimmed = result.Trim().ToUpperInvariant();
+            if (trimmed == "APPROVED")
+            {
+                query = query.Where(l => l.ToStatus == BookingStatus.Confirmed);
+            }
+            else if (trimmed == "REJECTED")
+            {
+                query = query.Where(l => l.ToStatus == BookingStatus.Cancelled);
+            }
+        }
+
+        return await query
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .Select(l => new ApprovalLogDto(
+                l.Id,
+                l.BookingId,
+                l.Booking.Code,
+                l.Booking.PlateNumber,
+                l.Booking.ParkingLotId,
+                l.Booking.ParkingLotName,
+                l.ToStatus == BookingStatus.Confirmed ? "Approved" : "Rejected",
+                l.ChangedByUserId,
+                l.Reason,
+                l.CreatedAtUtc))
+            .ToListAsync(cancellationToken);
+    }
 }

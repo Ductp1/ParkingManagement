@@ -16,7 +16,6 @@ using ParkingManagement.SharedKernel.Enums;
 using ParkingService.API.Controllers;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Domain.Entities;
-using ParkingService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests;
 

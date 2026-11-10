@@ -3,6 +3,7 @@ using System.Text;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
+using PaymentService.Application.Features.Commission;
 
 namespace PaymentService.Application.Features.Reports;
 
@@ -11,8 +12,11 @@ namespace PaymentService.Application.Features.Reports;
 /// US-078 AC3: một giao dịch trong báo cáo doanh thu của chủ bãi. Không có dữ liệu tài xế (UserId), nội dung chuyển khoản,
 /// payload callback hay nhân viên thu tiền; mã giao dịch cổng thanh toán chỉ giữ 4 ký tự cuối (****1234) để đối soát.
 /// </summary>
+/// US-079: CommissionAmount = hoa hồng hiện tại (Accrual + Reversal), null khi chưa có Accrual; CommissionRate là PHÂN SỐ (0.075 = 7,5%);
+/// CommissionStatus = Calculated | Pending (chờ job, không phải 0) | NotApplicable (mục đích bị loại).
 public sealed record OwnerRevenueTransactionDto(int Id, string Code, DateTime PaidAtUtc, int ParkingLotId, string? BookingCode,
-    string Method, string Purpose, string Status, decimal Amount, decimal RefundedAmount, decimal NetAmount, string? ProviderTransactionRef);
+    string Method, string Purpose, string Status, decimal Amount, decimal RefundedAmount, decimal NetAmount, string? ProviderTransactionRef,
+    decimal? CommissionAmount, decimal? CommissionRate, string CommissionStatus);
 
 /// <summary>Tham số lọc nhận từ query string (chưa kiểm tra). method/purpose/status là tên enum; bỏ trống = không lọc.</summary>
 public sealed record OwnerRevenueTransactionQuery(DateOnly? From = null, DateOnly? To = null, int? ParkingLotId = null,
@@ -59,10 +63,34 @@ public static class OwnerRevenueTransactionRules
             : value.Length <= 4 ? "****"
             : "****" + value[^4..];
 
-    public static OwnerRevenueTransactionDto ToDto(OwnerRevenueTransactionRow r)
-        => new(r.Id, r.Code, r.PaidAtUtc, r.ParkingLotId, r.BookingCode, r.Method.ToString(), r.Purpose.ToString(), r.Status.ToString(),
+    public static OwnerRevenueTransactionDto ToDto(OwnerRevenueTransactionRow r, PaymentCommissionRow? commission, CommissionPolicy policy)
+    {
+        var accrued = commission is { HasAccrual: true };
+        return new(r.Id, r.Code, r.PaidAtUtc, r.ParkingLotId, r.BookingCode, r.Method.ToString(), r.Purpose.ToString(), r.Status.ToString(),
             OwnerRevenueRules.Vnd(r.Amount), OwnerRevenueRules.Vnd(r.RefundedAmount), OwnerRevenueRules.Vnd(r.Amount - r.RefundedAmount),
-            MaskProviderTransactionId(r.ProviderTransactionId));
+            MaskProviderTransactionId(r.ProviderTransactionId),
+            accrued ? OwnerRevenueRules.Vnd(commission!.CommissionAmount) : null, accrued ? commission!.Rate : null,
+            CommissionStatus(r, commission, policy));
+    }
+
+    /// <summary>
+    /// US-079: chưa có Accrual → Pending (hoặc NotApplicable nếu mục đích bị loại); đã hoàn thêm mà chưa có Reversal bù → Pending;
+    /// còn lại Calculated. Khớp CommissionQueryShapes.WherePendingCommission.
+    /// </summary>
+    public static string CommissionStatus(OwnerRevenueTransactionRow r, PaymentCommissionRow? commission, CommissionPolicy policy)
+        => commission is not { HasAccrual: true }
+            ? policy.IsExcluded(r.Purpose) ? CommissionStatuses.NotApplicable : CommissionStatuses.Pending
+            : r.RefundedAmount > 0 && commission.CoveredAmount < r.RefundedAmount ? CommissionStatuses.Pending : CommissionStatuses.Calculated;
+
+    /// <summary>Đọc hoa hồng của các dòng đang hiển thị (một truy vấn) rồi chiếu sang DTO.</summary>
+    public static async Task<List<OwnerRevenueTransactionDto>> ToDtosAsync(IOwnerRevenueQueries queries, IReadOnlyList<OwnerRevenueTransactionRow> rows,
+        CommissionPolicy policy, CancellationToken cancellationToken)
+    {
+        var commission = rows.Count == 0
+            ? []
+            : (await queries.ListCommissionByPaymentAsync([.. rows.Select(r => r.Id)], cancellationToken)).ToDictionary(c => c.PaymentId);
+        return [.. rows.Select(r => ToDto(r, commission.GetValueOrDefault(r.Id), policy))];
+    }
 
     /// <summary>Chỉ nhận đúng tên trong <paramref name="allowed"/> (không phân biệt hoa thường; không nhận số / chuỗi kiểu cờ).</summary>
     private static T? Parse<T>(string name, string? value, IReadOnlyList<T> allowed) where T : struct, Enum
@@ -85,6 +113,7 @@ public static class OwnerRevenueCsvWriter
     [
         "Code", "PaidAtUtc", "PaidAtIct", "ParkingLotId", "BookingCode", "Method", "Purpose", "Status",
         "Amount", "RefundedAmount", "NetAmount", "ProviderTransactionRef",
+        "CommissionRate", "CommissionAmount", "CommissionStatus",
     ];
 
     public static byte[] Write(IEnumerable<OwnerRevenueTransactionDto> rows)
@@ -107,6 +136,9 @@ public static class OwnerRevenueCsvWriter
                 Money(r.RefundedAmount),
                 Money(r.NetAmount),
                 Text(r.ProviderTransactionRef),
+                r.CommissionRate?.ToString("0.######", CultureInfo.InvariantCulture),
+                r.CommissionAmount is { } commission ? Money(commission) : null,
+                r.CommissionStatus,
             ]);
         }
         return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(csv.ToString())];
@@ -140,9 +172,11 @@ public interface IListOwnerRevenueTransactionsUseCase
 /// US-078 (UC-35) AC2–AC3: danh sách giao dịch được tính doanh thu của chủ bãi đang đăng nhập, có lọc và phân trang. Chỉ đọc.
 /// Cùng bộ lọc với summary/series nên tổng Amount của mọi trang = GrossRevenue của summary.
 /// </summary>
-public sealed class ListOwnerRevenueTransactionsUseCase(IOwnerRevenueQueries queries, TimeProvider timeProvider)
-    : IListOwnerRevenueTransactionsUseCase
+public sealed class ListOwnerRevenueTransactionsUseCase(IOwnerRevenueQueries queries, TimeProvider timeProvider,
+    CommissionPolicy? policy = null) : IListOwnerRevenueTransactionsUseCase
 {
+    private readonly CommissionPolicy policy = policy ?? CommissionPolicy.Default;
+
     public async Task<PagedResult<OwnerRevenueTransactionDto>> ExecuteAsync(int? ownerProfileId, OwnerRevenueTransactionQuery query, int page,
         int pageSize, CancellationToken cancellationToken = default)
     {
@@ -150,7 +184,8 @@ public sealed class ListOwnerRevenueTransactionsUseCase(IOwnerRevenueQueries que
         OwnerRevenueTransactionRules.ValidatePaging(page, pageSize);
 
         var result = await queries.ListTransactionsAsync(filter, page, pageSize, cancellationToken);
-        return new PagedResult<OwnerRevenueTransactionDto>(result.Items.Select(OwnerRevenueTransactionRules.ToDto).ToList(),
+        return new PagedResult<OwnerRevenueTransactionDto>(
+            await OwnerRevenueTransactionRules.ToDtosAsync(queries, result.Items, policy, cancellationToken),
             result.Page, result.PageSize, result.TotalCount);
     }
 }
@@ -164,9 +199,11 @@ public interface IExportOwnerRevenueTransactionsUseCase
 /// US-078 AC3 (UC-35 bước 4): xuất giao dịch theo đúng bộ lọc của danh sách, mới nhất trước, tối đa <see cref="MaxRows"/> dòng.
 /// Vượt giới hạn → 400 yêu cầu thu hẹp bộ lọc (không cắt ngầm để file không thiếu dữ liệu mà người xem không biết).
 /// </summary>
-public sealed class ExportOwnerRevenueTransactionsUseCase(IOwnerRevenueQueries queries, TimeProvider timeProvider)
-    : IExportOwnerRevenueTransactionsUseCase
+public sealed class ExportOwnerRevenueTransactionsUseCase(IOwnerRevenueQueries queries, TimeProvider timeProvider,
+    CommissionPolicy? policy = null) : IExportOwnerRevenueTransactionsUseCase
 {
+    private readonly CommissionPolicy policy = policy ?? CommissionPolicy.Default;
+
     public const int MaxRows = 10_000;
 
     public async Task<OwnerRevenueCsvFile> ExecuteAsync(int? ownerProfileId, OwnerRevenueTransactionQuery query,
@@ -180,6 +217,6 @@ public sealed class ExportOwnerRevenueTransactionsUseCase(IOwnerRevenueQueries q
 
         var range = filter.Range;
         return new OwnerRevenueCsvFile($"owner-revenue-{range.From:yyyyMMdd}-{range.To:yyyyMMdd}.csv",
-            OwnerRevenueCsvWriter.Write(rows.Select(OwnerRevenueTransactionRules.ToDto)));
+            OwnerRevenueCsvWriter.Write(await OwnerRevenueTransactionRules.ToDtosAsync(queries, rows, policy, cancellationToken)));
     }
 }

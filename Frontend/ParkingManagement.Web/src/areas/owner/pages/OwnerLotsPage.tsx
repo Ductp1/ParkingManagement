@@ -8,11 +8,14 @@ import {
   RefreshCw,
   FolderTree,
   Sliders,
+  Activity,
+  Clock,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
 import { ownerStructureApi } from '@/api/ownerStructureApi';
 import { ownerCapacityApi } from '@/api/ownerCapacityApi';
+import { ownerLotDetailsApi } from '@/api/ownerLotDetailsApi';
 import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
 import type {
   ZoneDto,
@@ -27,6 +30,15 @@ import type {
   LotCapacityConfigDto,
   UpdateLotCapacityConfigRequest,
 } from '@/types/ownerCapacity';
+import type {
+  LotOperatingHoursWeeklyDto,
+  UpdateLotOperatingHourItemRequest,
+  AmenityCatalogItemDto,
+  LotAmenityDto,
+  LotAmenityInputDto,
+  LotAttributesDto,
+  UpdateLotAttributesRequest,
+} from '@/types/ownerLotDetails';
 import { ZoneCard } from '../components/structure/ZoneCard';
 import { ZoneModal } from '../components/structure/ZoneModal';
 import { FloorTable } from '../components/structure/FloorTable';
@@ -36,6 +48,10 @@ import { RegisterLotModal } from '../components/RegisterLotModal';
 import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
 import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
 import { CapacityConfigSection } from '../components/capacity/CapacityConfigSection';
+import { OperationsPanel } from '../components/operations/OperationsPanel';
+import { WeeklyScheduleEditor } from '../components/operating/WeeklyScheduleEditor';
+import { AmenitiesSelector } from '../components/operating/AmenitiesSelector';
+import { LotAttributesEditor } from '../components/operating/LotAttributesEditor';
 
 export const OwnerLotsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -48,16 +64,33 @@ export const OwnerLotsPage: React.FC = () => {
   const [loadingLots, setLoadingLots] = useState(true);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26)
-  const [activeTab, setActiveTab] = useState<'structure' | 'capacity'>(() => {
+  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operations' (US-067/068/069) | 'operating' (US-062) | 'amenities' (US-064)
+  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operations' | 'operating' | 'amenities'>(() => {
     const tabParam = searchParams.get('tab');
-    return tabParam === 'capacity' ? 'capacity' : 'structure';
+    if (tabParam === 'capacity') return 'capacity';
+    if (tabParam === 'operations') return 'operations';
+    if (tabParam === 'operating' || tabParam === 'schedule') return 'operating';
+    if (tabParam === 'amenities') return 'amenities';
+    return 'structure';
   });
 
   // Cấu hình Sức chứa & Vùng đệm vãng lai (UI-26)
   const [capacityConfig, setCapacityConfig] = useState<LotCapacityConfigDto | null>(null);
   const [loadingCapacity, setLoadingCapacity] = useState(false);
   const [savingCapacity, setSavingCapacity] = useState(false);
+
+  // Cấu hình Lịch hoạt động (US-062)
+  const [operatingHours, setOperatingHours] = useState<LotOperatingHoursWeeklyDto | null>(null);
+  const [loadingOperating, setLoadingOperating] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+
+  // Cấu hình Tiện ích & Thuộc tính bãi (US-064)
+  const [lotAmenities, setLotAmenities] = useState<LotAmenityDto[]>([]);
+  const [amenitiesCatalog, setAmenitiesCatalog] = useState<AmenityCatalogItemDto[]>([]);
+  const [lotAttributes, setLotAttributes] = useState<LotAttributesDto | null>(null);
+  const [loadingAmenities, setLoadingAmenities] = useState(false);
+  const [savingAmenities, setSavingAmenities] = useState(false);
+  const [savingAttributes, setSavingAttributes] = useState(false);
 
   // Cấu trúc phân tầng
   const [zones, setZones] = useState<ZoneDto[]>([]);
@@ -207,6 +240,56 @@ export const OwnerLotsPage: React.FC = () => {
     [ownerProfileId, lots]
   );
 
+  // Tải dữ liệu Lịch hoạt động (US-062)
+  const loadOperatingData = useCallback(
+    async (lotId: number, year?: number, weekOfYear?: number) => {
+      setLoadingOperating(true);
+      try {
+        const hours = await ownerLotDetailsApi.getOperatingHours(
+          lotId,
+          ownerProfileId,
+          year,
+          weekOfYear
+        );
+        setOperatingHours(hours);
+      } catch (err) {
+        console.error('Failed to load operating hours:', err);
+      } finally {
+        setLoadingOperating(false);
+      }
+    },
+    [ownerProfileId]
+  );
+
+  // Tải dữ liệu Tiện ích & Thuộc tính bãi xe (US-064)
+  const loadAmenitiesData = useCallback(
+    async (lotId: number) => {
+      setLoadingAmenities(true);
+      try {
+        const [amenitiesRes, catalogRes, attrsRes] = await Promise.allSettled([
+          ownerLotDetailsApi.getLotAmenities(lotId),
+          ownerLotDetailsApi.getAmenitiesCatalog(),
+          ownerLotDetailsApi.getLotAttributes(lotId),
+        ]);
+
+        if (amenitiesRes.status === 'fulfilled') {
+          setLotAmenities(amenitiesRes.value);
+        }
+        if (catalogRes.status === 'fulfilled') {
+          setAmenitiesCatalog(catalogRes.value);
+        }
+        if (attrsRes.status === 'fulfilled') {
+          setLotAttributes(attrsRes.value);
+        }
+      } catch (err) {
+        console.error('Failed to load amenities details:', err);
+      } finally {
+        setLoadingAmenities(false);
+      }
+    },
+    []
+  );
+
   // Đồng bộ searchParams và load dữ liệu khi bãi xe hoặc tab thay đổi
   useEffect(() => {
     if (selectedLotId) {
@@ -218,13 +301,32 @@ export const OwnerLotsPage: React.FC = () => {
       });
       if (activeTab === 'structure') {
         void loadStructureData(selectedLotId);
-      } else {
+      } else if (activeTab === 'capacity') {
         void loadCapacityConfig(selectedLotId);
+      } else if (activeTab === 'operating') {
+        const mode = searchParams.get('mode');
+        const year = searchParams.get('year') ? parseInt(searchParams.get('year')!, 10) : undefined;
+        const week = searchParams.get('week') ? parseInt(searchParams.get('week')!, 10) : undefined;
+        if (mode === 'week' && year && week) {
+          void loadOperatingData(selectedLotId, year, week);
+        } else {
+          void loadOperatingData(selectedLotId);
+        }
+      } else if (activeTab === 'amenities') {
+        void loadAmenitiesData(selectedLotId);
       }
     }
-  }, [selectedLotId, activeTab, loadStructureData, loadCapacityConfig, setSearchParams]);
+  }, [
+    selectedLotId,
+    activeTab,
+    loadStructureData,
+    loadCapacityConfig,
+    loadOperatingData,
+    loadAmenitiesData,
+    setSearchParams,
+  ]);
 
-  const handleTabChange = (tab: 'structure' | 'capacity') => {
+  const handleTabChange = (tab: 'structure' | 'capacity' | 'operations' | 'operating' | 'amenities') => {
     setActiveTab(tab);
     if (selectedLotId) {
       setSearchParams((prev) => {
@@ -237,6 +339,10 @@ export const OwnerLotsPage: React.FC = () => {
         void loadCapacityConfig(selectedLotId);
       } else if (tab === 'structure' && zones.length === 0) {
         void loadStructureData(selectedLotId);
+      } else if (tab === 'operating' && operatingHours?.parkingLotId !== selectedLotId) {
+        void loadOperatingData(selectedLotId);
+      } else if (tab === 'amenities' && (lotAmenities.length === 0 || !lotAttributes)) {
+        void loadAmenitiesData(selectedLotId);
       }
     }
   };
@@ -265,6 +371,167 @@ export const OwnerLotsPage: React.FC = () => {
       throw err;
     } finally {
       setSavingCapacity(false);
+    }
+  };
+
+  // Lưu lịch hoạt động tuần (UI-19)
+  const handleSaveSchedule = async (
+    scheduleItems: UpdateLotOperatingHourItemRequest[],
+    year?: number,
+    weekOfYear?: number,
+    reason?: string
+  ) => {
+    if (!selectedLotId) return;
+    setSavingSchedule(true);
+    try {
+      const updated = await ownerLotDetailsApi.updateOperatingHours(selectedLotId, {
+        ownerProfileId,
+        schedule: scheduleItems,
+        year,
+        weekOfYear,
+        reason,
+      });
+      setOperatingHours(updated);
+      setActionMessage({
+        type: 'success',
+        text:
+          year && weekOfYear
+            ? `Đã lưu lịch ngoại lệ Tuần ${weekOfYear}/${year} thành công!`
+            : 'Đã cập nhật lịch hoạt động cơ sở thành công!',
+      });
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string; title?: string } } };
+      const errMsg =
+        apiError?.response?.data?.detail ||
+        apiError?.response?.data?.title ||
+        'Không thể lưu lịch hoạt động.';
+      setActionMessage({
+        type: 'error',
+        text: errMsg,
+      });
+      throw err;
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  const handleSelectWeek = async (year?: number, weekOfYear?: number) => {
+    if (!selectedLotId) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (year && weekOfYear) {
+        next.set('mode', 'week');
+        next.set('year', year.toString());
+        next.set('week', weekOfYear.toString());
+      } else {
+        next.delete('mode');
+        next.delete('year');
+        next.delete('week');
+      }
+      return next;
+    });
+    try {
+      const updated = await ownerLotDetailsApi.getOperatingHours(
+        selectedLotId,
+        ownerProfileId,
+        year,
+        weekOfYear
+      );
+      setOperatingHours(updated);
+    } catch (err) {
+      console.error('Lỗi khi tải lịch tuần:', err);
+    }
+  };
+
+  const handleDeleteWeekOverride = async (year: number, weekOfYear: number) => {
+    if (!selectedLotId) return;
+    setSavingSchedule(true);
+    try {
+      const updated = await ownerLotDetailsApi.deleteWeekOverrides(
+        selectedLotId,
+        year,
+        weekOfYear,
+        ownerProfileId
+      );
+      setOperatingHours(updated);
+      setActionMessage({
+        type: 'success',
+        text: `Đã xóa lịch riêng Tuần ${weekOfYear}/${year}, khôi phục về lịch cơ sở thành công!`,
+      });
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string; title?: string } } };
+      const errMsg =
+        apiError?.response?.data?.detail ||
+        apiError?.response?.data?.title ||
+        'Không thể xóa lịch ngoại lệ của tuần.';
+      setActionMessage({
+        type: 'error',
+        text: errMsg,
+      });
+    } finally {
+      setSavingSchedule(false);
+    }
+  };
+
+  // Lưu danh mục tiện ích (UI-19)
+  const handleSaveAmenities = async (amenitiesInput: LotAmenityInputDto[]) => {
+    if (!selectedLotId) return;
+    setSavingAmenities(true);
+    try {
+      const updated = await ownerLotDetailsApi.updateLotAmenities(
+        selectedLotId,
+        { amenities: amenitiesInput },
+        ownerProfileId
+      );
+      setLotAmenities(updated);
+      setActionMessage({
+        type: 'success',
+        text: `Đã cập nhật ${updated.length} tiện ích bãi xe thành công!`,
+      });
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string; title?: string } } };
+      const errMsg =
+        apiError?.response?.data?.detail ||
+        apiError?.response?.data?.title ||
+        'Không thể lưu tiện ích bãi xe.';
+      setActionMessage({
+        type: 'error',
+        text: errMsg,
+      });
+      throw err;
+    } finally {
+      setSavingAmenities(false);
+    }
+  };
+
+  // Lưu thông tin thuộc tính bổ trợ (UI-19)
+  const handleSaveAttributes = async (req: UpdateLotAttributesRequest) => {
+    if (!selectedLotId) return;
+    setSavingAttributes(true);
+    try {
+      const updated = await ownerLotDetailsApi.updateLotAttributes(
+        selectedLotId,
+        req,
+        ownerProfileId
+      );
+      setLotAttributes(updated);
+      setActionMessage({
+        type: 'success',
+        text: 'Đã lưu thông tin bổ trợ bãi xe thành công!',
+      });
+    } catch (err: unknown) {
+      const apiError = err as { response?: { data?: { detail?: string; title?: string } } };
+      const errMsg =
+        apiError?.response?.data?.detail ||
+        apiError?.response?.data?.title ||
+        'Không thể lưu thông tin bổ trợ.';
+      setActionMessage({
+        type: 'error',
+        text: errMsg,
+      });
+      throw err;
+    } finally {
+      setSavingAttributes(false);
     }
   };
 
@@ -440,22 +707,49 @@ export const OwnerLotsPage: React.FC = () => {
                 <Building2 size={13} />
                 Hạ tầng & Cấu trúc Phân tầng (US-058)
               </>
-            ) : (
+            ) : activeTab === 'capacity' ? (
               <>
                 <Sliders size={13} />
                 Sức chứa & Phân bổ Real-time (UI-26)
+              </>
+            ) : activeTab === 'operating' ? (
+              <>
+                <Clock size={13} />
+                Lịch Hoạt Động & Giờ Mở Cửa (US-062)
+              </>
+            ) : activeTab === 'operations' ? (
+              <>
+                <Activity size={13} />
+                Vận hành Real-time & Khẩn cấp (US-067/068/069)
+              </>
+            ) : (
+              <>
+                <Sparkles size={13} />
+                Danh Mục Tiện Ích & Dịch Vụ (US-064)
               </>
             )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             {activeTab === 'structure'
               ? 'Khai báo Tầng & Khu vực (Zones & Floors)'
-              : 'Cấu hình Sức chứa & Vùng đệm Vãng lai'}
+              : activeTab === 'capacity'
+              ? 'Cấu hình Sức chứa & Vùng đệm Vãng lai'
+              : activeTab === 'operating'
+              ? 'Lịch Hoạt Động & Khung Giờ Mở Cửa'
+              : activeTab === 'operations'
+              ? 'Vận hành Real-time & Emergency Stop'
+              : 'Tiện Ích & Thông Tin Vận Hành Bãi Xe'}
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
             {activeTab === 'structure'
               ? 'Thiết lập kiến trúc không gian bãi xe: Phân chia khu vực (tòa nhà / hầm), cao độ tầng và ma trận lưới ô đỗ.'
-              : 'Quản lý tỷ lệ giữ chỗ cho khách vãng lai, phân bổ hạn ngạch đặt chỗ Online và thiết lập ngưỡng khóa an toàn.'}
+              : activeTab === 'capacity'
+              ? 'Quản lý tỷ lệ giữ chỗ cho khách vãng lai, phân bổ hạn ngạch đặt chỗ Online và thiết lập ngưỡng khóa an toàn.'
+              : activeTab === 'operating'
+              ? 'Cấu hình thời gian đón khách 7 ngày trong tuần, chế độ 24/7, hoạt động qua đêm và tùy biến riêng theo từng tuần cụ thể.'
+              : activeTab === 'operations'
+              ? 'Giám sát vận hành real-time của bãi: số chỗ theo thời gian thực, nhịp heartbeat thiết bị (stale data) và đóng/mở bãi khẩn cấp.'
+              : 'Thiết lập danh mục dịch vụ tiện ích (trạm sạc EV, mái che, CCTV...), hotline hỗ trợ khách hàng và chiều cao xe tối đa.'}
           </p>
         </div>
 
@@ -533,10 +827,10 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          TAB NAVIGATION SWITCHER (US-058 vs UI-26)
+          TAB NAVIGATION SWITCHER (4 TABS)
       ====================================================================== */}
       {selectedLot && (
-        <div className="flex items-center gap-2 mt-6 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/70 shadow-2xs">
+        <div className="flex items-center gap-2 mt-6 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/70 shadow-2xs flex-wrap">
           <button
             type="button"
             onClick={() => handleTabChange('structure')}
@@ -561,6 +855,45 @@ export const OwnerLotsPage: React.FC = () => {
           >
             <Sliders size={16} />
             Sức chứa & Vùng đệm (UI-26)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('operating')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'operating'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Clock size={16} />
+            Lịch hoạt động (US-062)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('amenities')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'amenities'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Sparkles size={16} />
+            Tiện ích bãi xe (US-064)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('operations')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'operations'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Activity size={16} />
+            Vận hành Real-time (US-067)
           </button>
         </div>
       )}
@@ -727,7 +1060,90 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          3. CÁC MODALS THAO TÁC
+          3. TAB 3 CONTENT: VẬN HÀNH REAL-TIME (US-067 dashboard / US-068 heartbeat / US-069 emergency)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'operations' && (
+        <OperationsPanel
+          key={selectedLot.id}
+          lotId={selectedLot.id}
+          lotName={selectedLot.name}
+          onLotChanged={() => { void loadOwnerLots(selectedLot.id); }}
+        />
+      )}
+
+      {/* =====================================================================
+          4. TAB 4 CONTENT: LỊCH HOẠT ĐỘNG (US-062)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'operating' && (
+        <div className="mt-6 space-y-8">
+          {loadingOperating ? (
+            <div className="py-16 text-center text-xs sm:text-sm text-slate-500 bg-white rounded-3xl border border-slate-200/90 shadow-xs">
+              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-indigo-600" />
+              Đang tải lịch hoạt động bãi xe…
+            </div>
+          ) : (
+            <WeeklyScheduleEditor
+              schedule={operatingHours?.schedule || []}
+              weeklyDto={operatingHours}
+              saving={savingSchedule}
+              initialMode={searchParams.get('mode') === 'week' ? 'week' : 'base'}
+              initialYear={searchParams.get('year') ? parseInt(searchParams.get('year')!, 10) : undefined}
+              initialWeek={searchParams.get('week') ? parseInt(searchParams.get('week')!, 10) : undefined}
+              onSave={handleSaveSchedule}
+              onSelectWeek={handleSelectWeek}
+              onDeleteWeekOverride={handleDeleteWeekOverride}
+              onRefresh={() => {
+                if (selectedLotId) {
+                  const year = searchParams.get('year') ? parseInt(searchParams.get('year')!, 10) : undefined;
+                  const week = searchParams.get('week') ? parseInt(searchParams.get('week')!, 10) : undefined;
+                  void loadOperatingData(selectedLotId, year, week);
+                }
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* =====================================================================
+          5. TAB 4 CONTENT: TIỆN ÍCH & THÔNG TIN BÃI XE (US-064)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'amenities' && (
+        <div className="mt-6 space-y-8">
+          {loadingAmenities ? (
+            <div className="py-16 text-center text-xs sm:text-sm text-slate-500 bg-white rounded-3xl border border-slate-200/90 shadow-xs">
+              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-indigo-600" />
+              Đang tải danh mục tiện ích và thuộc tính bãi xe…
+            </div>
+          ) : (
+            <>
+              {/* Danh mục tiện ích bãi xe (US-064) */}
+              <AmenitiesSelector
+                activeAmenities={lotAmenities}
+                catalog={amenitiesCatalog}
+                saving={savingAmenities}
+                onSave={handleSaveAmenities}
+                onRefresh={() => {
+                  if (selectedLotId) void loadAmenitiesData(selectedLotId);
+                }}
+              />
+
+              {/* Thuộc tính vận hành & Hotline (US-064) */}
+              <LotAttributesEditor
+                attributes={lotAttributes}
+                defaultHeight={selectedLot.maxHeightCm}
+                saving={savingAttributes}
+                onSave={handleSaveAttributes}
+                onRefresh={() => {
+                  if (selectedLotId) void loadAmenitiesData(selectedLotId);
+                }}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* =====================================================================
+          6. CÁC MODALS THAO TÁC
       ====================================================================== */}
       {/* Modal Thêm / Sửa Zone */}
       <ZoneModal

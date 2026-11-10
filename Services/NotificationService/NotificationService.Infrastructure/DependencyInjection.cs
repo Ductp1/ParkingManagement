@@ -73,6 +73,9 @@ public static class DependencyInjection
         services.AddScoped<ITransactionalNotificationSender, DispatcherTransactionalNotificationSender>();
         services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
         services.AddScoped<IOwnerBookingNotifications, OwnerBookingNotifications>();
+        // ===== US-086: cảnh báo khẩn cấp đa kênh + tracking trạng thái gửi =====
+        services.AddScoped<Application.Features.Tracking.IDeliveryStatusReadStore, NotificationService.Infrastructure.Persistence.Queries.NotificationDeliveryStatusStore>();
+        services.AddScoped<Application.Features.Tracking.IGetDeliveryStatusUseCase, Application.Features.Tracking.GetDeliveryStatusUseCase>();
 
         // ===== US-086: emergency đa kênh + tracking trạng thái gửi =====
         services.AddSingleton(configuration.GetSection(EmergencyNotificationOptions.SectionName)
@@ -83,6 +86,8 @@ public static class DependencyInjection
 
         // ===== US-084: nhắc lịch booking (đặt/hủy/reschedule job + worker quét due) =====
         services.Configure<ReminderOptions>(configuration.GetSection(ReminderOptions.SectionName));
+        // Use case nhận ReminderOptions trực tiếp → đăng ký cả instance (host DI validation cần).
+        services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ReminderOptions>>().Value);
         services.AddScoped<Application.Features.Reminders.IReminderJobRepository, ReminderJobRepository>();
         services.AddScoped<Application.Features.Reminders.IBookingReminderScheduler, Application.Features.Reminders.BookingReminderScheduler>();
         services.AddHostedService<Workers.ReminderSchedulerWorker>();

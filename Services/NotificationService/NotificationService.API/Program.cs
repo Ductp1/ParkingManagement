@@ -10,6 +10,9 @@ using ParkingManagement.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Ghi đè cấu hình máy local (RabbitMQ password...) — file bị gitignore, xem UserService.API cùng pattern.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddEnvironmentVariables();
+
 // ===== Composition Root: lắp ráp các layer của NotificationService =====
 builder.AddServiceDefaults("NotificationService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
 builder.Services.AddNotificationApplication();                                  // Application: Use Case

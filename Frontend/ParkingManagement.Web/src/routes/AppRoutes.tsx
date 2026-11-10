@@ -7,7 +7,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from './ProtectedRoute';
-import { DriverHomePage } from '@/areas/driver/pages/DriverHomePage';
 import { VehiclesPage } from '@/areas/driver/pages/VehiclesPage';
 import { LotDetailPage } from '@/areas/driver/pages/LotDetailPage';
 import { OwnerHomePage } from '@/areas/owner/pages/OwnerHomePage';
@@ -21,6 +20,7 @@ import { BookingHistoryPage } from '@/areas/driver/pages/BookingHistoryPage';
 import { SupportPage } from '@/areas/driver/pages/SupportPage';
 import { KycPage } from '@/areas/driver/pages/KycPage';
 import { PaymentResultPage } from '@/areas/driver/pages/PaymentResultPage';
+import { SmartParkingFinderPage } from '@/areas/driver/pages/SmartParkingFinderPage';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -39,9 +39,10 @@ export const AppRoutes: React.FC = () => {
         {/* 🚗 1. Driver Portal (/driver/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Driver', 'Admin']} />}>
           <Route path="/driver">
-            <Route index element={<DriverHomePage />} />
+            <Route index element={<Navigate to="/driver/find-lot" replace />} />
+            <Route path="find-lot" element={<SmartParkingFinderPage />} />
             <Route path="vehicles" element={<VehiclesPage />} />
-            <Route path="parking-lots" element={<LotDetailPage />} />
+            <Route path="parking-lots" element={<Navigate to="/driver/find-lot" replace />} />
             <Route path="parking-lots/:id" element={<LotDetailPage />} />
             <Route path="history" element={<BookingHistoryPage />} />
             <Route path="support" element={<SupportPage />} />
@@ -59,7 +60,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/owner/*" element={<OwnerHomePage />} />
         </Route>
 
-        {/* 🚧 3. Gate Console Portal (/gate/*) */}
+        {/* 🚪 3. Gate Console Portal (/gate/*) */}
         <Route element={<ProtectedRoute allowedRoles={['Staff', 'Admin']} />}>
           <Route path="/gate" element={<GateConsolePage />} />
           <Route path="/gate/*" element={<GateConsolePage />} />
@@ -78,7 +79,7 @@ export const AppRoutes: React.FC = () => {
         />
       </Route>
 
-      {/* ⚙️ 4. Admin Portal (/admin/*) – shell riêng (sidebar + header), không dùng Navbar/Footer của AppLayout */}
+      {/* 🛡️ 4. Admin Portal (/admin/*) — shell riêng (sidebar + header), không dùng Navbar/Footer của AppLayout */}
       <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
         <Route path="/admin/*" element={<AdminRoutes />} />
       </Route>

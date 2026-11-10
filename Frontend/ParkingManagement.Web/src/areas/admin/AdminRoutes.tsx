@@ -21,6 +21,7 @@ import { GateDevicesPage, GateSessionsPage } from './pages/operations/gate/GateA
 import { GATE_SUB_TABS } from './pages/operations/gate/gateTabs';
 import { FaqListPage } from './pages/communications/FaqListPage';
 import { SendNotificationPage } from './pages/communications/SendNotificationPage';
+import { CommissionPage } from './pages/finance/commission/CommissionPage';
 import { ExportsPage, ReportPage } from './pages/reports/ReportPages';
 import { REPORTS } from './pages/reports/reportSpecs';
 import { SystemSettingsListPage } from './pages/access/SystemSettingsListPage';
@@ -91,7 +92,10 @@ export const AdminRoutes: React.FC = () => {
         {/* Finance */}
         <Route path="finance/settlements" element={unavailable('settlements')} />
         <Route path="finance/payouts" element={unavailable('payouts')} />
-        <Route path="finance/commission" element={unavailable('commission')} />
+        {/* US-079: hoa hồng nền tảng – theo bãi / chủ bãi / nguồn tỷ lệ (bộ lọc trên URL, đổi tab giữ nguyên). */}
+        <Route path="finance/commission" element={<CommissionPage tab="lots" />} />
+        <Route path="finance/commission/owners" element={<CommissionPage tab="owners" />} />
+        <Route path="finance/commission/sources" element={<CommissionPage tab="sources" />} />
         <Route path="finance/adjustments" element={unavailable('adjustments')} />
         <Route path="finance/transactions" element={unavailable('transactions')} />
         <Route path="finance/refunds" element={unavailable('refunds')} />

@@ -507,7 +507,7 @@ public class LotOperatingHourTests
 
         var controller = new LotOperatingHoursController(getUseCase, updateUseCase, currentUser);
 
-        var actionResult = await controller.Get(lotId: 1, ownerProfileId: null, CancellationToken.None);
+        var actionResult = await controller.Get(lotId: 1, ownerProfileId: null, cancellationToken: CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
         var dto = Assert.IsType<LotOperatingHoursWeeklyDto>(okResult.Value);
@@ -529,7 +529,7 @@ public class LotOperatingHourTests
 
         var controller = new LotOperatingHoursController(getUseCase, updateUseCase, currentUser);
 
-        var actionResult = await controller.Get(lotId: 1, ownerProfileId: 25, CancellationToken.None);
+        var actionResult = await controller.Get(lotId: 1, ownerProfileId: 25, cancellationToken: CancellationToken.None);
 
         var okResult = Assert.IsType<OkObjectResult>(actionResult.Result);
         var dto = Assert.IsType<LotOperatingHoursWeeklyDto>(okResult.Value);
@@ -597,11 +597,18 @@ public class LotOperatingHourTests
     private sealed class FakeOperatingHourRepo : ILotOperatingHourRepository
     {
         private readonly List<LotOperatingHour> _hours = [];
+        private readonly List<LotOperatingHourOverride> _overrides = [];
         private int _nextId = 1;
 
         public Task<IReadOnlyList<LotOperatingHour>> GetByParkingLotIdAsync(int parkingLotId, bool trackChanges = false, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<LotOperatingHour>>(_hours.Where(h => h.ParkingLotId == parkingLotId).OrderBy(h => h.DayOfWeek).ToList());
+        }
+
+        public Task<IReadOnlyList<LotOperatingHourOverride>> GetOverridesByWeekAsync(int parkingLotId, int year, int weekOfYear, bool trackChanges = false, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<LotOperatingHourOverride>>(
+                _overrides.Where(o => o.ParkingLotId == parkingLotId && o.Year == year && o.WeekOfYear == weekOfYear).OrderBy(o => o.DayOfWeek).ToList());
         }
 
         public Task ReplaceScheduleAsync(int parkingLotId, IEnumerable<LotOperatingHour> newSchedule, CancellationToken cancellationToken = default)
@@ -628,6 +635,39 @@ public class LotOperatingHourTests
                 }
             }
 
+            return Task.CompletedTask;
+        }
+
+        public Task ReplaceWeekOverridesAsync(int parkingLotId, int year, int weekOfYear, IEnumerable<LotOperatingHourOverride> overrides, CancellationToken cancellationToken = default)
+        {
+            var incoming = overrides.ToList();
+            var incomingDays = incoming.Select(s => s.DayOfWeek).ToHashSet();
+            _overrides.RemoveAll(o => o.ParkingLotId == parkingLotId && o.Year == year && o.WeekOfYear == weekOfYear && !incomingDays.Contains(o.DayOfWeek));
+            foreach (var item in incoming)
+            {
+                var matched = _overrides.FirstOrDefault(o => o.ParkingLotId == parkingLotId && o.Year == year && o.WeekOfYear == weekOfYear && o.DayOfWeek == item.DayOfWeek);
+                if (matched != null)
+                {
+                    matched.OpenTime = item.OpenTime;
+                    matched.CloseTime = item.CloseTime;
+                    matched.IsClosed = item.IsClosed;
+                    matched.Reason = item.Reason;
+                }
+                else
+                {
+                    item.ParkingLotId = parkingLotId;
+                    item.Year = year;
+                    item.WeekOfYear = weekOfYear;
+                    if (item.Id == 0) WithId(item, _nextId++);
+                    _overrides.Add(item);
+                }
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteWeekOverridesAsync(int parkingLotId, int year, int weekOfYear, CancellationToken cancellationToken = default)
+        {
+            _overrides.RemoveAll(o => o.ParkingLotId == parkingLotId && o.Year == year && o.WeekOfYear == weekOfYear);
             return Task.CompletedTask;
         }
 

@@ -22,6 +22,8 @@ public sealed record OwnerAccountDto(
 public interface IOwnerProfileRepository
 {
     Task<OwnerProfile?> FindByIdWithUserAsync(int ownerProfileId, CancellationToken cancellationToken);
+    Task<OwnerProfile?> FindByIdWithStaffAssignmentsAsync(int ownerProfileId, CancellationToken cancellationToken);
+    Task<OwnerProfile?> FindByUserIdAsync(int userId, CancellationToken cancellationToken);
     Task UpdateAsync(OwnerProfile ownerProfile, CancellationToken cancellationToken);
 }
 

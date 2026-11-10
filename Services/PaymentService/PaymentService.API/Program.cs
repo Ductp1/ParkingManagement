@@ -5,6 +5,9 @@ using ParkingManagement.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Ghi đè cấu hình máy local (RabbitMQ password...) — file bị gitignore, xem UserService.API cùng pattern.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddEnvironmentVariables();
+
 // ===== Composition Root: lắp ráp các layer của PaymentService =====
 builder.AddServiceDefaults("PaymentService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
 // JWT do UserService phát hành (RS256): kiểm tra chữ ký bằng public key + policy RBAC dùng chung (T-102).
@@ -14,6 +17,7 @@ builder.Services.AddJwtAuth(Path.GetFullPath(
     builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
 builder.Services.AddPaymentApplication();                                  // Application: Use Case
 builder.Services.AddPaymentInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
+builder.Services.AddPaymentCommission(builder.Configuration);              // US-079: hoa hồng nền tảng (job + báo cáo Admin)
 
 var app = builder.Build();
 

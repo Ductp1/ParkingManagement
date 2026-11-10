@@ -40,6 +40,9 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -116,6 +119,51 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ClosureSchedules_Period", "\"EndsAtUtc\" IS NULL OR \"EndsAtUtc\" > \"StartsAtUtc\"");
                         });
+                });
+
+            modelBuilder.Entity("ParkingService.Domain.Entities.EmergencyStopLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ActorRole")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AffectedBookings")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId", "CreatedAtUtc");
+
+                    b.ToTable("EmergencyStopLogs", (string)null);
                 });
 
             modelBuilder.Entity("ParkingService.Domain.Entities.ExternalParkingLot", b =>
@@ -645,6 +693,55 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.ToTable("LotOperatingHours", (string)null);
                 });
 
+            modelBuilder.Entity("ParkingService.Domain.Entities.LotOperatingHourOverride", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<TimeOnly>("CloseTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DayOfWeek")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("boolean");
+
+                    b.Property<TimeOnly>("OpenTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("WeekOfYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId", "Year", "WeekOfYear", "DayOfWeek")
+                        .IsUnique();
+
+                    b.ToTable("LotOperatingHourOverrides", (string)null);
+                });
+
             modelBuilder.Entity("ParkingService.Domain.Entities.LotPhoto", b =>
                 {
                     b.Property<int>("Id")
@@ -731,6 +828,13 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("EmergencyStopReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("EmergencyStoppedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("HotlinePhone")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -740,8 +844,14 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<bool>("IsDataStale")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastHeartbeatAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");
@@ -782,6 +892,8 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsDataStale");
 
                     b.HasIndex("OwnerProfileId");
 
@@ -1081,6 +1193,17 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.Navigation("ParkingLot");
                 });
 
+            modelBuilder.Entity("ParkingService.Domain.Entities.LotOperatingHourOverride", b =>
+                {
+                    b.HasOne("ParkingService.Domain.Entities.ParkingLot", "ParkingLot")
+                        .WithMany("OperatingHourOverrides")
+                        .HasForeignKey("ParkingLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ParkingLot");
+                });
+
             modelBuilder.Entity("ParkingService.Domain.Entities.LotPhoto", b =>
                 {
                     b.HasOne("ParkingService.Domain.Entities.ParkingLot", "ParkingLot")
@@ -1137,6 +1260,8 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                     b.Navigation("Amenities");
 
                     b.Navigation("CapacityConfig");
+
+                    b.Navigation("OperatingHourOverrides");
 
                     b.Navigation("OperatingHours");
 
