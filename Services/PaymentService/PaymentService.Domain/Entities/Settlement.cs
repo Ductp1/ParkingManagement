@@ -1,5 +1,6 @@
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace PaymentService.Domain.Entities;
 
@@ -81,11 +82,94 @@ public class Settlement : BaseEntity
             Status = SettlementStatus.Draft,
         };
 
+    // ===== Luồng duyệt (US-080): Draft → PendingReview → Approved → Paid; PendingReview → Draft khi bị từ chối =====
+
+    public const int ReasonMaxLength = 500;
+    public const int PayoutReferenceMaxLength = 100;
+    /// <summary>Cho phép lệch đồng hồ khi nhập ngày chuyển khoản.</summary>
+    public static readonly TimeSpan ClockSkew = TimeSpan.FromMinutes(5);
+
+    /// <summary>Gửi duyệt: chỉ kỳ Draft không bị chặn (đã nạp khoản giữ, đủ hoa hồng, booking xác minh được). Sai trạng thái → 409.</summary>
+    public void Submit(int userId, DateTime nowUtc)
+    {
+        EnsureStatus(SettlementStatus.Draft, "gửi duyệt");
+        if (IsBlocked)
+            throw new ConflictException($"Kỳ quyết toán {Code} đang bị chặn ({BlockedReasons}) – hãy xử lý rồi tính lại trước khi gửi duyệt.");
+        Status = SettlementStatus.PendingReview;
+        SubmittedByUserId = userId;
+        SubmittedAtUtc = nowUtc;
+    }
+
+    /// <summary>Duyệt (chốt kỳ): từ đây kỳ bất biến, sửa đổi chỉ qua FinancialAdjustment vào kỳ sau. Người gửi không tự duyệt khi bật 4 mắt → 403.</summary>
+    public void Approve(int userId, DateTime nowUtc, bool requireDifferentApprover)
+    {
+        EnsureStatus(SettlementStatus.PendingReview, "duyệt");
+        if (requireDifferentApprover && SubmittedByUserId == userId)
+            throw new ForbiddenException($"Người gửi duyệt kỳ {Code} không được tự duyệt – cần một Admin khác.");
+        Status = SettlementStatus.Approved;
+        ApprovedByUserId = userId;
+        ApprovedAtUtc = nowUtc;
+    }
+
+    /// <summary>Từ chối: PendingReview → Draft (lý do bắt buộc) để tính lại / xử lý rồi gửi lại.</summary>
+    public void Reject(int userId, string? reason, DateTime nowUtc)
+    {
+        EnsureStatus(SettlementStatus.PendingReview, "từ chối");
+        var text = RequireText(reason, "Lý do từ chối", ReasonMaxLength);
+        Status = SettlementStatus.Draft;
+        RejectedByUserId = userId;
+        RejectedAtUtc = nowUtc;
+        RejectReason = text;
+    }
+
+    /// <summary>
+    /// Đã chuyển khoản: Approved → Paid, mã giao dịch ngân hàng bắt buộc, ngày chuyển không ở tương lai và không trước lúc duyệt.
+    /// NetPayout ≤ 0 → không có khoản chi (số âm mang sang kỳ sau) → 409.
+    /// </summary>
+    public void MarkPaid(int userId, string? payoutReference, DateTime? paidAtUtc, DateTime nowUtc)
+    {
+        EnsureStatus(SettlementStatus.Approved, "đánh dấu đã chi");
+        if (NetPayout <= 0)
+            throw new ConflictException($"Kỳ quyết toán {Code} có thực chi {NetPayout:N0} ≤ 0 – không có khoản chuyển; số âm được mang sang kỳ sau.");
+        var reference = RequireText(payoutReference, "Mã giao dịch chuyển khoản", PayoutReferenceMaxLength);
+        if (paidAtUtc is not { } paidAt || paidAt == default) throw new ValidationException("Ngày chuyển khoản không được để trống.");
+        if (paidAt > nowUtc + ClockSkew) throw new ValidationException("Ngày chuyển khoản không được ở tương lai.");
+        if (ApprovedAtUtc is { } approvedAt && paidAt < approvedAt - ClockSkew)
+            throw new ValidationException("Ngày chuyển khoản không được trước lúc duyệt kỳ.");
+        Status = SettlementStatus.Paid;
+        PaidByUserId = userId;
+        PaidAtUtc = paidAt;
+        PayoutReference = reference;
+    }
+
+    /// <summary>Thao tác được phép ở trạng thái hiện tại (giao diện bật / tắt nút).</summary>
+    public IReadOnlyList<string> AllowedActions() => Status switch
+    {
+        SettlementStatus.Draft => IsBlocked ? ["Regenerate"] : ["Regenerate", "Submit"],
+        SettlementStatus.PendingReview => ["Approve", "Reject"],
+        SettlementStatus.Approved => NetPayout > 0 ? ["MarkPaid"] : [],
+        _ => [],
+    };
+
+    private void EnsureStatus(SettlementStatus expected, string action)
+    {
+        if (Status != expected)
+            throw new ConflictException($"Không thể {action} kỳ quyết toán {Code} đang ở trạng thái {Status} (cần {expected}).");
+    }
+
+    internal static string RequireText(string? value, string field, int maxLength)
+    {
+        var text = value?.Trim();
+        if (string.IsNullOrEmpty(text)) throw new ValidationException($"{field} không được để trống.");
+        if (text.Length > maxLength) throw new ValidationException($"{field} tối đa {maxLength} ký tự.");
+        return text;
+    }
+
     /// <summary>Ghi kết quả tính (lần đầu hoặc tính lại). Chỉ Draft được tính lại – từ PendingReview trở đi bất biến.</summary>
     public void ApplyComputation(Services.SettlementComputation computation, DateTime nowUtc, int? userId, DateTime? holdsCapturedAtUtc)
     {
         if (Status != SettlementStatus.Draft)
-            throw new InvalidOperationException($"Kỳ quyết toán {Code} đang ở trạng thái {Status}, chỉ kỳ Draft được tính lại.");
+            throw new ConflictException($"Kỳ quyết toán {Code} đang ở trạng thái {Status}, chỉ kỳ Draft được tính lại.");
 
         GrossAmount = computation.Gross;
         RefundAmount = computation.Refund;

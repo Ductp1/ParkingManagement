@@ -1,4 +1,5 @@
 using ParkingManagement.SharedKernel.Domain;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace PaymentService.Domain.Entities;
 
@@ -47,6 +48,68 @@ public class FinancialAdjustment : BaseEntity
     public Settlement? Settlement { get; set; }
 
     public const string RevokedSuffix = ":REVOKED";
+    public const int ReasonMaxLength = 500;
+    /// <summary>Chặn nhập nhầm số (VND): |Amount| ≤ 10 tỷ.</summary>
+    public const decimal MaxAbsoluteAmount = 10_000_000_000m;
+
+    /// <summary>
+    /// Admin tạo bút toán (chờ duyệt). Amount ≠ 0, là số nguyên VND; lý do bắt buộc. sanctionId → nguồn Sanction (US-097);
+    /// <paramref name="reverses"/> = bút toán Approved cần đảo (cùng chủ bãi, số tiền ngược dấu).
+    /// </summary>
+    public static FinancialAdjustment CreateManual(int ownerProfileId, decimal amount, string? reason, int createdByUserId, int? sanctionId,
+        FinancialAdjustment? reverses, DateTime nowUtc)
+    {
+        if (ownerProfileId <= 0) throw new ValidationException("ownerProfileId phải là số nguyên dương.");
+        if (amount == 0) throw new ValidationException("Số tiền điều chỉnh phải khác 0.");
+        if (amount != decimal.Truncate(amount)) throw new ValidationException("Số tiền điều chỉnh phải là số nguyên VND.");
+        if (Math.Abs(amount) > MaxAbsoluteAmount) throw new ValidationException("Số tiền điều chỉnh vượt giới hạn 10 tỷ VND.");
+        if (sanctionId is <= 0) throw new ValidationException("sanctionId phải là số nguyên dương.");
+        if (reverses is not null)
+        {
+            if (reverses.OwnerProfileId != ownerProfileId) throw new ValidationException("Bút toán cần đảo thuộc chủ bãi khác.");
+            if (reverses.Status != FinancialAdjustmentStatus.Approved) throw new ConflictException("Chỉ đảo được bút toán đã duyệt.");
+            if (amount != -reverses.Amount) throw new ValidationException($"Bút toán đảo phải có số tiền {-reverses.Amount:0}.");
+        }
+        return new FinancialAdjustment
+        {
+            OwnerProfileId = ownerProfileId,
+            Amount = amount,
+            Reason = Settlement.RequireText(reason, "Lý do điều chỉnh", ReasonMaxLength),
+            CreatedByUserId = createdByUserId,
+            Status = FinancialAdjustmentStatus.PendingApproval,
+            SourceType = sanctionId is null ? FinancialAdjustmentSource.Manual : FinancialAdjustmentSource.Sanction,
+            SourceReference = sanctionId?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ReversesAdjustmentId = reverses?.Id,
+            CreatedAtUtc = nowUtc,
+        };
+    }
+
+    /// <summary>Duyệt: chỉ bút toán chờ duyệt; người tạo không tự duyệt khi bật 4 mắt (403). Được gắn vào kỳ Draft lần sinh / tính lại kế tiếp.</summary>
+    public void Approve(int userId, DateTime nowUtc, bool requireDifferentApprover)
+    {
+        EnsurePending("duyệt");
+        if (requireDifferentApprover && CreatedByUserId == userId)
+            throw new ForbiddenException($"Người tạo bút toán #{Id} không được tự duyệt – cần một Admin khác.");
+        Status = FinancialAdjustmentStatus.Approved;
+        ApprovedByUserId = userId;
+        ApprovedAtUtc = nowUtc;
+    }
+
+    public void Reject(int userId, string? reason, DateTime nowUtc)
+    {
+        EnsurePending("từ chối");
+        RejectReason = Settlement.RequireText(reason, "Lý do từ chối", ReasonMaxLength);
+        Status = FinancialAdjustmentStatus.Rejected;
+        RejectedByUserId = userId;
+        RejectedAtUtc = nowUtc;
+    }
+
+    private void EnsurePending(string action)
+    {
+        if (Status != FinancialAdjustmentStatus.PendingApproval)
+            throw new ConflictException($"Không thể {action} bút toán #{Id} đang ở trạng thái {Status}.");
+    }
+
 
     /// <summary>Bút toán trừ chủ bãi giá trị voucher đền bù (lỗi do bãi) – hệ thống tự duyệt.</summary>
     public static FinancialAdjustment ForCompensationVoucher(int ownerProfileId, string voucherCode, decimal amount, int issuedByUserId,

@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PaymentService.Application.Features.Settlements;
+using PaymentService.Infrastructure.Persistence.Queries;
 using PaymentService.Infrastructure.Persistence.Repositories;
 using PaymentService.Infrastructure.Settlements;
 
@@ -11,7 +12,7 @@ namespace PaymentService.Infrastructure;
 /// US-080: đăng ký quyết toán định kỳ trong một chỗ (Program.cs gọi 1 dòng, sau AddPaymentCommission – dùng lại CommissionPolicy và
 /// kết nối AdminService của US-079). Cấu hình:
 /// <code>
-/// "Settlements": { "BiweeklyAnchor": "2026-01-05", "MaxCatchUpPeriods": 60, "SourceTimeoutSeconds": 10,
+/// "Settlements": { "BiweeklyAnchor": "2026-01-05", "MaxCatchUpPeriods": 60, "SourceTimeoutSeconds": 10, "RequireDifferentApprover": true,
 ///                  "Generation": { "Enabled": true, "IntervalMinutes": 60 } },
 /// "Services": { "GatewayBaseUrl": "http://localhost:5000", "AdminService": { "BaseUrl": "…", "ApiKey": "" } }   // ApiKey chỉ qua biến môi trường
 /// </code>
@@ -25,6 +26,7 @@ public static class SettlementServiceCollectionExtensions
         var section = configuration.GetSection(SectionName);
         services.AddSingleton(ReadOptions(section));
         services.AddSingleton(ReadGateway(configuration, section));
+        services.AddSingleton(new SettlementReviewOptions(section.GetValue("RequireDifferentApprover", true)));
         var generation = section.GetSection("Generation");
         services.AddSingleton(new SettlementJobSchedule(
             generation.GetValue("Enabled", true),
@@ -42,6 +44,29 @@ public static class SettlementServiceCollectionExtensions
         services.AddScoped<IGenerateSettlementsUseCase, GenerateSettlementsUseCase>();
         services.AddScoped<IRegenerateSettlementUseCase, RegenerateSettlementUseCase>();
         services.AddHostedService<SettlementGenerationJob>();
+
+        // Duyệt / chi / điều chỉnh (Admin) + xem kỳ đã chốt (chủ bãi).
+        services.AddScoped<ISettlementQueries, SettlementQueries>();
+        services.AddScoped<ISettlementReviewRepository, SettlementReviewRepository>();
+        services.AddScoped<IListSettlementsUseCase, ListSettlementsUseCase>();
+        services.AddScoped<IGetSettlementStatsUseCase, GetSettlementStatsUseCase>();
+        services.AddScoped<IGetSettlementUseCase, GetSettlementUseCase>();
+        services.AddScoped<IListSettlementLinesUseCase, ListSettlementLinesUseCase>();
+        services.AddScoped<IListSettlementPeriodsUseCase, ListSettlementPeriodsUseCase>();
+        services.AddScoped<IExportSettlementsUseCase, ExportSettlementsUseCase>();
+        services.AddScoped<IExportSettlementLinesUseCase, ExportSettlementLinesUseCase>();
+        services.AddScoped<ISubmitSettlementUseCase, SubmitSettlementUseCase>();
+        services.AddScoped<IApproveSettlementUseCase, ApproveSettlementUseCase>();
+        services.AddScoped<IRejectSettlementUseCase, RejectSettlementUseCase>();
+        services.AddScoped<IMarkSettlementPaidUseCase, MarkSettlementPaidUseCase>();
+        services.AddScoped<IListAdjustmentsUseCase, ListAdjustmentsUseCase>();
+        services.AddScoped<ICreateAdjustmentUseCase, CreateAdjustmentUseCase>();
+        services.AddScoped<IApproveAdjustmentUseCase, ApproveAdjustmentUseCase>();
+        services.AddScoped<IRejectAdjustmentUseCase, RejectAdjustmentUseCase>();
+        services.AddScoped<IListOwnerSettlementsUseCase, ListOwnerSettlementsUseCase>();
+        services.AddScoped<IGetOwnerSettlementUseCase, GetOwnerSettlementUseCase>();
+        services.AddScoped<IListOwnerSettlementLinesUseCase, ListOwnerSettlementLinesUseCase>();
+        services.AddScoped<IExportOwnerSettlementLinesUseCase, ExportOwnerSettlementLinesUseCase>();
         return services;
     }
 
