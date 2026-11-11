@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
+using Microsoft.Extensions.Logging;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -61,11 +62,43 @@ public sealed record LotCancelBookingCommand(int OwnerProfileId, string Reason);
 
 public sealed record GateActionCommand(int GateDeviceId, int StaffUserId, string? PlateNumber = null, decimal? AdditionalFee = null);
 
+// ===== US-039: DANH SÁCH BOOKING VƯỢT 30 PHÚT ÂN HẠN CHECK-IN (CHO STAFF HỦY NO-SHOW – UC-24) =====
+public sealed record NoShowCandidateDto(string Code, int UserId, string PlateNumber, int ParkingLotId, string ParkingLotName,
+    string? SlotCode, DateTime StartAtUtc, DateTime EndAtUtc, decimal TotalAmount, int MinutesOverdue);
+
+// ===== US-103: PORT ĐẾM TẦN SUẤT ĐẶT/HỦY & TỶ LỆ NO-SHOW CỦA MỘT TÀI KHOẢN =====
+public sealed record NoShowStatistics(int FinishedBookings, int NoShowBookings);
+
+public interface IBookingAbuseQueries
+{
+    /// <summary>Số booking tài khoản tạo trong khoảng [since, now].</summary>
+    Task<int> CountCreatedSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default);
+    /// <summary>Số lượt hủy (Cancelled / CancelledNoRefund / NoShow do staff) trong khoảng [since, now].</summary>
+    Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default);
+    /// <summary>Thống kê No-show trên các booking đã kết thúc trong kỳ nhìn lại (US-103 AC2).</summary>
+    Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default);
+}
+
+// ===== US-052: PORT ĐẨY BOOKING MỚI VỀ PMS CỦA BÃI (UC-51 BƯỚC 1) =====
+public sealed record PmsBookingPush(string BookingCode, int ParkingLotId, string PlateNumber, string VehicleType,
+    DateTime StartAtUtc, DateTime EndAtUtc, decimal TotalAmount);
+
+public interface ILotIntegrationClient
+{
+    /// <summary>
+    /// Đẩy booking mới về PMS của bãi qua ParkingService (webhook có chữ ký HMAC). 
+    /// Trả false khi bãi không cấu hình PMS hoặc đẩy thất bại – KHÔNG được chặn việc tạo booking.
+    /// </summary>
+    Task<bool> PushBookingCreatedAsync(PmsBookingPush booking, CancellationToken cancellationToken = default);
+}
+
 // ===== PORTS =====
 public interface IBookingQueries
 {
     Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken);
+    /// <summary>US-039 (UC-24): booking Confirmed chưa check-in đã quá {graceMinutes} phút kể từ giờ bắt đầu, lọc theo bãi.</summary>
+    Task<IReadOnlyList<NoShowCandidateDto>> ListNoShowCandidatesAsync(int parkingLotId, DateTime nowUtc, int graceMinutes, CancellationToken cancellationToken);
 }
 
 public interface IBookingRepository
@@ -187,11 +220,53 @@ public interface ICreateBookingUseCase
     Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// US-103: Lớp chặn hành vi lạm dụng đặt/hủy trước khi tạo booking.
+/// Đếm tần suất đặt + hủy trong cửa sổ cấu hình và tỷ lệ No-show trong kỳ nhìn lại;
+/// vi phạm → ConflictException (HTTP 409) kèm thông điệp hướng dẫn cho khách.
+/// </summary>
+public sealed class BookingAbuseGuard(IBookingAbuseQueries abuseQueries, TimeProvider timeProvider, BookingAbuseOptions? options = null)
+{
+    private readonly BookingAbuseOptions _options = options ?? BookingAbuseOptions.Default;
+
+    public async Task EnsureCanCreateBookingAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+
+        var windowStart = now.AddMinutes(-_options.ActionWindowMinutes);
+        var created = await abuseQueries.CountCreatedSinceAsync(userId, windowStart, cancellationToken);
+        var cancelled = await abuseQueries.CountCancellationsSinceAsync(userId, windowStart, cancellationToken);
+        var frequency = BookingAbusePolicy.EvaluateActionFrequency(created, cancelled, _options);
+        if (!frequency.Allowed)
+            throw new ConflictException(frequency.RestrictionMessage!);
+
+        var lookbackStart = now.AddDays(-_options.NoShowLookbackDays);
+        var stats = await abuseQueries.GetNoShowStatisticsAsync(userId, lookbackStart, cancellationToken);
+        var noShow = BookingAbusePolicy.EvaluateNoShowRate(stats.FinishedBookings, stats.NoShowBookings, _options);
+        if (!noShow.Allowed)
+            throw new ConflictException(noShow.RestrictionMessage!);
+    }
+
+    public async Task EnsureCanCancelBookingAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var windowStart = now.AddMinutes(-_options.ActionWindowMinutes);
+        var created = await abuseQueries.CountCreatedSinceAsync(userId, windowStart, cancellationToken);
+        var cancelled = await abuseQueries.CountCancellationsSinceAsync(userId, windowStart, cancellationToken);
+        var frequency = BookingAbusePolicy.EvaluateActionFrequency(created, cancelled, _options);
+        if (!frequency.Allowed)
+            throw new ConflictException(frequency.RestrictionMessage!);
+    }
+}
+
 /// <summary>US-022: Tạo booking & giữ chỗ 15 phút (TC-BOOK-01).</summary>
 public sealed class CreateBookingUseCase(
     IBookingRepository repository,
     IQrTokenService qrService,
-    TimeProvider timeProvider) : ICreateBookingUseCase
+    BookingAbuseGuard abuseGuard,
+    ILotIntegrationClient lotIntegration,
+    TimeProvider timeProvider,
+    ILogger<CreateBookingUseCase>? logger = null) : ICreateBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
     {
@@ -200,6 +275,9 @@ public sealed class CreateBookingUseCase(
         if (command.ParkingLotId <= 0) throw new ValidationException("ParkingLotId không hợp lệ.");
         if (string.IsNullOrWhiteSpace(command.PlateNumber)) throw new ValidationException("Biển số xe không được để trống.");
         if (command.EndAtUtc <= command.StartAtUtc) throw new ValidationException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+
+        // US-103 (UC-10 E1b): chặn tài khoản đặt/hủy quá tần suất hoặc vượt ngưỡng No-show trước khi giữ chỗ.
+        await abuseGuard.EnsureCanCreateBookingAsync(command.UserId, cancellationToken);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         if (command.StartAtUtc < now.AddMinutes(15))
@@ -253,6 +331,23 @@ public sealed class CreateBookingUseCase(
         await repository.AddAsync(booking, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
 
+        // US-052 (UC-51 bước 1): đẩy booking mới về PMS của bãi (nếu bãi cấu hình tích hợp Mức 1).
+        // Lỗi đẩy webhook KHÔNG được làm hỏng booking – chỉ ghi log để đối soát/retry sau.
+        try
+        {
+            var pushed = await lotIntegration.PushBookingCreatedAsync(new PmsBookingPush(
+                booking.Code, booking.ParkingLotId, booking.PlateNumber, booking.VehicleType.ToString(),
+                booking.StartAtUtc, booking.EndAtUtc, booking.TotalAmount), cancellationToken);
+            if (!pushed)
+                logger?.LogInformation("Bãi {ParkingLotId} chưa cấu hình PMS hoặc đẩy webhook thất bại – booking {Code} vẫn hợp lệ.",
+                    booking.ParkingLotId, booking.Code);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning(ex, "Không đẩy được booking {Code} về PMS của bãi {ParkingLotId}.",
+                booking.Code, booking.ParkingLotId);
+        }
+
         return new BookingDetailDto(
             booking.Id, booking.Code, booking.Status.ToString(), booking.UserId, booking.VehicleId,
             booking.PlateNumber, booking.VehicleType.ToString(), booking.ParkingLotId, booking.ParkingLotName,
@@ -269,9 +364,10 @@ public interface ICancelBookingUseCase
     Task<CancellationResultDto> ExecuteAsync(string code, CancelBookingCommand command, CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-038: Khách hủy booking theo Cancellation Window 1 giờ.</summary>
+/// <summary>US-038: Khách hủy booking theo Cancellation Window 1 giờ. US-103: chặn hủy quá tần suất.</summary>
 public sealed class CancelBookingUseCase(
     IBookingRepository repository,
+    BookingAbuseGuard abuseGuard,
     TimeProvider timeProvider) : ICancelBookingUseCase
 {
     public async Task<CancellationResultDto> ExecuteAsync(string code, CancelBookingCommand command, CancellationToken cancellationToken = default)
@@ -280,6 +376,10 @@ public sealed class CancelBookingUseCase(
             ?? throw new NotFoundException("Booking", code);
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
+
+        // US-103 (AC1): chặn tài khoản hủy/đặt quá tần suất trong cửa sổ thời gian.
+        await abuseGuard.EnsureCanCancelBookingAsync(command.UserId, cancellationToken);
+
         var decision = CancellationPolicy.Evaluate(booking.Status, booking.StartAtUtc, now);
         if (!decision.CanCancel)
             throw new ValidationException(decision.Reason);
@@ -291,6 +391,25 @@ public sealed class CancelBookingUseCase(
         var refund = Math.Round(booking.PaidAmount * decision.RefundPercent / 100m, 0);
 
         return new CancellationResultDto(booking.Code, booking.Status.ToString(), decision.RefundPercent, refund, decision.Reason);
+    }
+}
+
+public interface IListNoShowCandidatesUseCase
+{
+    Task<IReadOnlyList<NoShowCandidateDto>> ExecuteAsync(int parkingLotId, int graceMinutes = 30, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// US-039 (UC-24 bước 1): hệ thống gửi cảnh báo No-show cho Staff – danh sách booking Confirmed
+/// chưa check-in đã quá mốc ân hạn 30 phút (NO_SHOW_CANCEL_AFTER_MINUTES) kể từ giờ bắt đầu.
+/// </summary>
+public sealed class ListNoShowCandidatesUseCase(IBookingQueries queries, TimeProvider timeProvider) : IListNoShowCandidatesUseCase
+{
+    public Task<IReadOnlyList<NoShowCandidateDto>> ExecuteAsync(int parkingLotId, int graceMinutes = 30, CancellationToken cancellationToken = default)
+    {
+        if (parkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
+        if (graceMinutes <= 0) graceMinutes = 30;
+        return queries.ListNoShowCandidatesAsync(parkingLotId, timeProvider.GetUtcNow().UtcDateTime, graceMinutes, cancellationToken);
     }
 }
 

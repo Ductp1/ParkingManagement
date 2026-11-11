@@ -1,5 +1,6 @@
 using GateService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace GateService.Infrastructure.Persistence;
@@ -11,4 +12,12 @@ public sealed class GateDbContext(DbContextOptions<GateDbContext> options) : Ser
     public DbSet<GateEvent> GateEvents => Set<GateEvent>();
     public DbSet<Shift> Shifts => Set<Shift>();
     public DbSet<GateDevice> GateDevices => Set<GateDevice>();
+    public DbSet<PmsUnmatchedEvent> PmsUnmatchedEvents => Set<PmsUnmatchedEvent>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        // US-052: bảng InboxReceipts chống xử lý trùng sự kiện PMS (idempotency theo EventId).
+        modelBuilder.ConfigureInbox();
+    }
 }

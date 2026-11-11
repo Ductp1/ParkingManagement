@@ -45,6 +45,8 @@ public class Booking : BaseEntity
     public int? CancelledByUserId { get; set; }
 
     public BookingStatus Status { get; set; } = BookingStatus.Created;
+    /// <summary>Giai đoạn xử lý tự động của worker chốt phiên đỗ (US-040) – chống xử lý trùng.</summary>
+    public BookingAutoStage AutoProcessStage { get; set; } = BookingAutoStage.None;
     /// <summary>Bãi Mức 0 – cần chủ bãi duyệt trong 10 phút.</summary>
     public bool RequiresOwnerApproval { get; set; }
 
@@ -227,6 +229,68 @@ public class Booking : BaseEntity
         CancelReason = "Khách không đến sau 30 phút (Tự động hủy và khấu trừ tiền cọc)";
 
         AddStatusLog(BookingStatus.Confirmed, BookingStatus.NoShow, staffUserId, CancelReason);
+    }
+
+    /// <summary>
+    /// US-040 (UC-49 bước 2): đã quá giờ bắt đầu + thời gian nhắc mà chưa có dữ liệu check-in
+    /// → đánh dấu "đã nhắc" Tài xế và Chủ bãi. AutoProcessStage chặn worker nhắc lặp lại.
+    /// </summary>
+    public void RemindMissingCheckIn(DateTime nowUtc, int remindAfterStartMinutes)
+    {
+        if (Status != BookingStatus.Confirmed)
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không thể nhắc thiếu check-in (Yêu cầu trạng thái Confirmed).");
+        if (CheckedInAtUtc.HasValue)
+            throw new ConflictException("Đơn đặt chỗ đã có dữ liệu check-in, không cần nhắc.");
+        if (AutoProcessStage is BookingAutoStage.Reminded or BookingAutoStage.Finalized)
+            return; // Đã nhắc trước đó – idempotent, không ném lỗi để worker chạy lại an toàn.
+        if (nowUtc < StartAtUtc.AddMinutes(remindAfterStartMinutes))
+            throw new ValidationException($"Chưa đến mốc nhắc ({remindAfterStartMinutes} phút sau giờ bắt đầu), không thể nhắc thiếu check-in.");
+
+        AutoProcessStage = BookingAutoStage.Reminded;
+        AddStatusLog(BookingStatus.Confirmed, BookingStatus.Confirmed, null,
+            $"US-040: Chưa có dữ liệu check-in sau {remindAfterStartMinutes} phút kể từ giờ bắt đầu – hệ thống đã nhắc Tài xế và Chủ bãi");
+    }
+
+    /// <summary>
+    /// US-040 (UC-49 bước 1): có check-in nhưng thiếu dữ liệu check-out, quá giờ kết thúc + thời gian tự hoàn tất
+    /// → tự động chuyển Completed để booking không bị bỏ lửng. Phiếu tính phí đối soát ở PaymentService.
+    /// </summary>
+    public void CompleteWithoutCheckout(DateTime nowUtc, int autoCompleteAfterEndHours)
+    {
+        if (Status is not (BookingStatus.CheckedIn or BookingStatus.Parking))
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không thể tự hoàn tất (Yêu cầu CheckedIn hoặc Parking).");
+        if (AutoProcessStage == BookingAutoStage.Finalized)
+            return; // Đã chốt tự động trước đó – idempotent.
+        if (nowUtc < EndAtUtc.AddHours(autoCompleteAfterEndHours))
+            throw new ValidationException($"Chưa quá {autoCompleteAfterEndHours} giờ sau giờ kết thúc, không thể tự hoàn tất.");
+
+        var oldStatus = Status;
+        Status = BookingStatus.Completed;
+        CompletedAtUtc = nowUtc;
+        AddStatusLog(oldStatus, BookingStatus.Completed, null,
+            $"US-040: Có check-in nhưng thiếu dữ liệu check-out quá {autoCompleteAfterEndHours} giờ sau giờ kết thúc – hệ thống tự động hoàn tất phiên đỗ");
+    }
+
+    /// <summary>
+    /// US-040 (UC-49 bước 3): không có cả check-in lẫn check-out, quá giờ kết thúc + thời gian chốt → No-show (không hoàn tiền).
+    /// Worker gọi sau khi đã nhắc; AutoProcessStage chặn xử lý trùng.
+    /// </summary>
+    public void FinalizeNoShow(DateTime nowUtc, int noShowAfterEndHours)
+    {
+        if (Status != BookingStatus.Confirmed)
+            throw new ConflictException($"Đơn đặt chỗ ở trạng thái {Status}, không thể tự chốt No-show (Yêu cầu trạng thái Confirmed).");
+        if (CheckedInAtUtc.HasValue)
+            throw new ConflictException("Đơn đặt chỗ đã có dữ liệu check-in, phải xử lý theo luồng hoàn tất phiên đỗ.");
+        if (AutoProcessStage == BookingAutoStage.Finalized)
+            return; // Idempotent.
+        if (nowUtc < EndAtUtc.AddHours(noShowAfterEndHours))
+            throw new ValidationException($"Chưa quá {noShowAfterEndHours} giờ sau giờ kết thúc, không thể tự chốt No-show.");
+
+        Status = BookingStatus.NoShow;
+        CancelledAtUtc = nowUtc;
+        CancelReason = $"US-040: Không có dữ liệu check-in sau {noShowAfterEndHours} giờ kể từ giờ kết thúc – tự động chốt No-show (không hoàn tiền)";
+
+        AddStatusLog(BookingStatus.Confirmed, BookingStatus.NoShow, null, CancelReason);
     }
 
     private void AddStatusLog(BookingStatus? from, BookingStatus to, int? changedBy, string? reason)
