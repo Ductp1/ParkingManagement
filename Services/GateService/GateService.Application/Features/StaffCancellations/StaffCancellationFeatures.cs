@@ -21,10 +21,8 @@ public interface IGetStaffCancellationStatsUseCase
 /// </summary>
 public sealed class GetStaffCancellationStatsUseCase(
     IGateEventQueries queries,
-    TimeProvider timeProvider,
-    GateConsoleOptions? options = null) : IGetStaffCancellationStatsUseCase
+    TimeProvider timeProvider) : IGetStaffCancellationStatsUseCase
 {
-    private readonly GateConsoleOptions _options = options ?? new GateConsoleOptions();
     public const int WarningThreshold = 5;
     public const int CriticalThreshold = 10;
 

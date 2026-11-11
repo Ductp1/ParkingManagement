@@ -43,6 +43,9 @@ public sealed class ParkingServiceClient(HttpClient http) : IParkingSlotClient
             if (response.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.BadRequest)
                 throw new ConflictException(await DetailAsync(response, cancellationToken)
                                             ?? "ParkingService từ chối ghi đè trạng thái slot.");
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+                throw new ForbiddenException(await DetailAsync(response, cancellationToken)
+                                             ?? "Ô đỗ không thuộc bãi đang thao tác.");
             if (!response.IsSuccessStatusCode)
                 throw new DependencyUnavailableException($"ParkingService trả HTTP {(int)response.StatusCode} khi gọi {method} {path}.");
 
@@ -52,7 +55,7 @@ public sealed class ParkingServiceClient(HttpClient http) : IParkingSlotClient
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
             || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            throw new DependencyUnavailableException($"Không gọi được ParkingService ({method} {path}).", ex);
+            throw new DependencyUnavailableException($"Không gọi được ParkingService ({method} {path}). {ex.Message}");
         }
     }
 

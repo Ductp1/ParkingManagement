@@ -41,7 +41,7 @@ public sealed class PmsAuthClient(HttpClient http) : IPmsAuthClient
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException
             || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            throw new DependencyUnavailableException("Không gọi được ParkingService để xác thực API key PMS.", ex);
+            throw new DependencyUnavailableException($"Không gọi được ParkingService để xác thực API key PMS. {ex.Message}");
         }
     }
 

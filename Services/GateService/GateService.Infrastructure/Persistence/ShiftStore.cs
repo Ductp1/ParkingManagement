@@ -1,6 +1,7 @@
 using GateService.Application.Features.GateConsole;
 using GateService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using ParkingManagement.SharedKernel.Enums;
 
 namespace GateService.Infrastructure.Persistence;
 

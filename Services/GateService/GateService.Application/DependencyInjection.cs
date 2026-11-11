@@ -1,7 +1,10 @@
 using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
+using GateService.Application.Features.GateExceptions;
 using GateService.Application.Features.PlateRecognition;
+using GateService.Application.Features.PmsIntegration;
+using GateService.Application.Features.StaffCancellations;
 using GateService.Application.Features.LotCapacity;
 using Microsoft.Extensions.DependencyInjection;
 

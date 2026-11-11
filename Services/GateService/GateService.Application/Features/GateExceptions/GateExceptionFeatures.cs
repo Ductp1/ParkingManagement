@@ -54,6 +54,11 @@ public sealed record GateExceptionCommand(
 public sealed record GateExceptionResultDto(int EventId, int ParkingLotId, string Action, string ExceptionType,
     string? BookingCode, string? PlateDisplay, string? SessionCode, string Status, string AuditNote, DateTime AtUtc);
 
+public interface IRecordGateExceptionUseCase
+{
+    Task<GateExceptionResultDto> ExecuteAsync(GateExceptionCommand command, CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// US-048 / UC-23: Xử lý ngoại lệ tại cổng (extend từ UC-21/UC-22 khi không xác minh tự động được).
 ///  - Support recording exception types and reasons: GateEventType + Reason bắt buộc + ảnh (tuỳ chọn).
@@ -132,9 +137,13 @@ public sealed class RecordGateExceptionUseCase(
     {
         if (string.IsNullOrWhiteSpace(plate))
             throw new ValidationException("Xử lý check-out thủ công yêu cầu biển số xe.");
-        var dto = await checkOut.ExecuteAsync(
-            new CheckOutCommand(command.ParkingLotId, plate, GateMethod.Manual, command.StaffUserId), cancellationToken);
-        return (null, dto.Code, dto.Status, $" – Đã chốt phiên check-out {dto.Code}.");
+        // ConfirmFee = true: check-out thủ công vẫn chốt phí như luồng chuẩn (không được bỏ qua thanh toán).
+        var result = await checkOut.ExecuteAsync(
+            new CheckOutCommand(command.ParkingLotId, plate, GateMethod.Manual, command.StaffUserId, ConfirmFee: true),
+            cancellationToken);
+        var session = result.Session;
+        var feeText = result.Fee is null ? string.Empty : $" Phí: {session.Fee:N0}đ.";
+        return (session.Id, session.Code, session.Status, $" – Đã chốt phiên check-out {session.Code}.{feeText}");
     }
 
     private async Task<(int? SessionId, string? SessionCode, string? SessionStatus, string Detail)> FindSessionDetailAsync(

@@ -61,6 +61,11 @@ public interface IListQuarantinedPmsEventsUseCase
 
 public sealed record ResolveQuarantinedPmsEventCommand(int StaffUserId, string? Note = null, bool Discard = false);
 
+public interface IResolveQuarantinedPmsEventUseCase
+{
+    Task<PmsUnmatchedEvent> ExecuteAsync(int eventId, ResolveQuarantinedPmsEventCommand command, CancellationToken cancellationToken = default);
+}
+
 /// <summary>
 /// US-052 / UC-51: Nhận và xử lý sự kiện xe vào/ra từ PMS (Mức 1).
 ///  - Authentication: X-Api-Key xác thực qua ParkingService (LotIntegration – chỉ lưu hash).
