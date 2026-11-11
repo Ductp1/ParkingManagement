@@ -9,6 +9,7 @@
 # Internal docs & agents guidance (local only)
 /AGENTS.md
 /docs/
+/infrastructure/rabbitmq/definitions.local.json
 
 
 # User-specific files

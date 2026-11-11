@@ -66,13 +66,43 @@ public class InMemoryComplaintRepository : IComplaintRepository
     }
 
     public Task UpdateAsync(Complaint complaint, IntegrationEvent integrationEvent, CancellationToken cancellationToken = default)
+        => UpdateAsync(complaint, [integrationEvent], cancellationToken);
+
+    public Task UpdateAsync(Complaint complaint, IReadOnlyList<IntegrationEvent> integrationEvents, CancellationToken cancellationToken = default)
     {
         // Giống repository thật: xung đột RowVersion → ConflictException, không ghi sự kiện.
         if (ConflictOnUpdate.Remove(complaint.Code))
             throw new ParkingManagement.SharedKernel.Exceptions.ConflictException($"Tranh chấp {complaint.Code} vừa được cập nhật bởi thao tác khác.");
         UpdateCount++;
-        Events.Add(integrationEvent);
+        Events.AddRange(integrationEvents);
         return Task.CompletedTask;
+    }
+
+    // ===== US-090 =====
+
+    public Task<Complaint?> FindByCodeAsync(string code, CancellationToken cancellationToken = default)
+    {
+        EnsureIds();
+        return Task.FromResult(Saved.FirstOrDefault(c => c.Code == code));
+    }
+
+    public Task<Complaint?> GetCaseFileAsync(string code, CancellationToken cancellationToken = default) => FindByCodeAsync(code, cancellationToken);
+
+    public Task<IReadOnlyList<Complaint>> ListOpenForOwnerAsync(int ownerProfileId, IReadOnlyCollection<int> parkingLotIds,
+        ComplaintStatus? status, int take, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<Complaint>>(Saved
+            .Where(c => c.Status is not (ComplaintStatus.Resolved or ComplaintStatus.Rejected) && (status is null || c.Status == status))
+            .Where(c => c.OwnerProfileId == ownerProfileId || (c.OwnerProfileId is null && parkingLotIds.Contains(c.ParkingLotId)))
+            .OrderBy(c => c.CreatedAtUtc).Take(take).ToList());
+
+    public Task<IReadOnlyList<DisputeRuling>> ListRulingsAsync(IReadOnlyCollection<int> parkingLotIds, ComplaintCategory? category, int take,
+        CancellationToken cancellationToken = default)
+    {
+        // Gắn navigation như EF Include để service đọc được mã ticket của tiền lệ.
+        foreach (var complaint in Saved.Where(c => c.Ruling is not null)) complaint.Ruling!.Complaint = complaint;
+        return Task.FromResult<IReadOnlyList<DisputeRuling>>(Saved.Where(c => c.Ruling is not null).Select(c => c.Ruling!)
+            .Where(r => parkingLotIds.Contains(r.ParkingLotId) && (category is null || r.Category == category))
+            .Take(take).ToList());
     }
 
     /// <summary>BaseEntity.Id có setter protected (DB tự sinh) → gán Id giả cho ticket nạp sẵn trong test.</summary>

@@ -39,6 +39,8 @@ import {
 } from './contractTemplateFormat';
 import { NewTemplateDialog, RenameTemplateDialog } from './ContractTemplateDialogs';
 import { TemplateContentEditor } from './TemplateContentEditor';
+import { AuditTrailLink } from '../../../components/AuditTrailLink';
+import { auditLogListLink } from '../../access/auditLogFormat';
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -215,7 +217,16 @@ const TemplateEditor: React.FC<EditorProps> = ({ template, catalog, templates, o
 
   return (
     <>
-      <AdminTitleBar title={template.name} subtitle={`${kindLabel(kind)} · ${template.status} · #${template.version}`} actions={actions} />
+      <AdminTitleBar
+        title={template.name}
+        subtitle={`${kindLabel(kind)} · ${template.status} · #${template.version}`}
+        actions={
+          <>
+            <AuditTrailLink to={auditLogListLink({ entity: 'ContractTemplate', entityId: String(template.id) })} />
+            {actions}
+          </>
+        }
+      />
       {apiError && <Banner tone="danger">{apiError}</Banner>}
       {isDraft && importNotes.length > 0 && (
         <Banner tone="warning">

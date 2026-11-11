@@ -33,35 +33,40 @@ const ToastCard: React.FC<{ toast: NotificationToast }> = ({ toast }) => {
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') handleOpenBooking();
       }}
-      className="toast-slide-in pointer-events-auto w-[360px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 flex gap-3 cursor-pointer hover:border-blue-300 transition-colors"
+      className="toast-slide-in pointer-events-auto group w-[400px] max-w-[calc(100vw-2rem)] bg-white/95 backdrop-blur-md rounded-2xl shadow-xl shadow-slate-200/70 border border-slate-200 p-4 flex gap-3.5 cursor-pointer hover:border-blue-400 hover:shadow-2xl transition-all"
     >
-      <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100/80 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
         <span className="material-symbols-outlined text-[22px]">notifications_active</span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold text-slate-900">{toast.title}</p>
-        <p className="text-xs text-slate-500 line-clamp-2 mt-0.5">{toast.body}</p>
-        <span className="text-[10px] font-semibold text-blue-600 mt-1.5 flex items-center gap-1 uppercase tracking-wider">
-          <span>Vừa nhận • Real-time</span>
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-bold text-slate-900 leading-snug">{toast.title}</p>
+          <button
+            type="button"
+            aria-label="Đóng thông báo"
+            onClick={(e) => {
+              e.stopPropagation(); // Chỉ đóng toast, không điều hướng
+              dispatch(dismissToast(toast.id));
+            }}
+            className="-mr-1 -mt-1 p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+        <p className="text-xs text-slate-600 line-clamp-2 mt-1 leading-relaxed">{toast.body}</p>
+        <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-slate-100">
+          <span className="inline-flex items-center gap-1.5 text-[10.5px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100/80 whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+            <span>Vừa nhận • Real-time</span>
+          </span>
           {hasBooking && (
-            <span className="inline-flex items-center gap-0.5">
-              <span>• Xem đặt chỗ</span>
-              <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 group-hover:text-blue-700 group-hover:translate-x-0.5 transition-all whitespace-nowrap">
+              <span>Xem đặt chỗ</span>
+              <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
             </span>
           )}
-        </span>
+        </div>
       </div>
-      <button
-        type="button"
-        aria-label="Đóng thông báo"
-        onClick={(e) => {
-          e.stopPropagation(); // Chỉ đóng toast, không điều hướng
-          dispatch(dismissToast(toast.id));
-        }}
-        className="p-1 h-fit rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-      >
-        <span className="material-symbols-outlined text-[18px]">close</span>
-      </button>
     </div>
   );
 };

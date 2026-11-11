@@ -14,7 +14,7 @@ public class VnpayUtilsTests
     /// 1. Valid Hash: Kiểm tra ValidateSignature trả về true khi chữ ký khớp 100%.
     /// </summary>
     [Fact]
-    public void ValidateSignature_Should_Return_True_For_Valid_Hash()
+    public void ValidateSignature_ValidHash_ReturnsTrue()
     {
         var testUtils = new VnpayUtils();
         testUtils.AddRequestData("vnp_Amount", "10000000");
@@ -39,7 +39,7 @@ public class VnpayUtilsTests
     /// 2. Invalid Hash: Kiểm tra ValidateSignature trả về false khi chữ ký bị sai hoặc dữ liệu bị sửa đổi.
     /// </summary>
     [Fact]
-    public void ValidateSignature_Should_Return_False_For_Invalid_Hash()
+    public void ValidateSignature_InvalidHash_ReturnsFalse()
     {
         var vnpay = new VnpayUtils();
         vnpay.AddResponseData("vnp_Amount", "100000"); // Dữ liệu bị giả mạo
@@ -59,7 +59,7 @@ public class VnpayUtilsTests
     [InlineData("")]
     [InlineData(null)]
     [InlineData("   ")]
-    public void ValidateSignature_Should_Return_False_When_Hash_Is_Missing_Or_Empty(string? missingHash)
+    public void ValidateSignature_HashMissingOrEmpty_ReturnsFalse(string? missingHash)
     {
         var vnpay = new VnpayUtils();
         vnpay.AddResponseData("vnp_Amount", "10000000");
@@ -73,7 +73,7 @@ public class VnpayUtilsTests
     /// 4. Parameter Order: Kiểm tra CreateRequestUrl tự động sắp xếp tham số theo đúng thứ tự A-Z bất kể thứ tự Add.
     /// </summary>
     [Fact]
-    public void CreateRequestUrl_Should_Sort_Parameters_Alphabetically()
+    public void CreateRequestUrl_UnsortedParameters_SortsAlphabetically()
     {
         var vnpay = new VnpayUtils();
         // Thêm tham số không theo thứ tự bảng chữ cái (Z -> C -> A)
@@ -96,7 +96,7 @@ public class VnpayUtilsTests
     /// 5. Empty Values: Kiểm tra CreateRequestUrl và AddRequestData loại bỏ tham số có giá trị rỗng hoặc null.
     /// </summary>
     [Fact]
-    public void CreateRequestUrl_Should_Ignore_Empty_Or_Null_Values()
+    public void CreateRequestUrl_EmptyOrNullValues_IgnoresParameters()
     {
         var vnpay = new VnpayUtils();
         vnpay.AddRequestData("vnp_Amount", "10000000");

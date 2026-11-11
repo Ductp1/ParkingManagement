@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using MassTransit;
 using AdminService.API.Controllers;
 using AdminService.Application.Features.Users;
 using AdminService.Domain.Entities;
@@ -45,6 +46,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
 
     public IServiceProvider AdminServices => AdminFactory.Services;
 
+    /// <summary>US-099: client mang JWT của <paramref name="userId"/> với role cho trước (kiểm tra phân quyền).</summary>
+    public HttpClient CreateClientWithRole(int userId, string role)
+    {
+        var client = AdminFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", _keys.MintToken(userId, $"user{userId}@it.test", null, role));
+        return client;
+    }
+
     public async Task InitializeAsync()
     {
         var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
@@ -67,11 +76,14 @@ public sealed class AdminApiFixture : IAsyncLifetime
                     ["Jwt:PrivateKeyPath"] = _keys.PrivateKeyPath,
                     ["Database:SeedDemoData"] = "true",
                     ["Captcha:SecretKey"] = "integration-test-secret",
+                    // This UserService host supplies users/sessions; broker delivery is tested separately.
+                    ["EventBus:Enabled"] = "false",
                 }));
             builder.ConfigureServices(services =>
             {
                 services.UseIsolatedDatabase<UserDbContext>(userCs);
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
+                services.AddMassTransitTestHarness();
             });
         });
         using var userHealth = await UserFactory.CreateClient().GetAsync("/health");
@@ -180,6 +192,76 @@ public class AdminServiceApiTests(AdminApiFixture fixture)
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/admin/users")).StatusCode);
     }
 
+    [Fact] // US-099: tắt/bật flag qua API → đọc lại ngay được giá trị mới, có người sửa, có audit log; chỉ Admin được đổi.
+    public async Task Feature_flag_toggle_takes_effect_immediately_and_is_audited()
+    {
+        const string url = "/api/v1/admin/settings/feature-flags";
+        const string flag = "FEATURE_AI_CHATBOT";
+        var enable = new { isEnabled = true, reason = "IT – bật chatbot" };
+
+        // AC2: đọc trạng thái không cần đăng nhập, chỉ trả khóa + bật/tắt (không lộ mô tả, người sửa).
+        using var anonymous = fixture.AdminFactory.CreateClient();
+        var body = await anonymous.GetStringAsync(url);
+        Assert.Contains(flag, body);
+        Assert.DoesNotContain("description", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("updatedBy", body, StringComparison.OrdinalIgnoreCase);
+
+        // Quyền đổi: không token 401; chủ bãi / tài xế 403
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PutAsJsonAsync($"{url}/{flag}", enable)).StatusCode);
+        using var owner = fixture.CreateClientWithRole(2, "LotOwner");
+        Assert.Equal(HttpStatusCode.Forbidden, (await owner.PutAsJsonAsync($"{url}/{flag}", enable)).StatusCode);
+        using var driver = fixture.CreateClientWithRole(5, "Driver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.PutAsJsonAsync($"{url}/{flag}", enable)).StatusCode);
+
+        // Dữ liệu sai: thiếu lý do 400; flag không tồn tại 404; đổi về đúng giá trị hiện tại 409
+        await Asserts.BadRequestAsync(await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", new { isEnabled = true }), "Lý do");
+        await Asserts.NotFoundAsync(await fixture.AdminClient.PutAsJsonAsync($"{url}/FEATURE_KHONG_CO", enable));
+        await Asserts.ConflictAsync(await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", new { isEnabled = false, reason = "IT" }), "đang ở trạng thái");
+
+        // Bật → đọc lại ngay thấy bật (cả API công khai lẫn API Admin có người sửa)
+        var updated = await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", enable);
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        var states = await anonymous.GetFromJsonAsync<List<FeatureFlagStateJson>>(url);
+        Assert.True(states!.Single(f => f.Key == flag).IsEnabled);
+        var settings = await fixture.AdminClient.GetFromJsonAsync<PlatformSettingsWithFlagAuditJson>("/api/v1/admin/settings");
+        var row = settings!.FeatureFlags.Single(f => f.Key == flag);
+        Assert.True(row.IsEnabled);
+        Assert.NotNull(row.UpdatedByUserId);
+        Assert.NotNull(row.UpdatedAtUtc);
+
+        // AC3: audit log có giá trị trước/sau + lý do
+        await using (var scope = fixture.AdminServices.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+            var audit = await db.AuditLogs.AsNoTracking().SingleAsync(a => a.Action == "FeatureFlag.Updated" && a.EntityId == flag);
+            Assert.Equal(row.UpdatedByUserId, audit.UserId);
+            Assert.Equal("IT – bật chatbot", audit.Reason);
+            Assert.Contains("false", audit.OldValuesJson);
+            Assert.Contains("true", audit.NewValuesJson);
+        }
+
+        // Tắt lại → flag về tắt
+        Assert.Equal(HttpStatusCode.OK,
+            (await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", new { isEnabled = false, reason = "IT – tắt lại" })).StatusCode);
+        Assert.False((await anonymous.GetFromJsonAsync<List<FeatureFlagStateJson>>(url))!.Single(f => f.Key == flag).IsEnabled);
+    }
+
+    [Fact] // US-099: 2 Admin bấm cùng lúc → đúng 1 request thành công, chỉ 1 dòng audit.
+    public async Task Concurrent_feature_flag_changes_produce_one_audit_row()
+    {
+        const string flag = "FEATURE_AI_VOICE_SEARCH";
+        var request = new { isEnabled = true, reason = "IT – bấm đồng thời" };
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 8)
+            .Select(_ => fixture.AdminClient.PutAsJsonAsync($"/api/v1/admin/settings/feature-flags/{flag}", request)));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.All(responses.Where(r => r.StatusCode != HttpStatusCode.OK), r => Assert.Equal(HttpStatusCode.Conflict, r.StatusCode));
+        await using var scope = fixture.AdminServices.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+        Assert.Equal(1, await db.AuditLogs.AsNoTracking().CountAsync(a => a.Action == "FeatureFlag.Updated" && a.EntityId == flag));
+    }
+
     [Fact] // UC-40: khóa chủ bãi ghi Sanction + AuditLog; unlock thu hồi; unlock lần 2 = thử đồng bộ lại (vẫn 200).
     public async Task Lock_then_unlock_owner_records_sanction_and_audit_logs()
     {
@@ -277,6 +359,12 @@ public sealed record SystemConfigJson(string Key, string Value, string DataType,
 public sealed record FeatureFlagJson(string Key, bool IsEnabled, string? Description);
 
 public sealed record PlatformSettingsJson(IReadOnlyList<SystemConfigJson> Configs, IReadOnlyList<FeatureFlagJson> FeatureFlags);
+
+public sealed record FeatureFlagStateJson(string Key, bool IsEnabled);
+
+public sealed record FeatureFlagAuditJson(string Key, bool IsEnabled, int? UpdatedByUserId, DateTime? UpdatedAtUtc);
+
+public sealed record PlatformSettingsWithFlagAuditJson(IReadOnlyList<FeatureFlagAuditJson> FeatureFlags);
 
 public sealed record SystemConfigDetailJson(string Key, string Value, string DataType, string? Description, string DefaultValue);
 

@@ -24,6 +24,8 @@ import { formatDate, formatDateTimeIct, formatNumber, orEmpty } from '../../../u
 import { KYB_BASE } from '../kyb/kybFormat';
 import { bankText, percentText } from '../lot-contracts/lotContractFormat';
 import { IssueAccountDialog } from './PartnerAccountDialog';
+import { AuditTrailLink } from '../../../components/AuditTrailLink';
+import { auditLogListLink } from '../../access/auditLogFormat';
 
 type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | null;
 
@@ -145,7 +147,12 @@ export const PartnerDetailPage: React.FC = () => {
       <AdminTitleBar
         title={app.businessName}
         subtitle={`${app.code} · submitted ${formatDate(app.createdAtUtc)} · reviewer ${app.reviewerAdminId ? `Admin #${app.reviewerAdminId}` : '—'}`}
-        actions={actions}
+        actions={
+          <>
+            <AuditTrailLink to={auditLogListLink({ entity: 'PartnerApplication', entityId: String(app.id) })} />
+            {actions}
+          </>
+        }
       />
       {app.status === S.NeedsMoreInfo && <Banner tone="warning">More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant.</Banner>}
       {app.status === S.Rejected && <Banner tone="danger">Rejected: {orEmpty(app.rejectReason)}</Banner>}

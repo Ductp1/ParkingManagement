@@ -24,7 +24,7 @@ public sealed class GetStaffCancellationStatsUseCase(
     TimeProvider timeProvider,
     GateConsoleOptions? options = null) : IGetStaffCancellationStatsUseCase
 {
-    private readonly GateConsoleOptions _options = options ?? GateConsoleOptions.Default;
+    private readonly GateConsoleOptions _options = options ?? new GateConsoleOptions();
     public const int WarningThreshold = 5;
     public const int CriticalThreshold = 10;
 

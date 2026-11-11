@@ -17,7 +17,9 @@ public sealed class BookingsController(
     IReviewBookingUseCase reviewBooking,
     ILotCancelBookingUseCase lotCancelBooking,
     IGateBookingActionsUseCase gateActions,
-    IListNoShowCandidatesUseCase listNoShowCandidates) : ControllerBase
+    IListNoShowCandidatesUseCase listNoShowCandidates,
+    IListGateBookingsUseCase listGateBookings,
+    IGetApprovalLogsUseCase getApprovalLogs) : ControllerBase
 {
     /// <summary>GET /api/v1/bookings/BK-0002 – Chi tiết booking kèm giá đã khóa và lịch sử trạng thái.</summary>
     [HttpGet("{code}")]
@@ -25,6 +27,23 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> GetByCode(string code, CancellationToken cancellationToken)
         => Ok(await getByCode.ExecuteAsync(code, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/bookings/gate?parkingLotId=1&amp;fromUtc=...&amp;toUtc=...&amp;search=BK|biển số – UC-20 (US-076).
+    /// Booking trong ca trực của Staff App, sắp theo giờ đến, có cờ "Quá giờ" (grace 15' – US-044).
+    /// Khách vãng lai không nằm ở đây (đó là ParkingSessions của GateService). Không trả SĐT/CCCD.
+    /// </summary>
+    [HttpGet("gate")]
+    [ProducesResponseType<IReadOnlyList<GateBookingListItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<GateBookingListItemDto>>> GateList(
+        [FromQuery] int parkingLotId, [FromQuery] DateTime fromUtc, [FromQuery] DateTime toUtc,
+        [FromQuery] string? search, [FromQuery] int gracePeriodMinutes = 15, CancellationToken cancellationToken = default)
+        => Ok(await listGateBookings.ExecuteAsync(
+            new GateBookingListQuery(parkingLotId,
+                DateTime.SpecifyKind(fromUtc.ToUniversalTime(), DateTimeKind.Utc),
+                DateTime.SpecifyKind(toUtc.ToUniversalTime(), DateTimeKind.Utc),
+                search, gracePeriodMinutes), cancellationToken));
 
     /// <summary>GET /api/v1/bookings?userId=5&amp;status=Confirmed – Booking của tôi (UC-13).</summary>
     [HttpGet]
@@ -39,6 +58,26 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CancellationPreviewDto>> PreviewCancellation(string code, CancellationToken cancellationToken)
         => Ok(await previewCancellation.ExecuteAsync(code, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/bookings/approval-logs?parkingLotId=1&amp;fromUtc=...&amp;toUtc=...&amp;result=Approved|Rejected – T-303.
+    /// Tra cứu lịch sử duyệt / từ chối đơn đặt chỗ bãi Mức 0 (phục vụ Owner Portal và Admin Portal).
+    /// </summary>
+    [HttpGet("approval-logs")]
+    [ProducesResponseType<IReadOnlyList<ApprovalLogDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<ApprovalLogDto>>> GetApprovalLogs(
+        [FromQuery] int? parkingLotId,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] string? result,
+        CancellationToken cancellationToken)
+        => Ok(await getApprovalLogs.ExecuteAsync(
+            parkingLotId,
+            fromUtc.HasValue ? DateTime.SpecifyKind(fromUtc.Value.ToUniversalTime(), DateTimeKind.Utc) : null,
+            toUtc.HasValue ? DateTime.SpecifyKind(toUtc.Value.ToUniversalTime(), DateTimeKind.Utc) : null,
+            result,
+            cancellationToken));
 
     /// <summary>POST /api/v1/bookings – Tạo booking và giữ chỗ 15 phút (US-022, US-024, US-025, US-026, US-027).</summary>
     [HttpPost]

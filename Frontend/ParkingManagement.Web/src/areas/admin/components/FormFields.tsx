@@ -1,8 +1,27 @@
-import React, { useId, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { AdminIcon } from './AdminIcon';
 import { ADMIN_ICONS } from './adminIcons';
 import { FutureTag } from './FutureTag';
 import { formatNumber } from '../utils/format';
+import { animate, motionMs, motionPx, motionVar } from '../utils/motion';
+
+/** Rung ngang nhẹ một lần (--dur-shake) khi field chuyển sang có lỗi; giảm chuyển động → --dur-shake = 0 nên bỏ qua. */
+const useShakeOnError = (ref: React.RefObject<HTMLElement | null>, error: string | null | undefined) => {
+  const hadError = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    const now = Boolean(error);
+    const appeared = now && !hadError.current;
+    hadError.current = now;
+    if (!el || !appeared) return;
+    const d = Math.max(2, motionPx('--motion-distance', el) * 0.4);
+    animate(
+      el,
+      [{ transform: 'none' }, { transform: `translateX(-${d}px)` }, { transform: `translateX(${d}px)` }, { transform: `translateX(-${d / 2}px)` }, { transform: 'none' }],
+      { duration: motionMs('--dur-shake', el), easing: motionVar('--ease-in-out', el) }
+    );
+  }, [ref, error]);
+};
 
 interface FieldShellProps {
   label: string;
@@ -16,33 +35,38 @@ interface FieldShellProps {
 }
 
 /** Khung chung của Input/Select/Textarea/Date (Figma): nhãn body/strong (+ * + Future), hộp 32px, message body/small. */
-const FieldShell: React.FC<FieldShellProps> = ({ label, htmlFor, required, future, counter, helper, error, children }) => (
-  <div className="flex flex-col gap-1">
-    <div className="flex items-center gap-1">
-      <label htmlFor={htmlFor} className="adm-type-body-strong text-(--admin-text-primary)">
-        {label}
-      </label>
-      {required && <span className="adm-type-body-strong text-(--admin-status-danger)">*</span>}
-      {future && <FutureTag />}
-      {counter && <span className="adm-type-body-small ml-auto text-(--admin-text-secondary)">{counter}</span>}
-    </div>
-    {children}
-    {error ? (
-      <span id={`${htmlFor}-msg`} className="adm-type-body-small text-(--admin-status-danger)">
-        {error}
-      </span>
-    ) : (
-      helper && (
-        <span id={`${htmlFor}-msg`} className="adm-type-body-small text-(--admin-text-secondary)">
-          {helper}
+const FieldShell: React.FC<FieldShellProps> = ({ label, htmlFor, required, future, counter, helper, error, children }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useShakeOnError(rootRef, error);
+  return (
+    <div ref={rootRef} className="flex flex-col gap-1">
+      <div className="flex items-center gap-1">
+        <label htmlFor={htmlFor} className="adm-type-body-strong text-(--admin-text-primary)">
+          {label}
+        </label>
+        {required && <span className="adm-type-body-strong text-(--admin-status-danger)">*</span>}
+        {future && <FutureTag />}
+        {counter && <span className="adm-type-body-small ml-auto text-(--admin-text-secondary)">{counter}</span>}
+      </div>
+      {children}
+      {error ? (
+        // key = nội dung lỗi: lỗi mới thì message trượt xuống lại.
+        <span key={error} id={`${htmlFor}-msg`} className="adm-type-body-small adm-motion-drop text-(--admin-status-danger)">
+          {error}
         </span>
-      )
-    )}
-  </div>
-);
+      ) : (
+        helper && (
+          <span id={`${htmlFor}-msg`} className="adm-type-body-small text-(--admin-text-secondary)">
+            {helper}
+          </span>
+        )
+      )}
+    </div>
+  );
+};
 
 const boxClass = (error?: string | null, readOnly?: boolean) =>
-  `rounded-[2px] border px-2.5 outline-none adm-type-body-default text-(--admin-text-primary) placeholder:text-(--admin-text-placeholder) disabled:cursor-not-allowed disabled:bg-(--admin-surface-page) ${
+  `adm-tr-colors rounded-[2px] border px-2.5 outline-none adm-type-body-default text-(--admin-text-primary) placeholder:text-(--admin-text-placeholder) disabled:cursor-not-allowed disabled:bg-(--admin-surface-page) ${
     error
       ? 'border-(--admin-status-danger) bg-(--admin-surface-danger)'
       : readOnly
@@ -226,9 +250,10 @@ export const ToggleField: React.FC<ToggleFieldProps> = ({ label, checked, onChan
     />
     <span
       aria-hidden="true"
-      className={`flex h-[18px] w-8 items-center rounded-full p-0.5 ${checked ? 'justify-end bg-(--admin-status-success)' : 'justify-start bg-(--admin-border-default)'}`}
+      className={`adm-tr-colors flex h-[18px] w-8 items-center rounded-full p-0.5 ${checked ? 'bg-(--admin-status-success)' : 'bg-(--admin-border-default)'}`}
     >
-      <span className="size-3.5 rounded-full bg-(--admin-surface-card)" />
+      {/* Núm trượt bằng transform (32 − 2×2 padding − 14 = 14px) thay vì đổi justify-content. */}
+      <span className={`adm-press size-3.5 rounded-full bg-(--admin-surface-card) ${checked ? 'translate-x-3.5' : 'translate-x-0'}`} />
     </span>
     <span className="adm-type-body-default text-(--admin-text-primary)">{label}</span>
   </label>
@@ -249,8 +274,13 @@ export const RadioField: React.FC<RadioFieldProps> = ({ name, options, value, on
         <input type="radio" name={name} value={o.value} checked={value === o.value} onChange={() => onChange(o.value)} className="sr-only" />
         <span
           aria-hidden="true"
-          className={`size-4 rounded-full bg-(--admin-surface-card) ${value === o.value ? 'border-[5px] border-(--admin-brand-navy-900)' : 'border border-(--admin-border-default)'}`}
-        />
+          className={`adm-tr-colors relative size-4 rounded-full border bg-(--admin-surface-card) ${value === o.value ? 'border-(--admin-brand-navy-900)' : 'border-(--admin-border-default)'}`}
+        >
+          {/* Vòng 5px khi chọn = lớp phủ scale 0.6 → 1 (cùng hình Figma, không đổi kích thước). */}
+          <span
+            className={`adm-press absolute -inset-px rounded-full border-[5px] border-(--admin-brand-navy-900) ${value === o.value ? 'scale-100 opacity-100' : 'scale-60 opacity-0'}`}
+          />
+        </span>
         <span className="adm-type-body-default text-(--admin-text-primary)">{o.label}</span>
       </label>
     ))}
@@ -272,6 +302,7 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ label, required, accept 
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [sizeError, setSizeError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const message = error ?? sizeError;
 
   const pick = (f: File | null) => {
@@ -293,16 +324,31 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ label, required, accept 
         {required && <span className="adm-type-body-strong text-(--admin-status-danger)">*</span>}
       </div>
       <div
-        className={`flex h-14 items-center gap-2 rounded-[2px] border px-3 text-(--admin-text-secondary) ${
-          message ? 'border-(--admin-status-danger) bg-(--admin-surface-danger)' : 'border-(--admin-border-default) bg-(--admin-surface-page)'
+        className={`adm-tr-colors flex h-14 items-center gap-2 rounded-[2px] border px-3 text-(--admin-text-secondary) ${
+          dragging
+            ? 'border-(--admin-brand-navy-900) bg-(--admin-surface-selected) text-(--admin-brand-navy-900)'
+            : message
+              ? 'border-(--admin-status-danger) bg-(--admin-surface-danger)'
+              : 'border-(--admin-border-default) bg-(--admin-surface-page)'
         }`}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
         onDragOver={(e) => e.preventDefault()}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+        }}
         onDrop={(e) => {
           e.preventDefault();
+          setDragging(false);
           pick(e.dataTransfer.files[0] ?? null);
         }}
       >
-        <AdminIcon icon={file ? ADMIN_ICONS.file : ADMIN_ICONS.upload} />
+        {/* Kéo file vào: icon nhấc lên nhẹ (transform), khung đổi màu. */}
+        <span className={`adm-press inline-flex ${dragging ? '-translate-y-0.5' : ''}`}>
+          <AdminIcon icon={file ? ADMIN_ICONS.file : ADMIN_ICONS.upload} />
+        </span>
         {file ? (
           <>
             <span className="adm-type-body-regular-12 min-w-0 flex-1 truncate">
@@ -326,7 +372,11 @@ export const UploadZone: React.FC<UploadZoneProps> = ({ label, required, accept 
           onChange={(e) => pick(e.target.files?.[0] ?? null)}
         />
       </div>
-      {message && <span className="adm-type-body-small text-(--admin-status-danger)">{message}</span>}
+      {message && (
+        <span key={message} className="adm-type-body-small adm-motion-drop text-(--admin-status-danger)">
+          {message}
+        </span>
+      )}
     </div>
   );
 };

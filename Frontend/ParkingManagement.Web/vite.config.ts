@@ -20,6 +20,15 @@ export default defineConfig({
         target: "http://localhost:5102",
         changeOrigin: true,
       },
+      // Khi dev SupportService (Port 5109):
+      "/api/v1/complaints": {
+        target: "http://localhost:5109",
+        changeOrigin: true,
+      },
+      "/api/v1/reviews": {
+        target: "http://localhost:5109",
+        changeOrigin: true,
+      },
       // Các API khác (Parking, Booking, Auth...) qua Gateway (Port 5000):
       "/api": {
         target: "http://localhost:5000",

@@ -143,7 +143,7 @@ public sealed class ProcessPmsEventUseCase(
         GateBookingSnapshot? booking = null;
         if (bookingCode is not null)
         {
-            booking = await bookingClient.GetBookingAsync(bookingCode, cancellationToken);
+            booking = await bookingClient.FindByCodeAsync(bookingCode, cancellationToken);
 
             // UC-51 E1: event không khớp booking → hàng chờ xử lý tay cho Staff (không tạo phiên).
             if (booking is null)
@@ -180,7 +180,7 @@ public sealed class ProcessPmsEventUseCase(
 
         // Đồng bộ booking (UC-51 bước 3): booking Confirmed → CheckedIn. Lỗi → exception để PMS retry.
         if (booking is not null && booking.Status == BookingStatusConsts.Confirmed)
-            await bookingClient.MarkCheckedInAsync(bookingCode!, plate, cancellationToken);
+            await bookingClient.SyncCheckInAsync(bookingCode!, null, cancellationToken);
     }
 
     private async Task ApplyExitAsync(PmsLotIdentity identity, PmsEventCommand command, string plate,
@@ -206,9 +206,9 @@ public sealed class ProcessPmsEventUseCase(
         // Đồng bộ booking (UC-51 bước 3): booking CheckedIn → Completed.
         if (session.BookingCode is not null)
         {
-            var booking = await bookingClient.GetBookingAsync(session.BookingCode, cancellationToken);
+            var booking = await bookingClient.FindByCodeAsync(session.BookingCode, cancellationToken);
             if (booking is not null && booking.Status == BookingStatusConsts.CheckedIn)
-                await bookingClient.MarkCheckedOutAsync(session.BookingCode, plate, cancellationToken);
+                await bookingClient.SyncCheckOutAsync(session.BookingCode, null, cancellationToken);
         }
     }
 

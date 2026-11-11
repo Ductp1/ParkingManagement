@@ -3,6 +3,7 @@ using System.Text;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
 using Microsoft.Extensions.Logging;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -21,6 +22,13 @@ public sealed record PriceSnapshotDto(int RateCardId, decimal BaseAmount, decima
     decimal FinalAmount, int BillingGracePeriodMinutes, string RateCardJson);
 
 public sealed record StatusLogDto(string? FromStatus, string ToStatus, int? ChangedByUserId, string? Reason, DateTime AtUtc);
+
+/// <summary>UC-20 (US-076): 1 dòng booking trong ca trực — chỉ biển số/thông tin vận hành, KHÔNG có SĐT/CCCD (quy tắc riêng tư).</summary>
+public sealed record GateBookingListItemDto(string Code, string PlateNumber, string VehicleType, string? SlotCode,
+    DateTime StartAtUtc, DateTime EndAtUtc, string Status, bool IsOverdue, decimal TotalAmount);
+
+/// <summary>Tham số list booking trong ca: grace dùng để tính cờ "Quá giờ" (US-044).</summary>
+public sealed record GateBookingListQuery(int ParkingLotId, DateTime FromUtc, DateTime ToUtc, string? Search, int GracePeriodMinutes = 15);
 
 public sealed record CancellationPreviewDto(string Code, bool CanCancel, string ResultStatus, int RefundPercent, decimal RefundAmount, string Reason);
 
@@ -60,7 +68,19 @@ public sealed record ReviewBookingCommand(int OwnerProfileId, string? Reason = n
 
 public sealed record LotCancelBookingCommand(int OwnerProfileId, string Reason);
 
-public sealed record GateActionCommand(int GateDeviceId, int StaffUserId, string? PlateNumber = null, decimal? AdditionalFee = null);
+public sealed record GateActionCommand(int? GateDeviceId = null, int? StaffUserId = null, string? PlateNumber = null, decimal? AdditionalFee = null);
+
+public sealed record ApprovalLogDto(
+    int Id,
+    int BookingId,
+    string BookingCode,
+    string PlateNumber,
+    int ParkingLotId,
+    string ParkingLotName,
+    string Result,
+    int? ReviewedByUserId,
+    string? Reason,
+    DateTime CreatedAtUtc);
 
 // ===== US-039: DANH SÁCH BOOKING VƯỢT 30 PHÚT ÂN HẠN CHECK-IN (CHO STAFF HỦY NO-SHOW – UC-24) =====
 public sealed record NoShowCandidateDto(string Code, int UserId, string PlateNumber, int ParkingLotId, string ParkingLotName,
@@ -99,11 +119,20 @@ public interface IBookingQueries
     Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken);
     /// <summary>US-039 (UC-24): booking Confirmed chưa check-in đã quá {graceMinutes} phút kể từ giờ bắt đầu, lọc theo bãi.</summary>
     Task<IReadOnlyList<NoShowCandidateDto>> ListNoShowCandidatesAsync(int parkingLotId, DateTime nowUtc, int graceMinutes, CancellationToken cancellationToken);
+
+    /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
+    Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken);
+
+    /// <summary>T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.</summary>
+    Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
 }
 
 public interface IBookingRepository
 {
     Task<Booking?> GetEntityByCodeAsync(string code, CancellationToken cancellationToken = default);
+    Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default);
     Task AddAsync(Booking booking, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
@@ -646,5 +675,139 @@ public sealed class GateBookingActionsUseCase(
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
             ?? throw new NotFoundException("Booking", code);
+    }
+}
+
+// ===== UC-20 (US-076): Danh sách booking trong ca trực cho Staff App =====
+
+public interface IListGateBookingsUseCase
+{
+    Task<IReadOnlyList<GateBookingListItemDto>> ExecuteAsync(GateBookingListQuery query, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Staff xem booking của bãi được gán trong ca trực, tìm theo mã booking/biển số (UC-20).
+/// Gồm booking sắp đến (Confirmed trong khung giờ), xe đang trong bãi (CheckedIn/Parking) và No-show trong ca.
+/// Cờ IsOverdue = đến giờ + 15' ân hạn (US-044) mà khách chưa check-in → Staff chuẩn bị cảnh báo/hủy no-show.
+/// Kết quả KHÔNG chứa SĐT/CCCD của khách (quy tắc riêng tư UC-20).
+/// </summary>
+public sealed class ListGateBookingsUseCase(IBookingQueries queries, TimeProvider timeProvider) : IListGateBookingsUseCase
+{
+    private const int MaxWindowDays = 7;
+
+    public async Task<IReadOnlyList<GateBookingListItemDto>> ExecuteAsync(GateBookingListQuery query, CancellationToken cancellationToken = default)
+    {
+        if (query.ParkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
+        if (query.ToUtc <= query.FromUtc) throw new ValidationException("Khung giờ ca trực không hợp lệ (toUtc phải sau fromUtc).");
+        if ((query.ToUtc - query.FromUtc).TotalDays > MaxWindowDays)
+            throw new ValidationException($"Khung giờ tra cứu tối đa {MaxWindowDays} ngày.");
+        if (query.GracePeriodMinutes < 0) throw new ValidationException("gracePeriodMinutes không được âm.");
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        return await queries.ListForGateAsync(query.ParkingLotId, query.FromUtc, query.ToUtc, now,
+            query.GracePeriodMinutes, query.Search, cancellationToken);
+    }
+}
+
+// ===== T-302: SAGA BOOKING â” PAYMENT (EVENT-DRIVEN RABBITMQ) =====
+
+public interface IProcessPaymentResultUseCase
+{
+    Task<BookingDetailDto> ProcessPaymentSucceededAsync(PaymentSucceeded @event, CancellationToken cancellationToken = default);
+    Task<BookingDetailDto> ProcessPaymentFailedAsync(PaymentFailed @event, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// T-302: Saga Booking â” Payment: Láº¯ng nghe káº¿t quáº£ thanh toĂ¡n tá»« PaymentService qua RabbitMQ.
+/// Chuyá»ƒn Ä‘á»•i tráº¡ng thĂ¡i Ä‘Æ¡n Ä‘áº·t chá»— vĂ  xá»­ lĂ½ bĂ¹ trá»« (hoĂ n tiá»n) khi cĂ³ sá»± cá»‘.
+/// </summary>
+public sealed class ProcessPaymentResultUseCase(
+    IBookingRepository repository,
+    IBookingQueries queries,
+    TimeProvider timeProvider) : IProcessPaymentResultUseCase
+{
+    public async Task<BookingDetailDto> ProcessPaymentSucceededAsync(PaymentSucceeded @event, CancellationToken cancellationToken = default)
+    {
+        if (!@event.BookingId.HasValue)
+            throw new ValidationException("Sá»± kiá»‡n PaymentSucceeded khĂ´ng cĂ³ BookingId.");
+
+        var booking = await repository.GetEntityByIdAsync(@event.BookingId.Value, cancellationToken)
+            ?? throw new NotFoundException("Booking", @event.BookingId.Value.ToString());
+
+        // Idempotency: Náº¿u Ä‘Æ¡n Ä‘Ă£ Ä‘Æ°á»£c xĂ¡c nháº­n hoáº·c duyá»‡t rá»“i thĂ¬ bá» qua khĂ´ng xá»­ lĂ½ láº·p
+        if (booking.Status == BookingStatus.Confirmed || booking.Status == BookingStatus.PendingOwnerApproval)
+        {
+            return await queries.GetByCodeAsync(booking.Code, cancellationToken)
+                ?? throw new NotFoundException("Booking", booking.Code);
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+
+        // Kiá»ƒm tra quĂ¡ háº¡n thá»i gian giá»¯ chá»— 15 phĂºt (HoldExpiresAtUtc)
+        if (booking.HoldExpiresAtUtc.HasValue && now > booking.HoldExpiresAtUtc.Value)
+        {
+            // ÄĂ£ quĂ¡ háº¡n: ÄÆ¡n Ä‘Ă£ háº¿t háº¡n -> KĂ­ch hoáº¡t tráº¡ng thĂ¡i Expired (Sáº½ yĂªu cáº§u hoĂ n tiá»n bĂ¹ trá»«)
+            booking.Expire(now, $"Thanh toĂ¡n thĂ nh cĂ´ng {@event.Amount:N0}Ä‘ qua {@event.Method} nhÆ°ng Ä‘Æ¡n Ä‘Ă£ quĂ¡ háº¡n giá»¯ chá»— 15 phĂºt. KĂ­ch hoáº¡t giao dá»‹ch bĂ¹ trá»« (HoĂ n tiá»n).");
+            await repository.SaveChangesAsync(cancellationToken);
+            return await queries.GetByCodeAsync(booking.Code, cancellationToken)
+                ?? throw new NotFoundException("Booking", booking.Code);
+        }
+
+        // Náº¿u bĂ£i Má»©c 0: Chá» chá»§ bĂ£i duyá»‡t
+        if (booking.RequiresOwnerApproval)
+        {
+            booking.RequireOwnerApproval();
+            booking.PaidAmount = @event.Amount;
+        }
+        else
+        {
+            // BĂ£i tá»± Ä‘á»™ng (Má»©c 1-3): XĂ¡c nháº­n giá»¯ chá»— thĂ nh cĂ´ng ngay láº­p tá»©c
+            booking.ConfirmPayment(@event.Amount, now);
+        }
+
+        await repository.SaveChangesAsync(cancellationToken);
+        return await queries.GetByCodeAsync(booking.Code, cancellationToken)
+            ?? throw new NotFoundException("Booking", booking.Code);
+    }
+
+    public async Task<BookingDetailDto> ProcessPaymentFailedAsync(PaymentFailed @event, CancellationToken cancellationToken = default)
+    {
+        if (!@event.BookingId.HasValue)
+            throw new ValidationException("Sá»± kiá»‡n PaymentFailed khĂ´ng cĂ³ BookingId.");
+
+        var booking = await repository.GetEntityByIdAsync(@event.BookingId.Value, cancellationToken)
+            ?? throw new NotFoundException("Booking", @event.BookingId.Value.ToString());
+
+        if (booking.Status == BookingStatus.Cancelled)
+        {
+            return await queries.GetByCodeAsync(booking.Code, cancellationToken)
+                ?? throw new NotFoundException("Booking", booking.Code);
+        }
+
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        booking.FailPayment(@event.Reason, now);
+
+        await repository.SaveChangesAsync(cancellationToken);
+        return await queries.GetByCodeAsync(booking.Code, cancellationToken)
+            ?? throw new NotFoundException("Booking", booking.Code);
+    }
+}
+
+// ===== T-303: APPROVAL LOGS (OWNER / ADMIN PORTAL) =====
+public interface IGetApprovalLogsUseCase
+{
+    Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
+}
+
+public sealed class GetApprovalLogsUseCase(IBookingQueries queries) : IGetApprovalLogsUseCase
+{
+    public Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+    {
+        if (fromUtc.HasValue && toUtc.HasValue && toUtc < fromUtc)
+            throw new ValidationException("Khoáº£ng thá»i gian tra cá»©u khĂ´ng há»£p lá»‡ (toUtc pháº£i sau fromUtc).");
+
+        return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, cancellationToken);
     }
 }

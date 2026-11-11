@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Application.Abstractions;
+using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Infrastructure.Persistence.Queries;
 using ParkingService.Infrastructure.Persistence.Repositories;
@@ -21,9 +22,23 @@ public static class DependencyInjection
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
+        services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
+        services.AddScoped<IClosureScheduleRepository, ClosureScheduleRepository>(); // US-063
+        services.AddScoped<ILotDetailsRepository, LotDetailsRepository>();           // US-064
+        services.AddScoped<ILotOperatingHourRepository, LotOperatingHourRepository>();
+        services.AddScoped<ILotPhysicalChangeRepository, LotPhysicalChangeRepository>(); // US-061
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
         services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
         services.AddScoped<IAdminKybQueries, AdminKybQueries>();               // US-055 (đọc)
+        services.AddScoped<IAdminLotSummaryQueries, AdminLotSummaryQueries>(); // US-081 (đọc)
+        services.AddScoped<ILotMisdeclarationRepository, LotMisdeclarationRepository>(); // US-056 (ghi)
+        services.AddScoped<ILotMisdeclarationQueries, LotMisdeclarationQueries>();       // US-056 (đọc)
+        services.AddScoped<ISanctionStateRepository, SanctionStateRepository>();         // US-097 (ghi)
+        services.AddScoped<ISanctionStateQueries, SanctionStateQueries>();               // US-097 (đọc, cả tìm kiếm)
+        // US-056: hạn sửa mặc định của sai sót nhẹ ("KybMisdeclaration:MinorCorrectionDays", 1–30, mặc định 7) – sai cấu hình → lỗi lúc khởi động.
+        services.AddSingleton(new KybMisdeclarationSettings(
+            configuration.GetValue<int?>($"{KybMisdeclarationSettings.SectionName}:MinorCorrectionDays")
+            ?? KybMisdeclarationSettings.DefaultMinorCorrectionDays));
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
         return services;
     }

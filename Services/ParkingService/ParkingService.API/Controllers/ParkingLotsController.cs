@@ -43,7 +43,9 @@ public sealed class ParkingLotsController(
     ICreateParkingLotUseCase createParkingLot,
     IUpdateParkingLotUseCase updateParkingLot,
     IGetOwnerParkingLotsUseCase getOwnerParkingLots,
-    IGetParkingLotHierarchyUseCase getParkingLotHierarchy) : ControllerBase
+    IGetParkingLotHierarchyUseCase getParkingLotHierarchy,
+    IGetOwnerExitImpactUseCase getOwnerExitImpact,
+    ISuspendOwnerLotsUseCase suspendOwnerLots) : ControllerBase
 {
     /// <summary>GET /api/v1/parking-lots/{id} – Xem chi tiết bãi đỗ (UC-09).</summary>
     [HttpGet("{id:int}")]
@@ -56,11 +58,19 @@ public sealed class ParkingLotsController(
     [HttpGet("search")]
     [ProducesResponseType<IReadOnlyList<ParkingLotSearchItemDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<ParkingLotSearchItemDto>>> Search(
-        [FromQuery] double lat, [FromQuery] double lng, [FromQuery] double radiusKm = 5, [FromQuery] int? vehicleHeightCm = null,
+        [FromQuery] double lat,
+        [FromQuery] double lng,
+        [FromQuery] double radiusKm = 5,
+        [FromQuery] int? vehicleHeightCm = null,
+        [FromQuery] int limit = 20,
+        [FromQuery] string? amenities = null,
+        [FromQuery] bool openNowOnly = false,
+        [FromQuery] bool hasAvailableSlotsOnly = false,
+        [FromQuery] string? sortBy = "Distance",
         CancellationToken cancellationToken = default)
-        => Ok(await searchParkingLots.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm, vehicleHeightCm), cancellationToken));
+        => Ok(await searchParkingLots.ExecuteAsync(new SearchParkingLotsQuery(lat, lng, radiusKm, vehicleHeightCm, limit, amenities, openNowOnly, hasAvailableSlotsOnly, sortBy), cancellationToken));
 
-    /// <summary>POST /api/v1/parking-lots – Đăng ký bãi đỗ xe mới (US-053).</summary>
+    /// <summary>POST /api/v1/parking-lots – Chủ bãi đăng ký bãi đỗ mới (UC-07).</summary>
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -87,7 +97,7 @@ public sealed class ParkingLotsController(
         return CreatedAtAction(nameof(GetById), new { id }, new { id });
     }
 
-    /// <summary>PUT /api/v1/parking-lots/{id} – Cập nhật thông tin bãi đỗ xe.</summary>
+    /// <summary>PUT /api/v1/parking-lots/{id} – Cập nhật thông tin bãi đỗ (UC-10).</summary>
     [HttpPut("{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -127,4 +137,20 @@ public sealed class ParkingLotsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ParkingLotHierarchyDto>> GetHierarchy(int id, CancellationToken cancellationToken)
         => Ok(await getParkingLotHierarchy.ExecuteAsync(new GetParkingLotHierarchyQuery(id), cancellationToken));
+
+    /// <summary>GET /api/v1/parking-lots/owner-exit/impact – Đánh giá tác động bãi đỗ trước khi chủ bãi rời nền tảng (US-057).</summary>
+    [HttpGet("owner-exit/impact")]
+    [ProducesResponseType<OwnerExitImpactSummaryDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<OwnerExitImpactSummaryDto>> GetOwnerExitImpact(
+        [FromQuery] int ownerProfileId,
+        CancellationToken cancellationToken)
+        => Ok(await getOwnerExitImpact.ExecuteAsync(ownerProfileId, cancellationToken));
+
+    /// <summary>POST /api/v1/parking-lots/owner-exit/suspend-all – Đình chỉ toàn bộ bãi xe khi chủ bãi rời nền tảng (US-057).</summary>
+    [HttpPost("owner-exit/suspend-all")]
+    [ProducesResponseType<SuspendOwnerLotsResultDto>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<SuspendOwnerLotsResultDto>> SuspendOwnerLots(
+        [FromQuery] int ownerProfileId,
+        CancellationToken cancellationToken)
+        => Ok(await suspendOwnerLots.ExecuteAsync(ownerProfileId, cancellationToken));
 }

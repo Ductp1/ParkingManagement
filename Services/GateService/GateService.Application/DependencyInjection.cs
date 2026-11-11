@@ -2,6 +2,7 @@ using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
 using GateService.Application.Features.PlateRecognition;
+using GateService.Application.Features.LotCapacity;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GateService.Application;
@@ -15,6 +16,9 @@ public static class DependencyInjection
         // T-702: Gate Console
         services.AddScoped<ICheckInUseCase, CheckInUseCase>();
         services.AddScoped<ICheckOutUseCase, CheckOutUseCase>();
+        // UC-20/UC-22: danh sách booking trong ca + chốt phí cổng ra
+        services.AddScoped<IListShiftBookingsUseCase, ListShiftBookingsUseCase>();
+        services.AddScoped<IQuoteExitFeeUseCase, QuoteExitFeeUseCase>();
         // T-704: xác thực QR token do BookingService cấp (thuần crypto, không depends Infrastructure).
         services.AddSingleton<IBookingQrTokenValidator, BookingQrTokenValidator>();
         // T-703: GateDevices
@@ -37,6 +41,10 @@ public static class DependencyInjection
         services.AddScoped<IResolveQuarantinedPmsEventUseCase, ResolveQuarantinedPmsEventUseCase>();
         // US-077: thống kê hủy No-show theo Staff.
         services.AddScoped<IGetStaffCancellationStatsUseCase, GetStaffCancellationStatsUseCase>();
+        // US-066: cau hinh suc chua & vung dem vang lai.
+        services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
+        services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
+        Features.AdminDashboard.AdminGateDashboardRegistration.AddAdminGateDashboard(services); // US-081: Admin dashboard (chỉ đọc)
         return services;
     }
 }

@@ -7,7 +7,9 @@ export interface AuthUser {
   email?: string;
   role: UserRole;
   roles?: UserRole[];
+  ownerProfileId?: number;
   token?: string;
+  avatarUrl?: string | null;
 }
 
 export interface AuthState {

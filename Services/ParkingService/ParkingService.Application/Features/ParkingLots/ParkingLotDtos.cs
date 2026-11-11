@@ -26,16 +26,23 @@ public sealed record ParkingLotDto(
     IReadOnlyList<string>? Amenities = null,
     IReadOnlyList<string>? Photos = null);
 
-/// <summary>1 dòng kết quả tìm kiếm bãi gần nhất.</summary>
+/// <summary>1 dòng kết quả tìm kiếm bãi gần nhất (US-014).</summary>
 public sealed record ParkingLotSearchItemDto(
     int Id,
     string Name,
     string Address,
+    double Latitude,
+    double Longitude,
     double DistanceKm,
+    int EstimatedTravelTimeMinutes,
     int AvailableSlots,
     int TotalSlots,
     int MaxHeightCm,
-    bool IsOpenNow);
+    bool IsOpenNow,
+    string? CoverImageUrl = null,
+    decimal RatingAverage = 0,
+    int RatingCount = 0,
+    IReadOnlyList<string>? Amenities = null);
 
 /// <summary>DTO bãi đỗ xe hiển thị trên danh sách của chủ bãi (Owner Portal).</summary>
 public sealed record OwnerParkingLotItemDto(

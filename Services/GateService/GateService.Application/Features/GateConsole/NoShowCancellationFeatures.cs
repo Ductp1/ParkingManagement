@@ -6,40 +6,23 @@ using ParkingManagement.SharedKernel.Rules;
 
 namespace GateService.Application.Features.GateConsole;
 
-// ===== US-039: THAM SỐ GATE CONSOLE (bind từ appsettings "GateConsole") =====
-public sealed record GateConsoleOptions
-{
-    /// <summary>Ân hạn check-in trước khi booking trở thành ứng viên No-show (NO_SHOW_CANCEL_AFTER_MINUTES = 30 phút).</summary>
-    public int NoShowGraceMinutes { get; init; } = 30;
-    /// <summary>US-077 (UC-24 E2): số lần hủy No-show trong ca vượt ngưỡng → gắn cờ ca trực (Flag).</summary>
-    public int AbnormalNoShowCancelThreshold { get; init; } = 5;
-
-    public static GateConsoleOptions Default { get; } = new();
-}
-
-// ===== PORT GỌI BOOKINGSERVICE (TV3) =====
-/// <summary>Bản chụp booking tối thiểu GateService cần để xử lý tại cổng.</summary>
-public sealed record GateBookingSnapshot(string Code, int ParkingLotId, int UserId, string Status, string PlateNumber,
-    int? SlotId, string? SlotCode, DateTime StartAtUtc, DateTime EndAtUtc, DateTime? CheckedInAtUtc);
+// ===== US-039: PORT NO-SHOW GỌI BOOKINGSERVICE (TV3) =====
+// Tra cứu booking / đồng bộ check-in/out dùng chung IGateBookingClient (GateBookingContracts.cs);
+// port riêng này chỉ thêm 2 thao tác No-show để không ép các client/fake hiện có phải cài thêm.
 
 /// <summary>US-039 (UC-24): booking quá 30 phút ân hạn check-in – ứng viên No-show hiển thị cho Staff.</summary>
 public sealed record GateNoShowCandidate(string Code, int UserId, string PlateNumber, string ParkingLotName,
     string? SlotCode, DateTime StartAtUtc, DateTime EndAtUtc, int MinutesOverdue);
 
 /// <summary>
-/// Port đồng bộ trạng thái booking với BookingService qua HTTP (US-039/US-052).
-/// 404 → null / NotFoundException; 409 → ConflictException kèm lý do của BookingService; lỗi mạng → DependencyUnavailableException.
+/// Port No-show với BookingService qua HTTP (US-039).
+/// 409 → ConflictException kèm lý do của BookingService; lỗi mạng → DependencyUnavailableException.
 /// </summary>
-public interface IGateBookingClient
+public interface IGateNoShowClient
 {
     Task<IReadOnlyList<GateNoShowCandidate>> ListNoShowCandidatesAsync(int parkingLotId, int graceMinutes, CancellationToken cancellationToken);
-    Task<GateBookingSnapshot?> GetBookingAsync(string bookingCode, CancellationToken cancellationToken);
     /// <summary>US-039: đánh dấu booking No-show (BookingService tự kiểm tra trạng thái + mốc 30 phút).</summary>
     Task MarkNoShowAsync(string bookingCode, int staffUserId, CancellationToken cancellationToken);
-    /// <summary>US-052 (UC-51 bước 3): đồng bộ booking → CheckedIn khi PMS báo xe vào.</summary>
-    Task MarkCheckedInAsync(string bookingCode, string plate, CancellationToken cancellationToken);
-    /// <summary>US-052 (UC-51 bước 3): đồng bộ booking → Completed khi PMS báo xe ra.</summary>
-    Task MarkCheckedOutAsync(string bookingCode, string plate, CancellationToken cancellationToken);
 }
 
 // ===== PORT GỌI PARKINGSERVICE (TV5) – GHI ĐÈ TRẠNG THÁI SLOT (US-049) / NHẢ CHỖ (US-039) =====
@@ -70,15 +53,15 @@ public interface IListNoShowCandidatesUseCase
 /// US-039 bước 1: hệ thống gửi alert No-show cho Staff – lấy danh sách booking Confirmed chưa check-in
 /// đã quá mốc ân hạn 30 phút (NO_SHOW_CANCEL_AFTER_MINUTES) kể từ giờ bắt đầu của bãi Staff phụ trách.
 /// </summary>
-public sealed class ListNoShowCandidatesUseCase(IGateBookingClient bookingClient, GateConsoleOptions? options = null) : IListNoShowCandidatesUseCase
+public sealed class ListNoShowCandidatesUseCase(IGateNoShowClient noShowClient, GateConsoleOptions? options = null) : IListNoShowCandidatesUseCase
 {
-    private readonly GateConsoleOptions _options = options ?? GateConsoleOptions.Default;
+    private readonly GateConsoleOptions _options = options ?? new GateConsoleOptions();
 
     public Task<IReadOnlyList<GateNoShowCandidate>> ExecuteAsync(int parkingLotId, int graceMinutes = 30, CancellationToken cancellationToken = default)
     {
         if (parkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
         if (graceMinutes <= 0) graceMinutes = _options.NoShowGraceMinutes;
-        return bookingClient.ListNoShowCandidatesAsync(parkingLotId, graceMinutes, cancellationToken);
+        return noShowClient.ListNoShowCandidatesAsync(parkingLotId, graceMinutes, cancellationToken);
     }
 }
 
@@ -104,6 +87,7 @@ public interface ICancelNoShowUseCase
 /// </summary>
 public sealed class CancelNoShowUseCase(
     IGateBookingClient bookingClient,
+    IGateNoShowClient noShowClient,
     IParkingSlotClient slotClient,
     IParkingSessionWriter sessionWriter,
     IGateEventWriter gateEvents,
@@ -111,7 +95,7 @@ public sealed class CancelNoShowUseCase(
     TimeProvider timeProvider,
     GateConsoleOptions? options = null) : ICancelNoShowUseCase
 {
-    private readonly GateConsoleOptions _options = options ?? GateConsoleOptions.Default;
+    private readonly GateConsoleOptions _options = options ?? new GateConsoleOptions();
 
     public async Task<NoShowCancelResultDto> ExecuteAsync(string bookingCode, CancelNoShowCommand command, CancellationToken cancellationToken = default)
     {
@@ -121,7 +105,7 @@ public sealed class CancelNoShowUseCase(
         var code = bookingCode.Trim().ToUpperInvariant();
 
         // (1) Booking phải tồn tại và thuộc bãi Staff đang trực.
-        var booking = await bookingClient.GetBookingAsync(code, cancellationToken)
+        var booking = await bookingClient.FindByCodeAsync(code, cancellationToken)
             ?? throw new NotFoundException("Booking", bookingCode);
         if (booking.ParkingLotId != command.ParkingLotId)
             throw new ValidationException($"Booking {code} không thuộc bãi {command.ParkingLotId}.");
@@ -156,11 +140,11 @@ public sealed class CancelNoShowUseCase(
         var alreadyMarked = false;
         try
         {
-            await bookingClient.MarkNoShowAsync(code, command.StaffUserId, cancellationToken);
+            await noShowClient.MarkNoShowAsync(code, command.StaffUserId, cancellationToken);
         }
         catch (ConflictException)
         {
-            var latest = await bookingClient.GetBookingAsync(code, cancellationToken)
+            var latest = await bookingClient.FindByCodeAsync(code, cancellationToken)
                 ?? throw new NotFoundException("Booking", code);
             if (latest.Status != BookingStatusConsts.NoShow) throw;
             alreadyMarked = true;

@@ -1,4 +1,4 @@
-using BookingService.Application.Features.Bookings;
+﻿using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
 using ParkingManagement.SharedKernel.Enums;
@@ -70,6 +70,12 @@ public class CancellationPolicyTests
         public Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken) => Task.FromResult(booking);
         public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
+        public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+            DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
+        public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
     private sealed class FixedClock(DateTime utc) : TimeProvider
@@ -426,6 +432,13 @@ public class BookingFeaturesTests
 
         public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
+
+        public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
+            DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
+        public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository
@@ -434,6 +447,9 @@ public class BookingFeaturesTests
 
         public Task<Booking?> GetEntityByCodeAsync(string code, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Code == code));
+
+        public Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default)
+            => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Id == id));
 
         public Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
         {

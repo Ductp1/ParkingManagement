@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Domain.Entities;
 
@@ -13,12 +14,24 @@ public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options)
     public DbSet<Slot> Slots => Set<Slot>();
     public DbSet<LayoutVersion> LayoutVersions => Set<LayoutVersion>();
     public DbSet<KybApplication> KybApplications => Set<KybApplication>();
+    public DbSet<LotMisdeclarationCase> LotMisdeclarationCases => Set<LotMisdeclarationCase>();
     public DbSet<LotCapacityConfig> LotCapacityConfigs => Set<LotCapacityConfig>();
     public DbSet<LotOperatingHour> LotOperatingHours => Set<LotOperatingHour>();
+    public DbSet<LotOperatingHourOverride> LotOperatingHourOverrides => Set<LotOperatingHourOverride>();
     public DbSet<ClosureSchedule> ClosureSchedules => Set<ClosureSchedule>();
     public DbSet<LotAmenity> LotAmenities => Set<LotAmenity>();
     public DbSet<LotPhoto> LotPhotos => Set<LotPhoto>();
     public DbSet<LotIntegration> LotIntegrations => Set<LotIntegration>();
     public DbSet<SlotStateLog> SlotStateLogs => Set<SlotStateLog>();
     public DbSet<ExternalParkingLot> ExternalParkingLots => Set<ExternalParkingLot>();
+    public DbSet<LotPhysicalChange> LotPhysicalChanges => Set<LotPhysicalChange>();
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+
+        // Bỏ qua cảnh báo pending model changes khi chạy migrate trong môi trường test/CI
+        optionsBuilder.ConfigureWarnings(w =>
+            w.Ignore(RelationalEventId.PendingModelChangesWarning));
+    }
 }

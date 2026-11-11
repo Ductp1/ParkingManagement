@@ -161,8 +161,18 @@ public class Booking : BaseEntity
         AddStatusLog(oldStatus, BookingStatus.Completed, staffUserId, $"Xác nhận xe ra bãi thành công (Cổng {gateDeviceId})");
     }
 
+    /// <summary>Thanh toán thất bại trong quy trình Saga (T-302).</summary>
+    public void FailPayment(string reason, DateTime failedAtUtc)
+    {
+        var oldStatus = Status;
+        Status = BookingStatus.Cancelled;
+        CancelledAtUtc = failedAtUtc;
+        CancelReason = $"Thanh toán thất bại: {reason}";
+        AddStatusLog(oldStatus, BookingStatus.Cancelled, null, CancelReason);
+    }
+
     /// <summary>Hết hạn thời gian giữ chỗ 15 phút (US-023).</summary>
-    public void Expire(DateTime nowUtc)
+    public void Expire(DateTime nowUtc, string? reason = null)
     {
         if (Status != BookingStatus.PendingPayment)
             return;
@@ -171,7 +181,7 @@ public class Booking : BaseEntity
             throw new ValidationException("Thời gian giữ chỗ vẫn còn hiệu lực.");
 
         Status = BookingStatus.Expired;
-        AddStatusLog(BookingStatus.PendingPayment, BookingStatus.Expired, null, "Hết thời gian giữ chỗ 15 phút, tự động nhả vị trí đỗ");
+        AddStatusLog(BookingStatus.PendingPayment, BookingStatus.Expired, null, reason ?? "Hết thời gian giữ chỗ 15 phút, tự động nhả vị trí đỗ");
     }
 
     /// <summary>Khách hàng hủy đơn trước khi vào bãi (US-038). Chỉ cho phép hủy từ các trạng thái chưa vào bãi.</summary>
