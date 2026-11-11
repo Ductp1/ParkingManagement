@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<IResolveQuarantinedPmsEventUseCase, ResolveQuarantinedPmsEventUseCase>();
         // US-077: thống kê hủy No-show theo Staff.
         services.AddScoped<IGetStaffCancellationStatsUseCase, GetStaffCancellationStatsUseCase>();
+        services.AddScoped<IStaffCancellationMonitor, StaffCancellationMonitor>();
         // US-066: cau hinh suc chua & vung dem vang lai.
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();

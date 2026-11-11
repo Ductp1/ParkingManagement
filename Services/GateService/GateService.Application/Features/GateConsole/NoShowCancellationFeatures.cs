@@ -1,4 +1,5 @@
 using GateService.Application.Features.GateEvents;
+using GateService.Application.Features.StaffCancellations;
 using GateService.Domain.Entities;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
@@ -69,7 +70,7 @@ public sealed class ListNoShowCandidatesUseCase(IGateNoShowClient noShowClient, 
 public sealed record CancelNoShowCommand(int ParkingLotId, int StaffUserId, string? Reason = null);
 
 public sealed record NoShowCancelResultDto(string BookingCode, string BookingStatus, DateTime CancelledAtUtc,
-    int MinutesOverdue, string? SlotCode, bool SlotReleased, bool ShiftFlagged, string AuditNote);
+    int MinutesOverdue, string? SlotCode, bool SlotReleased, bool ShiftFlagged, bool AbnormalAlertRaised, string AuditNote);
 
 public interface ICancelNoShowUseCase
 {
@@ -92,6 +93,7 @@ public sealed class CancelNoShowUseCase(
     IParkingSessionWriter sessionWriter,
     IGateEventWriter gateEvents,
     IShiftStore shiftStore,
+    IStaffCancellationMonitor staffMonitor,
     TimeProvider timeProvider,
     GateConsoleOptions? options = null) : ICancelNoShowUseCase
 {
@@ -185,9 +187,12 @@ public sealed class CancelNoShowUseCase(
             await shiftStore.SaveAsync(cancellationToken);
         }
 
+        // (7) US-077: giám sát hủy bất thường – đạt ngưỡng trong cửa sổ thống kê → cảnh báo AdminService (best-effort).
+        var abnormalAlertRaised = await staffMonitor.CheckAsync(command.ParkingLotId, command.StaffUserId, code, cancellationToken);
+
         var now = timeProvider.GetUtcNow().UtcDateTime;
         return new NoShowCancelResultDto(code, BookingStatusConsts.NoShow, now, Math.Max(0, overdueMinutes),
-            slotCode, slotReleased, shiftFlagged, auditNote);
+            slotCode, slotReleased, shiftFlagged, abnormalAlertRaised, auditNote);
     }
 }
 

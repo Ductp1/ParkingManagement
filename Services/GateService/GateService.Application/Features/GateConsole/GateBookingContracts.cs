@@ -21,6 +21,12 @@ public sealed class GateConsoleOptions
 
     /// <summary>US-077 (UC-24 E2): số lần hủy No-show trong ca đạt ngưỡng → gắn cờ ca trực (Flagged).</summary>
     public int AbnormalNoShowCancelThreshold { get; init; } = 5;
+
+    /// <summary>US-077: số lần hủy No-show của 1 Staff trong cửa sổ thống kê đạt ngưỡng này → cảnh báo Critical cho Admin.</summary>
+    public int CriticalNoShowCancelThreshold { get; init; } = 10;
+
+    /// <summary>US-077: cửa sổ thời gian (giờ) đếm số lần hủy No-show của 1 Staff để so với ngưỡng cảnh báo.</summary>
+    public int StaffCancellationWindowHours { get; init; } = 24;
 }
 
 /// <summary>
