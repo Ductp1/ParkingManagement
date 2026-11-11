@@ -4,7 +4,7 @@ using ParkingManagement.SharedKernel.Enums;
 
 namespace BookingService.Infrastructure.Persistence.Queries;
 
-public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
+public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoShowCandidateQueries
 {
     public Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken)
         => db.Bookings.AsNoTracking()

@@ -21,6 +21,7 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<BookingDbContext>(configuration);
         services.AddScoped<IBookingQueries, BookingQueries>();
+        services.AddScoped<INoShowCandidateQueries, BookingQueries>(); // US-039
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
         services.AddHostedService<HoldExpiryWorker>();

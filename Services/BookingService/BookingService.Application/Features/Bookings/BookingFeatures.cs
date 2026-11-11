@@ -112,13 +112,18 @@ public interface ILotIntegrationClient
     Task<bool> PushBookingCreatedAsync(PmsBookingPush booking, CancellationToken cancellationToken = default);
 }
 
+// US-039 (UC-24): port đọc riêng (tách khỏi IBookingQueries để không ép các fake hiện có phải cài thêm).
+public interface INoShowCandidateQueries
+{
+    /// <summary>Booking Confirmed chưa check-in đã quá {graceMinutes} phút kể từ giờ bắt đầu, lọc theo bãi.</summary>
+    Task<IReadOnlyList<NoShowCandidateDto>> ListNoShowCandidatesAsync(int parkingLotId, DateTime nowUtc, int graceMinutes, CancellationToken cancellationToken);
+}
+
 // ===== PORTS =====
 public interface IBookingQueries
 {
     Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken);
-    /// <summary>US-039 (UC-24): booking Confirmed chưa check-in đã quá {graceMinutes} phút kể từ giờ bắt đầu, lọc theo bãi.</summary>
-    Task<IReadOnlyList<NoShowCandidateDto>> ListNoShowCandidatesAsync(int parkingLotId, DateTime nowUtc, int graceMinutes, CancellationToken cancellationToken);
 
     /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
     Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
@@ -432,7 +437,7 @@ public interface IListNoShowCandidatesUseCase
 /// US-039 (UC-24 bước 1): hệ thống gửi cảnh báo No-show cho Staff – danh sách booking Confirmed
 /// chưa check-in đã quá mốc ân hạn 30 phút (NO_SHOW_CANCEL_AFTER_MINUTES) kể từ giờ bắt đầu.
 /// </summary>
-public sealed class ListNoShowCandidatesUseCase(IBookingQueries queries, TimeProvider timeProvider) : IListNoShowCandidatesUseCase
+public sealed class ListNoShowCandidatesUseCase(INoShowCandidateQueries queries, TimeProvider timeProvider) : IListNoShowCandidatesUseCase
 {
     public Task<IReadOnlyList<NoShowCandidateDto>> ExecuteAsync(int parkingLotId, int graceMinutes = 30, CancellationToken cancellationToken = default)
     {
