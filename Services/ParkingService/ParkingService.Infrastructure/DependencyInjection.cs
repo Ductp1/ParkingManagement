@@ -33,6 +33,8 @@ public static class DependencyInjection
         services.AddScoped<IAdminLotSummaryQueries, AdminLotSummaryQueries>(); // US-081 (đọc)
         services.AddScoped<ILotMisdeclarationRepository, LotMisdeclarationRepository>(); // US-056 (ghi)
         services.AddScoped<ILotMisdeclarationQueries, LotMisdeclarationQueries>();       // US-056 (đọc)
+        services.AddScoped<ISanctionStateRepository, SanctionStateRepository>();         // US-097 (ghi)
+        services.AddScoped<ISanctionStateQueries, SanctionStateQueries>();               // US-097 (đọc, cả tìm kiếm)
         // US-056: hạn sửa mặc định của sai sót nhẹ ("KybMisdeclaration:MinorCorrectionDays", 1–30, mặc định 7) – sai cấu hình → lỗi lúc khởi động.
         services.AddSingleton(new KybMisdeclarationSettings(
             configuration.GetValue<int?>($"{KybMisdeclarationSettings.SectionName}:MinorCorrectionDays")

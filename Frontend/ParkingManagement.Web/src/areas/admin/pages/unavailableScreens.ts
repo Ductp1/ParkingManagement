@@ -17,8 +17,6 @@ import {
   RefundStatus,
   RiskFlagStatus,
   RiskSeverity,
-  SanctionLevel,
-  SanctionStatus,
   SecurityEventType,
   ShiftStatus,
   VoucherStatus,
@@ -40,6 +38,15 @@ const endAfterStart = (startKey: string) => (v: unknown, all: FormValues) => {
 
 /* ===== Dialogs (Figma "… / Dialog – …"), chưa có endpoint ghi ===== */
 
+const createAdjustment: FormDialogSpec = {
+  title: 'Create adjustment',
+  description: 'Adds a FinancialAdjustments row. Without a settlement it applies to the next cycle.',
+  confirmLabel: 'Create adjustment',
+  fields: [
+    { key: 'owner', kind: 'select', label: 'Owner', required: true, options: [], placeholder: 'No owner source yet' },
+    { key: 'settlement', kind: 'select', label: 'Settlement', options: [], helper: 'Optional — only Draft / Pending review settlements' },
+    { key: 'amount', kind: 'number', label: 'Amount (₫)', required: true, helper: 'Positive = credit, negative = debit', validate: notZero },
+    { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 500, requiredMessage: 'A reason is required.' },
 const issueSanction: FormDialogSpec = {
   title: 'Issue sanction',
   description: 'Creates a Sanctions row. Owner-level locks go through Users › Lock owner (US-096).',
@@ -250,19 +257,6 @@ export const UNAVAILABLE_SCREENS = {
     columns: ['Code', 'Category', 'Reporter / booking', 'Lot', 'Priority', 'Status', ''],
     service: 'SupportService',
     missingEndpoint: 'GET /api/v1/complaints?kind=ticket',
-  },
-  sanctions: {
-    title: 'Sanctions',
-    subtitle: 'SLA sanctions on owners / lots · 4 levels (SanctionLevel)',
-    filterGroups: [
-      { param: 'status', title: 'Sanction status', values: values(SanctionStatus) },
-      { param: 'level', title: 'Level', allLabel: 'Any', values: values(SanctionLevel) },
-    ],
-    searchPlaceholder: 'Search owner, lot, reason…',
-    columns: ['#', 'Owner / scope', 'Level', 'Reason', 'Period', 'Penalty', 'User sync', 'Status'],
-    service: 'AdminService',
-    missingEndpoint: 'GET/POST /api/v1/admin/sanctions (today only per owner)',
-    actions: [{ label: 'Issue sanction', dialog: issueSanction }],
   },
   riskFlags: {
     title: 'Risk Flags',

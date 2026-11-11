@@ -262,9 +262,11 @@ describe('DashboardPage (US-081) – drill-down', () => {
     expect(within(queue('Thay đổi cấu hình sắp hiệu lực')).getByRole('link').getAttribute('href')).toBe(
       '/admin/access/system-settings/HOLD_TTL_MINUTES'
     );
-    // Hoàn tiền, quyết toán, tranh chấp, risk flag, chế tài, dữ liệu cá nhân: màn admin chưa có dữ liệu → không link.
+    // US-097: màn Sanctions đã có → lọc sẵn chế tài đang hiệu lực.
+    expect(within(queue('Chế tài đang hiệu lực')).getByRole('link').getAttribute('href')).toBe('/admin/support/sanctions?status=Active');
+    // Hoàn tiền, quyết toán, tranh chấp, risk flag, dữ liệu cá nhân: màn admin chưa có dữ liệu → không link.
     for (const label of ['Yêu cầu hoàn tiền chờ duyệt', 'Kỳ quyết toán chờ duyệt', 'Tranh chấp chờ chủ bãi quá hạn 48 giờ', 'Risk flag chưa xử lý',
-      'Yêu cầu dữ liệu cá nhân', 'Chế tài đang hiệu lực']) {
+      'Yêu cầu dữ liệu cá nhân']) {
       expect(within(queue(label)).queryByRole('link')).toBeNull();
     }
   });

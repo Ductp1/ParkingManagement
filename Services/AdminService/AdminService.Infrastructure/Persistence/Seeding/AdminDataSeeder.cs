@@ -69,7 +69,9 @@ public sealed class AdminDataSeeder(ILogger<AdminDataSeeder> logger) : IDataSeed
         {
             OwnerProfileId = DemoIds.OwnerTsn, ParkingLotId = DemoIds.LotBenThanh, Level = SanctionLevel.TemporarySuspension,
             Reason = "Để xảy ra overbooking 3 lần trong tuần.", StartsAtUtc = now.AddDays(-2), EndsAtUtc = now.AddDays(12),
-            IssuedByUserId = DemoIds.AdminUser
+            IssuedByUserId = DemoIds.AdminUser,
+            // US-097: tạm ngừng niêm yết chưa báo ParkingService → demo nút "Thử lại đồng bộ" trên màn Sanctions.
+            OwnerUserId = DemoIds.OwnerTsnUser, ParkingSyncStatus = SanctionSyncStatus.Pending
         });
         db.AuditLogs.AddRange(
             new AuditLog

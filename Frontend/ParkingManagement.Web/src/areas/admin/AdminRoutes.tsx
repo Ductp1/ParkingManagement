@@ -33,6 +33,7 @@ import { FeatureFlagsPage } from './pages/access/FeatureFlagsPage';
 import { RolesPermissionsPage } from './pages/access/RolesPermissionsPage';
 import { AuditLogListPage } from './pages/access/AuditLogListPage';
 import { AuditLogDetailPage } from './pages/access/AuditLogDetailPage';
+import { SanctionsListPage } from './pages/support/sanctions/SanctionsListPage';
 
 const SECURITY_TABS = [
   { label: 'Data subject requests', to: '/admin/access/security-privacy' },
@@ -107,7 +108,7 @@ export const AdminRoutes: React.FC = () => {
         {/* Support & Sanctions */}
         <Route path="support/disputes" element={unavailable('disputes')} />
         <Route path="support/tickets" element={unavailable('tickets')} />
-        <Route path="support/sanctions" element={unavailable('sanctions')} />
+        <Route path="support/sanctions" element={<SanctionsListPage />} />
         <Route path="support/risk-flags" element={unavailable('riskFlags')} />
         <Route path="support/reviews" element={unavailable('reviews')} />
         <Route path="support/vouchers" element={unavailable('vouchers')} />

@@ -9,6 +9,7 @@ using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.LotDetails;
+using ParkingService.Application.Features.SanctionStates;
 using ParkingService.Application.Features.PhysicalChanges;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
@@ -49,6 +50,12 @@ public static class DependencyInjection
         services.AddScoped<IEscalateLotMisdeclarationCaseUseCase, EscalateLotMisdeclarationCaseUseCase>();
         services.AddScoped<IResolveLotMisdeclarationCaseUseCase, ResolveLotMisdeclarationCaseUseCase>();
         services.AddScoped<IBanLotOwnerUseCase, BanLotOwnerUseCase>();
+
+        // Chế tài SLA – hiệu lực đẩy từ AdminService (US-097)
+        services.AddScoped<IUpsertSanctionStateUseCase, UpsertSanctionStateUseCase>();
+        services.AddScoped<ILiftSanctionStateUseCase, LiftSanctionStateUseCase>();
+        services.AddScoped<IGetLotSanctionStatusUseCase, GetLotSanctionStatusUseCase>();
+        services.AddScoped<IGetLotSanctionStateUseCase, GetLotSanctionStateUseCase>();
 
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();
