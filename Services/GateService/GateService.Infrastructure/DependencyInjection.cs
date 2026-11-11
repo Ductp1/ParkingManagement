@@ -2,8 +2,11 @@ using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
 using GateService.Application.Features.GateEvents;
+using GateService.Application.Features.GateExceptions;
 using GateService.Application.Features.LotCapacity;
 using GateService.Application.Features.PlateRecognition;
+using GateService.Application.Features.PmsIntegration;
+using GateService.Application.Features.StaffCancellations;
 using GateService.Infrastructure.HttpClients;
 using GateService.Infrastructure.Integrations;
 using GateService.Infrastructure.Persistence;
@@ -49,6 +52,12 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:BookingService:BaseUrl"] ?? "http://localhost:5104");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
+        // US-039: thao tác No-show cài trên cùng GateBookingClient (cùng BaseUrl BookingService).
+        services.AddHttpClient<IGateNoShowClient, GateBookingClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:BookingService:BaseUrl"] ?? "http://localhost:5104");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
         services.AddHttpClient<IExitFeeCalculator, PaymentServiceClient>((sp, client) =>
         {
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:PaymentService:BaseUrl"] ?? "http://localhost:5105");
@@ -64,6 +73,11 @@ public static class DependencyInjection
         {
             CheckInGracePeriodMinutes = ParsePositiveInt(configuration["GateConsole:CheckInGracePeriodMinutes"], 15),
             BillingGracePeriodMinutes = ParsePositiveInt(configuration["GateConsole:BillingGracePeriodMinutes"], 15),
+            // US-039: mốc 30' Staff được hủy No-show; US-077: ngưỡng hủy No-show trong ca để gắn cờ ca.
+            NoShowGraceMinutes = ParsePositiveInt(configuration["GateConsole:NoShowGraceMinutes"], 30),
+            AbnormalNoShowCancelThreshold = ParsePositiveInt(configuration["GateConsole:AbnormalNoShowCancelThreshold"], 5),
+            CriticalNoShowCancelThreshold = ParsePositiveInt(configuration["GateConsole:CriticalNoShowCancelThreshold"], 10),
+            StaffCancellationWindowHours = ParsePositiveInt(configuration["GateConsole:StaffCancellationWindowHours"], 24),
         });
         // US-066: store + cổng vào/ra nguyên tử + publisher/counter HTTP (tự nuốt lỗi).
         services.AddScoped<ILotCapacityPolicyStore, LotCapacityStore>();
@@ -81,6 +95,30 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(configuration["NotificationService:BaseUrl"] ?? "http://localhost:5106"));
         services.AddHttpClient<BookingSubscriberCounter>((_, client) =>
             client.BaseAddress = new Uri(configuration["BookingService:BaseUrl"] ?? "http://localhost:5104"));
+        // US-039/US-077: ca trực (tăng bộ đếm hủy No-show / ngoại lệ, gắn cờ ca bất thường).
+        services.AddScoped<IShiftStore, ShiftStore>();
+        // US-039/US-049: gọi ParkingService (TV5) – ghi đè trạng thái slot / nhả chỗ.
+        services.AddHttpClient<IParkingSlotClient, ParkingServiceClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:ParkingService:BaseUrl"] ?? "http://localhost:5103");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        // US-048/US-077: đọc audit GateEvents.
+        services.AddScoped<IGateEventQueries, GateEventQueries>();
+        // US-052: sự kiện PMS – auth qua ParkingService, inbox chống trùng, hàng chờ xử lý tay.
+        services.AddHttpClient<IPmsAuthClient, PmsAuthClient>((sp, client) =>
+        {
+            client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:ParkingService:BaseUrl"] ?? "http://localhost:5103");
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        // US-077: đẩy cảnh báo Staff hủy No-show bất thường sang AdminService (endpoint /internal, khóa nội bộ).
+        var adminBaseUrl = configuration[AdminServiceConnection.BaseUrlKey];
+        services.AddSingleton(new AdminServiceConnection(
+            new Uri((string.IsNullOrWhiteSpace(adminBaseUrl) ? "http://localhost:5108" : adminBaseUrl.TrimEnd('/')) + "/"),
+            configuration[AdminServiceConnection.ApiKeyKey]));
+        services.AddHttpClient<IAdminAlertClient, AdminAlertClient>(client => client.Timeout = TimeSpan.FromSeconds(5));
+        services.AddScoped<IPmsInbox, PmsInbox>();
+        services.AddScoped<IPmsQuarantineStore, PmsQuarantineStore>();
         return services;
     }
 

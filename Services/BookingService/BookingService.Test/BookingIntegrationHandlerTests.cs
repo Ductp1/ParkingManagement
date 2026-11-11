@@ -1,6 +1,9 @@
+using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Infrastructure.Integrations;
 using BookingService.Infrastructure.Persistence;
+using BookingService.Infrastructure.Persistence.Queries;
+using BookingService.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ParkingManagement.ServiceDefaults.Messaging;
@@ -62,8 +65,12 @@ public class BookingIntegrationHandlerTests
     private static BookingIntegrationEventHandler NewHandler(BookingDbContext db, DateTime nowUtc)
         => new(
             new BookingService.Infrastructure.Persistence.Repositories.BookingRepository(db),
+            // Saga T-302 (merge develop): chốt lifecycle (idempotency/expired/owner-approval/ConfirmPayment) — clock riêng.
+            new ProcessPaymentResultUseCase(
+                new BookingService.Infrastructure.Persistence.Repositories.BookingRepository(db),
+                new BookingQueries(db),
+                new FixedTestClock(nowUtc)),
             new BookingEventOutbox(db),
-            new FixedTestClock(nowUtc),
             NullLogger<BookingIntegrationEventHandler>.Instance);
 
     private static IntegrationEventEnvelope PaymentEnvelope(decimal amount)

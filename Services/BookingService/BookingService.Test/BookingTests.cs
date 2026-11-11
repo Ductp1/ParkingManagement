@@ -1,4 +1,4 @@
-﻿using BookingService.Application.Features.Bookings;
+using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
 using ParkingManagement.SharedKernel.Contracts;
@@ -282,7 +282,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -317,7 +317,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -345,7 +345,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -374,7 +374,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -448,6 +448,26 @@ public class BookingFeaturesTests
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
             int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
+    }
+
+    /// <summary>CreateBookingUseCase với guard chống lạm dụng luôn cho phép (US-103) và PMS không cấu hình (US-052).</summary>
+    private static CreateBookingUseCase NewCreateBookingUseCase(IBookingRepository repo, IQrTokenService qr, TimeProvider clock)
+        => new(repo, qr, new FakeEventPublisher(), new BookingAbuseGuard(new NoAbuseQueries(), clock), new NoPmsLotIntegration(), clock);
+
+    private sealed class NoAbuseQueries : IBookingAbuseQueries
+    {
+        public Task<int> CountCreatedSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+        public Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+        public Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(new NoShowStatistics(0, 0));
+    }
+
+    private sealed class NoPmsLotIntegration : ILotIntegrationClient
+    {
+        public Task<bool> PushBookingCreatedAsync(PmsBookingPush booking, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository

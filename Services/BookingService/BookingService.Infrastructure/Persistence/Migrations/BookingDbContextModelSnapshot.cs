@@ -35,6 +35,11 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<string>("AutoProcessStage")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<string>("CancelReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -156,6 +161,8 @@ namespace BookingService.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("PlateNumber");
+
+                    b.HasIndex("Status", "EndAtUtc");
 
                     b.HasIndex("Status", "HoldExpiresAtUtc");
 

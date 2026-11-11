@@ -30,13 +30,13 @@ export interface SlotDto {
   id: number;
   floorId: number;
   code: string;
-  slotType: 'Standard' | 'Compact' | 'EvCharging' | 'Handicapped' | 'Vip' | 'Oversized';
-  maxVehicleType: 'Motorbike' | 'CompactCar' | 'Sedan' | 'Suv' | 'Van' | 'Truck';
+  slotType: 'Standard' | 'Compact' | 'EvCharging' | 'Handicapped' | 'Vip' | 'Oversized' | string;
+  maxVehicleType: 'Motorbike' | 'CompactCar' | 'Sedan' | 'Suv' | 'Van' | 'Truck' | string;
   gridX: number;
   gridY: number;
   widthCells: number;
   heightCells: number;
-  state: 'Available' | 'Reserved' | 'Occupied' | 'Disabled';
+  state: 'Available' | 'Reserved' | 'Occupied' | 'Disabled' | string;
   isActive: boolean;
 }
 
@@ -73,6 +73,37 @@ export interface UpdateFloorRequest {
   gridColumns: number;
   gridRows: number;
   isClosed: boolean;
+}
+
+export interface CreateSlotRequest {
+  code: string;
+  slotType?: string;
+  maxVehicleType?: string;
+  gridX?: number;
+  gridY?: number;
+  widthCells?: number;
+  heightCells?: number;
+}
+
+export interface UpdateSlotRequest {
+  code: string;
+  slotType: string;
+  maxVehicleType: string;
+  gridX: number;
+  gridY: number;
+  widthCells: number;
+  heightCells: number;
+  isActive: boolean;
+}
+
+export interface BatchCreateSlotsRequest {
+  prefix: string;
+  count: number;
+  startIndex?: number;
+  slotType?: string;
+  maxVehicleType?: string;
+  startGridX?: number;
+  startGridY?: number;
 }
 
 // Hợp đồng bàn giao số 4 (Hierarchy Tree View)

@@ -17,6 +17,7 @@ public sealed class BookingsController(
     IReviewBookingUseCase reviewBooking,
     ILotCancelBookingUseCase lotCancelBooking,
     IGateBookingActionsUseCase gateActions,
+    IListNoShowCandidatesUseCase listNoShowCandidates,
     IListGateBookingsUseCase listGateBookings,
     IGetApprovalLogsUseCase getApprovalLogs) : ControllerBase
 {
@@ -156,4 +157,15 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> NoShow(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
         => Ok(await gateActions.NoShowAsync(code, command, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/bookings/no-show-candidates?parkingLotId=2&amp;graceMinutes=30 – US-039 (UC-24 bước 1):
+    /// booking Confirmed chưa check-in đã quá mốc ân hạn (mặc định 30 phút – NO_SHOW_CANCEL_AFTER_MINUTES)
+    /// kể từ giờ bắt đầu, cho Staff bấm "Hủy No-show". Nội bộ cho TV7 - GateService.
+    /// </summary>
+    [HttpGet("no-show-candidates")]
+    [ProducesResponseType<IReadOnlyList<NoShowCandidateDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<NoShowCandidateDto>>> NoShowCandidates(
+        [FromQuery] int parkingLotId, [FromQuery] int graceMinutes = 30, CancellationToken cancellationToken = default)
+        => Ok(await listNoShowCandidates.ExecuteAsync(parkingLotId, graceMinutes, cancellationToken));
 }

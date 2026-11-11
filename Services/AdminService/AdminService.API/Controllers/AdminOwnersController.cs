@@ -1,4 +1,5 @@
 using AdminService.Application.Features.Owners;
+using AdminService.Application.Features.Sanctions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ParkingManagement.SharedKernel.Contracts;
@@ -10,7 +11,7 @@ namespace AdminService.API.Controllers;
 [Route("api/v1/admin/owners")]
 [Authorize(Policy = "RequireAdmin")]
 public sealed class AdminOwnersController(IGetOwnerSanctionsUseCase getSanctions, ILockOwnerUseCase lockOwner,
-    IUnlockOwnerUseCase unlockOwner, ICurrentUser currentUser) : ControllerBase
+    IUnlockOwnerUseCase unlockOwner, IGetSanctionSuggestionUseCase getSuggestion, ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>POST /api/v1/admin/owners/2/lock – Khóa tài khoản chủ bãi (gọi lại khi chưa đồng bộ được = thử lại).</summary>
     [HttpPost("{ownerProfileId:int}/lock")]
@@ -25,6 +26,11 @@ public sealed class AdminOwnersController(IGetOwnerSanctionsUseCase getSanctions
         => currentUser.UserId is { } adminUserId
             ? Ok(await unlockOwner.ExecuteAsync(ownerProfileId, request, adminUserId, cancellationToken))
             : Unauthorized();
+
+    /// <summary>GET /api/v1/admin/owners/2/sanction-suggestion – US-097: gợi ý cấp chế tài kế tiếp (chỉ tham khảo).</summary>
+    [HttpGet("{ownerProfileId:int}/sanction-suggestion")]
+    public async Task<ActionResult<SanctionSuggestionDto>> SanctionSuggestion(int ownerProfileId, CancellationToken cancellationToken)
+        => Ok(await getSuggestion.ExecuteAsync(ownerProfileId, cancellationToken));
 
     /// <summary>GET /api/v1/admin/owners/2/sanctions?page=1&amp;pageSize=20 – Lịch sử vi phạm (chế tài) của một chủ bãi.</summary>
     [HttpGet("{ownerProfileId:int}/sanctions")]

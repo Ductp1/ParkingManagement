@@ -1,5 +1,6 @@
 using ParkingManagement.SharedKernel.Exceptions;
 using ParkingService.Application.Abstractions;
+using ParkingService.Application.Features.SanctionStates;
 using ParkingService.Domain.Services;
 
 namespace ParkingService.Application.Features.ParkingLots;
@@ -28,8 +29,10 @@ public interface ISearchParkingLotsUseCase
 /// 3) Lọc nâng cao: tiện ích, mở cửa, còn chỗ.
 /// 4) Sắp xếp đa tiêu chí: khoảng cách, số chỗ trống, đánh giá.
 /// 5) Giới hạn kết quả (Top-N Limit).
+/// US-097: bãi đang bị tạm ngưng (chế tài cấp 3) bị loại, bãi bị hạ thứ hạng (cấp 2) xếp sau mọi bãi khác – cả hai TRƯỚC Take(limit).
 /// </summary>
-public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, TimeProvider timeProvider) : ISearchParkingLotsUseCase
+public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, TimeProvider timeProvider,
+    ISanctionStateQueries? sanctionStates = null) : ISearchParkingLotsUseCase
 {
     private static readonly string[] ValidSortCriteria = ["Distance", "AvailableSlots", "Rating"];
 
@@ -87,12 +90,19 @@ public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, T
             }
         }
 
+        // Chế tài SLA (US-097): bỏ bãi tạm ngưng, bãi bị hạ thứ hạng xếp cuối – trước Take để vẫn đủ limit bãi hợp lệ.
+        var matches = queryable.ToList();
+        var effects = await LoadSanctionEffectsAsync(matches.Select(x => x.Lot).ToList(), cancellationToken);
+        var ranked = matches
+            .Where(x => !effects.IsListingSuspended(x.Lot.Id, x.Lot.OwnerProfileId))
+            .OrderBy(x => effects.IsRankingPenalized(x.Lot.Id, x.Lot.OwnerProfileId));
+
         // Sắp xếp linh hoạt đa tiêu chí (US-016)
         var sorted = (query.SortBy?.ToLowerInvariant()) switch
         {
-            "availableslots" => queryable.OrderByDescending(x => x.Lot.AvailableSlots).ThenBy(x => x.Distance),
-            "rating" => queryable.OrderByDescending(x => x.Lot.RatingAverage).ThenByDescending(x => x.Lot.RatingCount).ThenBy(x => x.Distance),
-            _ => queryable.OrderBy(x => x.Distance).ThenByDescending(x => x.Lot.AvailableSlots)
+            "availableslots" => ranked.ThenByDescending(x => x.Lot.AvailableSlots).ThenBy(x => x.Distance),
+            "rating" => ranked.ThenByDescending(x => x.Lot.RatingAverage).ThenByDescending(x => x.Lot.RatingCount).ThenBy(x => x.Distance),
+            _ => ranked.ThenBy(x => x.Distance).ThenByDescending(x => x.Lot.AvailableSlots)
         };
 
         return sorted
@@ -114,5 +124,15 @@ public sealed class SearchParkingLotsUseCase(IParkingLotRepository repository, T
                 x.Lot.RatingCount,
                 x.Lot.Amenities?.Select(a => a.Name).ToList() ?? []))
             .ToList();
+    }
+
+    private async Task<LotSanctionEffects> LoadSanctionEffectsAsync(IReadOnlyList<Domain.Entities.ParkingLot> lots,
+        CancellationToken cancellationToken)
+    {
+        if (sanctionStates is null || lots.Count == 0) return LotSanctionEffects.None;
+        var states = await sanctionStates.ListInEffectAsync(
+            lots.Select(l => l.Id).ToList(), lots.Select(l => l.OwnerProfileId).Distinct().ToList(),
+            timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
+        return new LotSanctionEffects(states);
     }
 }

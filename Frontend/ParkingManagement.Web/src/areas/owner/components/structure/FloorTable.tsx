@@ -1,5 +1,18 @@
 import React from 'react';
-import { Plus, Edit2, Trash2, ArrowDownCircle, ArrowUpCircle, Layers, Grid, Weight, ArrowUpDown } from 'lucide-react';
+import {
+  Plus,
+  Edit2,
+  Trash2,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Layers,
+  Grid,
+  Weight,
+  ArrowUpDown,
+  History,
+  Car,
+  Power,
+} from 'lucide-react';
 import type { FloorDto } from '@/types/ownerStructure';
 
 interface FloorTableProps {
@@ -9,6 +22,9 @@ interface FloorTableProps {
   onAddFloor: () => void;
   onEditFloor: (floor: FloorDto) => void;
   onDeleteFloor: (floor: FloorDto) => void;
+  onOpenLayoutVersions: (floor: FloorDto) => void;
+  onOpenSlots: (floor: FloorDto) => void;
+  onToggleFloorClosure: (floor: FloorDto) => void;
 }
 
 export const FloorTable: React.FC<FloorTableProps> = ({
@@ -18,6 +34,9 @@ export const FloorTable: React.FC<FloorTableProps> = ({
   onAddFloor,
   onEditFloor,
   onDeleteFloor,
+  onOpenLayoutVersions,
+  onOpenSlots,
+  onToggleFloorClosure,
 }) => {
   // Sắp xếp tầng theo thứ tự cao độ giảm dần (Tầng cao nhất ở trên, tầng hầm sâu nhất ở dưới)
   const sortedFloors = [...floors].sort((a, b) => b.level - a.level);
@@ -39,7 +58,7 @@ export const FloorTable: React.FC<FloorTableProps> = ({
             Danh sách tầng thuộc: <span className="text-indigo-600">{zoneName}</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Quản lý cao độ, chiều cao tĩnh không, tải trọng sàn và ma trận lưới ô đỗ
+            Quản lý cao độ, chiều cao tĩnh không, tải trọng sàn, sơ đồ mặt bằng và ô đỗ
           </p>
         </div>
 
@@ -162,22 +181,49 @@ export const FloorTable: React.FC<FloorTableProps> = ({
                       </div>
                     </td>
 
-                    {/* Trạng thái hoạt động */}
+                    {/* Trạng thái hoạt động (Quick action đóng/mở) */}
                     <td className="py-4 px-4 whitespace-nowrap">
-                      {floor.isClosed ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                          Tạm đóng
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Hoạt động
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => onToggleFloorClosure(floor)}
+                        className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+                          floor.isClosed
+                            ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                            : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                        }`}
+                        title={floor.isClosed ? 'Bấm để mở lại tầng' : 'Bấm để tạm đóng tầng'}
+                      >
+                        <Power size={11} />
+                        {floor.isClosed ? 'Tạm đóng' : 'Hoạt động'}
+                      </button>
                     </td>
 
                     {/* Thao tác */}
                     <td className="py-4 px-4 sm:px-6 whitespace-nowrap text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* Nút quản lý ô đỗ */}
+                        <button
+                          type="button"
+                          onClick={() => onOpenSlots(floor)}
+                          className="px-2 py-1 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
+                          title="Quản lý danh sách ô đỗ của tầng"
+                        >
+                          <Car size={13} />
+                          <span>Ô đỗ</span>
+                        </button>
+
+                        {/* Nút sơ đồ & phiên bản */}
+                        <button
+                          type="button"
+                          onClick={() => onOpenLayoutVersions(floor)}
+                          className="px-2 py-1 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
+                          title="Xem sơ đồ & lịch sử phiên bản mặt bằng"
+                        >
+                          <History size={13} />
+                          <span>Sơ đồ</span>
+                        </button>
+
+                        {/* Nút sửa thông số */}
                         <button
                           type="button"
                           onClick={() => onEditFloor(floor)}
@@ -186,6 +232,8 @@ export const FloorTable: React.FC<FloorTableProps> = ({
                         >
                           <Edit2 size={14} />
                         </button>
+
+                        {/* Nút xóa tầng */}
                         <button
                           type="button"
                           onClick={() => onDeleteFloor(floor)}

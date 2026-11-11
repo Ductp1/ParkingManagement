@@ -23,16 +23,20 @@ public sealed class BookingEventOutbox(BookingDbContext db) : IBookingEventPubli
 }
 
 /// <summary>
-/// US-083: consumer BookingService — lắng nghe kết quả thanh toán để CHỐT vòng đời booking
-/// (bridge còn thiếu trước đó: PaymentService bắn PaymentSucceeded nhưng không ai ConfirmPayment).
-///  - PaymentSucceeded → booking.ConfirmPayment + phát BookingConfirmed (NotificationService gửi thông báo US-083/US-084 đặt lịch nhắc).
-///  - PaymentFailed → không đổi trạng thái (HoldExpiryWorker sẽ hết hạn giữ chỗ 15 phút); NotificationService tự nhận PaymentFailed.
+/// US-083 + T-302 (merge develop): consumer BookingService — lắng nghe kết quả thanh toán để CHỐT vòng đời booking.
+/// Lifecycle ủy quyền cho saga IProcessPaymentResultUseCase (develop T-302):
+///  - PaymentSucceeded → idempotency (đã Confirmed/PendingOwnerApproval bỏ qua) · hết hạn giữ chỗ → Expired ·
+///    bãi cần duyệt → PendingOwnerApproval · còn lại → ConfirmPayment.
+///  - PaymentFailed → PendingPayment → Cancelled (FailPayment); trạng thái khác bỏ qua.
+/// Sau khi saga chốt trạng thái, handler phát event làm giàu cho NotificationService:
+///  - BookingConfirmed (chỉ khi vừa chuyển sang Confirmed — bãi Mức 0 chờ chủ bãi duyệt sẽ phát ở ReviewBookingUseCase).
+///  - BookingPaymentCompleted (thành công/thất bại, có UserId + BookingCode — event gốc của PaymentService thiếu).
 /// Idempotency: TransactionalInbox chặn xử lý trùng theo EventId; ConfirmPayment tự chặn re-confirm (ConflictException).
 /// </summary>
 public sealed class BookingIntegrationEventHandler(
     IBookingRepository repository,
+    IProcessPaymentResultUseCase paymentResult,
     IBookingEventPublisher events,
-    TimeProvider clock,
     ILogger<BookingIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     public async Task HandleAsync(IntegrationEventEnvelope envelope, CancellationToken cancellationToken)
@@ -72,19 +76,21 @@ public sealed class BookingIntegrationEventHandler(
             return;
         }
 
-        if (booking.Status is BookingStatus.PendingPayment or BookingStatus.PendingOwnerApproval)
+        var statusBefore = booking.Status;
+
+        // T-302 (merge develop): saga chốt vòng lifecycle — xử lý hết hạn giữ chỗ, chờ chủ bãi duyệt, ConfirmPayment.
+        await paymentResult.ProcessPaymentSucceededAsync(payload, cancellationToken);
+
+        // US-083/085: phát BookingConfirmed khi saga vừa chuyển sang Confirmed (bãi Mức 1-3 tự động).
+        // Bãi Mức 0 (PendingOwnerApproval) KHÔNG phát ở đây — chủ bãi duyệt (ReviewBookingUseCase) mới phát,
+        // để tránh booking chưa được duyệt đã nhận thông báo xác nhận.
+        if (booking.Status is BookingStatus.Confirmed
+            && statusBefore is BookingStatus.PendingPayment or BookingStatus.PendingOwnerApproval)
         {
-            var now = clock.GetUtcNow().UtcDateTime;
-            booking.ConfirmPayment(payload.Amount, now);
             events.Enqueue(new BookingConfirmed(
                 booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
                 booking.ParkingLotName, booking.SlotId, booking.SlotCode, booking.PlateNumber,
                 booking.StartAtUtc, booking.EndAtUtc, booking.TotalAmount));
-        }
-        else
-        {
-            logger.LogInformation("Booking {Code} ở trạng thái {Status} — bỏ qua PaymentSucceeded (idempotent).",
-                booking.Code, booking.Status);
         }
 
         // US-083: event làm giàu cho NotificationService (có UserId + BookingCode — event gốc của PaymentService thiếu).
@@ -92,8 +98,8 @@ public sealed class BookingIntegrationEventHandler(
             payload.PaymentId, booking.Id, booking.Code, booking.UserId,
             payload.Amount, payload.Method, Succeeded: true, FailureReason: null));
         await repository.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Booking {Code}: thanh toán {PaymentId} THÀNH CÔNG → đã phát BookingConfirmed/BookingPaymentCompleted.",
-            booking.Code, payload.PaymentId);
+        logger.LogInformation("Booking {Code}: PaymentSucceeded {PaymentId} → saga {Before} → {After}; đã phát events US-083.",
+            booking.Code, payload.PaymentId, statusBefore, booking.Status);
     }
 
     private async Task OnPaymentFailedAsync(PaymentFailed payload, CancellationToken cancellationToken)
@@ -102,11 +108,17 @@ public sealed class BookingIntegrationEventHandler(
         var booking = await repository.GetEntityByIdAsync(payload.BookingId.Value, cancellationToken);
         if (booking is null) return;
 
-        // Không đổi trạng thái (HoldExpiryWorker sẽ hết hạn giữ chỗ 15 phút) — chỉ phát event thông báo thất bại.
+        var statusBefore = booking.Status;
+
+        // T-302 (merge develop): saga xử lý thất bại — PendingPayment → Cancelled (FailPayment); trạng thái khác bỏ qua.
+        await paymentResult.ProcessPaymentFailedAsync(payload, cancellationToken);
+
+        // US-083: vẫn phát event thông báo thất bại cho NotificationService (dù booking đã Cancelled).
         events.Enqueue(new BookingPaymentCompleted(
             payload.PaymentId, booking.Id, booking.Code, booking.UserId,
             booking.TotalAmount, "VNPAY", Succeeded: false, FailureReason: payload.Reason));
         await repository.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Booking {Code}: thanh toán {PaymentId} THẤT BẠI.", booking.Code, payload.PaymentId);
+        logger.LogInformation("Booking {Code}: thanh toán {PaymentId} THẤT BẠI → saga {Before} → {After}.",
+            booking.Code, payload.PaymentId, statusBefore, booking.Status);
     }
 }

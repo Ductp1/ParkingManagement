@@ -18,6 +18,7 @@ builder.Services.AddJwtAuth(Path.GetFullPath(
 builder.Services.AddPaymentApplication();                                  // Application: Use Case
 builder.Services.AddPaymentInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 builder.Services.AddPaymentCommission(builder.Configuration);              // US-079: hoa hồng nền tảng (job + báo cáo Admin)
+builder.Services.AddPaymentSettlements(builder.Configuration);             // US-080: quyết toán định kỳ (job sinh kỳ + Admin)
 
 var app = builder.Build();
 

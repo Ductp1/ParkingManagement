@@ -43,6 +43,7 @@ public class LotStatusBlockingTests
     {
         var provider = new FakeLotStatus(new LotOperationalStatusSnapshot(1, "Bãi A", "Suspended", EmergencyStopped: true, "Sự cố cháy"));
         var useCase = new CreateBookingUseCase(new FakeBookingRepo(), new QrTokenService(), new FakeEventPublisher(),
+            new BookingAbuseGuard(new AllowAbuseQueries(), new FixedClock(FixedNow)), new NoPmsLotIntegration(),
             new FixedClock(FixedNow), provider);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(SampleCommand()));
@@ -57,6 +58,7 @@ public class LotStatusBlockingTests
         var provider = new FakeLotStatus(null); // ParkingService chết / lỗi HTTP → null
         var repo = new FakeBookingRepo();
         var useCase = new CreateBookingUseCase(repo, new QrTokenService(), new FakeEventPublisher(),
+            new BookingAbuseGuard(new AllowAbuseQueries(), new FixedClock(FixedNow)), new NoPmsLotIntegration(),
             new FixedClock(FixedNow), provider);
 
         var result = await useCase.ExecuteAsync(SampleCommand());
@@ -70,6 +72,7 @@ public class LotStatusBlockingTests
     {
         var provider = new FakeLotStatus(new LotOperationalStatusSnapshot(1, "Bãi A", "Active", EmergencyStopped: false, null));
         var useCase = new CreateBookingUseCase(new FakeBookingRepo(), new QrTokenService(), new FakeEventPublisher(),
+            new BookingAbuseGuard(new AllowAbuseQueries(), new FixedClock(FixedNow)), new NoPmsLotIntegration(),
             new FixedClock(FixedNow), provider);
 
         var result = await useCase.ExecuteAsync(SampleCommand());
@@ -81,6 +84,24 @@ public class LotStatusBlockingTests
     {
         public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
             => Task.FromResult(snapshot);
+    }
+
+    /// <summary>US-103: guard chống lạm dụng cho phép mọi tài khoản (test US-069 chỉ quan tâm chặn bãi đóng).</summary>
+    private sealed class AllowAbuseQueries : IBookingAbuseQueries
+    {
+        public Task<int> CountCreatedSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+        public Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+        public Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(new NoShowStatistics(0, 0));
+    }
+
+    /// <summary>US-052: bãi không cấu hình PMS — push luôn trả false, không ảnh hưởng booking.</summary>
+    private sealed class NoPmsLotIntegration : ILotIntegrationClient
+    {
+        public Task<bool> PushBookingCreatedAsync(PmsBookingPush booking, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository
