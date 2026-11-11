@@ -1,3 +1,4 @@
+using System.Text.Json;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateEvents;
 using GateService.Domain.Entities;
@@ -56,14 +57,24 @@ public interface IProcessPmsEventUseCase
 
 public interface IListQuarantinedPmsEventsUseCase
 {
-    Task<IReadOnlyList<PmsUnmatchedEvent>> ExecuteAsync(int? parkingLotId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PmsUnmatchedEventDto>> ExecuteAsync(int? parkingLotId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>US-052 (UC-51 E1): sự kiện PMS trong hàng chờ xử lý tay – trả cho Staff App.</summary>
+public sealed record PmsUnmatchedEventDto(int Id, Guid EventId, int ParkingLotId, string EventType, string PlateNumber,
+    string? PlateDisplay, string? BookingCode, DateTime OccurredAtUtc, string Reason, string Status, string PayloadJson,
+    int? HandledByUserId, DateTime? HandledAtUtc, string? Note, DateTime CreatedAtUtc)
+{
+    public static PmsUnmatchedEventDto From(PmsUnmatchedEvent e) => new(e.Id, e.EventId, e.ParkingLotId, e.EventType.ToString(),
+        e.PlateNumber, string.IsNullOrEmpty(e.PlateNumber) ? null : PlateNormalizer.Format(e.PlateNumber), e.BookingCode,
+        e.OccurredAtUtc, e.Reason, e.Status.ToString(), e.PayloadJson, e.HandledByUserId, e.HandledAtUtc, e.Note, e.CreatedAtUtc);
 }
 
 public sealed record ResolveQuarantinedPmsEventCommand(int StaffUserId, string? Note = null, bool Discard = false);
 
 public interface IResolveQuarantinedPmsEventUseCase
 {
-    Task<PmsUnmatchedEvent> ExecuteAsync(int eventId, ResolveQuarantinedPmsEventCommand command, CancellationToken cancellationToken = default);
+    Task<PmsUnmatchedEventDto> ExecuteAsync(int eventId, ResolveQuarantinedPmsEventCommand command, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -84,6 +95,8 @@ public sealed class ProcessPmsEventUseCase(
     IPmsQuarantineStore quarantine,
     TimeProvider timeProvider) : IProcessPmsEventUseCase
 {
+    private static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<PmsEventResultDto> ExecuteAsync(string apiKey, PmsEventCommand command, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(apiKey))
@@ -103,8 +116,30 @@ public sealed class ProcessPmsEventUseCase(
         var bookingCode = string.IsNullOrWhiteSpace(command.BookingCode) ? null : command.BookingCode.Trim().ToUpperInvariant();
 
         // ===== Duplicate events (idempotency) =====
-        var processed = await inbox.ApplyOnceAsync(command.EventId, ct =>
-            ApplyEventAsync(identity, command, plate, bookingCode, ct), cancellationToken);
+        bool processed;
+        try
+        {
+            processed = await inbox.ApplyOnceAsync(command.EventId, ct =>
+                ApplyEventAsync(identity, command, plate, bookingCode, ct), cancellationToken);
+        }
+        catch (QuarantinedException ex)
+        {
+            // UC-51 E1: transaction inbox đã rollback (EventId chưa ghi nhận) → lưu hàng chờ cho Staff xử lý tay
+            // và ack cho PMS (không retry vô hạn). PMS gửi lại cùng EventId → đánh giá lại / cập nhật dòng Pending.
+            await quarantine.AddPendingAsync(new PmsUnmatchedEvent
+            {
+                EventId = command.EventId,
+                ParkingLotId = command.ParkingLotId,
+                EventType = command.EventType,
+                PlateNumber = plate,
+                BookingCode = bookingCode,
+                OccurredAtUtc = command.OccurredAtUtc,
+                PayloadJson = JsonSerializer.Serialize(command, PayloadJsonOptions),
+                Reason = ex.Message,
+            }, cancellationToken);
+            return new PmsEventResultDto(command.EventId, false, "Quarantined", bookingCode, null,
+                $"Sự kiện không khớp dữ liệu nền tảng, đã chuyển Staff xử lý tay: {ex.Message}");
+        }
         if (!processed)
             return new PmsEventResultDto(command.EventId, false, "Duplicate", bookingCode, null,
                 "Sự kiện đã được xử lý trước đó – bỏ qua (idempotent).");
@@ -230,14 +265,14 @@ public sealed class ProcessPmsEventUseCase(
 /// <summary>US-052: Staff xem danh sách sự kiện PMS đưa vào hàng chờ (UC-51 E1).</summary>
 public sealed class ListQuarantinedPmsEventsUseCase(IPmsQuarantineStore store) : IListQuarantinedPmsEventsUseCase
 {
-    public Task<IReadOnlyList<PmsUnmatchedEvent>> ExecuteAsync(int? parkingLotId, CancellationToken cancellationToken = default)
-        => store.ListPendingAsync(parkingLotId, cancellationToken);
+    public async Task<IReadOnlyList<PmsUnmatchedEventDto>> ExecuteAsync(int? parkingLotId, CancellationToken cancellationToken = default)
+        => (await store.ListPendingAsync(parkingLotId, cancellationToken)).Select(PmsUnmatchedEventDto.From).ToList();
 }
 
 /// <summary>US-052: Staff xử lý tay sự kiện PMS hàng chờ – đánh dấu đã xử lý hoặc bỏ qua kèm ghi chú.</summary>
 public sealed class ResolveQuarantinedPmsEventUseCase(IPmsQuarantineStore store, TimeProvider timeProvider) : IResolveQuarantinedPmsEventUseCase
 {
-    public async Task<PmsUnmatchedEvent> ExecuteAsync(int eventId, ResolveQuarantinedPmsEventCommand command, CancellationToken cancellationToken = default)
+    public async Task<PmsUnmatchedEventDto> ExecuteAsync(int eventId, ResolveQuarantinedPmsEventCommand command, CancellationToken cancellationToken = default)
     {
         if (command.StaffUserId <= 0) throw new ValidationException("staffUserId phải là số nguyên dương.");
         var item = await store.FindByIdAsync(eventId, cancellationToken)
@@ -250,6 +285,6 @@ public sealed class ResolveQuarantinedPmsEventUseCase(IPmsQuarantineStore store,
         item.HandledAtUtc = timeProvider.GetUtcNow().UtcDateTime;
         item.Note = command.Note;
         await store.SaveAsync(cancellationToken);
-        return item;
+        return PmsUnmatchedEventDto.From(item);
     }
 }

@@ -31,11 +31,11 @@ public static class DependencyInjection
         // US-103: ngưỡng chống lạm dụng đặt/hủy – bind từ "BookingAbuse", mọi ngưỡng cấu hình được.
         services.AddSingleton(configuration.GetSection("BookingAbuse").Get<BookingAbuseOptions>() ?? BookingAbuseOptions.Default);
         services.AddScoped<IBookingAbuseQueries, BookingAbuseQueries>();
-        // US-052: đẩy booking mới về PMS của bãi qua ParkingService (đi qua Gateway).
-        var gateway = configuration["Services:GatewayBaseUrl"];
+        // US-052: đẩy booking mới về PMS của bãi qua ParkingService ("Services:ParkingService:BaseUrl").
+        var parkingServiceUrl = configuration["Services:ParkingService:BaseUrl"];
         services.AddHttpClient<ILotIntegrationClient, ParkingIntegrationClient>(client =>
         {
-            client.BaseAddress = new Uri(string.IsNullOrWhiteSpace(gateway) ? "http://localhost:5000/" : gateway.TrimEnd('/') + "/");
+            client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(parkingServiceUrl) ? "http://localhost:5103" : parkingServiceUrl.TrimEnd('/')) + "/");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
 

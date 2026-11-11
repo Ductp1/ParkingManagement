@@ -9,7 +9,7 @@ namespace BookingService.Infrastructure.Integrations;
 /// <summary>
 /// US-052 (UC-51 bước 1): đẩy booking mới về PMS của bãi qua ParkingService
 /// (POST api/v1/parking-lots/{lotId}/integrations/push-booking – ParkingService ký HMAC và gọi webhook của PMS).
-/// BaseAddress = Gateway; 404 (bãi chưa cấu hình tích hợp) → false, không coi là lỗi.
+/// BaseAddress = ParkingService ("Services:ParkingService:BaseUrl"); 404 (bãi chưa cấu hình tích hợp) → false, không coi là lỗi.
 /// </summary>
 public sealed class ParkingIntegrationClient(HttpClient http, ILogger<ParkingIntegrationClient> logger) : ILotIntegrationClient
 {
