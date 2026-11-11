@@ -23,12 +23,12 @@ public interface IOverrideSlotStatusUseCase
 ///    IParkingSlotClient – ParkingService cập nhật Slot.State + SlotStateLog (Source=StaffOverride,
 ///    ChangedByUserId, Reason) và đẩy availability real-time cho Driver App / Provider Dashboard.
 ///  - Record override reason and staff information: GateService ghi thêm GateEvents (ManualSlotOverride).
-/// UC-25 E1: slot đang có booking Confirmed → ParkingService trả cảnh báo trong kết quả (staff/chủ bãi xử lý chuyển booking).
+/// UC-25 E1 (slot đang có booking Confirmed) CHƯA xử lý: ParkingService không giữ dữ liệu booking – cần BookingService cảnh báo/chuyển booking.
 /// </summary>
 public sealed class OverrideSlotStatusUseCase(
     IParkingSlotClient slotClient,
     IGateEventWriter gateEvents,
-    TimeProvider timeProvider) : IOverrideSlotStatusUseCase
+    IShiftStore shiftStore) : IOverrideSlotStatusUseCase
 {
     public async Task<OverrideSlotStatusResultDto> ExecuteAsync(OverrideSlotStatusCommand command, CancellationToken cancellationToken = default)
     {
@@ -44,10 +44,13 @@ public sealed class OverrideSlotStatusUseCase(
         var result = await slotClient.OverrideSlotStateAsync(command.ParkingLotId, command.SlotId, command.NewState,
             SlotStateSource.StaffOverride, command.StaffUserId, command.Reason.Trim(), cancellationToken);
 
+        // Ca trực đang mở của Staff (nếu có) – gắn sự kiện vào ca để chủ bãi đối soát theo ca.
+        var shift = await shiftStore.FindOpenByStaffAsync(command.StaffUserId, cancellationToken);
+
         // Audit tại cổng: ghi rõ ai đổi, từ trạng thái nào sang trạng thái nào, lý do gì.
         var note = $"Staff ghi đè slot {result.SlotCode}: {result.FromState} → {result.ToState}. Lý do: {command.Reason.Trim()}";
         await gateEvents.WriteAsync(new GateEventDraft(command.ParkingLotId, GateEventType.ManualSlotOverride,
-            PlateNumber: null, PerformedByUserId: command.StaffUserId, Note: note), cancellationToken);
+            PlateNumber: null, PerformedByUserId: command.StaffUserId, Note: note, ShiftId: shift?.Id), cancellationToken);
 
         return new OverrideSlotStatusResultDto(result.SlotId, result.SlotCode, result.FromState, result.ToState,
             result.Source, command.StaffUserId, result.ChangedAtUtc, note);
