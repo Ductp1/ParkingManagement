@@ -103,7 +103,7 @@ public class VehicleServiceApiTests(ServiceHostFixture<VehiclesController, Vehic
         var list = await fixture.Client.GetFromJsonAsync<List<VehicleJson>>("/api/v1/vehicles?userId=5");
         Assert.Single(list!, v => v.IsDefault);
         Assert.Equal(2, list!.Single(v => v.IsDefault).Id);
-        Assert.False(list.Single(v => v.Id == 1).IsDefault);
+        Assert.False(list!.Single(v => v.Id == 1).IsDefault);
     }
 
     [Fact] // US-011: cập nhật màu/size; biển số là bất biến nên response giữ nguyên biển cũ.

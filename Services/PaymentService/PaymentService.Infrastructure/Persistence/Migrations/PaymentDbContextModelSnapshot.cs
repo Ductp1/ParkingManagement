@@ -228,6 +228,12 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<DateTime?>("ApprovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ApprovedByUserId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -242,8 +248,40 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RejectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("RejectedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ReversesAdjustmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<int?>("SettlementId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SourceReference")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -254,7 +292,16 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SettlementId");
 
-                    b.ToTable("FinancialAdjustments", (string)null);
+                    b.HasIndex("OwnerProfileId", "Status", "SettlementId");
+
+                    b.HasIndex(new[] { "SourceType", "SourceReference" }, "UX_FinancialAdjustments_Voucher")
+                        .IsUnique()
+                        .HasFilter("\"SourceType\" = 'CompensationVoucher'");
+
+                    b.ToTable("FinancialAdjustments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_FinancialAdjustments_Amount", "\"Amount\" <> 0");
+                        });
                 });
 
             modelBuilder.Entity("PaymentService.Domain.Entities.Holiday", b =>
@@ -1021,6 +1068,22 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.Property<int?>("ApprovedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("BlockedReasons")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("CarryOverAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("CarryOverFromSettlementId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<decimal>("CommissionAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1032,6 +1095,12 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("GeneratedByUserId")
+                        .HasColumnType("integer");
+
                     b.Property<decimal>("GrossAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1040,7 +1109,17 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<DateTime?>("HoldsCapturedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsBlocked")
+                        .HasColumnType("boolean");
+
                     b.Property<decimal>("NetPayout")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("OwnerCollectedAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
@@ -1049,6 +1128,9 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime?>("PaidAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("PaidByUserId")
+                        .HasColumnType("integer");
 
                     b.Property<string>("PayoutReference")
                         .HasMaxLength(100)
@@ -1064,18 +1146,53 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("RejectReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("RejectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("RejectedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int?>("SettlementPeriodId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("SubmittedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("SubmittedByUserId")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CarryOverFromSettlementId")
+                        .IsUnique()
+                        .HasFilter("\"CarryOverFromSettlementId\" IS NOT NULL");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("SettlementPeriodId");
+
                     b.HasIndex("OwnerProfileId", "PeriodStart")
                         .IsUnique();
+
+                    b.HasIndex("Status", "PeriodStart");
 
                     b.ToTable("Settlements", null, t =>
                         {
@@ -1095,6 +1212,10 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("BlockedReason")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<decimal>("CommissionAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
@@ -1102,10 +1223,16 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsOwnerCollected")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("LineType")
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("ParkingLotId")
                         .HasColumnType("integer");
@@ -1131,11 +1258,64 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.HasIndex("PaymentId")
                         .HasFilter("\"PaymentId\" IS NOT NULL");
 
-                    b.HasIndex("RefundId");
-
                     b.HasIndex("SettlementId");
 
+                    b.HasIndex(new[] { "ReferenceCode" }, "UX_SettlementLines_Hold")
+                        .IsUnique()
+                        .HasFilter("\"LineType\" = 'DisputeHold' AND \"Amount\" < 0");
+
+                    b.HasIndex(new[] { "ReferenceCode" }, "UX_SettlementLines_HoldRelease")
+                        .IsUnique()
+                        .HasFilter("\"LineType\" = 'DisputeHold' AND \"Amount\" > 0");
+
+                    b.HasIndex(new[] { "PaymentId" }, "UX_SettlementLines_Payment")
+                        .IsUnique()
+                        .HasFilter("\"PaymentId\" IS NOT NULL AND \"LineType\" IN ('Booking', 'WalkIn')");
+
+                    b.HasIndex(new[] { "RefundId" }, "UX_SettlementLines_Refund")
+                        .IsUnique()
+                        .HasFilter("\"RefundId\" IS NOT NULL");
+
                     b.ToTable("SettlementLines", (string)null);
+                });
+
+            modelBuilder.Entity("PaymentService.Domain.Entities.SettlementPeriod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Cycle")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("CycleEffectiveFromUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("PeriodEnd")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("PeriodStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PeriodStart")
+                        .IsUnique();
+
+                    b.ToTable("SettlementPeriods", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_SettlementPeriods_Period", "\"PeriodEnd\" >= \"PeriodStart\"");
+                        });
                 });
 
             modelBuilder.Entity("PaymentService.Domain.Entities.CommissionEntry", b =>
@@ -1241,6 +1421,16 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("PaymentService.Domain.Entities.Settlement", b =>
+                {
+                    b.HasOne("PaymentService.Domain.Entities.SettlementPeriod", "Period")
+                        .WithMany()
+                        .HasForeignKey("SettlementPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Period");
                 });
 
             modelBuilder.Entity("PaymentService.Domain.Entities.SettlementLine", b =>

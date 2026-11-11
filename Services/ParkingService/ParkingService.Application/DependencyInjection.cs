@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ParkingService.Application.Features.Capacity;
+using ParkingService.Application.Features.Closures;
 using ParkingService.Application.Features.OperatingHours;
 using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Kyb;
@@ -8,6 +9,7 @@ using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.LotDetails;
+using ParkingService.Application.Features.SanctionStates;
 using ParkingService.Application.Features.PhysicalChanges;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
@@ -49,6 +51,12 @@ public static class DependencyInjection
         services.AddScoped<IResolveLotMisdeclarationCaseUseCase, ResolveLotMisdeclarationCaseUseCase>();
         services.AddScoped<IBanLotOwnerUseCase, BanLotOwnerUseCase>();
 
+        // Chế tài SLA – hiệu lực đẩy từ AdminService (US-097)
+        services.AddScoped<IUpsertSanctionStateUseCase, UpsertSanctionStateUseCase>();
+        services.AddScoped<ILiftSanctionStateUseCase, LiftSanctionStateUseCase>();
+        services.AddScoped<IGetLotSanctionStatusUseCase, GetLotSanctionStatusUseCase>();
+        services.AddScoped<IGetLotSanctionStateUseCase, GetLotSanctionStateUseCase>();
+
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();
         services.AddScoped<IUpdateZoneUseCase, UpdateZoneUseCase>();
@@ -84,6 +92,13 @@ public static class DependencyInjection
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();
 
+        // Closures & Maintenance (US-063, EP09)
+        services.AddScoped<ICreateClosureScheduleUseCase, CreateClosureScheduleUseCase>();
+        services.AddScoped<IValidateClosureImpactUseCase, ValidateClosureImpactUseCase>();
+        services.AddScoped<ICancelClosureScheduleUseCase, CancelClosureScheduleUseCase>();
+        services.AddScoped<IGetLotClosureSchedulesUseCase, GetLotClosureSchedulesUseCase>();
+        services.AddScoped<IGetClosureScheduleByIdUseCase, GetClosureScheduleByIdUseCase>();
+
         // Lot Details (Amenities, Photos, Attributes) (US-064, EP09)
         services.AddScoped<IGetStandardAmenitiesCatalogUseCase, GetStandardAmenitiesCatalogUseCase>();
         services.AddScoped<IGetLotAmenitiesUseCase, GetLotAmenitiesUseCase>();
@@ -104,6 +119,7 @@ public static class DependencyInjection
         // Operating Hours (US-062, EP09)
         services.AddScoped<IGetLotOperatingHoursUseCase, GetLotOperatingHoursUseCase>();
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
+        services.AddScoped<IDeleteLotOperatingHoursOverrideUseCase, DeleteLotOperatingHoursOverrideUseCase>();
 
         // Physical Changes (SLA 48h Protection) (US-061, EP09)
         services.AddScoped<IDeclarePhysicalChangeUseCase, DeclarePhysicalChangeUseCase>();

@@ -12,7 +12,9 @@ public sealed record LotOperatingHourItemDto(
     bool IsClosed,
     bool IsOvernight,
     bool Is24Hours,
-    bool IsDefault);
+    bool IsDefault,
+    bool IsOverride = false,
+    string? Reason = null);
 
 /// <summary>
 /// DTO lịch hoạt động cả tuần (7 ngày) của bãi đỗ xe (US-062).
@@ -22,7 +24,12 @@ public sealed record LotOperatingHoursWeeklyDto(
     string ParkingLotName,
     TimeOnly DefaultOpenTime,
     TimeOnly DefaultCloseTime,
-    IReadOnlyList<LotOperatingHourItemDto> Schedule);
+    IReadOnlyList<LotOperatingHourItemDto> Schedule,
+    int? Year = null,
+    int? WeekOfYear = null,
+    bool IsCustomWeek = false,
+    DateOnly? WeekStartDate = null,
+    DateOnly? WeekEndDate = null);
 
 /// <summary>
 /// DTO cấu hình cho 1 ngày khi gửi request cập nhật.
@@ -38,7 +45,10 @@ public sealed record UpdateLotOperatingHourItemRequest(
 /// </summary>
 public sealed record UpdateLotOperatingHoursRequest(
     int? OwnerProfileId,
-    List<UpdateLotOperatingHourItemRequest> Schedule);
+    List<UpdateLotOperatingHourItemRequest> Schedule,
+    int? Year = null,
+    int? WeekOfYear = null,
+    string? Reason = null);
 
 /// <summary>
 /// Command cập nhật lịch hoạt động cả tuần cho bãi đỗ xe (US-062).
@@ -46,4 +56,7 @@ public sealed record UpdateLotOperatingHoursRequest(
 public sealed record UpdateLotOperatingHoursCommand(
     int ParkingLotId,
     int? OwnerProfileId,
-    List<UpdateLotOperatingHourItemRequest> Schedule);
+    List<UpdateLotOperatingHourItemRequest> Schedule,
+    int? Year = null,
+    int? WeekOfYear = null,
+    string? Reason = null);

@@ -57,74 +57,20 @@ const FAQ_DATA: FaqItem[] = [
   },
 ];
 
-const INITIAL_TICKETS: SupportTicket[] = [
-  {
-    id: '1',
-    code: '#TCK-2026-1082',
-    issueType: 'barie',
-    issueLabel: 'Sự cố Barie cổng vào/ra',
-    identifier: '51K-889.32 • #PKM-2025-8842',
-    location: 'Landmark 81 Garage (Làn vào #01)',
-    content: 'Camera ANPR quét chậm, barie không tự nhấc dù đã có mã đặt chỗ hợp lệ. Phải quét mã QR thủ công.',
-    createdAt: 'Hôm nay, 10:15',
-    status: 'in_progress',
-    statusLabel: 'Kỹ thuật viên đang xử lý',
-    statusColor: 'bg-blue-100 text-blue-800 border-blue-200',
-    assignedTo: 'Kỹ sư Trần Minh (Tổ kỹ thuật Landmark 81)',
-    timeline: [
-      { step: 'Tiếp nhận phiếu hỗ trợ', time: '10:15', done: true },
-      { step: 'Trích xuất camera ANPR làn vào', time: '10:20', done: true },
-      { step: 'Cân chỉnh góc quét camera & độ sáng', time: '10:35', done: false, current: true },
-      { step: 'Hoàn tất & Nghiệm thu', time: 'Dự kiến 11:00', done: false },
-    ],
-  },
-  {
-    id: '2',
-    code: '#TCK-2026-0941',
-    issueType: 'payment',
-    issueLabel: 'Thanh toán & Hoàn tiền',
-    identifier: '#PKM-2025-7621',
-    location: 'Bitexco Financial Tower',
-    content: 'Bị tính phụ trội 1 block giờ do xe bị kẹt ở làn ra lúc 12:45. Yêu cầu kiểm tra thời gian thực tế.',
-    createdAt: '24/10/2026 14:30',
-    status: 'resolved',
-    statusLabel: 'Đã giải quyết (Hoàn tiền)',
-    statusColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    assignedTo: 'CSKH Nguyễn Thị Hoa',
-    resolutionNote: 'Đã đối soát camera làn ra, xác nhận xe có mặt lúc 12:43 nhưng barie nghẽn 3 phút. Hệ thống đã hoàn trả 25.000 đ vào Ví ParkMaster của quý khách.',
-    resolutionAmount: 25000,
-    timeline: [
-      { step: 'Tiếp nhận khiếu nại', time: '14:30', done: true },
-      { step: 'Đối soát log cảm biến barie', time: '14:40', done: true },
-      { step: 'Phê duyệt hoàn phí 25.000 đ', time: '14:52', done: true },
-      { step: 'Cộng tiền vào ví & Đóng phiếu', time: '14:55', done: true },
-    ],
-  },
-  {
-    id: '3',
-    code: '#TCK-2026-0819',
-    issueType: 'ev',
-    issueLabel: 'Trạm sạc xe điện EV',
-    identifier: '51K-889.32',
-    location: 'Saigon Centre / Takashimaya',
-    content: 'Trụ sạc EV-03 ngắt điện sau 15 phút dù pin xe mới nạp được 30%.',
-    createdAt: '18/10/2026 18:20',
-    status: 'resolved',
-    statusLabel: 'Đã giải quyết',
-    statusColor: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    assignedTo: 'Kỹ thuật viên VinFast EV Station',
-    resolutionNote: 'Sự cố do cảm biến nhiệt độ súng sạc Type 2 tự kích hoạt bảo vệ. Đã thay cáp súng sạc mới tại trụ EV-03.',
-    timeline: [
-      { step: 'Tiếp nhận báo cáo', time: '18:20', done: true },
-      { step: 'Kiểm tra phần cứng trụ sạc', time: '18:45', done: true },
-      { step: 'Thay thế dây sạc & Đo điện áp', time: '19:10', done: true },
-      { step: 'Xác nhận hoạt động bình thường', time: '19:30', done: true },
-    ],
-  },
-];
+const loadSavedTickets = (): SupportTicket[] => {
+  try {
+    const raw = localStorage.getItem('parkmaster_driver_tickets');
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // fallback
+  }
+  return [];
+};
 
 export const SupportPage: React.FC = () => {
   const { user } = useAppSelector((state) => state.auth);
+  const { vehicles } = useAppSelector((state) => state.vehicle);
+  const defaultCar = vehicles.find((v) => v.isDefault) || vehicles[0];
 
   // Main Tab State
   const [activeMainTab, setActiveMainTab] = useState<'faq' | 'create' | 'tracking'>('faq');
@@ -134,16 +80,16 @@ export const SupportPage: React.FC = () => {
   const [openFaqIds, setOpenFaqIds] = useState<string[]>(['Q1', 'Q2']);
 
   // Ticket Form State
-  const [fullName, setFullName] = useState(user?.fullName || 'Bùi Phạm Chí Nhân');
-  const [phone, setPhone] = useState('0912 345 678');
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [phone, setPhone] = useState(user?.phone || '');
   const [issueType, setIssueType] = useState<'barie' | 'payment' | 'ev' | 'feedback'>('barie');
-  const [identifier, setIdentifier] = useState('51K-889.32 / PKM-2025-8842');
-  const [locationName, setLocationName] = useState('Landmark 81 Garage');
+  const [identifier, setIdentifier] = useState(defaultCar?.plateDisplay || defaultCar?.plateNumber || '');
+  const [locationName, setLocationName] = useState('');
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Ticket List & Detail State
-  const [tickets, setTickets] = useState<SupportTicket[]>(INITIAL_TICKETS);
+  const [tickets, setTickets] = useState<SupportTicket[]>(loadSavedTickets);
   const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
   const [ticketFilterStatus, setTicketFilterStatus] = useState<'all' | 'in_progress' | 'resolved'>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -185,8 +131,8 @@ export const SupportPage: React.FC = () => {
         code: newTicketCode,
         issueType,
         issueLabel: issueLabelMap[issueType],
-        identifier: identifier || '51K-889.32',
-        location: locationName,
+        identifier: identifier || defaultCar?.plateDisplay || defaultCar?.plateNumber || 'Chưa chọn xe',
+        location: locationName || 'Bãi đỗ ParkMaster',
         content,
         createdAt: 'Vừa xong',
         status: 'pending',
@@ -201,7 +147,13 @@ export const SupportPage: React.FC = () => {
         ],
       };
 
-      setTickets([newTicket, ...tickets]);
+      const updatedTickets = [newTicket, ...tickets];
+      setTickets(updatedTickets);
+      try {
+        localStorage.setItem('parkmaster_driver_tickets', JSON.stringify(updatedTickets));
+      } catch (err) {
+        console.error('Failed to save tickets', err);
+      }
       setIsSubmitting(false);
       setContent('');
       setActiveMainTab('tracking');
@@ -629,7 +581,26 @@ export const SupportPage: React.FC = () => {
 
             {/* Ticket Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredTickets.map((ticket) => (
+              {filteredTickets.length === 0 ? (
+                <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center flex flex-col items-center justify-center col-span-full shadow-xs">
+                  <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-[32px]">support_agent</span>
+                  </div>
+                  <h3 className="text-base font-bold text-slate-800 mb-1">Chưa có phiếu hỗ trợ nào</h3>
+                  <p className="text-xs text-slate-500 max-w-sm mb-6">
+                    Khi bạn gửi phản ánh sự cố barie, thanh toán hoặc dịch vụ sạc EV, tiến trình xử lý sẽ hiển thị trực tiếp tại đây.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveMainTab('create')}
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    <span>Tạo phiếu hỗ trợ mới</span>
+                  </button>
+                </div>
+              ) : (
+                filteredTickets.map((ticket) => (
                 <div
                   key={ticket.id}
                   className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-4"
@@ -666,7 +637,8 @@ export const SupportPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              ))}
+              ))
+            )}
             </div>
           </div>
         )}

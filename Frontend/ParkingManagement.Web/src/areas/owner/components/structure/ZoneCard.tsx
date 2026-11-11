@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Sun, Edit2, Trash2, Layers, AlertCircle } from 'lucide-react';
+import { Building2, Sun, Edit2, Trash2, Layers, Power } from 'lucide-react';
 import type { ZoneDto } from '@/types/ownerStructure';
 
 interface ZoneCardProps {
@@ -9,6 +9,7 @@ interface ZoneCardProps {
   onSelect: (zone: ZoneDto) => void;
   onEdit: (zone: ZoneDto) => void;
   onDelete: (zone: ZoneDto) => void;
+  onToggleClosure?: (zone: ZoneDto) => void;
 }
 
 export const ZoneCard: React.FC<ZoneCardProps> = ({
@@ -18,6 +19,7 @@ export const ZoneCard: React.FC<ZoneCardProps> = ({
   onSelect,
   onEdit,
   onDelete,
+  onToggleClosure,
 }) => {
   return (
     <div
@@ -84,24 +86,30 @@ export const ZoneCard: React.FC<ZoneCardProps> = ({
         {zone.name}
       </h3>
 
-      {/* Thông tin số lượng tầng & Trạng thái */}
+      {/* Thông tin số lượng tầng & Trạng thái hoạt động */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-xs">
         <div className="flex items-center gap-1.5 text-slate-500 font-semibold">
           <Layers size={13} className="text-slate-400" />
           <span>{floorCount} tầng trực thuộc</span>
         </div>
 
-        {zone.isClosed ? (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
-            <AlertCircle size={11} />
-            Tạm đóng
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            Hoạt động
-          </span>
-        )}
+        {/* Quick action Đóng / Mở lại khu vực */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleClosure?.(zone);
+          }}
+          className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full transition-all cursor-pointer ${
+            zone.isClosed
+              ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+          }`}
+          title={zone.isClosed ? 'Bấm để mở lại khu vực' : 'Bấm để tạm đóng khu vực'}
+        >
+          <Power size={11} />
+          <span>{zone.isClosed ? 'Tạm đóng' : 'Hoạt động'}</span>
+        </button>
       </div>
 
       {zone.isClosed && zone.closedReason && (

@@ -17,7 +17,7 @@ vi.mock('@/api/capacityApi', () => ({
 
 vi.mock('@/realtime/useParkingHub', () => ({
   useParkingHub: (_lotId: number, onCapacityChanged?: (e: unknown) => void) => {
-    h.capacityChanged = onCapacityChanged;
+    h.capacityChanged = onCapacityChanged as any;
   },
 }));
 
