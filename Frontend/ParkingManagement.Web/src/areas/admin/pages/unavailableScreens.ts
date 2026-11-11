@@ -17,10 +17,7 @@ import {
   RefundStatus,
   RiskFlagStatus,
   RiskSeverity,
-  SanctionLevel,
-  SanctionStatus,
   SecurityEventType,
-  SettlementStatus,
   ShiftStatus,
   VoucherStatus,
 } from '@/types/adminEnums';
@@ -33,7 +30,6 @@ import { humanizeEnum } from '../utils/enumLabels';
 const values = <T extends Record<string, string>>(e: T, pick?: Array<T[keyof T]>) => (pick ?? Object.values(e)) as string[];
 const enumOptions = (list: string[]) => list.map((v) => ({ value: v, label: humanizeEnum(v) }));
 
-const notZero = (v: unknown) => (String(v ?? '').trim() !== '' && Number(v) === 0 ? 'Amount must not be 0. Use − for a debit.' : null);
 const positive = (v: unknown) => (String(v ?? '').trim() !== '' && !(Number(v) > 0) ? 'Amount must be greater than 0.' : null);
 const endAfterStart = (startKey: string) => (v: unknown, all: FormValues) => {
   const start = all[startKey];
@@ -51,9 +47,6 @@ const createAdjustment: FormDialogSpec = {
     { key: 'settlement', kind: 'select', label: 'Settlement', options: [], helper: 'Optional — only Draft / Pending review settlements' },
     { key: 'amount', kind: 'number', label: 'Amount (₫)', required: true, helper: 'Positive = credit, negative = debit', validate: notZero },
     { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 500, requiredMessage: 'A reason is required.' },
-  ],
-};
-
 const issueSanction: FormDialogSpec = {
   title: 'Issue sanction',
   description: 'Creates a Sanctions row. Owner-level locks go through Users › Lock owner (US-096).',
@@ -215,35 +208,6 @@ export const UNAVAILABLE_SCREENS = {
     service: 'GateService',
     missingEndpoint: 'GET /api/v1/shifts',
   },
-  settlements: {
-    title: 'Settlements',
-    subtitle: '—',
-    banner: { tone: 'info', text: 'One settlement per owner per cycle (SETTLEMENT_CYCLE = WEEKLY). Net payout = Gross − Commission − Refunds − Held + Adjustments.' },
-    filterGroups: [{ param: 'status', title: 'Settlement status', values: values(SettlementStatus) }],
-    searchPlaceholder: 'Search owner…',
-    toolbarFilters: ['Period'],
-    columns: ['Owner', 'Period', 'Gross', 'Commission', 'Refunds', 'Held', 'Adjust.', 'Net payout', 'Status'],
-    service: 'PaymentService',
-    missingEndpoint: 'GET /api/v1/settlements',
-  },
-  payouts: {
-    title: 'Payouts',
-    subtitle: 'Approved settlements → bank transfer → Paid (PayoutReference, PaidAtUtc)',
-    filterGroups: [{ param: 'status', title: 'Payout', allLabel: 'Awaiting payout (Approved)', values: [SettlementStatus.Paid] }],
-    columns: ['Owner / settlement', 'Bank account', 'Net payout', 'Approved', 'Payout reference', 'Status', ''],
-    service: 'PaymentService',
-    missingEndpoint: 'GET /api/v1/settlements?status=Approved',
-  },
-  adjustments: {
-    title: 'Adjustments',
-    subtitle: 'FinancialAdjustments · positive = credit to owner, negative = debit',
-    searchPlaceholder: 'Search owner, reason…',
-    toolbarFilters: ['Owner'],
-    columns: ['#', 'Owner', 'Settlement', 'Amount', 'Reason', 'Created by', 'Created'],
-    service: 'PaymentService',
-    missingEndpoint: 'GET/POST /api/v1/financial-adjustments',
-    actions: [{ label: 'Create adjustment', dialog: createAdjustment }],
-  },
   transactions: {
     title: 'Transactions',
     subtitle: 'Payments · methods VNPAY / MoMo / VietQR / Cash',
@@ -293,19 +257,6 @@ export const UNAVAILABLE_SCREENS = {
     columns: ['Code', 'Category', 'Reporter / booking', 'Lot', 'Priority', 'Status', ''],
     service: 'SupportService',
     missingEndpoint: 'GET /api/v1/complaints?kind=ticket',
-  },
-  sanctions: {
-    title: 'Sanctions',
-    subtitle: 'SLA sanctions on owners / lots · 4 levels (SanctionLevel)',
-    filterGroups: [
-      { param: 'status', title: 'Sanction status', values: values(SanctionStatus) },
-      { param: 'level', title: 'Level', allLabel: 'Any', values: values(SanctionLevel) },
-    ],
-    searchPlaceholder: 'Search owner, lot, reason…',
-    columns: ['#', 'Owner / scope', 'Level', 'Reason', 'Period', 'Penalty', 'User sync', 'Status'],
-    service: 'AdminService',
-    missingEndpoint: 'GET/POST /api/v1/admin/sanctions (today only per owner)',
-    actions: [{ label: 'Issue sanction', dialog: issueSanction }],
   },
   riskFlags: {
     title: 'Risk Flags',

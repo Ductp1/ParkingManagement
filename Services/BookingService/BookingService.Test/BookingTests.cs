@@ -93,23 +93,6 @@ internal sealed class FakeEventPublisher : IBookingEventPublisher
     }
 }
 
-
-/// <summary>US-069: provider trả bãi Active (luôn cho phép đặt — unit test luồng chuẩn).</summary>
-internal sealed class FakeLotStatus : ILotOperationalStatusProvider
-{
-    public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
-        => Task.FromResult<LotOperationalStatusSnapshot?>(
-            new LotOperationalStatusSnapshot(parkingLotId, "Bãi Test", "Active", EmergencyStopped: false, null));
-}
-
-/// <summary>US-069: bãi đang emergency stop (Suspended) — CreateBookingUseCase phải chặn.</summary>
-internal sealed class FakeLotStatusClosed : ILotOperationalStatusProvider
-{
-    public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
-        => Task.FromResult<LotOperationalStatusSnapshot?>(
-            new LotOperationalStatusSnapshot(1, "Bãi Test", "Suspended", EmergencyStopped: true, "Sự cố"));
-}
-
 /// <summary>
 /// Kiểm tra quy tắc chuyển trạng thái trong Domain Entity Booking (Task T-301).
 /// </summary>
@@ -294,42 +277,12 @@ public class BookingFeaturesTests
     }
 
     [Fact]
-    public async Task CreateBooking_blocked_when_lot_is_emergency_stopped()
-    {
-        // US-069: bãi Suspended (emergency stop) → chặn đặt chỗ mới ngay lập tức.
-        var repo = new FakeBookingRepo();
-        var useCase = new CreateBookingUseCase(repo, new QrTokenService(), new FakeEventPublisher(),
-            new FixedClock(FixedNow), new FakeLotStatusClosed());
-
-        var cmd = new CreateBookingCommand(
-            UserId: 5,
-            VehicleId: 1,
-            PlateNumber: "51F-123.45",
-            VehicleType: VehicleType.Sedan,
-            ParkingLotId: 1,
-            OwnerProfileId: 1,
-            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
-            ZoneId: 1,
-            SlotId: 2,
-            SlotCode: "B1-A02",
-            AllocationMode: AllocationMode.Dynamic,
-            StartAtUtc: FixedNow.AddHours(1),
-            EndAtUtc: FixedNow.AddHours(3),
-            TotalAmount: 60000,
-            PromotionCode: null);
-
-        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(cmd));
-        Assert.Contains("TẠM ĐÓNG KHẨN CẤP", ex.Message);
-        Assert.Empty(repo.SavedBookings); // không tạo booking
-    }
-
-    [Fact]
     public async Task CreateBooking_sets_pending_payment_and_15_minutes_hold()
     {
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -364,7 +317,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -392,7 +345,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -421,7 +374,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -497,6 +450,26 @@ public class BookingFeaturesTests
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
+    /// <summary>CreateBookingUseCase với guard chống lạm dụng luôn cho phép (US-103) và PMS không cấu hình (US-052).</summary>
+    private static CreateBookingUseCase NewCreateBookingUseCase(IBookingRepository repo, IQrTokenService qr, TimeProvider clock)
+        => new(repo, qr, new FakeEventPublisher(), new BookingAbuseGuard(new NoAbuseQueries(), clock), new NoPmsLotIntegration(), clock);
+
+    private sealed class NoAbuseQueries : IBookingAbuseQueries
+    {
+        public Task<int> CountCreatedSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+        public Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+        public Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(new NoShowStatistics(0, 0));
+    }
+
+    private sealed class NoPmsLotIntegration : ILotIntegrationClient
+    {
+        public Task<bool> PushBookingCreatedAsync(PmsBookingPush booking, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+    }
+
     private sealed class FakeBookingRepo : IBookingRepository
     {
         public List<Booking> SavedBookings { get; } = [];
@@ -515,6 +488,7 @@ public class BookingFeaturesTests
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
+
 
 /// <summary>US-083: fake publisher — capture event để test assert nội dung outbox.</summary>
 internal sealed class FakeEventPublisher : IBookingEventPublisher

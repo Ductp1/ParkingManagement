@@ -4,7 +4,7 @@ using ParkingManagement.SharedKernel.Enums;
 
 namespace BookingService.Infrastructure.Persistence.Queries;
 
-public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
+public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoShowCandidateQueries
 {
     public Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken)
         => db.Bookings.AsNoTracking()
@@ -33,6 +33,28 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries
             .Select(b => new BookingSummaryDto(b.Id, b.Code, b.Status.ToString(), b.ParkingLotName, b.SlotCode,
                 b.PlateNumber, b.StartAtUtc, b.EndAtUtc, b.TotalAmount))
             .ToListAsync(cancellationToken);
+    }
+
+    // US-039 (UC-24): booking Confirmed, chưa check-in, đã quá mốc ân hạn kể từ giờ bắt đầu – ứng viên No-show của bãi.
+    public async Task<IReadOnlyList<NoShowCandidateDto>> ListNoShowCandidatesAsync(
+        int parkingLotId, DateTime nowUtc, int graceMinutes, CancellationToken cancellationToken)
+    {
+        var graceDeadline = nowUtc.AddMinutes(-graceMinutes);
+        var rows = await db.Bookings.AsNoTracking()
+            .Where(b => b.ParkingLotId == parkingLotId
+                        && b.Status == BookingStatus.Confirmed
+                        && b.CheckedInAtUtc == null
+                        && b.StartAtUtc < graceDeadline)
+            .OrderBy(b => b.StartAtUtc)
+            .Select(b => new NoShowCandidateDto(
+                b.Code, b.UserId, b.PlateNumber, b.ParkingLotId, b.ParkingLotName, b.SlotCode,
+                b.StartAtUtc, b.EndAtUtc, b.TotalAmount, 0))
+            .ToListAsync(cancellationToken);
+
+        // Số phút quá ân hạn tính trong bộ nhớ để tránh dịch hằng thời gian phức tạp xuống SQL.
+        return rows
+            .Select(r => r with { MinutesOverdue = (int)Math.Max(0, (nowUtc - r.StartAtUtc).TotalMinutes) })
+            .ToList();
     }
 
     // UC-20 (US-076): booking trong ca trực của Staff — IsOverdue tính ở SQL (dịch được sang Postgres).

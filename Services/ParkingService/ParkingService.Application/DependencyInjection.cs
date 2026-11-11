@@ -3,6 +3,7 @@ using ParkingService.Application.Features.Capacity;
 using ParkingService.Application.Features.Closures;
 using ParkingService.Application.Features.OperatingHours;
 using ParkingService.Application.Features.Floors;
+using ParkingService.Application.Features.Integrations;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
 using ParkingService.Application.Features.KybMisdeclaration;
@@ -10,6 +11,7 @@ using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.LotOperations;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.LotDetails;
+using ParkingService.Application.Features.SanctionStates;
 using ParkingService.Application.Features.PhysicalChanges;
 using ParkingService.Application.Features.Slots;
 using ParkingService.Application.Features.Zones;
@@ -51,6 +53,12 @@ public static class DependencyInjection
         services.AddScoped<IResolveLotMisdeclarationCaseUseCase, ResolveLotMisdeclarationCaseUseCase>();
         services.AddScoped<IBanLotOwnerUseCase, BanLotOwnerUseCase>();
 
+        // Chế tài SLA – hiệu lực đẩy từ AdminService (US-097)
+        services.AddScoped<IUpsertSanctionStateUseCase, UpsertSanctionStateUseCase>();
+        services.AddScoped<ILiftSanctionStateUseCase, LiftSanctionStateUseCase>();
+        services.AddScoped<IGetLotSanctionStatusUseCase, GetLotSanctionStatusUseCase>();
+        services.AddScoped<IGetLotSanctionStateUseCase, GetLotSanctionStateUseCase>();
+
         // Zones
         services.AddScoped<ICreateZoneUseCase, CreateZoneUseCase>();
         services.AddScoped<IUpdateZoneUseCase, UpdateZoneUseCase>();
@@ -69,6 +77,11 @@ public static class DependencyInjection
         services.AddScoped<IUpdateSlotUseCase, UpdateSlotUseCase>();
         services.AddScoped<IDeleteSlotUseCase, DeleteSlotUseCase>();
         services.AddScoped<IGetSlotsByFloorUseCase, GetSlotsByFloorUseCase>();
+        services.AddScoped<IOverrideSlotStateUseCase, OverrideSlotStateUseCase>(); // US-039/US-049
+
+        // US-052: tích hợp PMS Mức 1
+        services.AddScoped<IVerifyPmsApiKeyUseCase, VerifyPmsApiKeyUseCase>();
+        services.AddScoped<IPushBookingToPmsUseCase, PushBookingToPmsUseCase>();
 
         // Layouts (T-502, US-059, US-060)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();

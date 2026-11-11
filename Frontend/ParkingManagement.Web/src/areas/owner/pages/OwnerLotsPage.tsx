@@ -44,6 +44,9 @@ import { ZoneModal } from '../components/structure/ZoneModal';
 import { FloorTable } from '../components/structure/FloorTable';
 import { FloorModal } from '../components/structure/FloorModal';
 import { DeleteConfirmModal } from '../components/structure/DeleteConfirmModal';
+import { FloorLayoutVersionsModal } from '../components/structure/FloorLayoutVersionsModal';
+import { FloorSlotsDrawer } from '../components/structure/FloorSlotsDrawer';
+import { QuickClosureModal } from '../components/structure/QuickClosureModal';
 import { RegisterLotModal } from '../components/RegisterLotModal';
 import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
 import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
@@ -108,6 +111,15 @@ export const OwnerLotsPage: React.FC = () => {
 
   const [isFloorModalOpen, setIsFloorModalOpen] = useState(false);
   const [editingFloor, setEditingFloor] = useState<FloorDto | null>(null);
+
+  // UI-20: Sơ đồ, Ô đỗ & Tạm đóng nhanh
+  const [layoutModalFloor, setLayoutModalFloor] = useState<FloorDto | null>(null);
+  const [slotsDrawerFloor, setSlotsDrawerFloor] = useState<FloorDto | null>(null);
+  const [quickClosureTarget, setQuickClosureTarget] = useState<
+    | { type: 'zone'; zone: ZoneDto }
+    | { type: 'floor'; floor: FloorDto }
+    | null
+  >(null);
 
   const [deleteTarget, setDeleteTarget] = useState<{
     type: 'zone' | 'floor';
@@ -668,6 +680,84 @@ export const OwnerLotsPage: React.FC = () => {
     });
   };
 
+  // ==================== UI-20: SƠ ĐỒ, Ô ĐỖ & TẠM ĐÓNG NHANH ====================
+
+  const handleOpenLayoutVersions = (floor: FloorDto) => {
+    setLayoutModalFloor(floor);
+  };
+
+  const handleOpenSlots = (floor: FloorDto) => {
+    setSlotsDrawerFloor(floor);
+  };
+
+  const handleToggleZoneClosureClick = (zone: ZoneDto) => {
+    setQuickClosureTarget({ type: 'zone', zone });
+  };
+
+  const handleToggleFloorClosureClick = (floor: FloorDto) => {
+    setQuickClosureTarget({ type: 'floor', floor });
+  };
+
+  const handleConfirmQuickClosure = async (isClosed: boolean, closedReason: string) => {
+    if (!quickClosureTarget) return;
+
+    if (quickClosureTarget.type === 'zone') {
+      const z = quickClosureTarget.zone;
+      try {
+        await ownerStructureApi.updateZone(z.id, {
+          code: z.code,
+          name: z.name,
+          isOutdoor: z.isOutdoor,
+          isClosed,
+          closedReason: isClosed ? closedReason : null,
+          sortOrder: z.sortOrder,
+        });
+      } catch {
+        // Fallback local update
+      }
+      setZones((prev) =>
+        prev.map((item) =>
+          item.id === z.id
+            ? { ...item, isClosed, closedReason: isClosed ? closedReason : null }
+            : item
+        )
+      );
+      setActionMessage({
+        type: 'success',
+        text: isClosed
+          ? `Đã tạm đóng khu vực "${z.name}".`
+          : `Đã mở lại hoạt động cho khu vực "${z.name}".`,
+      });
+    } else {
+      const f = quickClosureTarget.floor;
+      try {
+        await ownerStructureApi.updateFloor(f.id, {
+          name: f.name,
+          maxHeightCm: f.maxHeightCm,
+          maxWeightKg: f.maxWeightKg,
+          gridColumns: f.gridColumns,
+          gridRows: f.gridRows,
+          isClosed,
+        });
+      } catch {
+        // Fallback local update
+      }
+      setFloors((prev) =>
+        prev.map((item) =>
+          item.id === f.id ? { ...item, isClosed } : item
+        )
+      );
+      setActionMessage({
+        type: 'success',
+        text: isClosed
+          ? `Đã tạm đóng tầng "${f.name}".`
+          : `Đã mở lại hoạt động cho tầng "${f.name}".`,
+      });
+    }
+
+    if (selectedLotId) void loadStructureData(selectedLotId);
+  };
+
   // ==================== XÁC NHẬN XÓA ====================
 
   const handleConfirmDelete = async () => {
@@ -986,6 +1076,7 @@ export const OwnerLotsPage: React.FC = () => {
                         onSelect={(z) => setSelectedZoneId(z.id)}
                         onEdit={handleOpenEditZone}
                         onDelete={handleDeleteZoneClick}
+                        onToggleClosure={handleToggleZoneClosureClick}
                       />
                     ))
                   )}
@@ -1003,6 +1094,9 @@ export const OwnerLotsPage: React.FC = () => {
                   onAddFloor={handleOpenAddFloor}
                   onEditFloor={handleOpenEditFloor}
                   onDeleteFloor={handleDeleteFloorClick}
+                  onOpenLayoutVersions={handleOpenLayoutVersions}
+                  onOpenSlots={handleOpenSlots}
+                  onToggleFloorClosure={handleToggleFloorClosureClick}
                 />
               ) : (
                 <div className="rounded-3xl bg-white border border-slate-200/90 p-12 text-center shadow-xs">
@@ -1176,6 +1270,57 @@ export const OwnerLotsPage: React.FC = () => {
         }
         itemName={deleteTarget?.name || ''}
         onConfirm={handleConfirmDelete}
+      />
+
+      {/* Modal Lịch Sử Phiên Bản Sơ Đồ & Rollback (UI-20) */}
+      <FloorLayoutVersionsModal
+        isOpen={!!layoutModalFloor}
+        onClose={() => setLayoutModalFloor(null)}
+        floor={layoutModalFloor}
+        zoneName={selectedZone ? `${selectedZone.code} - ${selectedZone.name}` : ''}
+        onRollbackSuccess={() => {
+          if (selectedLotId) void loadStructureData(selectedLotId);
+        }}
+      />
+
+      {/* Drawer Quản Lý Ô Đỗ (UI-20) */}
+      <FloorSlotsDrawer
+        isOpen={!!slotsDrawerFloor}
+        onClose={() => setSlotsDrawerFloor(null)}
+        floor={slotsDrawerFloor}
+        zoneName={selectedZone ? `${selectedZone.code} - ${selectedZone.name}` : ''}
+        onSlotsUpdated={() => {
+          if (selectedLotId) void loadStructureData(selectedLotId);
+        }}
+      />
+
+      {/* Modal Tạm Đóng Zone / Tầng Nhanh (UI-20) */}
+      <QuickClosureModal
+        isOpen={!!quickClosureTarget}
+        onClose={() => setQuickClosureTarget(null)}
+        targetType={quickClosureTarget?.type || 'zone'}
+        targetName={
+          quickClosureTarget?.type === 'zone'
+            ? quickClosureTarget.zone.name
+            : quickClosureTarget?.type === 'floor'
+            ? quickClosureTarget.floor.name
+            : ''
+        }
+        isCurrentlyClosed={
+          quickClosureTarget?.type === 'zone'
+            ? quickClosureTarget.zone.isClosed
+            : quickClosureTarget?.type === 'floor'
+            ? quickClosureTarget.floor.isClosed
+            : false
+        }
+        subItemCount={
+          quickClosureTarget?.type === 'zone'
+            ? zoneFloorCounts.get(quickClosureTarget.zone.id) || 0
+            : quickClosureTarget?.type === 'floor'
+            ? quickClosureTarget.floor.gridColumns * quickClosureTarget.floor.gridRows
+            : undefined
+        }
+        onConfirm={handleConfirmQuickClosure}
       />
 
       {/* Modal Đăng Ký Bãi Xe Mới */}

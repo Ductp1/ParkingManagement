@@ -26,6 +26,10 @@ public static class DependencyInjection
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
+        services.AddScoped<ISlotStateRepository, SlotStateRepository>(); // US-039/US-049: trạng thái vận hành slot + SlotStateLogs
+        // US-052: kết nối PMS (xác thực API key, đẩy booking qua webhook ký HMAC).
+        services.AddScoped<ILotIntegrationRepository, LotIntegrationRepository>();
+        services.AddHttpClient<IPmsWebhookSender, PmsWebhookSender>(client => client.Timeout = TimeSpan.FromSeconds(5));
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
         services.AddScoped<IClosureScheduleRepository, ClosureScheduleRepository>(); // US-063
@@ -38,6 +42,8 @@ public static class DependencyInjection
         services.AddScoped<IAdminLotSummaryQueries, AdminLotSummaryQueries>(); // US-081 (đọc)
         services.AddScoped<ILotMisdeclarationRepository, LotMisdeclarationRepository>(); // US-056 (ghi)
         services.AddScoped<ILotMisdeclarationQueries, LotMisdeclarationQueries>();       // US-056 (đọc)
+        services.AddScoped<ISanctionStateRepository, SanctionStateRepository>();         // US-097 (ghi)
+        services.AddScoped<ISanctionStateQueries, SanctionStateQueries>();               // US-097 (đọc, cả tìm kiếm)
         // US-056: hạn sửa mặc định của sai sót nhẹ ("KybMisdeclaration:MinorCorrectionDays", 1–30, mặc định 7) – sai cấu hình → lỗi lúc khởi động.
         services.AddSingleton(new KybMisdeclarationSettings(
             configuration.GetValue<int?>($"{KybMisdeclarationSettings.SectionName}:MinorCorrectionDays")
