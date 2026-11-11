@@ -20,6 +20,8 @@ public sealed class SessionCompletionOptions
     public int AutoCompleteAfterEndHours { get; init; } = 12;
     /// <summary>UC-49 bước 3: vẫn không có dữ liệu, quá giờ kết thúc + 6h → No-show (không hoàn tiền).</summary>
     public int NoShowAfterEndHours { get; init; } = 6;
+    /// <summary>Số booking tối đa xử lý cho mỗi bước trong 1 lượt quét – tránh nạp quá nhiều bản ghi khi tồn đọng.</summary>
+    public int BatchSize { get; init; } = 200;
 
     public static SessionCompletionOptions Default { get; } = new();
 }
@@ -50,6 +52,11 @@ public sealed class SessionCompletionWorker(
             {
                 await ProcessStaleBookingsAsync(stoppingToken);
             }
+            catch (DbUpdateConcurrencyException)
+            {
+                // Instance khác (hoặc thao tác cổng) vừa cập nhật cùng booking – lượt này bỏ qua, lượt sau quét lại theo trạng thái mới.
+                logger.LogInformation("SessionCompletionWorker: booking vừa được cập nhật bởi tiến trình khác, sẽ xử lý lại ở lượt quét sau.");
+            }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Lỗi khi quét booking thiếu dữ liệu check-in/out trong SessionCompletionWorker.");
@@ -66,12 +73,14 @@ public sealed class SessionCompletionWorker(
         var db = scope.ServiceProvider.GetRequiredService<BookingDbContext>();
         var now = _timeProvider.GetUtcNow().UtcDateTime;
         var processed = 0;
+        var batchSize = Math.Max(1, _options.BatchSize);
 
         // ===== UC-49 bước 1: có check-in, thiếu check-out, quá giờ kết thúc + 12h → Auto-Completed =====
         var autoComplete = await db.Bookings
             .Where(b => (b.Status == BookingStatus.CheckedIn || b.Status == BookingStatus.Parking)
                         && b.AutoProcessStage != BookingAutoStage.Finalized
                         && b.EndAtUtc.AddHours(_options.AutoCompleteAfterEndHours) < now)
+            .OrderBy(b => b.EndAtUtc).Take(batchSize)
             .ToListAsync(cancellationToken);
         foreach (var booking in autoComplete)
         {
@@ -88,6 +97,7 @@ public sealed class SessionCompletionWorker(
                         && b.CheckedInAtUtc == null
                         && b.AutoProcessStage == BookingAutoStage.None
                         && b.StartAtUtc.AddMinutes(_options.RemindAfterStartMinutes) < now)
+            .OrderBy(b => b.StartAtUtc).Take(batchSize)
             .ToListAsync(cancellationToken);
         foreach (var booking in toRemind)
         {
@@ -104,6 +114,7 @@ public sealed class SessionCompletionWorker(
                         && b.CheckedInAtUtc == null
                         && b.AutoProcessStage != BookingAutoStage.Finalized
                         && b.EndAtUtc.AddHours(_options.NoShowAfterEndHours) < now)
+            .OrderBy(b => b.EndAtUtc).Take(batchSize)
             .ToListAsync(cancellationToken);
         foreach (var booking in toNoShow)
         {
