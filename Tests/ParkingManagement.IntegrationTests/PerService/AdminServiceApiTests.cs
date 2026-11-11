@@ -41,6 +41,9 @@ public sealed class AdminApiFixture : IAsyncLifetime
     public HttpClient AdminClient { get; private set; } = null!;
     public string AdminToken { get; private set; } = string.Empty;
 
+    /// <summary>Env gốc trước khi fixture ghi đè — DisposeAsync khôi phục để không ô nhiễm fixture chạy sau.</summary>
+    private readonly Dictionary<string, string?> _originalJwtEnv = new();
+
     /// <summary>sid của phiên admin — trùng TokenHash của RefreshTokens đã arrange trong pm_user.</summary>
     public string Sid { get; } = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
 
@@ -62,7 +65,11 @@ public sealed class AdminApiFixture : IAsyncLifetime
         await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, UserDbName);
         await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, AdminDbName);
 
-        // Khóa JWT của fixture này (chỉ fixture Admin dùng 2 key này → an toàn khi chạy song song).
+        // Khóa JWT của fixture này. Env là PROCESS-WIDE: phải lưu giá trị gốc và khôi phục khi
+        // Dispose, nếu không host của fixture khác (VD ParkingAdminDashboard không override config)
+        // sẽ đọc nhầm path khóa của Admin — file đã bị xóa → "Thiếu public key JWT" khi start.
+        _originalJwtEnv["Jwt__PublicKeyPath"] = Environment.GetEnvironmentVariable("Jwt__PublicKeyPath");
+        _originalJwtEnv["Jwt__PrivateKeyPath"] = Environment.GetEnvironmentVariable("Jwt__PrivateKeyPath");
         Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _keys.PublicKeyPath);
         Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _keys.PrivateKeyPath);
 
@@ -143,6 +150,9 @@ public sealed class AdminApiFixture : IAsyncLifetime
     {
         UserFactory?.Dispose();
         AdminFactory?.Dispose();
+        // Khôi phục env gốc TRƯỚC khi xóa thư mục khóa — fixture khác chạy sau không đọc nhầm path đã mất.
+        foreach (var (name, value) in _originalJwtEnv)
+            Environment.SetEnvironmentVariable(name, value);
         try
         {
             var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
