@@ -75,6 +75,7 @@ public static class DependencyInjection
         services.AddScoped<IUpdateSlotUseCase, UpdateSlotUseCase>();
         services.AddScoped<IDeleteSlotUseCase, DeleteSlotUseCase>();
         services.AddScoped<IGetSlotsByFloorUseCase, GetSlotsByFloorUseCase>();
+        services.AddScoped<IOverrideSlotStateUseCase, OverrideSlotStateUseCase>(); // US-039/US-049
 
         // Layouts (T-502, US-059, US-060)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();

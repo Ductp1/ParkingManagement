@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
+        services.AddScoped<ISlotStateRepository, SlotStateRepository>(); // US-039/US-049: trạng thái vận hành slot + SlotStateLogs
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
         services.AddScoped<IClosureScheduleRepository, ClosureScheduleRepository>(); // US-063
