@@ -101,6 +101,37 @@ public class BookingConfirmationNotificationsTests
         Assert.Equal("PAYMENT_SUCCEEDED", sent.TemplateKey);
     }
 
+    [Fact]
+    public async Task PaymentCompleted_uses_user_language_for_template_selection()
+    {
+        _settings.GetLanguageAsync(5, Arg.Any<CancellationToken>()).Returns("en");
+
+        var evt = new BookingPaymentCompleted(99, 12, "BK-20261103-0001", 5, 120000m, "VNPAY",
+            Succeeded: true, FailureReason: null);
+        await Create().HandleBookingPaymentCompletedAsync(evt, Guid.NewGuid());
+
+        await _renderer.Received(1).RenderAsync("PAYMENT_SUCCEEDED", NotificationChannel.InApp, "en",
+            Arg.Any<IReadOnlyDictionary<string, string>>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task PaymentCompleted_succeeded_passes_amount_method_and_booking_placeholders()
+    {
+        IReadOnlyDictionary<string, string>? captured = null;
+        _renderer.RenderAsync(Arg.Any<string>(), Arg.Any<NotificationChannel>(), Arg.Any<string>(),
+                Arg.Do<IReadOnlyDictionary<string, string>>(d => captured = d), Arg.Any<CancellationToken>())
+            .Returns(new RenderedTemplate("t", "b", 1));
+
+        var evt = new BookingPaymentCompleted(99, 12, "BK-20261103-0001", 5, 120000m, "VNPAY",
+            Succeeded: true, FailureReason: null);
+        await Create().HandleBookingPaymentCompletedAsync(evt, Guid.NewGuid());
+
+        Assert.NotNull(captured);
+        Assert.Equal("BK-20261103-0001", captured!["BookingCode"]);
+        Assert.Equal("120.000 ₫", captured["Amount"]); // format VN
+        Assert.Equal("VNPAY", captured["Method"]);
+    }
+
     /// <summary>Sender ghi lại mọi lượt gửi để assert (thay vì mock mờ).</summary>
     private sealed class RecordingSender : ITransactionalNotificationSender
     {
