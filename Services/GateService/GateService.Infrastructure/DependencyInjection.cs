@@ -85,8 +85,6 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(configuration["NotificationService:BaseUrl"] ?? "http://localhost:5106"));
         services.AddHttpClient<BookingSubscriberCounter>((_, client) =>
             client.BaseAddress = new Uri(configuration["BookingService:BaseUrl"] ?? "http://localhost:5104"));
-        // ===== US-069: consumer LotEmergencyStopped/Lifted -> cache LotOperationalStatus chan check-in =====
-        services.AddRabbitMqInboxConsumer<GateDbContext, Integrations.GateOperationalStatusHandler>(configuration);
         return services;
     }
 

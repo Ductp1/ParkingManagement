@@ -1,6 +1,5 @@
 using GateService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
-using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace GateService.Infrastructure.Persistence;
@@ -16,13 +15,4 @@ public sealed class GateDbContext(DbContextOptions<GateDbContext> options) : Ser
     public DbSet<LotCapacityConfig> LotCapacityConfigs => Set<LotCapacityConfig>();
     public DbSet<LotAdmissionCounter> LotAdmissionCounters => Set<LotAdmissionCounter>();
     public DbSet<LotCapacityAuditLog> LotCapacityAuditLogs => Set<LotCapacityAuditLog>();
-    // US-069: cache trạng thái emergency stop (nguồn: LotEmergencyStopped/Lifted từ ParkingService).
-    public DbSet<LotOperationalStatus> LotOperationalStatuses => Set<LotOperationalStatus>();
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        // US-069: consumer event cần bảng InboxReceipts (idempotency theo EventId).
-        modelBuilder.ConfigureInbox();
-    }
 }
