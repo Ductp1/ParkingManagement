@@ -22,15 +22,16 @@ public sealed record GateEventRecord(int Id, int ParkingLotId, string EventType,
 
 // ===== READ SIDE (US-048 audit danh sách ngoại lệ + US-077 thống kê hủy No-show của Staff) =====
 public sealed record GateEventDto(int Id, int ParkingLotId, string EventType, int? ParkingSessionId,
-    string? PlateNumber, string? PlateDisplay, int? PerformedByUserId, string? Note, DateTime CreatedAtUtc);
+    string? PlateNumber, string? PlateDisplay, int? PerformedByUserId, string? Note, string? ImagePath, int? ShiftId,
+    DateTime CreatedAtUtc);
 
 /// <summary>US-077: số lượt hủy No-show theo Staff trong khoảng thời gian (nguồn: GateEvents.NoShowCancel).</summary>
 public sealed record StaffNoShowCancelStat(int ParkingLotId, int? StaffUserId, int CancelCount, DateTime? LastCancelAtUtc);
 
 public interface IGateEventQueries
 {
-    /// <summary>US-048: danh sách sự kiện tại cổng để audit/đối soát, lọc theo loại + khoảng thời gian.</summary>
-    Task<IReadOnlyList<GateEventDto>> ListAsync(int parkingLotId, GateEventType? eventType,
+    /// <summary>US-048: danh sách sự kiện tại cổng để audit/đối soát, lọc theo tập loại (rỗng/null = mọi loại) + khoảng thời gian.</summary>
+    Task<IReadOnlyList<GateEventDto>> ListAsync(int parkingLotId, IReadOnlyCollection<GateEventType>? eventTypes,
         DateTime? fromUtc, DateTime? toUtc, int limit, CancellationToken cancellationToken);
 
     /// <summary>US-077: nhóm số lượt hủy No-show theo (bãi, staff) trong khoảng thời gian.</summary>

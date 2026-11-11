@@ -10,11 +10,15 @@ namespace GateService.Infrastructure.Persistence.Queries;
 /// <summary>Đọc GateEvents cho audit ngoại lệ (US-048) và thống kê hủy No-show của Staff (US-077).</summary>
 public sealed class GateEventQueries(GateDbContext db) : IGateEventQueries
 {
-    public async Task<IReadOnlyList<GateEventDto>> ListAsync(int parkingLotId, GateEventType? eventType,
+    public async Task<IReadOnlyList<GateEventDto>> ListAsync(int parkingLotId, IReadOnlyCollection<GateEventType>? eventTypes,
         DateTime? fromUtc, DateTime? toUtc, int limit, CancellationToken cancellationToken)
     {
         var query = db.GateEvents.AsNoTracking().Where(e => e.ParkingLotId == parkingLotId);
-        if (eventType is { } type) query = query.Where(e => e.EventType == type);
+        if (eventTypes is { Count: > 0 })
+        {
+            var types = eventTypes.ToArray();
+            query = query.Where(e => types.Contains(e.EventType));
+        }
         if (fromUtc is { } from) query = query.Where(e => e.CreatedAtUtc >= from);
         if (toUtc is { } to) query = query.Where(e => e.CreatedAtUtc <= to);
 
@@ -25,7 +29,7 @@ public sealed class GateEventQueries(GateDbContext db) : IGateEventQueries
 
         return rows.Select(e => new GateEventDto(e.Id, e.ParkingLotId, e.EventType.ToString(), e.ParkingSessionId,
             e.PlateNumber, e.PlateNumber is null ? null : PlateNormalizer.Format(e.PlateNumber),
-            e.PerformedByUserId, e.Note, e.CreatedAtUtc)).ToList();
+            e.PerformedByUserId, e.Note, e.ImagePath, e.ShiftId, e.CreatedAtUtc)).ToList();
     }
 
     public async Task<IReadOnlyList<StaffNoShowCancelStat>> NoShowCancellationStatsAsync(DateTime fromUtc, DateTime toUtc,

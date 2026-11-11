@@ -59,6 +59,36 @@ public interface IRecordGateExceptionUseCase
     Task<GateExceptionResultDto> ExecuteAsync(GateExceptionCommand command, CancellationToken cancellationToken = default);
 }
 
+/// <summary>US-048: bộ lọc nhật ký ngoại lệ tại cổng cho Chủ bãi/Admin đối soát.</summary>
+public sealed record GateExceptionLogQuery(int ParkingLotId, GateEventType? ExceptionType = null,
+    DateTime? FromUtc = null, DateTime? ToUtc = null, int Limit = 100);
+
+public interface IListGateExceptionsUseCase
+{
+    Task<IReadOnlyList<GateEventDto>> ExecuteAsync(GateExceptionLogQuery query, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// US-048: đọc audit log các thao tác thủ công tại cổng (ai làm, lúc nào, lý do gì) từ GateEvents.
+/// Không truyền loại → trả mọi loại ngoại lệ hợp lệ (GateExceptionTypes.Allowed), bỏ qua check-in/out thường.
+/// </summary>
+public sealed class ListGateExceptionsUseCase(IGateEventQueries queries) : IListGateExceptionsUseCase
+{
+    public async Task<IReadOnlyList<GateEventDto>> ExecuteAsync(GateExceptionLogQuery query, CancellationToken cancellationToken = default)
+    {
+        if (query.ParkingLotId <= 0) throw new ValidationException("parkingLotId phải là số nguyên dương.");
+        if (query.FromUtc is { } from && query.ToUtc is { } to && to < from)
+            throw new ValidationException("Khoảng thời gian không hợp lệ (toUtc phải sau fromUtc).");
+        if (query.ExceptionType is { } type && !GateExceptionTypes.IsAllowed(type))
+            throw new ValidationException(
+                $"Loại ngoại lệ {type} không hợp lệ. Chỉ nhận: {string.Join(", ", GateExceptionTypes.Allowed)}.");
+
+        IReadOnlyCollection<GateEventType> types = query.ExceptionType is { } only ? [only] : GateExceptionTypes.Allowed;
+        return await queries.ListAsync(query.ParkingLotId, types, query.FromUtc, query.ToUtc,
+            Math.Clamp(query.Limit, 1, 500), cancellationToken);
+    }
+}
+
 /// <summary>
 /// US-048 / UC-23: Xử lý ngoại lệ tại cổng (extend từ UC-21/UC-22 khi không xác minh tự động được).
 ///  - Support recording exception types and reasons: GateEventType + Reason bắt buộc + ảnh (tuỳ chọn).
@@ -129,7 +159,7 @@ public sealed class RecordGateExceptionUseCase(
         var dto = await checkIn.ExecuteAsync(
             new CheckInCommand(command.ParkingLotId, GateMethod.Manual, plate, bookingCode, command.StaffUserId),
             cancellationToken);
-        return (null, dto.Code, dto.Status, $" – Đã tạo phiên check-in {dto.Code}.");
+        return (dto.Id, dto.Code, dto.Status, $" – Đã tạo phiên check-in {dto.Code}.");
     }
 
     private async Task<(int? SessionId, string? SessionCode, string? SessionStatus, string Detail)> DoManualCheckOutAsync(

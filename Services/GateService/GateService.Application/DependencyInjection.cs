@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<ICancelNoShowUseCase, CancelNoShowUseCase>();
         // US-048: xử lý ngoại lệ thủ công tại cổng (UC-23).
         services.AddScoped<IRecordGateExceptionUseCase, RecordGateExceptionUseCase>();
+        services.AddScoped<IListGateExceptionsUseCase, ListGateExceptionsUseCase>();
         // US-049: Staff ghi đè trạng thái slot khi cảm biến hỏng (UC-25).
         services.AddScoped<IOverrideSlotStatusUseCase, OverrideSlotStatusUseCase>();
         // US-052: sự kiện PMS vào/ra + hàng chờ xử lý tay (UC-51).
