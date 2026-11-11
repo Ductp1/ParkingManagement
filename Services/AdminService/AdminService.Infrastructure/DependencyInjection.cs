@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogQueries, AuditLogQueries>();                             // US-100: tra cứu audit log
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();   // US-099
+        services.AddScoped<IOwnerPayoutAccountQueries, OwnerPayoutAccountQueries>();         // US-080: tài khoản nhận tiền quyết toán
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 
         // US-116: hợp đồng tự sinh dạng HTML + lưu file local (đường dẫn tương đối tính từ thư mục gốc của API).

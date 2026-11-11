@@ -20,7 +20,6 @@ import {
   SanctionLevel,
   SanctionStatus,
   SecurityEventType,
-  SettlementStatus,
   ShiftStatus,
   VoucherStatus,
 } from '@/types/adminEnums';
@@ -33,7 +32,6 @@ import { humanizeEnum } from '../utils/enumLabels';
 const values = <T extends Record<string, string>>(e: T, pick?: Array<T[keyof T]>) => (pick ?? Object.values(e)) as string[];
 const enumOptions = (list: string[]) => list.map((v) => ({ value: v, label: humanizeEnum(v) }));
 
-const notZero = (v: unknown) => (String(v ?? '').trim() !== '' && Number(v) === 0 ? 'Amount must not be 0. Use − for a debit.' : null);
 const positive = (v: unknown) => (String(v ?? '').trim() !== '' && !(Number(v) > 0) ? 'Amount must be greater than 0.' : null);
 const endAfterStart = (startKey: string) => (v: unknown, all: FormValues) => {
   const start = all[startKey];
@@ -41,18 +39,6 @@ const endAfterStart = (startKey: string) => (v: unknown, all: FormValues) => {
 };
 
 /* ===== Dialogs (Figma "… / Dialog – …"), chưa có endpoint ghi ===== */
-
-const createAdjustment: FormDialogSpec = {
-  title: 'Create adjustment',
-  description: 'Adds a FinancialAdjustments row. Without a settlement it applies to the next cycle.',
-  confirmLabel: 'Create adjustment',
-  fields: [
-    { key: 'owner', kind: 'select', label: 'Owner', required: true, options: [], placeholder: 'No owner source yet' },
-    { key: 'settlement', kind: 'select', label: 'Settlement', options: [], helper: 'Optional — only Draft / Pending review settlements' },
-    { key: 'amount', kind: 'number', label: 'Amount (₫)', required: true, helper: 'Positive = credit, negative = debit', validate: notZero },
-    { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 500, requiredMessage: 'A reason is required.' },
-  ],
-};
 
 const issueSanction: FormDialogSpec = {
   title: 'Issue sanction',
@@ -214,35 +200,6 @@ export const UNAVAILABLE_SCREENS = {
     columns: ['Shift', 'Staff', 'Lot', 'Started', 'Ended', 'In / out', 'Manual', 'Cash', 'Status'],
     service: 'GateService',
     missingEndpoint: 'GET /api/v1/shifts',
-  },
-  settlements: {
-    title: 'Settlements',
-    subtitle: '—',
-    banner: { tone: 'info', text: 'One settlement per owner per cycle (SETTLEMENT_CYCLE = WEEKLY). Net payout = Gross − Commission − Refunds − Held + Adjustments.' },
-    filterGroups: [{ param: 'status', title: 'Settlement status', values: values(SettlementStatus) }],
-    searchPlaceholder: 'Search owner…',
-    toolbarFilters: ['Period'],
-    columns: ['Owner', 'Period', 'Gross', 'Commission', 'Refunds', 'Held', 'Adjust.', 'Net payout', 'Status'],
-    service: 'PaymentService',
-    missingEndpoint: 'GET /api/v1/settlements',
-  },
-  payouts: {
-    title: 'Payouts',
-    subtitle: 'Approved settlements → bank transfer → Paid (PayoutReference, PaidAtUtc)',
-    filterGroups: [{ param: 'status', title: 'Payout', allLabel: 'Awaiting payout (Approved)', values: [SettlementStatus.Paid] }],
-    columns: ['Owner / settlement', 'Bank account', 'Net payout', 'Approved', 'Payout reference', 'Status', ''],
-    service: 'PaymentService',
-    missingEndpoint: 'GET /api/v1/settlements?status=Approved',
-  },
-  adjustments: {
-    title: 'Adjustments',
-    subtitle: 'FinancialAdjustments · positive = credit to owner, negative = debit',
-    searchPlaceholder: 'Search owner, reason…',
-    toolbarFilters: ['Owner'],
-    columns: ['#', 'Owner', 'Settlement', 'Amount', 'Reason', 'Created by', 'Created'],
-    service: 'PaymentService',
-    missingEndpoint: 'GET/POST /api/v1/financial-adjustments',
-    actions: [{ label: 'Create adjustment', dialog: createAdjustment }],
   },
   transactions: {
     title: 'Transactions',
