@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
@@ -69,6 +69,18 @@ public sealed record LotCancelBookingCommand(int OwnerProfileId, string Reason);
 
 public sealed record GateActionCommand(int? GateDeviceId = null, int? StaffUserId = null, string? PlateNumber = null, decimal? AdditionalFee = null);
 
+public sealed record ApprovalLogDto(
+    int Id,
+    int BookingId,
+    string BookingCode,
+    string PlateNumber,
+    int ParkingLotId,
+    string ParkingLotName,
+    string Result,
+    int? ReviewedByUserId,
+    string? Reason,
+    DateTime CreatedAtUtc);
+
 // ===== PORTS =====
 public interface IBookingQueries
 {
@@ -78,6 +90,10 @@ public interface IBookingQueries
     /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
     Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
         DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken);
+
+    /// <summary>T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.</summary>
+    Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
 }
 
 public interface IBookingRepository
@@ -200,21 +216,13 @@ public interface ICreateBookingUseCase
     Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-069: port check trạng thái bãi — bãi Suspended (emergency stop) → chặn booking mới.</summary>
-public interface ILotStatusProvider
-{
-    /// <summary>True khi bãi Active (nhận booking). Lỗi kết nối → fail-open (không chặn) để ưu tiên availability.</summary>
-    Task<bool> IsBookableAsync(int parkingLotId, CancellationToken cancellationToken = default);
-}
-
-
 /// <summary>US-022: Tạo booking & giữ chỗ 15 phút (TC-BOOK-01).</summary>
 public sealed class CreateBookingUseCase(
     IBookingRepository repository,
     IQrTokenService qrService,
     IBookingEventPublisher events,
-    ILotStatusProvider lotStatus,
-    TimeProvider timeProvider) : ICreateBookingUseCase
+    TimeProvider timeProvider,
+    ILotOperationalStatusProvider? lotStatusProvider = null) : ICreateBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
     {
@@ -224,16 +232,22 @@ public sealed class CreateBookingUseCase(
         if (string.IsNullOrWhiteSpace(command.PlateNumber)) throw new ValidationException("Biển số xe không được để trống.");
         if (command.EndAtUtc <= command.StartAtUtc) throw new ValidationException("Thời gian kết thúc phải sau thời gian bắt đầu.");
 
-        // US-069: bãi Suspended (emergency stop) → chặn đặt chỗ mới ngay lập tức.
-        if (!await lotStatus.IsBookableAsync(command.ParkingLotId, cancellationToken))
-            throw new ValidationException("Bãi đang tạm đóng khẩn cấp — không nhận đặt chỗ mới. Vui lòng chọn bãi khác.");
-
         var now = timeProvider.GetUtcNow().UtcDateTime;
         if (command.StartAtUtc < now.AddMinutes(15))
             throw new ValidationException("Thời gian đặt chỗ phải trước giờ bắt đầu ít nhất 15 phút.");
 
         if (command.StartAtUtc > now.AddDays(30))
             throw new ValidationException("Chỉ được đặt chỗ trước tối đa 30 ngày.");
+
+        // US-069: bãi đang TẠM ĐÓNG KHẨN CẤP → chặn tạo booking mới (pull real-time từ ParkingService).
+        // FAIL-OPEN: không tra cứu được trạng thái (ParkingService chết) → vẫn cho đặt (spec assumption 3:
+        // ưu tiên availability — ParkingService chết không chặn toàn bộ booking).
+        var lotStatus = lotStatusProvider is null
+            ? null
+            : await lotStatusProvider.GetAsync(command.ParkingLotId, cancellationToken);
+        if (lotStatus is { EmergencyStopped: true })
+            throw new ConflictException(
+                $"Bãi {lotStatus.Name} đang TẠM ĐÓNG KHẨN CẤP ({lotStatus.EmergencyStopReason}) – không nhận đặt chỗ mới lúc này. Vui lòng chọn bãi khác hoặc thử lại sau.");
 
         var code = $"BK-{now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
         var qrToken = qrService.GenerateToken(code, command.PlateNumber, command.ParkingLotId, command.EndAtUtc.AddHours(2));
@@ -715,5 +729,24 @@ public sealed class ProcessPaymentResultUseCase(
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(booking.Code, cancellationToken)
             ?? throw new NotFoundException("Booking", booking.Code);
+    }
+}
+
+// ===== T-303: APPROVAL LOGS (OWNER / ADMIN PORTAL) =====
+public interface IGetApprovalLogsUseCase
+{
+    Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
+}
+
+public sealed class GetApprovalLogsUseCase(IBookingQueries queries) : IGetApprovalLogsUseCase
+{
+    public Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+    {
+        if (fromUtc.HasValue && toUtc.HasValue && toUtc < fromUtc)
+            throw new ValidationException("Khoáº£ng thá»i gian tra cá»©u khĂ´ng há»£p lá»‡ (toUtc pháº£i sau fromUtc).");
+
+        return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, cancellationToken);
     }
 }

@@ -32,6 +32,12 @@ public class ProcessAutoRefundTests
             return Task.FromResult(payment);
         }
 
+        public Task<Refund?> GetRefundByIdAsync(int refundId, CancellationToken cancellationToken)
+        {
+            var refund = SavedRefunds.FirstOrDefault(r => r.Id == refundId);
+            return Task.FromResult(refund);
+        }
+
         public Task SaveAutoRefundTransactionAsync(
             Payment payment, 
             Refund refund, 

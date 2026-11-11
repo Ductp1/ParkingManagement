@@ -35,6 +35,7 @@ public static class AdmissionRejectReasons
 {
     public const string LotFull = "LOT_FULL";
     public const string TransientBufferFull = "TRANSIENT_BUFFER_FULL";
+    public const string LotEmergencyStopped = "LOT_EMERGENCY_STOPPED";
 }
 
 /// <summary>

@@ -2,41 +2,44 @@ using Microsoft.EntityFrameworkCore;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.Application.Features.LotOperations;
 using ParkingService.Domain.Entities;
-using ParkingService.Infrastructure.Persistence;
 
 namespace ParkingService.Infrastructure.Persistence.Repositories;
 
-/// <summary>US-067/068/069: repository tổng quan vận hành + audit emergency stop.</summary>
+/// <summary>
+/// ADAPTER US-067/068/069: Lot Operations trên ParkingDbContext.
+/// EmergencyStopLog + outbox (qua OutboxLotEventPublisher cùng scope) flush 1 lần trong SaveChangesAsync.
+/// </summary>
 public sealed class LotOperationsRepository(ParkingDbContext db) : ILotOperationsRepository
 {
     public Task<ParkingLot?> GetLotAsync(int lotId, CancellationToken cancellationToken = default)
-        => db.ParkingLots.FirstOrDefaultAsync(l => l.Id == lotId && !l.IsDeleted, cancellationToken);
+        => db.ParkingLots.FirstOrDefaultAsync(l => l.Id == lotId, cancellationToken);
 
     public async Task<Dictionary<string, int>> CountSlotsByStateAsync(int lotId, CancellationToken cancellationToken = default)
-    {
-        // Facility → Zone → Floor → Slot: slot không có ParkingLotId trực tiếp, đi qua Zone/Floor.
-        var lotFloorIds = db.Floors.Where(f => db.Zones.Any(z => z.Id == f.ZoneId && z.ParkingLotId == lotId))
-            .Select(f => f.Id);
-        return await db.Slots
-            .Where(s => lotFloorIds.Contains(s.FloorId))
+        => await db.Slots
+            .Where(s => s.IsActive && s.Floor.Zone.ParkingLotId == lotId)
             .GroupBy(s => s.State)
             .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key.ToString(), x => x.Count, cancellationToken);
-    }
+            .ToDictionaryAsync(g => g.Key.ToString(), g => g.Count, cancellationToken);
 
     public async Task AddEmergencyLogAsync(EmergencyStopLog log, CancellationToken cancellationToken = default)
     {
         db.EmergencyStopLogs.Add(log);
-        await db.SaveChangesAsync(cancellationToken);
+        await Task.CompletedTask;
     }
 
-    public Task<List<EmergencyStopLog>> GetEmergencyLogsAsync(int lotId, int take, CancellationToken cancellationToken = default)
-        => db.EmergencyStopLogs.Where(l => l.ParkingLotId == lotId)
-            .OrderByDescending(l => l.Id).Take(take).ToListAsync(cancellationToken);
+    public async Task<List<EmergencyStopLog>> GetEmergencyLogsAsync(int lotId, int take, CancellationToken cancellationToken = default)
+        => await db.EmergencyStopLogs
+            .Where(l => l.ParkingLotId == lotId)
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .Take(take)
+            .ToListAsync(cancellationToken);
 
-    public Task<List<ParkingLot>> GetActiveLotsAsync(CancellationToken cancellationToken = default)
-        => db.ParkingLots.Where(l => !l.IsDeleted && l.Status == ParkingLotStatus.Active).ToListAsync(cancellationToken);
+    public async Task<List<ParkingLot>> GetActiveLotsAsync(CancellationToken cancellationToken = default)
+        => await db.ParkingLots
+            .Where(l => l.Status == ParkingLotStatus.Active)
+            .OrderBy(l => l.Id)
+            .ToListAsync(cancellationToken);
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
-        => db.SaveChangesAsync(cancellationToken);
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        => await db.SaveChangesAsync(cancellationToken);
 }

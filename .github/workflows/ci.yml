@@ -17,7 +17,8 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-  # CI khong co RabbitMQ → tat EventBus cho moi host service (WebApplicationFactory van start duoc).
+  # CI không có RabbitMQ → tắt EventBus cho mọi host service: WebApplicationFactory start được,
+  # IRabbitMqPublisher là DisabledPublisher (publish ném lỗi có kiểm soát), OutboxDispatcher tự no-op.
   EventBus__Enabled: "false"
 
 jobs:

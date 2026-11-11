@@ -1,7 +1,5 @@
 using BookingService.Application.Features.Bookings;
-using BookingService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using ParkingManagement.SharedKernel.Enums;
 
 namespace BookingService.API.Controllers;
@@ -20,34 +18,8 @@ public sealed class BookingsController(
     ILotCancelBookingUseCase lotCancelBooking,
     IGateBookingActionsUseCase gateActions,
     IListGateBookingsUseCase listGateBookings,
-    BookingDbContext db) : ControllerBase
+    IGetApprovalLogsUseCase getApprovalLogs) : ControllerBase
 {
-    /// <summary>
-    /// GET /api/v1/bookings/internal/lots/{lotId}/overview – nội bộ US-067/069 cho ParkingService:
-    /// số booking đang đỗ (active) + sắp đến (upcoming) + danh sách booking bị ảnh hưởng khi emergency stop.
-    /// </summary>
-    [HttpGet("internal/lots/{lotId:int}/overview")]
-    public async Task<ActionResult> LotOverview(int lotId, CancellationToken cancellationToken)
-    {
-        var now = DateTime.UtcNow;
-        var bookings = await db.Bookings
-            .Where(b => b.ParkingLotId == lotId
-                && (b.Status == BookingStatus.Created || b.Status == BookingStatus.PendingPayment
-                    || b.Status == BookingStatus.PendingOwnerApproval || b.Status == BookingStatus.Confirmed
-                    || b.Status == BookingStatus.CheckedIn || b.Status == BookingStatus.Parking))
-            .OrderBy(b => b.StartAtUtc)
-            .Take(500)
-            .ToListAsync(cancellationToken);
-
-        var active = bookings.Count(b => b.Status is BookingStatus.CheckedIn or BookingStatus.Parking);
-        var upcoming = bookings.Count(b => b.Status == BookingStatus.Confirmed && b.StartAtUtc > now);
-        var affected = bookings
-            .Where(b => b.Status is not BookingStatus.Parking)
-            .Select(b => new { b.Id, b.Code, b.UserId, Status = b.Status.ToString(), b.StartAtUtc, b.EndAtUtc })
-            .ToList();
-        return Ok(new { activeBookings = active, upcomingBookings = upcoming, affectedEmergency = affected });
-    }
-
     /// <summary>GET /api/v1/bookings/BK-0002 – Chi tiết booking kèm giá đã khóa và lịch sử trạng thái.</summary>
     [HttpGet("{code}")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
@@ -85,6 +57,26 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CancellationPreviewDto>> PreviewCancellation(string code, CancellationToken cancellationToken)
         => Ok(await previewCancellation.ExecuteAsync(code, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/bookings/approval-logs?parkingLotId=1&amp;fromUtc=...&amp;toUtc=...&amp;result=Approved|Rejected – T-303.
+    /// Tra cứu lịch sử duyệt / từ chối đơn đặt chỗ bãi Mức 0 (phục vụ Owner Portal và Admin Portal).
+    /// </summary>
+    [HttpGet("approval-logs")]
+    [ProducesResponseType<IReadOnlyList<ApprovalLogDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<ApprovalLogDto>>> GetApprovalLogs(
+        [FromQuery] int? parkingLotId,
+        [FromQuery] DateTime? fromUtc,
+        [FromQuery] DateTime? toUtc,
+        [FromQuery] string? result,
+        CancellationToken cancellationToken)
+        => Ok(await getApprovalLogs.ExecuteAsync(
+            parkingLotId,
+            fromUtc.HasValue ? DateTime.SpecifyKind(fromUtc.Value.ToUniversalTime(), DateTimeKind.Utc) : null,
+            toUtc.HasValue ? DateTime.SpecifyKind(toUtc.Value.ToUniversalTime(), DateTimeKind.Utc) : null,
+            result,
+            cancellationToken));
 
     /// <summary>POST /api/v1/bookings – Tạo booking và giữ chỗ 15 phút (US-022, US-024, US-025, US-026, US-027).</summary>
     [HttpPost]

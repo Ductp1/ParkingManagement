@@ -70,6 +70,8 @@ public sealed class NotificationDataSeeder(ILogger<NotificationDataSeeder> logge
                 new DeviceToken { UserId = DemoIds.OwnerVincomUser, Token = "demo-fcm-token-owner-vincom-web", Platform = "Web", DeviceName = "Chrome – Owner portal", LastUsedAtUtc = DateTime.UtcNow });
         }
 
+        // US-086: (bản merge US-086 đã có đủ mẫu khẩn cấp qua migration Us086_EmergencyNotifications —
+        // không seed thêm template runtime nào tại đây.)
         await db.SaveChangesAsync(cancellationToken);
     }
 }

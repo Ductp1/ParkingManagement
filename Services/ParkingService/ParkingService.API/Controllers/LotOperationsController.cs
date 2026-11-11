@@ -1,99 +1,103 @@
 using Microsoft.AspNetCore.Mvc;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.SharedKernel.Contracts;
-using ParkingManagement.SharedKernel.Enums;
-using ParkingManagement.SharedKernel.Exceptions;
 using ParkingService.Application.Features.LotOperations;
 
 namespace ParkingService.API.Controllers;
 
+public sealed record EmergencyStopRequest(string Reason, bool Confirm = true);
+public sealed record EmergencyResumeRequest(string Reason);
+
 /// <summary>
-/// US-067/068/069: API vận hành bãi cho chủ bãi/Staff — heartbeat, dashboard overview, emergency stop.
-/// Phân quyền: Owner chỉ thao tác trên bãi CỦA MÌNH (so khớp OwnerProfileId claim), Staff/Admin toàn quyền.
+/// US-067/068/069 – Vận hành bãi: dashboard tổng quan real-time, heartbeat thiết bị,
+/// Emergency Stop (đóng/gỡ khẩn cấp) + lịch sử audit. Route dưới "parking-lots"
+/// để Gateway (:5000) chuyển sang ParkingService (:5103).
+/// Controller không bắt try/catch — ExceptionHandlingMiddleware map
+/// ValidationException → 400, NotFoundException → 404.
 /// </summary>
 [ApiController]
-[Route("api/v1/parking-lots/{lotId:int}/operations")]
+[Route("api/v1/parking-lots/{lotId:int}")]
 public sealed class LotOperationsController(
+    IGetOperationsOverviewUseCase getOverview,
     IRecordHeartbeatUseCase recordHeartbeat,
-    IGetOperationsOverviewUseCase overview,
     IEmergencyStopUseCase emergencyStop,
     ILiftEmergencyStopUseCase liftEmergencyStop,
-    ILotOperationsRepository repository,
+    IGetEmergencyLogsUseCase emergencyLogs,
+    IGetOperationalStatusUseCase operationalStatus,
     ICurrentUser currentUser) : ControllerBase
 {
-    private async Task EnsureAccessAsync(int lotId, CancellationToken cancellationToken)
-    {
-        var lot = await repository.GetLotAsync(lotId, cancellationToken)
-                  ?? throw new NotFoundException("ParkingLot", lotId);
-        var isOwner = currentUser.Roles.Contains("LotOwner") && currentUser.OwnerProfileId == lot.OwnerProfileId;
-        var isStaffOrAdmin = currentUser.Roles.Contains("Staff") || currentUser.Roles.Contains("Admin");
-        if (!isOwner && !isStaffOrAdmin)
-            throw new ForbiddenException("Bạn không có quyền vận hành bãi này.");
-    }
+    /// <summary>GET /api/v1/parking-lots/{lotId}/dashboard – tổng quan vận hành (US-067).</summary>
+    [HttpGet("dashboard")]
+    [ProducesResponseType<OperationsOverviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OperationsOverviewDto>> Dashboard(int lotId, CancellationToken cancellationToken)
+        => Ok(await getOverview.ExecuteAsync(lotId, cancellationToken));
 
-    /// <summary>POST /api/v1/parking-lots/{lotId}/operations/heartbeat – US-068: thiết bị/controller báo còn sống.</summary>
+    /// <summary>
+    /// POST /api/v1/parking-lots/{lotId}/heartbeat – thiết bị/bãi báo còn sống (US-068, 60s/lần).
+    /// 200 kèm recoveredFromStale=true khi bãi vừa phục hồi (đã phát LotDataRecovered).
+    /// </summary>
     [HttpPost("heartbeat")]
-    public async Task<ActionResult<HeartbeatResultDto>> Heartbeat(int lotId, CancellationToken cancellationToken)
-    {
-        await EnsureAccessAsync(lotId, cancellationToken);
-        return Ok(await recordHeartbeat.ExecuteAsync(lotId, cancellationToken));
-    }
+    [ProducesResponseType<HeartbeatResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<HeartbeatResult>> Heartbeat(int lotId, CancellationToken cancellationToken)
+        => Ok(await recordHeartbeat.ExecuteAsync(lotId, cancellationToken));
 
-    /// <summary>GET /api/v1/parking-lots/{lotId}/operations/overview – US-067: dashboard real-time (occupancy, booking, freshness).</summary>
-    [HttpGet("overview")]
-    public async Task<ActionResult<LotOperationsOverviewDto>> Overview(int lotId, CancellationToken cancellationToken)
-    {
-        await EnsureAccessAsync(lotId, cancellationToken);
-        return Ok(await overview.ExecuteAsync(lotId, cancellationToken));
-    }
-
-    public sealed record EmergencyStopRequest(string Reason, bool Confirm);
-    public sealed record LiftRequest(string Reason);
-
-    /// <summary>POST /api/v1/parking-lots/{lotId}/operations/emergency-stop – US-069: đóng bãi khẩn cấp (confirm bắt buộc).</summary>
+    /// <summary>
+    /// POST /api/v1/parking-lots/{lotId}/emergency-stop – đóng bãi khẩn cấp (US-069).
+    /// Body: { reason (≥5 ký tự), confirm (true) }. 200 kèm số booking bị ảnh hưởng;
+    /// sự kiện LotEmergencyStopped → NotificationService fan-out đa kênh (US-086).
+    /// </summary>
     [HttpPost("emergency-stop")]
-    public async Task<ActionResult<EmergencyStopResultDto>> EmergencyStop(
+    [ProducesResponseType<EmergencyStopResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<EmergencyStopResult>> EmergencyStop(
         int lotId, [FromBody] EmergencyStopRequest request, CancellationToken cancellationToken)
-    {
-        await EnsureAccessAsync(lotId, cancellationToken);
-        var result = await emergencyStop.ExecuteAsync(lotId, currentUser.UserId ?? 0,
-            currentUser.Roles.FirstOrDefault() ?? "Unknown", request.Reason, request.Confirm, cancellationToken);
-        return Ok(result);
-    }
+        => Ok(await emergencyStop.ExecuteAsync(lotId, ResolveActorUserId(), ResolveActorRole(),
+            request.Reason, request.Confirm, cancellationToken));
 
-    /// <summary>POST /api/v1/parking-lots/{lotId}/operations/emergency-stop/lift – US-069: gỡ đóng bãi.</summary>
-    [HttpPost("emergency-stop/lift")]
-    public async Task<ActionResult<EmergencyStopResultDto>> Lift(
-        int lotId, [FromBody] LiftRequest request, CancellationToken cancellationToken)
-    {
-        await EnsureAccessAsync(lotId, cancellationToken);
-        var result = await liftEmergencyStop.ExecuteAsync(lotId, currentUser.UserId ?? 0,
-            currentUser.Roles.FirstOrDefault() ?? "Unknown", request.Reason, cancellationToken);
-        return Ok(result);
-    }
+    /// <summary>POST /api/v1/parking-lots/{lotId}/emergency-resume – gỡ đóng bãi khẩn cấp (US-069).</summary>
+    [HttpPost("emergency-resume")]
+    [ProducesResponseType<LiftEmergencyStopResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LiftEmergencyStopResult>> EmergencyResume(
+        int lotId, [FromBody] EmergencyResumeRequest request, CancellationToken cancellationToken)
+        => Ok(await liftEmergencyStop.ExecuteAsync(lotId, ResolveActorUserId(), ResolveActorRole(),
+            request.Reason, cancellationToken));
 
-    /// <summary>GET /api/v1/parking-lots/{lotId}/operations/status – nội bộ service-to-service (US-069): BookingService check trước khi tạo booking.</summary>
-    [HttpGet("status")]
-    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
-    public async Task<ActionResult> Status(int lotId, CancellationToken cancellationToken)
-    {
-        var lot = await repository.GetLotAsync(lotId, cancellationToken)
-                  ?? throw new NotFoundException("ParkingLot", lotId);
-        return Ok(new
-        {
-            lotId,
-            status = lot.Status.ToString(),
-            emergencyStopped = lot.Status == ParkingLotStatus.Suspended && lot.EmergencyStoppedAtUtc is not null,
-            emergencyStopReason = lot.EmergencyStopReason,
-        });
-    }
-
-    /// <summary>GET /api/v1/parking-lots/{lotId}/operations/emergency-logs – US-069: audit trail.</summary>
+    /// <summary>GET /api/v1/parking-lots/{lotId}/emergency-logs?take=20 – lịch sử audit Emergency Stop.</summary>
     [HttpGet("emergency-logs")]
-    public async Task<ActionResult> Logs(int lotId, CancellationToken cancellationToken)
+    [ProducesResponseType<IReadOnlyList<EmergencyStopLogDto>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<EmergencyStopLogDto>>> EmergencyLogs(
+        int lotId, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
+        => Ok(await emergencyLogs.ExecuteAsync(lotId, take, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/parking-lots/{lotId}/operations-status – trạng thái vận hành rút gọn (US-069).
+    /// Endpoint nội bộ service-to-service: BookingService chặn tạo booking mới, GateService chặn
+    /// xe vào khi bãi đang TẠM ĐÓNG KHẨN CẤP. Pull real-time (không qua event → luôn tươi).
+    /// </summary>
+    [HttpGet("operations-status")]
+    [ProducesResponseType<LotOperationalStatusDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotOperationalStatusDto>> OperationalStatus(
+        int lotId, CancellationToken cancellationToken)
     {
-        await EnsureAccessAsync(lotId, cancellationToken);
-        var logs = await repository.GetEmergencyLogsAsync(lotId, 50, cancellationToken);
-        return Ok(logs.Select(l => new { l.Id, l.Action, l.ActorUserId, l.ActorRole, l.Reason, l.AffectedBookings, l.CreatedAtUtc }));
+        var status = await operationalStatus.ExecuteAsync(lotId, cancellationToken);
+        return status is null ? NotFound() : Ok(status);
+    }
+
+    /// <summary>Actor từ JWT (UserId); chưa đăng ký auth → 0 (demo/local). Role ưu tiên Admin &gt; LotOwner &gt; Staff.</summary>
+    private int ResolveActorUserId() => currentUser.UserId ?? 0;
+
+    private string ResolveActorRole()
+    {
+        var roles = currentUser.Roles;
+        if (roles.Contains("Admin")) return "Admin";
+        if (roles.Contains("LotOwner")) return "LotOwner";
+        if (roles.Contains("Staff")) return "Staff";
+        return roles.Count > 0 ? roles[0] : "System";
     }
 }

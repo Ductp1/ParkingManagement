@@ -33,7 +33,7 @@
   --color-surface-container-high: #dde9ff;
   --color-surface-container-highest: #d5e3fd;
 
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Be Vietnam Pro', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 @layer base {
@@ -43,6 +43,9 @@
     font-family: var(--font-sans);
     background-color: var(--color-background);
     color: var(--color-on-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
 

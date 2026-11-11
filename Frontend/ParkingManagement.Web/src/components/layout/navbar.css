@@ -15,8 +15,11 @@
   align-items: center;
   gap: 6px;
   overflow-x: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.pm-navbar-menu::-webkit-scrollbar {
+  display: none;
 }
 .pm-navbar-menu-link {
   flex: 0 0 auto;

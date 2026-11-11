@@ -1,4 +1,4 @@
-﻿using BookingService.Application.Features.Bookings;
+using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
 using ParkingManagement.SharedKernel.Contracts;
@@ -74,6 +74,9 @@ public class CancellationPolicyTests
         public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
             DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
+        public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
 
@@ -91,16 +94,20 @@ internal sealed class FakeEventPublisher : IBookingEventPublisher
 }
 
 
-/// <summary>US-069: bãi luôn Active cho unit test.</summary>
-internal sealed class FakeLotStatus : ILotStatusProvider
+/// <summary>US-069: provider trả bãi Active (luôn cho phép đặt — unit test luồng chuẩn).</summary>
+internal sealed class FakeLotStatus : ILotOperationalStatusProvider
 {
-    public Task<bool> IsBookableAsync(int parkingLotId, CancellationToken cancellationToken = default) => Task.FromResult(true);
+    public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
+        => Task.FromResult<LotOperationalStatusSnapshot?>(
+            new LotOperationalStatusSnapshot(parkingLotId, "Bãi Test", "Active", EmergencyStopped: false, null));
 }
 
-/// <summary>US-069: bãi đang bị emergency stop (Suspended) — CreateBookingUseCase phải chặn.</summary>
-internal sealed class FakeLotStatusClosed : ILotStatusProvider
+/// <summary>US-069: bãi đang emergency stop (Suspended) — CreateBookingUseCase phải chặn.</summary>
+internal sealed class FakeLotStatusClosed : ILotOperationalStatusProvider
 {
-    public Task<bool> IsBookableAsync(int parkingLotId, CancellationToken cancellationToken = default) => Task.FromResult(false);
+    public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
+        => Task.FromResult<LotOperationalStatusSnapshot?>(
+            new LotOperationalStatusSnapshot(1, "Bãi Test", "Suspended", EmergencyStopped: true, "Sự cố"));
 }
 
 /// <summary>
@@ -292,7 +299,7 @@ public class BookingFeaturesTests
         // US-069: bãi Suspended (emergency stop) → chặn đặt chỗ mới ngay lập tức.
         var repo = new FakeBookingRepo();
         var useCase = new CreateBookingUseCase(repo, new QrTokenService(), new FakeEventPublisher(),
-            new FakeLotStatusClosed(), new FixedClock(FixedNow));
+            new FixedClock(FixedNow), new FakeLotStatusClosed());
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -311,8 +318,8 @@ public class BookingFeaturesTests
             TotalAmount: 60000,
             PromotionCode: null);
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
-        Assert.Contains("đóng khẩn cấp", ex.Message);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("TẠM ĐÓNG KHẨN CẤP", ex.Message);
         Assert.Empty(repo.SavedBookings); // không tạo booking
     }
 
@@ -322,7 +329,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -357,7 +364,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -385,7 +392,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -414,7 +421,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), new FakeLotStatus(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -485,6 +492,9 @@ public class BookingFeaturesTests
         public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
             DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
+        public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository

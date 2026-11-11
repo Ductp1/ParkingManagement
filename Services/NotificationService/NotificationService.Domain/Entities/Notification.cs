@@ -29,5 +29,11 @@ public class Notification : BaseEntity
     /// </summary>
     public string? DedupeKey { get; set; }
 
+    /// <summary>
+    /// US-086: nhóm các thông báo thuộc cùng 1 đợt khẩn cấp — key dạng "evt:{EventId}".
+    /// API tổng hợp trạng thái gửi (delivery-status) query theo key này; null cho thông báo thường.
+    /// </summary>
+    public string? BatchKey { get; set; }
+
     public NotificationTemplate? Template { get; set; }
 }

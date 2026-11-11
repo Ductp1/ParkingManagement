@@ -39,6 +39,18 @@ public class ParkingLot : BaseEntity, ISoftDelete
     public ParkingLotStatus Status { get; private set; }
     public IntegrationTier IntegrationTier { get; private set; } = IntegrationTier.Manual;
 
+    // ===== US-069: Emergency Stop – đóng bãi khẩn cấp =====
+    /// <summary>Lý do đóng bãi khẩn cấp (null = bãi không đang đóng khẩn cấp).</summary>
+    public string? EmergencyStopReason { get; private set; }
+    /// <summary>Thời điểm đóng khẩn cấp gần nhất (UTC).</summary>
+    public DateTime? EmergencyStoppedAtUtc { get; private set; }
+
+    // ===== US-068: Heartbeat & Stale Data =====
+    /// <summary>Heartbeat gần nhất từ thiết bị/bãi (UTC) – null = chưa bao giờ nhận.</summary>
+    public DateTime? LastHeartbeatAtUtc { get; private set; }
+    /// <summary>Đang ở trạng thái "dữ liệu cũ" (quá hạn ngưỡng không nhận heartbeat).</summary>
+    public bool IsDataStale { get; private set; }
+
     /// <summary>Điểm đánh giá trung bình – cập nhật khi nhận sự kiện ReviewCreated từ Support Service.</summary>
     public decimal RatingAverage { get; private set; }
     public int RatingCount { get; private set; }
@@ -46,57 +58,10 @@ public class ParkingLot : BaseEntity, ISoftDelete
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
 
-    // ===== US-068: heartbeat & stale data =====
-    /// <summary>Lần heartbeat cuối từ thiết bị/controller của bãi (null = chưa từng nhận).</summary>
-    public DateTime? LastHeartbeatAtUtc { get; private set; }
-    /// <summary>Đang ở chế độ "dữ liệu cũ" (quá hạn ngưỡng không heartbeat) — dashboard hiển thị cảnh báo.</summary>
-    public bool IsDataStale { get; private set; }
-
-    /// <summary>US-068: thiết bị gửi heartbeat → dữ liệu tươi trở lại. Trả true nếu VỪA phục hồi từ stale.</summary>
-    public bool RecordHeartbeat(DateTime nowUtc)
-    {
-        LastHeartbeatAtUtc = nowUtc;
-        var recovered = IsDataStale;
-        IsDataStale = false;
-        return recovered;
-    }
-
-    /// <summary>US-068: đánh dấu stale khi quá hạn ngưỡng. Trả true nếu VỪA chuyển sang stale (lần đầu).</summary>
-    public bool MarkStaleIfOverdue(DateTime nowUtc, TimeSpan threshold)
-    {
-        if (IsDataStale) return false;
-        var overdue = LastHeartbeatAtUtc is null || nowUtc - LastHeartbeatAtUtc.Value > threshold;
-        if (!overdue) return false;
-        IsDataStale = true;
-        return true;
-    }
-
-    // ===== US-069: emergency stop =====
-    public DateTime? EmergencyStoppedAtUtc { get; private set; }
-    public string? EmergencyStopReason { get; private set; }
-
-    /// <summary>US-069: đóng bãi khẩn cấp — Status → Suspended (enum đã chú thích "hoặc Emergency Stop").</summary>
-    public void ApplyEmergencyStop(string reason, DateTime nowUtc)
-    {
-        if (Status == ParkingLotStatus.Suspended) return; // idempotent
-        Status = ParkingLotStatus.Suspended;
-        EmergencyStoppedAtUtc = nowUtc;
-        EmergencyStopReason = reason;
-    }
-
-    /// <summary>US-069: gỡ đóng bãi khẩn cấp → Status trở lại Active, nhận booking/check-in bình thường.</summary>
-    public void LiftEmergencyStop(DateTime nowUtc)
-    {
-        if (Status != ParkingLotStatus.Suspended) return;
-        Status = ParkingLotStatus.Active;
-        EmergencyStoppedAtUtc = null;
-        EmergencyStopReason = null;
-        _ = nowUtc;
-    }
-
     public ICollection<Zone> Zones { get; private set; } = new List<Zone>();
     public LotCapacityConfig? CapacityConfig { get; private set; }
     public ICollection<LotOperatingHour> OperatingHours { get; private set; } = new List<LotOperatingHour>();
+    public ICollection<LotOperatingHourOverride> OperatingHourOverrides { get; private set; } = new List<LotOperatingHourOverride>();
     public ICollection<LotAmenity> Amenities { get; private set; } = new List<LotAmenity>();
     public ICollection<LotPhoto> Photos { get; private set; } = new List<LotPhoto>();
 
@@ -242,6 +207,70 @@ public class ParkingLot : BaseEntity, ISoftDelete
         if (Status != ParkingLotStatus.Suspended)
             throw new ConflictException($"Chỉ khôi phục được bãi đang bị tạm khóa (hiện tại: {Status}).");
         Status = ParkingLotStatus.Active;
+    }
+
+    // ===== US-069: Emergency Stop (LotOperations) =====
+
+    /// <summary>
+    /// Đóng bãi khẩn cấp: Active → Suspended kèm lý do + thời điểm.
+    /// Idempotent: bãi đã Suspended (đóng khẩn cấp trước đó hoặc tạm khóa vì lý do khác)
+    /// thì giữ nguyên lý do/thời điểm ĐẦU TIÊN (không ghi đè).
+    /// </summary>
+    public void ApplyEmergencyStop(string reason, DateTime stoppedAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("Lý do đóng bãi khẩn cấp không được rỗng.", nameof(reason));
+
+        if (Status == ParkingLotStatus.Suspended)
+            return; // đã dừng trước đó → giữ nguyên trạng thái/lý do đầu tiên
+
+        Status = ParkingLotStatus.Suspended;
+        EmergencyStopReason = reason.Trim();
+        EmergencyStoppedAtUtc = stoppedAtUtc;
+    }
+
+    /// <summary>Gỡ đóng bãi khẩn cấp: Suspended → Active, xóa lý do/thời điểm. No-op khi bãi không Suspended.</summary>
+    public void LiftEmergencyStop(DateTime liftedAtUtc)
+    {
+        if (Status != ParkingLotStatus.Suspended)
+            return; // không đóng → không có gì để gỡ
+
+        Status = ParkingLotStatus.Active;
+        EmergencyStopReason = null;
+        EmergencyStoppedAtUtc = null;
+        _ = liftedAtUtc; // mốc thời điểm gỡ nằm trong EmergencyStopLogs (audit), entity không lưu đè
+    }
+
+    // ===== US-068: Heartbeat & Stale Data (LotOperations) =====
+
+    /// <summary>
+    /// Ghi nhận heartbeat từ thiết bị/bãi (60 giây/lần). Trả true nếu bãi vừa PHỤC HỒI
+    /// khỏi trạng thái stale (caller phát sự kiện LotDataRecovered); false khi bãi vẫn fresh.
+    /// </summary>
+    public bool RecordHeartbeat(DateTime nowUtc)
+    {
+        var recoveredFromStale = IsDataStale;
+        LastHeartbeatAtUtc = nowUtc;
+        IsDataStale = false;
+        return recoveredFromStale;
+    }
+
+    /// <summary>
+    /// Chuyển sang stale nếu quá hạn ngưỡng (mặc định 3 phút) không nhận heartbeat
+    /// hoặc chưa bao giờ nhận heartbeat. Idempotent: đã stale → false (không transition lần 2).
+    /// Trả true nếu vừa chuyển sang stale (caller phát sự kiện LotDataMarkedStale).
+    /// </summary>
+    public bool MarkStaleIfOverdue(DateTime nowUtc, TimeSpan staleAfter)
+    {
+        if (IsDataStale)
+            return false;
+
+        var overdue = LastHeartbeatAtUtc is null || nowUtc - LastHeartbeatAtUtc.Value > staleAfter;
+        if (!overdue)
+            return false;
+
+        IsDataStale = true;
+        return true;
     }
 
     /// <summary>Cập nhật ảnh bìa chính thức của bãi xe (US-064).</summary>

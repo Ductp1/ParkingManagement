@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NotificationService.Application.Features.Ingestion;
+using NotificationService.Application.Features.Reminders;
 using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.SharedKernel.Contracts;
 
@@ -15,6 +16,9 @@ namespace NotificationService.Infrastructure.Integrations;
 /// </summary>
 public sealed class NotificationIntegrationEventHandler(
     IBookingConfirmationNotifications bookingConfirmations,
+    IBookingReminderScheduler reminderScheduler,
+    IOwnerBookingNotifications ownerNotifications,
+    Application.Features.Ingestion.IEmergencyNotifications emergencyNotifications,
     ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -23,19 +27,59 @@ public sealed class NotificationIntegrationEventHandler(
     {
         switch (envelope.EventType)
         {
-            // ===== US-083: xác nhận booking & thanh toán =====
+            // ===== US-083 + US-084 + US-085: booking được xác nhận =====
             case nameof(BookingConfirmed):
-                await bookingConfirmations.HandleBookingConfirmedAsync(
-                    Deserialize<BookingConfirmed>(envelope), envelope.EventId, cancellationToken);
+            {
+                var evt = Deserialize<BookingConfirmed>(envelope);
+                await bookingConfirmations.HandleBookingConfirmedAsync(evt, envelope.EventId, cancellationToken);
+                await reminderScheduler.ScheduleForBookingAsync(evt, cancellationToken);
                 break;
+            }
             case nameof(BookingPaymentCompleted):
                 await bookingConfirmations.HandleBookingPaymentCompletedAsync(
                     Deserialize<BookingPaymentCompleted>(envelope), envelope.EventId, cancellationToken);
                 break;
 
-            // US-084 bổ sung: BookingConfirmed (đặt lịch nhắc) / BookingCancelled (hủy lịch) / BookingModified (reschedule).
-            // US-085 bổ sung: BookingCreated/BookingCancelled/BookingModified (báo chủ bãi).
-            // US-086 bổ sung: LotEmergencyStopped (fan-out đa kênh + tracking).
+            // ===== US-084 (hủy/reschedule nhắc lịch) + US-085 (báo chủ bãi) =====
+            case nameof(BookingCancelled):
+            {
+                var evt = Deserialize<BookingCancelled>(envelope);
+                await reminderScheduler.CancelForBookingAsync(evt, cancellationToken);
+                await ownerNotifications.HandleBookingCancelledAsync(evt, envelope.EventId, cancellationToken);
+                break;
+            }
+            case nameof(BookingModified):
+            {
+                var evt = Deserialize<BookingModified>(envelope);
+                await reminderScheduler.RescheduleForBookingAsync(evt, cancellationToken);
+                await ownerNotifications.HandleBookingModifiedAsync(evt, envelope.EventId, cancellationToken);
+                break;
+            }
+
+            // ===== US-085: booking mới tạo (PendingPayment) → báo chủ bãi =====
+            case nameof(BookingCreated):
+                await ownerNotifications.HandleBookingCreatedAsync(
+                    Deserialize<BookingCreated>(envelope), envelope.EventId, cancellationToken);
+                break;
+
+            // ===== US-086: khẩn cấp đa kênh + stale alert (fan-out + tracking BatchKey) =====
+            case nameof(LotEmergencyStopped):
+                await emergencyNotifications.HandleLotEmergencyStoppedAsync(
+                    Deserialize<LotEmergencyStopped>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotEmergencyLifted):
+                await emergencyNotifications.HandleLotEmergencyLiftedAsync(
+                    Deserialize<LotEmergencyLifted>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotDataMarkedStale):
+                await emergencyNotifications.HandleLotDataMarkedStaleAsync(
+                    Deserialize<LotDataMarkedStale>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(LotDataRecovered):
+                await emergencyNotifications.HandleLotDataRecoveredAsync(
+                    Deserialize<LotDataRecovered>(envelope), envelope.EventId, cancellationToken);
+                break;
+
             default:
                 logger.LogInformation("Event {EventType} (eventId={EventId}) chưa có handler nghiệp vụ — bỏ qua an toàn.",
                     envelope.EventType, envelope.EventId);

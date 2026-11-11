@@ -18,8 +18,24 @@ public sealed class UsersController(
     IAvatarStorage avatarStorage,
     ILockOwnerProfileUseCase lockOwnerProfile,
     IUnlockOwnerProfileUseCase unlockOwnerProfile,
-    ICurrentUser currentUser) : ControllerBase
+    IOwnerProfileRepository ownerProfiles,
+    ICurrentUser currentUser,
+    IRequestOwnerExitUseCase requestOwnerExit,
+    ICancelOwnerExitUseCase cancelOwnerExit,
+    ITerminateOwnerExitUseCase terminateOwnerExit,
+    IGetOwnerExitStatusUseCase getOwnerExitStatus) : ControllerBase
 {
+    /// <summary>GET /api/v1/users/owner-profiles/{ownerProfileId} – nội bộ (US-085): ánh xạ OwnerProfileId → UserId để NotificationService gửi thông báo cho chủ bãi. Anonymous vì consumer là service-to-service.</summary>
+    [HttpGet("owner-profiles/{ownerProfileId:int}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetOwnerProfile(int ownerProfileId, CancellationToken cancellationToken)
+    {
+        var profile = await ownerProfiles.FindByIdWithUserAsync(ownerProfileId, cancellationToken);
+        return profile is null
+            ? NotFound()
+            : Ok(new { ownerProfileId, userId = profile.UserId, businessName = profile.BusinessName });
+    }
+
     /// <summary>GET /api/users/{id} – Hồ sơ người dùng kèm vai trò và hồ sơ chủ bãi (nếu có).</summary>
     [HttpGet("{id:int}")]
     public async Task<ActionResult<UserDto>> GetById(int id, CancellationToken cancellationToken)
@@ -115,5 +131,53 @@ public sealed class UsersController(
         }
 
         return Ok(result);
+    }
+
+    /// <summary>POST /api/v1/users/owner-profiles/{ownerProfileId}/request-exit – Chủ bãi gửi yêu cầu rời nền tảng (US-057).</summary>
+    [HttpPost("owner-profiles/{ownerProfileId:int}/request-exit")]
+    public async Task<ActionResult<OwnerExitStatusDto>> RequestOwnerExit(
+        [FromRoute] int ownerProfileId,
+        [FromBody] RequestOwnerExitRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId != ownerProfileId && !currentUser.Roles.Contains("Admin"))
+            return Forbid();
+
+        return Ok(await requestOwnerExit.ExecuteAsync(ownerProfileId, request, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/users/owner-profiles/{ownerProfileId}/cancel-exit – Chủ bãi rút lại yêu cầu rời nền tảng (US-057).</summary>
+    [HttpPost("owner-profiles/{ownerProfileId:int}/cancel-exit")]
+    public async Task<ActionResult<OwnerExitStatusDto>> CancelOwnerExit(
+        [FromRoute] int ownerProfileId,
+        [FromBody] CancelOwnerExitRequest? request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId != ownerProfileId && !currentUser.Roles.Contains("Admin"))
+            return Forbid();
+
+        return Ok(await cancelOwnerExit.ExecuteAsync(ownerProfileId, request, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/users/owner-profiles/{ownerProfileId}/terminate – Chấm dứt hợp tác đối tác (US-057, chỉ Admin).</summary>
+    [HttpPost("owner-profiles/{ownerProfileId:int}/terminate")]
+    [Authorize(Policy = "RequireAdmin")]
+    public async Task<ActionResult<OwnerExitStatusDto>> TerminateOwnerExit(
+        [FromRoute] int ownerProfileId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await terminateOwnerExit.ExecuteAsync(ownerProfileId, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/users/owner-profiles/{ownerProfileId}/exit-status – Xem trạng thái rời nền tảng (US-057).</summary>
+    [HttpGet("owner-profiles/{ownerProfileId:int}/exit-status")]
+    public async Task<ActionResult<OwnerExitStatusDto>> GetOwnerExitStatus(
+        [FromRoute] int ownerProfileId,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId != ownerProfileId && !currentUser.Roles.Contains("Admin"))
+            return Forbid();
+
+        return Ok(await getOwnerExitStatus.ExecuteAsync(ownerProfileId, cancellationToken));
     }
 }
