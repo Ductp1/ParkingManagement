@@ -67,7 +67,12 @@ const OwnerSections: React.FC<{ user: AdminUserDto; sanctions: AdminQueryResult<
           )}
         </PanelQuery>
       </Panel>
-      <Panel title="Sanction history" description="AdminService · Sanctions (owner- and lot-level)" padded={false}>
+      <Panel
+        title="Sanction history"
+        description="AdminService · Sanctions (owner- and lot-level)"
+        padded={false}
+        action={{ label: 'Open in Sanctions →', to: `/admin/support/sanctions?ownerProfileId=${ownerProfileId}` }}
+      >
         <PanelQuery query={sanctions} service="AdminService" title="Could not load sanctions">
           {(data) => (
             <DataTable

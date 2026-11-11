@@ -149,6 +149,7 @@ const GovernancePanel: React.FC<{ data: DashboardOverviewDto | null }> = ({ data
     <Panel title="Quản trị nền tảng" description="Chế tài · thay đổi cấu hình · audit log hôm nay (ICT)" padded={false}>
       <QueueRow
         label="Chế tài đang hiệu lực"
+        to="/admin/support/sanctions?status=Active"
         widget={g?.activeSanctions ?? null}
         count={(v) => v.total}
         detail={(v) =>

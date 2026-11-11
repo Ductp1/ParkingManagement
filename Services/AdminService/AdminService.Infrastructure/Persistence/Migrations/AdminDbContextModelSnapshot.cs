@@ -807,6 +807,12 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("AppealDeadlineUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CorrectionDueAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -825,11 +831,34 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<DateTime?>("NotificationSentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NotificationSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("NotRequired");
+
                     b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("OwnerUserId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("ParkingLotId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("ParkingSyncStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasDefaultValue("NotRequired");
+
+                    b.Property<DateTime?>("ParkingSyncedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal?>("PenaltyAmount")
                         .HasPrecision(18, 2)
@@ -839,6 +868,16 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("RevokeReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("RevokedByUserId")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("StartsAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -872,6 +911,16 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasFilter("\"ParkingLotId\" IS NOT NULL");
 
                     b.HasIndex("OwnerProfileId", "Status");
+
+                    b.HasIndex(new[] { "OwnerProfileId" }, "IX_Sanctions_OwnerProfileId_ActiveOwnerRankingPenalty")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Sanctions_OwnerProfileId_ActiveOwnerRankingPenalty")
+                        .HasFilter("\"Status\" = 'Active' AND \"ParkingLotId\" IS NULL AND \"Level\" = 'RankingPenalty'");
+
+                    b.HasIndex(new[] { "ParkingLotId", "Level" }, "IX_Sanctions_ParkingLotId_Level_Active")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Sanctions_ParkingLotId_Level_Active")
+                        .HasFilter("\"Status\" = 'Active' AND \"ParkingLotId\" IS NOT NULL AND \"Level\" IN ('RankingPenalty', 'TemporarySuspension')");
 
                     b.ToTable("Sanctions", (string)null);
                 });
