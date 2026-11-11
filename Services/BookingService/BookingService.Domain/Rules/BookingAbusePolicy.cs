@@ -59,6 +59,6 @@ public static class BookingAbusePolicy
 
         return BookingAbuseDecision.Block(
             $"Tỷ lệ không đến (No-show) của bạn là {rate:P0} ({noShowBookings}/{finishedBookings} lượt), vượt ngưỡng cho phép {options.NoShowRateThreshold:P0}. " +
-            "Tài khoản tạm thời bị hạn chế đặt chỗ mới trong 24 giờ. Vui lòng liên hệ hỗ trợ nếu cần đặt chỗ gấp.");
+            $"Tài khoản tạm thời bị hạn chế đặt chỗ mới (tính trên {options.NoShowLookbackDays} ngày gần nhất). Vui lòng liên hệ hỗ trợ nếu cần đặt chỗ gấp.");
     }
 }

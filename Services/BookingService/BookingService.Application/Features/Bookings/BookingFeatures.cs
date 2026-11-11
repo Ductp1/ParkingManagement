@@ -93,7 +93,7 @@ public interface IBookingAbuseQueries
 {
     /// <summary>Số booking tài khoản tạo trong khoảng [since, now].</summary>
     Task<int> CountCreatedSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default);
-    /// <summary>Số lượt hủy (Cancelled / CancelledNoRefund / NoShow do staff) trong khoảng [since, now].</summary>
+    /// <summary>Số lượt khách tự hủy (Cancelled / CancelledNoRefund, CancelledByUserId = khách) trong khoảng [since, now].</summary>
     Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default);
     /// <summary>Thống kê No-show trên các booking đã kết thúc trong kỳ nhìn lại (US-103 AC2).</summary>
     Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default);

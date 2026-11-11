@@ -13,14 +13,14 @@ public sealed class BookingAbuseQueries(BookingDbContext db) : IBookingAbuseQuer
             .Where(b => b.UserId == userId && b.CreatedAtUtc >= sinceUtc)
             .CountAsync(cancellationToken);
 
-    // Đếm lượt "hủy": booking bị đưa vào một trạng thái kết thúc do hủy/no-show trong cửa sổ thời gian.
+    // Đếm lượt "hủy" do CHÍNH khách thực hiện trong cửa sổ thời gian (US-103 AC1).
+    // Không tính No-show (Staff/worker xử lý) và hủy do chủ bãi (CancelledByUserId khác khách).
     public Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
         => db.Bookings.AsNoTracking()
             .Where(b => b.UserId == userId
+                        && b.CancelledByUserId == userId
                         && b.CancelledAtUtc != null && b.CancelledAtUtc >= sinceUtc
-                        && (b.Status == BookingStatus.Cancelled
-                            || b.Status == BookingStatus.CancelledNoRefund
-                            || b.Status == BookingStatus.NoShow))
+                        && (b.Status == BookingStatus.Cancelled || b.Status == BookingStatus.CancelledNoRefund))
             .CountAsync(cancellationToken);
 
     public async Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
