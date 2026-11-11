@@ -15,6 +15,18 @@ public sealed class GateConsoleOptions
 
     /// <summary>US-046: fallback Billing Grace cho khách vãng lai (booking có snapshot riêng sẽ dùng giá trị của snapshot).</summary>
     public int BillingGracePeriodMinutes { get; init; } = 15;
+
+    /// <summary>US-039 (UC-24): quá mốc này (phút từ giờ bắt đầu) mà chưa check-in thì Staff được hủy No-show (NO_SHOW_CANCEL_AFTER_MINUTES).</summary>
+    public int NoShowGraceMinutes { get; init; } = 30;
+
+    /// <summary>US-077 (UC-24 E2): số lần hủy No-show trong ca đạt ngưỡng → gắn cờ ca trực (Flagged).</summary>
+    public int AbnormalNoShowCancelThreshold { get; init; } = 5;
+
+    /// <summary>US-077: số lần hủy No-show của 1 Staff trong cửa sổ thống kê đạt ngưỡng này → cảnh báo Critical cho Admin.</summary>
+    public int CriticalNoShowCancelThreshold { get; init; } = 10;
+
+    /// <summary>US-077: cửa sổ thời gian (giờ) đếm số lần hủy No-show của 1 Staff để so với ngưỡng cảnh báo.</summary>
+    public int StaffCancellationWindowHours { get; init; } = 24;
 }
 
 /// <summary>
@@ -32,7 +44,8 @@ public sealed record GateBookingSnapshot(
     string? SlotCode,
     decimal PrepaidAmount,
     int BillingGracePeriodMinutes,
-    decimal OverstayMultiplier);
+    decimal OverstayMultiplier,
+    int? SlotId = null);
 
 /// <summary>UC-20: 1 booking trong ca trực (đã lọc thông tin riêng tư – không SĐT/CCCD).</summary>
 public sealed record GateBookingListItem(

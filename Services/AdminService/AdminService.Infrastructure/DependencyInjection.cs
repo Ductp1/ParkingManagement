@@ -6,6 +6,7 @@ using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
+using AdminService.Application.Features.RiskFlags;
 using AdminService.Application.Features.Sanctions;
 using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
@@ -52,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogQueries, AuditLogQueries>();                             // US-100: tra cứu audit log
         services.AddScoped<ISystemConfigRepository, SystemConfigRepository>();
         services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();   // US-099
+        services.AddScoped<IRiskFlagStore, RiskFlagStore>();                 // US-077
         services.AddScoped<IOwnerPayoutAccountQueries, OwnerPayoutAccountQueries>();         // US-080: tài khoản nhận tiền quyết toán
         services.AddScoped<IDataSeeder<AdminDbContext>, AdminDataSeeder>();
 

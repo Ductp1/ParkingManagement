@@ -1,4 +1,5 @@
 using BookingService.Application.Features.Bookings;
+using BookingService.Domain.Rules;
 using BookingService.Application.Features.MonthlyPasses;
 using BookingService.Infrastructure.Integrations;
 using BookingService.Infrastructure.Persistence;
@@ -20,9 +21,23 @@ public static class DependencyInjection
     {
         services.AddServiceDbContext<BookingDbContext>(configuration);
         services.AddScoped<IBookingQueries, BookingQueries>();
+        services.AddScoped<INoShowCandidateQueries, BookingQueries>(); // US-039
         services.AddScoped<IBookingRepository, BookingRepository>();
         services.AddScoped<IDataSeeder<BookingDbContext>, BookingDataSeeder>();
         services.AddHostedService<HoldExpiryWorker>();
+        // US-040: worker tự động chốt phiên đỗ (Auto-Completed / No-show khi thiếu dữ liệu check-in/out).
+        services.AddHostedService<SessionCompletionWorker>();
+        services.AddSingleton(configuration.GetSection("SessionCompletion").Get<SessionCompletionOptions>() ?? SessionCompletionOptions.Default);
+        // US-103: ngưỡng chống lạm dụng đặt/hủy – bind từ "BookingAbuse", mọi ngưỡng cấu hình được.
+        services.AddSingleton(configuration.GetSection("BookingAbuse").Get<BookingAbuseOptions>() ?? BookingAbuseOptions.Default);
+        services.AddScoped<IBookingAbuseQueries, BookingAbuseQueries>();
+        // US-052: đẩy booking mới về PMS của bãi qua ParkingService ("Services:ParkingService:BaseUrl").
+        var parkingServiceUrl = configuration["Services:ParkingService:BaseUrl"];
+        services.AddHttpClient<ILotIntegrationClient, ParkingIntegrationClient>(client =>
+        {
+            client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(parkingServiceUrl) ? "http://localhost:5103" : parkingServiceUrl.TrimEnd('/')) + "/");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
 
         // T-302: Saga Booking ↔ Payment (RabbitMQ Inbox Event Handler)
         services.AddScoped<PaymentIntegrationEventHandler>();

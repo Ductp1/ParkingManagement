@@ -4,6 +4,7 @@ using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Application.Abstractions;
 using ParkingService.Application.Features.KybMisdeclaration;
+using ParkingService.Infrastructure.Integrations;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Infrastructure.Persistence.Queries;
 using ParkingService.Infrastructure.Persistence.Repositories;
@@ -21,6 +22,10 @@ public static class DependencyInjection
         services.AddScoped<IZoneRepository, ZoneRepository>();
         services.AddScoped<IFloorRepository, FloorRepository>();
         services.AddScoped<ISlotRepository, SlotRepository>();
+        services.AddScoped<ISlotStateRepository, SlotStateRepository>(); // US-039/US-049: trạng thái vận hành slot + SlotStateLogs
+        // US-052: kết nối PMS (xác thực API key, đẩy booking qua webhook ký HMAC).
+        services.AddScoped<ILotIntegrationRepository, LotIntegrationRepository>();
+        services.AddHttpClient<IPmsWebhookSender, PmsWebhookSender>(client => client.Timeout = TimeSpan.FromSeconds(5));
         services.AddScoped<ILayoutVersionRepository, LayoutVersionRepository>();
         services.AddScoped<ILotCapacityConfigRepository, LotCapacityConfigRepository>();
         services.AddScoped<IClosureScheduleRepository, ClosureScheduleRepository>(); // US-063

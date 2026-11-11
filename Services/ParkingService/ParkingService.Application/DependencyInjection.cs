@@ -3,6 +3,7 @@ using ParkingService.Application.Features.Capacity;
 using ParkingService.Application.Features.Closures;
 using ParkingService.Application.Features.OperatingHours;
 using ParkingService.Application.Features.Floors;
+using ParkingService.Application.Features.Integrations;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
 using ParkingService.Application.Features.KybMisdeclaration;
@@ -75,6 +76,11 @@ public static class DependencyInjection
         services.AddScoped<IUpdateSlotUseCase, UpdateSlotUseCase>();
         services.AddScoped<IDeleteSlotUseCase, DeleteSlotUseCase>();
         services.AddScoped<IGetSlotsByFloorUseCase, GetSlotsByFloorUseCase>();
+        services.AddScoped<IOverrideSlotStateUseCase, OverrideSlotStateUseCase>(); // US-039/US-049
+
+        // US-052: tích hợp PMS Mức 1
+        services.AddScoped<IVerifyPmsApiKeyUseCase, VerifyPmsApiKeyUseCase>();
+        services.AddScoped<IPushBookingToPmsUseCase, PushBookingToPmsUseCase>();
 
         // Layouts (T-502, US-059, US-060)
         services.AddScoped<IGetFloorLayoutUseCase, GetFloorLayoutUseCase>();
