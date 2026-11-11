@@ -310,15 +310,16 @@ public sealed class CreateBookingUseCase(
         if (string.IsNullOrWhiteSpace(command.PlateNumber)) throw new ValidationException("Biển số xe không được để trống.");
         if (command.EndAtUtc <= command.StartAtUtc) throw new ValidationException("Thời gian kết thúc phải sau thời gian bắt đầu.");
 
-        // US-103 (UC-10 E1b): chặn tài khoản đặt/hủy quá tần suất hoặc vượt ngưỡng No-show trước khi giữ chỗ.
-        await abuseGuard.EnsureCanCreateBookingAsync(command.UserId, cancellationToken);
-
         var now = timeProvider.GetUtcNow().UtcDateTime;
         if (command.StartAtUtc < now.AddMinutes(15))
             throw new ValidationException("Thời gian đặt chỗ phải trước giờ bắt đầu ít nhất 15 phút.");
 
         if (command.StartAtUtc > now.AddDays(30))
             throw new ValidationException("Chỉ được đặt chỗ trước tối đa 30 ngày.");
+
+        // US-103 (UC-10 E1b): chặn tài khoản đặt/hủy quá tần suất hoặc vượt ngưỡng No-show trước khi giữ chỗ.
+        // Chạy SAU khi kiểm tra dữ liệu đầu vào: yêu cầu sai luôn trả 400, chỉ yêu cầu hợp lệ mới bị đánh giá lạm dụng (409).
+        await abuseGuard.EnsureCanCreateBookingAsync(command.UserId, cancellationToken);
 
         var code = $"BK-{now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
         var qrToken = qrService.GenerateToken(code, command.PlateNumber, command.ParkingLotId, command.EndAtUtc.AddHours(2));
@@ -411,12 +412,12 @@ public sealed class CancelBookingUseCase(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        // US-103 (AC1): chặn tài khoản hủy/đặt quá tần suất trong cửa sổ thời gian.
-        await abuseGuard.EnsureCanCancelBookingAsync(command.UserId, cancellationToken);
-
         var decision = CancellationPolicy.Evaluate(booking.Status, booking.StartAtUtc, now);
         if (!decision.CanCancel)
             throw new ValidationException(decision.Reason);
+
+        // US-103 (AC1): chặn tài khoản hủy/đặt quá tần suất – chỉ đánh giá khi yêu cầu hủy đã hợp lệ theo chính sách.
+        await abuseGuard.EnsureCanCancelBookingAsync(command.UserId, cancellationToken);
 
         // Gọi phương thức State Machine của Entity
         booking.CancelByCustomer(decision.ResultStatus, now, command.UserId, command.Reason ?? decision.Reason);
