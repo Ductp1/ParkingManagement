@@ -16,6 +16,15 @@ export interface FeatureFlagDto {
   key: string;
   isEnabled: boolean;
   description: string | null;
+  /** null khi flag chưa từng đổi từ giá trị seed. */
+  updatedByUserId?: number | null;
+  updatedAtUtc?: string | null;
+}
+
+/** PUT /api/v1/admin/settings/feature-flags/{key} (US-099). */
+export interface UpdateFeatureFlagRequest {
+  isEnabled: boolean;
+  reason: string;
 }
 
 /** GET /api/v1/admin/settings?at= */

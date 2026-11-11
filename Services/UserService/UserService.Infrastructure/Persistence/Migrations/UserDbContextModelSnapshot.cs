@@ -229,6 +229,10 @@ namespace UserService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ExitEffectiveAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ExitReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTime?>("ExitRequestedAtUtc")
                         .HasColumnType("timestamp with time zone");
 

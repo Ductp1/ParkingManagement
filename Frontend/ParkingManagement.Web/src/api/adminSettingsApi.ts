@@ -2,9 +2,11 @@ import { adminRequest, cleanParams } from './adminClientApi';
 import type { PagedResult } from '@/types/adminCommon';
 import type {
   CancelSystemConfigChangeRequest,
+  FeatureFlagDto,
   PlatformSettingsDto,
   SystemConfigChangeDto,
   SystemConfigDetailDto,
+  UpdateFeatureFlagRequest,
   UpdateSystemConfigRequest,
 } from '@/types/adminSettings';
 
@@ -40,6 +42,12 @@ export const adminSettingsApi = {
    */
   update: (key: string, data: UpdateSystemConfigRequest) =>
     adminRequest<SystemConfigChangeDto>({ method: 'PUT', url: `/api/v1/admin/settings/${encodeURIComponent(key)}`, data }),
+
+  /**
+   * Bật/tắt feature flag, hiệu lực ngay, ghi audit log (US-099).
+   */
+  updateFeatureFlag: (key: string, data: UpdateFeatureFlagRequest) =>
+    adminRequest<FeatureFlagDto>({ method: 'PUT', url: `/api/v1/admin/settings/feature-flags/${encodeURIComponent(key)}`, data }),
 
   /**
    * Hủy thay đổi chưa tới ngày hiệu lực (US-098).

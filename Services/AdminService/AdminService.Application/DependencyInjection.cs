@@ -1,5 +1,6 @@
 using AdminService.Application.Features;
 using AdminService.Application.Features.AuditLogs;
+using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
@@ -19,6 +20,9 @@ public static class DependencyInjection
         services.AddScoped<IGetPlatformSettingsUseCase, GetPlatformSettingsUseCase>();
         // US-081: Admin Dashboard – tổng quan toàn sàn
         services.AddScoped<IGetDashboardOverviewUseCase, GetDashboardOverviewUseCase>();
+        // US-079: tỷ lệ hoa hồng – giải cho PaymentService (nội bộ) + danh sách cho Admin portal
+        services.AddScoped<IResolveCommissionRatesUseCase, ResolveCommissionRatesUseCase>();
+        services.AddScoped<IListCommissionRatesUseCase, ListCommissionRatesUseCase>();
         // US-098: đọc tham số theo khóa (giá trị hiệu lực theo thời điểm)
         services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
         // US-098: đổi giá trị tham số có Effective Date
@@ -26,6 +30,8 @@ public static class DependencyInjection
         // US-098: lịch sử thay đổi + hủy thay đổi chưa hiệu lực
         services.AddScoped<IGetSystemConfigHistoryUseCase, GetSystemConfigHistoryUseCase>();
         services.AddScoped<ICancelSystemConfigChangeUseCase, CancelSystemConfigChangeUseCase>();
+        services.AddScoped<IUpdateFeatureFlagUseCase, UpdateFeatureFlagUseCase>();          // US-099
+        services.AddScoped<IGetFeatureFlagStatesUseCase, GetFeatureFlagStatesUseCase>();    // US-099
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
@@ -86,6 +92,10 @@ public static class DependencyInjection
         services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
         services.AddScoped<IGetAuditLogFilterOptionsUseCase, GetAuditLogFilterOptionsUseCase>();
         services.AddScoped<IExportAuditLogsUseCase, ExportAuditLogsUseCase>();
+        // US-080: quyết toán định kỳ – chu kỳ quyết toán cho PaymentService (nội bộ) + tài khoản nhận tiền của chủ bãi
+        services.AddScoped<IResolveInternalSystemConfigUseCase, ResolveInternalSystemConfigUseCase>();
+        services.AddScoped<IGetOwnerPayoutAccountUseCase, GetOwnerPayoutAccountUseCase>();
+        services.AddScoped<IListOwnerPayoutAccountsUseCase, ListOwnerPayoutAccountsUseCase>();
         return services;
     }
 }
