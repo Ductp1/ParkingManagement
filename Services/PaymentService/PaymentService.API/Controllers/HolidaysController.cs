@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PaymentService.Application.Features.Holidays;
 
@@ -5,6 +6,7 @@ namespace PaymentService.API.Controllers;
 
 /// <summary>
 /// Controller quản lý danh mục ngày nghỉ lễ phục vụ tính hệ số phụ thu giá đỗ xe (US-071).
+/// Đọc danh sách: công khai. Thêm / xóa: chỉ Admin (ảnh hưởng phụ thu giá toàn sàn).
 /// </summary>
 [ApiController]
 [Route("api/v1/holidays")]
@@ -44,10 +46,15 @@ public sealed class HolidaysController(
     /// Mã HTTP trả về:
     /// - 201 Created: Thêm ngày lễ thành công.
     /// - 400 BadRequest: Dữ liệu gửi lên không hợp lệ hoặc ngày lễ đã tồn tại.
+    /// - 401 Unauthorized: Thiếu hoặc sai token.
+    /// - 403 Forbidden: Token không có role Admin.
     /// </returns>
     [HttpPost]
+    [Authorize(Policy = "RequireAdmin")]
     [ProducesResponseType<HolidayDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<HolidayDto>> Create(
         [FromBody] CreateHolidayCommand command,
         CancellationToken cancellationToken)
@@ -66,11 +73,16 @@ public sealed class HolidaysController(
     /// Mã HTTP trả về:
     /// - 204 NoContent: Xóa thành công.
     /// - 400 BadRequest: ID không hợp lệ.
+    /// - 401 Unauthorized: Thiếu hoặc sai token.
+    /// - 403 Forbidden: Token không có role Admin.
     /// - 404 NotFound: Không tìm thấy ngày lễ tương ứng.
     /// </returns>
     [HttpDelete("{id:int}")]
+    [Authorize(Policy = "RequireAdmin")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(
         [FromRoute] int id,
