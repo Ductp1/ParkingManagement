@@ -84,17 +84,6 @@ const createPromotion: FormDialogSpec = {
   ],
 };
 
-const addHoliday: FormDialogSpec = {
-  title: 'Add holiday',
-  description: 'Holidays (Date, Name, City). One row per date and city.',
-  confirmLabel: 'Add holiday',
-  fields: [
-    { key: 'date', kind: 'date', label: 'Date', required: true },
-    { key: 'name', kind: 'text', label: 'Name', required: true, maxLength: 200 },
-    { key: 'city', kind: 'select', label: 'City', options: [], helper: 'Empty = nationwide' },
-  ],
-};
-
 export const exportReportDialog: FormDialogSpec = {
   title: 'Export report',
   description: 'Generates a CSV of the current report and filters.',
@@ -291,15 +280,6 @@ export const UNAVAILABLE_SCREENS = {
     service: 'PaymentService',
     missingEndpoint: 'GET/POST /api/v1/promotions',
     actions: [{ label: 'Create promotion', dialog: createPromotion }],
-  },
-  holidays: {
-    title: 'Holidays',
-    subtitle: '—',
-    banner: { tone: 'info', text: 'Holidays (PaymentService) drive RateCards.HolidayMultiplier. City empty = nationwide.' },
-    columns: ['Date', 'Name', 'City', ''],
-    service: 'PaymentService',
-    missingEndpoint: 'GET/POST/DELETE /api/v1/holidays',
-    actions: [{ label: 'Add holiday', dialog: addHoliday }],
   },
   dataRequests: {
     title: 'Security & Privacy',

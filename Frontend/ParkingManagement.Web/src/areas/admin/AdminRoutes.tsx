@@ -34,6 +34,7 @@ import { RolesPermissionsPage } from './pages/access/RolesPermissionsPage';
 import { AuditLogListPage } from './pages/access/AuditLogListPage';
 import { AuditLogDetailPage } from './pages/access/AuditLogDetailPage';
 import { DataRequestsPage } from './pages/access/DataRequestsPage';
+import { HolidaysPage } from './pages/access/HolidaysPage';
 import { IdentityReviewPage } from './pages/operations/identity/IdentityReviewPage';
 import { SanctionsListPage } from './pages/support/sanctions/SanctionsListPage';
 
@@ -136,7 +137,7 @@ export const AdminRoutes: React.FC = () => {
         <Route path="access/system-settings/:key" element={<SystemSettingDetailPage />} />
         <Route path="access/feature-flags" element={<FeatureFlagsPage />} />
         <Route path="access/roles-permissions" element={<RolesPermissionsPage />} />
-        <Route path="access/holidays" element={unavailable('holidays')} />
+        <Route path="access/holidays" element={<HolidaysPage />} />
         <Route path="access/audit-log" element={<AuditLogListPage />} />
         <Route path="access/audit-log/:id" element={<AuditLogDetailPage />} />
         {/* US-007: yêu cầu xem/xuất/sửa/xóa dữ liệu cá nhân (UserService). */}
