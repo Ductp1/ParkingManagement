@@ -22,4 +22,6 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     public DbSet<CompensationVoucher> CompensationVouchers => Set<CompensationVoucher>();
     public DbSet<CommissionEntry> CommissionEntries => Set<CommissionEntry>();   // US-079: sổ hoa hồng nền tảng
     public DbSet<SettlementPeriod> SettlementPeriods => Set<SettlementPeriod>(); // US-080: lịch kỳ quyết toán
+    public DbSet<RateCardAuditLog> RateCardAuditLogs => Set<RateCardAuditLog>(); // US-072: kiểm soát thay đổi giá & audit log
+
 }

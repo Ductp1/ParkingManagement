@@ -1,17 +1,20 @@
 using Microsoft.AspNetCore.Mvc;
 using PaymentService.Application.Features.RateCards;
+using PaymentService.Application.Interfaces;
+using PaymentService.Domain.Entities;
 
 namespace PaymentService.API.Controllers;
 
 /// <summary>
-/// Controller quản lý cấu hình biểu giá đỗ xe, phụ thu lễ, cuối tuần, qua đêm và phạt quá giờ (US-070, US-071).
+/// Controller quản lý cấu hình biểu giá đỗ xe, phụ thu lễ, cuối tuần, qua đêm và kiểm soát thay đổi giá (US-070, US-071, US-072).
 /// </summary>
 [ApiController]
 [Route("api/v1/rate-cards")]
 public sealed class RateCardsController(
     ICreateRateCardUseCase createUseCase,
     IGetRateCardsByLotUseCase getUseCase,
-    IUpdateRateCardUseCase updateUseCase) : ControllerBase
+    IUpdateRateCardUseCase updateUseCase,
+    IRateCardAuditLogRepository auditRepo) : ControllerBase
 {
     /// <summary>
     /// POST /api/v1/rate-cards – Thiết lập và tạo mới bảng giá lũy tiến kèm các mức phụ thu (US-070, US-071).
@@ -109,6 +112,33 @@ public sealed class RateCardsController(
 
         var result = await updateUseCase.ExecuteAsync(command, cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// GET /api/v1/rate-cards/audit-logs – Tra cứu lịch sử kiểm toán thay đổi bảng giá của một bãi xe (US-072).
+    /// </summary>
+    /// <param name="parkingLotId">{int} - FE truyền qua Query - Mã định danh của bãi đỗ xe.</param>
+    /// <param name="cancellationToken">{CancellationToken} - Hệ thống tự động truyền - Token hủy tác vụ bất đồng bộ.</param>
+    /// <returns>
+    /// Danh sách các bản ghi RateCardAuditLog ghi vết lịch sử thay đổi biểu giá.
+    /// Mã HTTP trả về:
+    /// - 200 OK: Lấy danh sách thành công.
+    /// - 400 BadRequest: ParkingLotId không hợp lệ (nhỏ hơn hoặc bằng 0).
+    /// </returns>
+    [HttpGet("audit-logs")]
+    [ProducesResponseType<IReadOnlyList<RateCardAuditLog>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<RateCardAuditLog>>> GetAuditLogs(
+        [FromQuery] int parkingLotId,
+        CancellationToken cancellationToken)
+    {
+        if (parkingLotId <= 0)
+        {
+            return BadRequest(new { message = "ParkingLotId phải là số nguyên dương." });
+        }
+
+        var logs = await auditRepo.GetByParkingLotIdAsync(parkingLotId, cancellationToken);
+        return Ok(logs);
     }
 }
 
