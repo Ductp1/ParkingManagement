@@ -28,6 +28,7 @@ import { PayoutsPage } from './pages/finance/settlements/PayoutsPage';
 import { SettlementsPage } from './pages/finance/settlements/SettlementsPage';
 import { ExportsPage, ReportPage } from './pages/reports/ReportPages';
 import { REPORTS } from './pages/reports/reportSpecs';
+import { RevenueReportPage } from './pages/reports/RevenueReportPage';
 import { SystemSettingsListPage } from './pages/access/SystemSettingsListPage';
 import { SystemSettingDetailPage } from './pages/access/SystemSettingDetailPage';
 import { FeatureFlagsPage } from './pages/access/FeatureFlagsPage';
@@ -127,7 +128,7 @@ export const AdminRoutes: React.FC = () => {
         <Route path="communications/promotions" element={unavailable('promotions')} />
 
         {/* Reports */}
-        <Route path="reports/revenue" element={<ReportPage key="revenue" spec={REPORTS.revenue} />} />
+        <Route path="reports/revenue" element={<RevenueReportPage />} />
         <Route path="reports/occupancy" element={<ReportPage key="occupancy" spec={REPORTS.occupancy} />} />
         <Route path="reports/bookings" element={<ReportPage key="bookings" spec={REPORTS.bookings} />} />
         <Route path="reports/owner-performance" element={<ReportPage key="owner" spec={REPORTS.ownerPerformance} />} />

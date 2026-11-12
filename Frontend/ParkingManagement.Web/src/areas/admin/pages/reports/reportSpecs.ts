@@ -8,18 +8,6 @@ export interface ReportSpec {
 
 /** Spec từ Figma "Reports / … / Report – Default": nguồn dữ liệu, tên KPI, panel biểu đồ (không chép số liệu). */
 export const REPORTS: Record<string, ReportSpec> = {
-  revenue: {
-    title: 'Revenue',
-    // US-079: "Platform commission" đã có nguồn thật – sổ CommissionEntries (Finance › Commission), không còn chờ Settlements.
-    source:
-      'Derived · Payments (Status = Succeeded) grouped by PaidAtUtc, Method; Refunds; Platform commission = CommissionEntries (US-079 · GET /api/v1/payments/admin/commission-summary)',
-    kpis: ['Gross revenue', 'Platform commission', 'Refunds', 'Succeeded payments'],
-    panels: [
-      { title: 'Gross revenue by day', description: 'Payments.Amount where Status = Succeeded, by PaidAtUtc (ICT)' },
-      { title: 'Revenue by payment method', description: 'Payments.Method' },
-    ],
-    service: 'PaymentService',
-  },
   occupancy: {
     title: 'Occupancy',
     source: 'Derived · ParkingLots.AvailableSlots/TotalSlots snapshots, SlotStateLogs, ParkingSessions (EntryAtUtc / ExitAtUtc)',
