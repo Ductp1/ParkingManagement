@@ -21,6 +21,19 @@ export interface ParkingLotDto {
   photos?: string[];
 }
 
+/**
+ * US-068: độ tươi dữ liệu của bãi xe (heartbeat & stale).
+ * Status: "NeverReported" | "Fresh" | "Stale".
+ */
+export interface LotOperationalStatusDto {
+  parkingLotId: number;
+  lotName: string;
+  status: 'NeverReported' | 'Fresh' | 'Stale' | string;
+  isDataStale: boolean;
+  lastHeartbeatAtUtc: string | null;
+  staleAfterMinutes: number;
+}
+
 export interface ParkingLotSearchItemDto {
   id: number;
   name: string;

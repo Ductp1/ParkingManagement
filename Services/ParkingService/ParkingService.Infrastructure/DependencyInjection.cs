@@ -1,14 +1,17 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Application.Abstractions;
 using ParkingService.Application.Features.KybMisdeclaration;
+using ParkingService.Application.Features.LotHeartbeat;
 using ParkingService.Infrastructure.Integrations;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Infrastructure.Persistence.Queries;
 using ParkingService.Infrastructure.Persistence.Repositories;
 using ParkingService.Infrastructure.Persistence.Seeding;
+using ParkingService.Infrastructure.Workers;
 
 namespace ParkingService.Infrastructure;
 
@@ -44,6 +47,17 @@ public static class DependencyInjection
         services.AddSingleton(new KybMisdeclarationSettings(
             configuration.GetValue<int?>($"{KybMisdeclarationSettings.SectionName}:MinorCorrectionDays")
             ?? KybMisdeclarationSettings.DefaultMinorCorrectionDays));
+        // US-068: ngưỡng stale ("LotHeartbeat:StaleAfterMinutes", 1–120, mặc định 3) + chu kỳ quét worker ("PollSeconds", 5–3600, mặc định 30).
+        services.AddSingleton(new LotHeartbeatSettings(
+            configuration.GetValue<int?>($"{LotHeartbeatSettings.SectionName}:StaleAfterMinutes")
+                ?? LotHeartbeatSettings.DefaultStaleAfterMinutes,
+            configuration.GetValue<int?>($"{LotHeartbeatSettings.SectionName}:PollSeconds")
+                ?? LotHeartbeatSettings.DefaultPollSeconds));
+        services.AddScoped<ILotStalenessRepository, LotStalenessRepository>();
+        // US-068: worker quét bãi Active quá hạn heartbeat → IsDataStale + event LotDataMarkedStale (outbox).
+        services.AddHostedService<StalenessMonitorWorker>();
+        // US-068: đăng ký producer RabbitMQ cho OutboxMessages (Enabled=false → DisabledPublisher, không kết nối broker).
+        services.AddRabbitMqEventBus(configuration);
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
         return services;
     }

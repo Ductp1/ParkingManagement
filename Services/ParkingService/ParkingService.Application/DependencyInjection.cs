@@ -6,6 +6,7 @@ using ParkingService.Application.Features.Floors;
 using ParkingService.Application.Features.Integrations;
 using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
+using ParkingService.Application.Features.LotHeartbeat;
 using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
 using ParkingService.Application.Features.ParkingLots;
@@ -140,6 +141,10 @@ public static class DependencyInjection
         // Owner Platform Exit (US-057, EP08)
         services.AddScoped<IGetOwnerExitImpactUseCase, GetOwnerExitImpactUseCase>();
         services.AddScoped<ISuspendOwnerLotsUseCase, SuspendOwnerLotsUseCase>();
+
+        // Heartbeat & Stale Data (US-068) – settings singleton đăng ký ở Infrastructure DI (cần IConfiguration)
+        services.AddScoped<IRecordLotHeartbeatUseCase, RecordLotHeartbeatUseCase>();
+        services.AddScoped<IGetLotFreshnessUseCase, GetLotFreshnessUseCase>();
 
         return services;
     }

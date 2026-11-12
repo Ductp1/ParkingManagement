@@ -24,6 +24,10 @@ public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNu
 public sealed record ParkingLotApproved(int ParkingLotId, int OwnerProfileId, string Name) : IntegrationEvent;
 public sealed record SlotStateChanged(int ParkingLotId, int SlotId, string SlotCode, string OldState, string NewState) : IntegrationEvent;
 public sealed record LayoutPublished(int ParkingLotId, int FloorId, int VersionNo) : IntegrationEvent;
+/// <summary>US-068: StalenessMonitorWorker đánh dấu bãi Active quá hạn heartbeat → dữ liệu số chỗ có thể không chính xác (báo chủ bãi).</summary>
+public sealed record LotDataMarkedStale(int ParkingLotId, int OwnerProfileId, DateTime? LastHeartbeatAtUtc) : IntegrationEvent;
+/// <summary>US-068: heartbeat tiếp tục nhận được sau khoảng stale → bãi tự phục hồi, dữ liệu đáng tin lại.</summary>
+public sealed record LotDataRecovered(int ParkingLotId, int OwnerProfileId, DateTime LastHeartbeatAtUtc) : IntegrationEvent;
 
 // ===== BookingService =====
 public sealed record BookingCreated(int BookingId, string Code, int UserId, int ParkingLotId, int? SlotId, decimal TotalAmount, DateTime HoldExpiresAtUtc) : IntegrationEvent;

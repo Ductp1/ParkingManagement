@@ -44,7 +44,7 @@ public sealed record ParkingLotSearchItemDto(
     int RatingCount = 0,
     IReadOnlyList<string>? Amenities = null);
 
-/// <summary>DTO bãi đỗ xe hiển thị trên danh sách của chủ bãi (Owner Portal).</summary>
+/// <summary>DTO bãi đỗ xe hiển thị trên danh sách của chủ bãi (Owner Portal) – US-068 thêm độ tươi dữ liệu.</summary>
 public sealed record OwnerParkingLotItemDto(
     int Id,
     string Name,
@@ -56,7 +56,9 @@ public sealed record OwnerParkingLotItemDto(
     int MaxHeightCm,
     string Status,
     string OpeningHours,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    DateTime? LastHeartbeatAtUtc = null,
+    bool IsDataStale = false);
 
 /// <summary>Lệnh đăng ký bãi đỗ xe mới (US-053).</summary>
 public sealed record CreateParkingLotCommand(
@@ -171,7 +173,9 @@ public static class ParkingLotMapper
         lot.MaxHeightCm,
         lot.Status.ToString(),
         lot.OpenTime == lot.CloseTime ? "24/7" : $"{lot.OpenTime:HH\\:mm} - {lot.CloseTime:HH\\:mm}",
-        lot.CreatedAtUtc);
+        lot.CreatedAtUtc,
+        lot.LastHeartbeatAtUtc,
+        lot.IsDataStale);
 
     public static ParkingLotHierarchyDto ToHierarchyDto(this ParkingLot lot) => new(
         lot.Id,

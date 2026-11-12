@@ -789,8 +789,14 @@ namespace ParkingService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<bool>("IsDataStale")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastHeartbeatAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");

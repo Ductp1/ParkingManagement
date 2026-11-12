@@ -81,6 +81,10 @@ export interface OwnerParkingLotItemDto {
   status: ParkingLotStatus | string;
   openingHours: string;
   createdAtUtc: string;
+  /** US-068: thời điểm thiết bị/controller gửi heartbeat gần nhất (null = chưa từng báo). */
+  lastHeartbeatAtUtc?: string | null;
+  /** US-068: quá hạn heartbeat → dữ liệu số chỗ trống có thể không chính xác. */
+  isDataStale?: boolean;
 }
 
 /**
