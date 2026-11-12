@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
-import { logoutSession } from '@/api/authApi';
-import { logout, switchRole } from '@/store/slices/authSlice';
+import { avatarSource, logoutSession } from '@/api/authApi';
+import { logout } from '@/store/slices/authSlice';
 import { fetchNotificationInbox, markNotificationAsRead } from '@/store/slices/notificationSlice';
 import { notificationTargetRoute } from '@/utils/notificationBooking';
 import type { NotificationDto } from '@/types/notification';
 import type { UserRole } from '@/types/auth';
+import './navbar.css';
 
 /** Icon + màu theo loại thông báo (templateKey do NotificationService sinh ra). */
 const NOTIFICATION_ICONS: Record<string, { icon: string; color: string }> = {
@@ -34,10 +35,8 @@ interface RolePortalItem {
   id: UserRole;
   label: string;
   subtitle: string;
-  badge: string;
   path: string;
   icon: string;
-  activeTabClass: string;
   badgeClass: string;
   subActiveClass: string;
 }
@@ -47,10 +46,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Driver',
     label: 'Tài xế',
     subtitle: 'Cổng Dịch Vụ Khách Hàng',
-    badge: 'Tài xế',
-    path: '/driver',
+    path: '/driver/find-lot',
     icon: 'directions_car',
-    activeTabClass: 'bg-blue-600 text-white shadow-xs',
     badgeClass: 'bg-blue-100 text-blue-700',
     subActiveClass: 'bg-blue-50 text-blue-700 font-bold',
   },
@@ -58,21 +55,17 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Owner',
     label: 'Chủ bãi',
     subtitle: 'Cổng Đối Tác Chủ Bãi',
-    badge: 'Chủ bãi',
     path: '/owner',
     icon: 'domain',
-    activeTabClass: 'bg-indigo-600 text-white shadow-xs',
-    badgeClass: 'bg-indigo-100 text-indigo-700',
-    subActiveClass: 'bg-indigo-50 text-indigo-700 font-bold',
+    badgeClass: 'bg-blue-100 text-blue-700',
+    subActiveClass: 'bg-blue-50 text-blue-700 font-bold',
   },
   {
     id: 'Staff',
     label: 'Trực cổng',
     subtitle: 'Trạm Soát Vé Barie (Gate Console)',
-    badge: 'Nhân viên cổng',
     path: '/gate',
     icon: 'fence',
-    activeTabClass: 'bg-amber-600 text-white shadow-xs',
     badgeClass: 'bg-amber-100 text-amber-800',
     subActiveClass: 'bg-amber-50 text-amber-800 font-bold',
   },
@@ -80,10 +73,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     id: 'Admin',
     label: 'Quản trị',
     subtitle: 'Hệ Thống Quản Trị Trung Tâm',
-    badge: 'Quản trị viên',
     path: '/admin',
     icon: 'admin_panel_settings',
-    activeTabClass: 'bg-purple-600 text-white shadow-xs',
     badgeClass: 'bg-purple-100 text-purple-700',
     subActiveClass: 'bg-purple-50 text-purple-700 font-bold',
   },
@@ -93,25 +84,61 @@ interface SubNavItem {
   label: string;
   path: string;
   icon: string;
+  description?: string;
+  children?: SubNavItem[];
 }
 
 const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
+  // Flow Tài xế tinh gọn: 4 tính năng cốt lõi
   Driver: [
-    { label: 'Trang chủ', path: '/driver', icon: 'home' },
-    { label: 'Bãi đỗ & Sơ đồ', path: '/driver/parking-lots', icon: 'local_parking' },
+    { label: 'Tìm bãi đỗ xe', path: '/driver/find-lot', icon: 'near_me' },
     { label: 'Xe của tôi', path: '/driver/vehicles', icon: 'directions_car' },
     { label: 'Lịch sử đặt', path: '/driver/history', icon: 'receipt_long' },
     { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
   ],
+
   Owner: [
-    { label: 'Tổng quan & Doanh thu', path: '/owner', icon: 'analytics' },
-    { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
-    { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
-    { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
-    { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
+    { label: 'Tổng quan', path: '/owner', icon: 'analytics' },
+    { label: 'Bãi đỗ & Sơ đồ', path: '/owner/lots', icon: 'view_quilt' },
+    { label: 'Đặt chỗ & Duyệt', path: '/owner/bookings', icon: 'event_available' },
+    { label: 'Doanh thu & Đối soát', path: '/owner/revenue', icon: 'account_balance_wallet' },
+    { label: 'Bảng giá', path: '/owner/pricing', icon: 'payments' },
+    {
+      label: 'Tiện ích & Cấu hình',
+      path: '/owner/more',
+      icon: 'tune',
+      children: [
+        {
+          label: 'Nhân viên trực cổng',
+          path: '/owner/staff',
+          icon: 'badge',
+          description: 'Cấp tài khoản & phân quyền ca trực',
+        },
+        {
+          label: 'Khiếu nại & Đánh giá',
+          path: '/owner/feedback',
+          icon: 'rate_review',
+          description: 'Giải quyết khiếu nại & bồi thường',
+        },
+        {
+          label: 'Hồ sơ pháp lý KYB',
+          path: '/owner/kyb',
+          icon: 'verified',
+          description: 'Quản lý hồ sơ pháp lý chủ bãi',
+        },
+        {
+          label: 'Tích hợp PMS / API',
+          path: '/owner/integrations',
+          icon: 'integration_instructions',
+          description: 'Khóa API & cấu hình Webhook',
+        },
+      ],
+    },
   ],
+
   // Gate Console gói gọn trong 1 trang duy nhất (/gate) – không cần thanh menu con.
   Staff: [],
+
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
     { label: 'Quản lý tài khoản', path: '/admin/users', icon: 'manage_accounts' },
@@ -123,10 +150,10 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
 };
 
 const ROLE_BADGE_META: Record<UserRole, { label: string; color: string }> = {
-  Driver: { label: '• TÀI XẾ VIP', color: 'text-emerald-600' },
-  Owner: { label: '• CHỦ BÃI ĐỐI TÁC', color: 'text-indigo-600' },
-  Staff: { label: '• NHÂN VIÊN TRỰC CỔNG', color: 'text-amber-600' },
-  Admin: { label: '• QUẢN TRỊ VIÊN HỆ THỐNG', color: 'text-purple-600' },
+  Driver: { label: 'Tài xế', color: 'text-blue-600' },
+  Owner: { label: 'Chủ bãi', color: 'text-blue-600' },
+  Staff: { label: 'Nhân viên cổng', color: 'text-amber-600' },
+  Admin: { label: 'Quản trị viên', color: 'text-purple-600' },
 };
 
 export const MainNavbar: React.FC = () => {
@@ -138,8 +165,26 @@ export const MainNavbar: React.FC = () => {
   const [logoutError, setLogoutError] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
-  // Xác định phân hệ đang active từ URL hiện tại
+  // Đóng dropdown Tiện ích khi click ra ngoài hoặc đổi route
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [location.pathname]);
+
+  // Xác định phân hệ đang active từ URL
   const getActiveRole = (pathname: string): UserRole => {
     if (pathname.startsWith('/admin')) return 'Admin';
     if (pathname.startsWith('/owner')) return 'Owner';
@@ -151,13 +196,12 @@ export const MainNavbar: React.FC = () => {
   const activePortal = ROLE_PORTALS.find((p) => p.id === activeRole) || ROLE_PORTALS[0];
   const currentSubNavs = PORTAL_SUB_NAVS[activeRole] || PORTAL_SUB_NAVS.Driver;
 
-  // Xác định các phân hệ mà tài khoản hiện tại được cấp quyền truy cập
-  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : []);
+  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : ['Driver', 'Owner']);
   const authorizedPortals = ROLE_PORTALS.filter(
-    (portal) => userRoles.includes('Admin') || userRoles.includes(portal.id)
+    (portal) => !user || userRoles.includes('Admin') || userRoles.includes(portal.id)
   );
 
-  // ===== Hộp thông báo (NotificationService – TV6) =====
+  // ===== Hộp thông báo (NotificationService) =====
   const { items: notifications, unreadCount, isLoading: isNotificationLoading } = useAppSelector(
     (state) => state.notification
   );
@@ -189,65 +233,160 @@ export const MainNavbar: React.FC = () => {
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-xs">
-      {/* ===== TẦNG 1: BRAND LOGO + TRUY CẬP NHANH CÁC ROLE QUA URL + USER PROFILE ===== */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-        {/* Brand Logo & Tiêu đề phân hệ theo vai trò */}
-        <div className="flex items-center gap-4 shrink-0">
-          <NavLink to={activePortal.path} className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow-xs group-hover:scale-105 transition-transform">
+    <header className="pm-navbar bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-2xs">
+      {/* ===== BRAND LOGO + TRUY CẬP NHANH CÁC ROLE QUA URL + USER DROPDOWN ===== */}
+      <div className="pm-navbar-shell pm-navbar-top flex items-center justify-between">
+        {/* Brand Logo & Desktop Portal Switcher */}
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <NavLink to={activePortal.path} className="pm-navbar-brand flex items-center gap-2.5 group">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg font-black shadow-xs group-hover:scale-105 transition-transform">
               P
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-slate-900 text-lg leading-tight tracking-tight group-hover:text-blue-600 transition-colors">
+              <span className="font-extrabold text-slate-900 text-base sm:text-lg leading-tight tracking-tight group-hover:text-blue-600 transition-colors">
                 ParkMaster
               </span>
-              <span className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
+              <span className="hidden sm:inline text-[10px] text-slate-400 font-semibold tracking-wider uppercase">
                 {activePortal.subtitle}
               </span>
             </div>
           </NavLink>
+
+          {/* Desktop Portal Switcher: Chuyển nhanh giữa Tài xế & Chủ bãi (chỉ hiển thị icon) */}
+          {authorizedPortals.length > 1 && (
+            <div className="hidden lg:flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80 shadow-2xs ml-2">
+              {authorizedPortals.map((portal) => {
+                const isCurrent = portal.id === activeRole;
+                return (
+                  <NavLink
+                    key={portal.id}
+                    to={portal.path}
+                    title={portal.label}
+                    aria-label={portal.label}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                      isCurrent
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{portal.icon}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* CHUYỂN PHÂN HỆ: Chỉ hiển thị các phân hệ mà tài khoản có quyền truy cập */}
-        {authorizedPortals.length > 1 && (
-          <nav className="hidden lg:flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 gap-1">
-            <span className="text-[10px] text-slate-400 font-bold uppercase px-2">Phân hệ:</span>
-            {authorizedPortals.map((portal) => {
-              const isActive = portal.id === activeRole;
+        {/* Menu Điều hướng Desktop: Gọn gàng, chuẩn responsive */}
+        <div className="pm-navbar-desktop-menu">
+          <nav aria-label={`Chức năng ${activePortal.label}`} className="pm-navbar-menu">
+            {currentSubNavs.map((sub) => {
+              if (sub.children && sub.children.length > 0) {
+                const isDropdownActive = sub.children.some(
+                  (child) =>
+                    location.pathname === child.path ||
+                    (child.path !== activePortal.path && location.pathname.startsWith(child.path))
+                );
+
+                return (
+                  <div key={sub.label} className="relative" ref={moreMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsMoreMenuOpen((prev) => !prev)}
+                      className={`pm-navbar-menu-link flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
+                        isDropdownActive || isMoreMenuOpen
+                          ? activePortal.subActiveClass
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[17px]">{sub.icon}</span>
+                      <span>{sub.label}</span>
+                      <span
+                        className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
+                          isMoreMenuOpen ? 'rotate-180' : ''
+                        }`}
+                      >
+                        keyboard_arrow_down
+                      </span>
+                    </button>
+
+                    {isMoreMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-1.5 z-50 animate-fade-in flex flex-col gap-1">
+                        {sub.children.map((child) => {
+                          const isChildActive =
+                            location.pathname === child.path ||
+                            (child.path !== activePortal.path && location.pathname.startsWith(child.path));
+
+                          return (
+                            <NavLink
+                              key={child.path}
+                              to={child.path}
+                              onClick={() => setIsMoreMenuOpen(false)}
+                              className={`flex items-start gap-2.5 p-2 rounded-xl text-xs transition-all ${
+                                isChildActive
+                                  ? 'bg-blue-50 text-blue-700 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                  isChildActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="block truncate font-semibold">{child.label}</span>
+                                {child.description && (
+                                  <span className="block text-[11px] text-slate-400 font-normal leading-tight mt-0.5">
+                                    {child.description}
+                                  </span>
+                                )}
+                              </div>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              const isSubActive =
+                location.pathname === sub.path ||
+                (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
+
               return (
                 <NavLink
-                  key={portal.id}
-                  to={portal.path}
-                  onClick={() => dispatch(switchRole(portal.id))}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    isActive
-                      ? portal.activeTabClass
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/80'
+                  key={sub.path}
+                  to={sub.path}
+                  end={sub.path === activePortal.path}
+                  className={`pm-navbar-menu-link flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all ${
+                    isSubActive
+                      ? activePortal.subActiveClass
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
                   }`}
-                  title={`Chuyển sang phân hệ ${portal.label}`}
                 >
-                  <span className="material-symbols-outlined text-[15px]">{portal.icon}</span>
-                  <span>{portal.label}</span>
+                  <span className="material-symbols-outlined text-[17px]">{sub.icon}</span>
+                  <span>{sub.label}</span>
                 </NavLink>
               );
             })}
           </nav>
-        )}
+        </div>
 
-        {/* Right Section: Notification + User Profile + Logout */}
-        <div className="flex items-center gap-3 shrink-0">
-          {/* Notifications */}
+        {/* Cụm chức năng bên phải: Thông báo + User Profile Dropdown */}
+        <div className="pm-navbar-actions flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Hộp Thông báo Realtime */}
           <div className="relative">
             <button
               onClick={handleToggleNotifications}
-              className="relative p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
-              type="button"
-              aria-label="Thông báo"
+              className="relative p-2 rounded-xl text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+              title="Thông báo"
             >
-              <span className="material-symbols-outlined text-[24px]">notifications</span>
+              <span className="material-symbols-outlined text-[20px]">notifications</span>
               {unreadCount > 0 && (
-                <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                <span className="absolute top-1 right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-red-600 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
@@ -258,7 +397,7 @@ export const MainNavbar: React.FC = () => {
             )}
 
             {isNotificationOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+              <div className="pm-navbar-notifications absolute right-0 top-full mt-2 w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold text-slate-900">Thông báo</h3>
@@ -333,54 +472,149 @@ export const MainNavbar: React.FC = () => {
                   )}
                 </div>
 
-                <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 text-center">
+                <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 text-center">
                   <span className="text-[10px] text-slate-400 font-medium">
-                    Đồng bộ thông báo hệ thống thời gian thực qua Gateway :5000
+                    Hệ thống thông báo thời gian thực ParkMaster
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* User Profile Badge (Hiển thị đúng tài khoản tương ứng của phân hệ) */}
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-            <div className="flex flex-col items-end hidden sm:flex">
-              <span className="text-xs font-bold text-slate-900 truncate max-w-[150px]">
-                {user?.fullName || 'Khách'}
-              </span>
-              <div className="flex items-center gap-1">
-                <span className={`text-[10px] font-bold tracking-wider ${ROLE_BADGE_META[activeRole].color}`}>
-                  {ROLE_BADGE_META[activeRole].label}
+          {/* User Profile Dropdown: Gọn gàng, sạch bóng, có liên kết KYC & Logout */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+              aria-expanded={isUserMenuOpen}
+              aria-label="Menu tài khoản"
+            >
+              <div className="flex flex-col items-end hidden sm:flex leading-tight pr-0.5">
+                <span className="text-xs font-bold text-slate-900 truncate max-w-[130px]">
+                  {user?.fullName || 'Tài khoản'}
+                </span>
+                <span className={`text-[10px] font-semibold ${ROLE_BADGE_META[activeRole]?.color || 'text-slate-500'}`}>
+                  {ROLE_BADGE_META[activeRole]?.label || activeRole}
                 </span>
               </div>
-            </div>
-            <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-              <span className="material-symbols-outlined text-[20px]">{activePortal.icon}</span>
-            </div>
+
+              <div className="relative w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                {user?.avatarUrl ? (
+                  <img
+                    src={avatarSource(user.avatarUrl)}
+                    alt=""
+                    className="absolute inset-0 w-8 h-8 rounded-lg object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]">person</span>
+                )}
+              </div>
+
+              <span className="material-symbols-outlined text-[16px] text-slate-400 hidden sm:inline">
+                {isUserMenuOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+
+            {/* Click outside to close user dropdown */}
+            {isUserMenuOpen && (
+              <div className="fixed inset-0 z-40" onClick={() => setIsUserMenuOpen(false)} />
+            )}
+
+            {/* Menu thả xuống Profile */}
+            {isUserMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                <div className="p-3.5 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                    {user?.fullName ? user.fullName[0].toUpperCase() : 'P'}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 truncate">
+                      {user?.fullName || (activeRole === 'Owner' ? 'Chủ bãi ParkMaster' : 'Tài xế ParkMaster')}
+                    </p>
+                    <p className="text-[11px] text-slate-500 truncate">
+                      {user?.phone || user?.email || (activeRole === 'Owner' ? 'Chủ bãi' : 'Tài xế')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-1.5 space-y-0.5 text-xs font-medium text-slate-700">
+                  <NavLink
+                    to="/account/profile"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-slate-500">manage_accounts</span>
+                    <span>Hồ sơ cá nhân</span>
+                  </NavLink>
+
+                  {/* Xác minh KYC: Hiển thị khi đang ở giao diện Tài xế */}
+                  {activeRole === 'Driver' && (
+                    <NavLink
+                      to="/driver/kyc"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600">verified_user</span>
+                        <span>Xác minh KYC</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Hồ sơ
+                      </span>
+                    </NavLink>
+                  )}
+
+                  {/* Hồ sơ pháp lý KYB: Chỉ hiển thị nếu người dùng đang ở giao diện Chủ bãi */}
+                  {activeRole === 'Owner' && (
+                    <NavLink
+                      to="/owner/kyb"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600">verified</span>
+                        <span>Hồ sơ pháp lý KYB</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Hồ sơ
+                      </span>
+                    </NavLink>
+                  )}
+                </div>
+
+                <div className="p-1.5 border-t border-slate-100">
+                  <button
+                    type="button"
+                    disabled={loggingOut}
+                    onClick={async () => {
+                      setIsUserMenuOpen(false);
+                      setLogoutError('');
+                      setLoggingOut(true);
+                      try {
+                        await logoutSession();
+                        dispatch(logout());
+                        navigate('/login', { replace: true });
+                      } catch (error) {
+                        setLogoutError(error instanceof Error ? error.message : 'Đăng xuất thất bại.');
+                      } finally {
+                        setLoggingOut(false);
+                      }
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer text-xs font-semibold"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">logout</span>
+                    <span>{loggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Logout Action */}
-          <button
-            type="button"
-            disabled={loggingOut}
-            className="text-xs font-semibold text-slate-500 hover:text-red-600 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors cursor-pointer"
-            onClick={async () => {
-              setLogoutError('');
-              setLoggingOut(true);
-              try {
-                await logoutSession();
-                dispatch(logout());
-                navigate('/login', { replace: true });
-              } catch (error) {
-                setLogoutError(error instanceof Error ? error.message : 'Đăng xuất thất bại.');
-              } finally {
-                setLoggingOut(false);
-              }
-            }}
-            title="Đăng xuất và vào trang Login"
-          >
-            {loggingOut ? 'Đang thoát…' : 'Đăng xuất'}
-          </button>
           {logoutError && <span role="alert" className="text-xs text-red-600">{logoutError}</span>}
 
           {/* Mobile Menu Hamburger */}
@@ -389,6 +623,8 @@ export const MainNavbar: React.FC = () => {
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
             aria-label="Mở menu"
+            aria-expanded={isMobileMenuOpen}
+            aria-controls="navbar-mobile-menu"
           >
             <span className="material-symbols-outlined text-[24px]">
               {isMobileMenuOpen ? 'close' : 'menu'}
@@ -397,51 +633,9 @@ export const MainNavbar: React.FC = () => {
         </div>
       </div>
 
-      {/* ===== TẦNG 2: MENU CHỨC NĂNG DÀNH RIÊNG CHO PHÂN HỆ CỦA TÀI KHOẢN ===== */}
-      {currentSubNavs.length > 0 && (
-      <div className="bg-slate-50/90 border-t border-slate-200/80 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto h-11 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-2 hidden sm:inline-flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">subdirectory_arrow_right</span>
-              {activePortal.label}:
-            </span>
-            {currentSubNavs.map((sub) => {
-              const isSubActive =
-                location.pathname === sub.path ||
-                (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
-
-              return (
-                <NavLink
-                  key={sub.path}
-                  to={sub.path}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors shrink-0 ${
-                    isSubActive
-                      ? activePortal.subActiveClass
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 font-medium'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">{sub.icon}</span>
-                  <span>{sub.label}</span>
-                </NavLink>
-              );
-            })}
-          </div>
-
-          <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-400 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>URL Trực tiếp:</span>
-            <span className="font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
-              {location.pathname}
-            </span>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {/* ===== MENU MOBILE: HIỂN THỊ CÁC CHỨC NĂNG CỦA TÀI KHOẢN ===== */}
+      {/* ===== MENU MOBILE ===== */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden bg-white border-t border-slate-200 px-4 py-4 space-y-4 shadow-xl">
+        <div id="navbar-mobile-menu" className="lg:hidden pm-navbar-shell bg-white border-t border-slate-200 py-4 space-y-4 shadow-xl">
           {authorizedPortals.length > 1 && (
             <>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
@@ -454,13 +648,10 @@ export const MainNavbar: React.FC = () => {
                     <NavLink
                       key={portal.id}
                       to={portal.path}
-                      onClick={() => {
-                        dispatch(switchRole(portal.id));
-                        setIsMobileMenuOpen(false);
-                      }}
-                      className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold border transition-all ${
                         isCurrent
-                          ? `${portal.badgeClass} border-transparent font-bold`
+                          ? `${portal.badgeClass} border-transparent shadow-xs`
                           : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                       }`}
                     >
@@ -473,33 +664,57 @@ export const MainNavbar: React.FC = () => {
             </>
           )}
 
-          {currentSubNavs.length > 0 && (
-            <>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 pt-2 border-t border-slate-100">
-                Menu chức năng của {activePortal.label}:
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {currentSubNavs.map((sub) => {
-                  const isSubActive = location.pathname === sub.path;
-                  return (
-                    <NavLink
-                      key={sub.path}
-                      to={sub.path}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 ${
-                        isSubActive
-                          ? 'bg-blue-600 text-white font-bold'
-                          : 'text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
+          <div className="space-y-1 pt-2 border-t border-slate-100">
+            {currentSubNavs.map((sub) => {
+              if (sub.children && sub.children.length > 0) {
+                return (
+                  <div key={sub.label} className="pt-2 pb-1">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">{sub.icon}</span>
-                      <span className="truncate">{sub.label}</span>
-                    </NavLink>
-                  );
-                })}
-              </div>
-            </>
-          )}
+                      <span>{sub.label}</span>
+                    </div>
+                    <div className="space-y-1 pl-2">
+                      {sub.children.map((child) => {
+                        const isChildActive =
+                          location.pathname === child.path ||
+                          (child.path !== activePortal.path && location.pathname.startsWith(child.path));
+                        return (
+                          <NavLink
+                            key={child.path}
+                            to={child.path}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                              isChildActive ? activePortal.subActiveClass : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                            <span>{child.label}</span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              const isSubActive =
+                location.pathname === sub.path ||
+                (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
+              return (
+                <NavLink
+                  key={sub.path}
+                  to={sub.path}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                    isSubActive ? activePortal.subActiveClass : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">{sub.icon}</span>
+                  <span>{sub.label}</span>
+                </NavLink>
+              );
+            })}
+          </div>
         </div>
       )}
     </header>

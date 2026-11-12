@@ -20,6 +20,8 @@ import { useAdminToast } from '../../../hooks/useAdminToast';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTime, formatShortDateTime, formatVnd, orEmpty } from '../../../utils/format';
 import { LockOwnerDialog, RetrySyncDialog, UnlockOwnerDialog } from './UserDialogs';
+import { AuditTrailLink } from '../../../components/AuditTrailLink';
+import { auditLogListLink } from '../../access/auditLogFormat';
 
 type UserDialog = 'lock' | 'unlock' | 'retry' | null;
 
@@ -65,7 +67,12 @@ const OwnerSections: React.FC<{ user: AdminUserDto; sanctions: AdminQueryResult<
           )}
         </PanelQuery>
       </Panel>
-      <Panel title="Sanction history" description="AdminService · Sanctions (owner- and lot-level)" padded={false}>
+      <Panel
+        title="Sanction history"
+        description="AdminService · Sanctions (owner- and lot-level)"
+        padded={false}
+        action={{ label: 'Open in Sanctions →', to: `/admin/support/sanctions?ownerProfileId=${ownerProfileId}` }}
+      >
         <PanelQuery query={sanctions} service="AdminService" title="Could not load sanctions">
           {(data) => (
             <DataTable
@@ -213,7 +220,16 @@ export const UserDetailPage: React.FC = () => {
 
   return (
     <>
-      <AdminTitleBar title={user.fullName} subtitle={subtitle} actions={titleAction} />
+      <AdminTitleBar
+        title={user.fullName}
+        subtitle={subtitle}
+        actions={
+          <>
+            <AuditTrailLink to={user.ownerProfile ? auditLogListLink({ ownerProfileId: user.ownerProfile.id }) : auditLogListLink({ userId: user.id })} />
+            {titleAction}
+          </>
+        }
+      />
 
       {isOwner && isLocked && latest && !syncFailed && (
         <Banner tone="danger">

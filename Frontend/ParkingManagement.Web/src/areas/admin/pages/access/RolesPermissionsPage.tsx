@@ -37,7 +37,14 @@ export const RolesPermissionsPage: React.FC = () => {
       {counts.status === 'ready' || counts.status === 'loading' ? (
         <KpiStrip>
           {ROLES.map((r) => (
-            <KpiTile key={r} label={humanizeEnum(r)} value={formatNumber(counts.data?.[r])} delta={ROLE_NOTE[r]} loading={counts.status === 'loading'} />
+            <KpiTile
+              key={r}
+              label={humanizeEnum(r)}
+              value={formatNumber(counts.data?.[r])}
+              count={{ value: counts.data?.[r], format: formatNumber }}
+              delta={ROLE_NOTE[r]}
+              loading={counts.status === 'loading'}
+            />
           ))}
         </KpiStrip>
       ) : (

@@ -1,8 +1,13 @@
 using AdminService.Application.Features;
+using AdminService.Application.Features.AuditLogs;
+using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
+using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
+using AdminService.Application.Features.RiskFlags;
+using AdminService.Application.Features.Sanctions;
 using AdminService.Application.Features.Settings;
 using AdminService.Application.Features.Users;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +19,11 @@ public static class DependencyInjection
     public static IServiceCollection AddAdminApplication(this IServiceCollection services)
     {
         services.AddScoped<IGetPlatformSettingsUseCase, GetPlatformSettingsUseCase>();
+        // US-081: Admin Dashboard – tổng quan toàn sàn
+        services.AddScoped<IGetDashboardOverviewUseCase, GetDashboardOverviewUseCase>();
+        // US-079: tỷ lệ hoa hồng – giải cho PaymentService (nội bộ) + danh sách cho Admin portal
+        services.AddScoped<IResolveCommissionRatesUseCase, ResolveCommissionRatesUseCase>();
+        services.AddScoped<IListCommissionRatesUseCase, ListCommissionRatesUseCase>();
         // US-098: đọc tham số theo khóa (giá trị hiệu lực theo thời điểm)
         services.AddScoped<IGetSystemConfigByKeyUseCase, GetSystemConfigByKeyUseCase>();
         // US-098: đổi giá trị tham số có Effective Date
@@ -21,6 +31,8 @@ public static class DependencyInjection
         // US-098: lịch sử thay đổi + hủy thay đổi chưa hiệu lực
         services.AddScoped<IGetSystemConfigHistoryUseCase, GetSystemConfigHistoryUseCase>();
         services.AddScoped<ICancelSystemConfigChangeUseCase, CancelSystemConfigChangeUseCase>();
+        services.AddScoped<IUpdateFeatureFlagUseCase, UpdateFeatureFlagUseCase>();          // US-099
+        services.AddScoped<IGetFeatureFlagStatesUseCase, GetFeatureFlagStatesUseCase>();    // US-099
         // US-096: tra cứu người dùng (đọc qua UserService)
         services.AddScoped<IListAdminUsersUseCase, ListAdminUsersUseCase>();
         services.AddScoped<IGetAdminUserByIdUseCase, GetAdminUserByIdUseCase>();
@@ -29,6 +41,17 @@ public static class DependencyInjection
         // US-096: khóa / mở khóa chủ bãi
         services.AddScoped<ILockOwnerUseCase, LockOwnerUseCase>();
         services.AddScoped<IUnlockOwnerUseCase, UnlockOwnerUseCase>();
+        // US-097: chế tài SLA 4 cấp – áp, gỡ, danh sách, chi tiết, KPI, gợi ý cấp
+        services.AddScoped<IIssueSanctionUseCase, IssueSanctionUseCase>();
+        services.AddScoped<IRevokeSanctionUseCase, RevokeSanctionUseCase>();
+        services.AddScoped<IListSanctionsUseCase, ListSanctionsUseCase>();
+        services.AddScoped<IGetSanctionUseCase, GetSanctionUseCase>();
+        services.AddScoped<IGetSanctionStatsUseCase, GetSanctionStatsUseCase>();
+        services.AddScoped<IGetSanctionSuggestionUseCase, GetSanctionSuggestionUseCase>();
+        services.AddScoped<IRetrySanctionSyncUseCase, RetrySanctionSyncUseCase>();
+        services.AddScoped<IExpireSanctionsUseCase, ExpireSanctionsUseCase>();          // SanctionExpiryJob
+        // T-802: nhận sự kiện AuditRecorded của service khác (endpoint nội bộ /internal/v1/events)
+        services.AddScoped<IRecordAuditEventUseCase, RecordAuditEventUseCase>();
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
         services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
         services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();
@@ -65,6 +88,17 @@ public static class DependencyInjection
         services.AddScoped<IUpdateContractTemplateDraftUseCase, UpdateContractTemplateDraftUseCase>();
         services.AddScoped<IActivateContractTemplateUseCase, ActivateContractTemplateUseCase>();
         services.AddScoped<IDiscardContractTemplateDraftUseCase, DiscardContractTemplateDraftUseCase>();
+        // US-100: tra cứu audit log toàn hệ thống (chỉ đọc)
+        services.AddScoped<IListAuditLogsUseCase, ListAuditLogsUseCase>();
+        services.AddScoped<IGetAuditLogUseCase, GetAuditLogUseCase>();
+        services.AddScoped<IGetAuditLogFilterOptionsUseCase, GetAuditLogFilterOptionsUseCase>();
+        services.AddScoped<IExportAuditLogsUseCase, ExportAuditLogsUseCase>();
+        // US-080: quyết toán định kỳ – chu kỳ quyết toán cho PaymentService (nội bộ) + tài khoản nhận tiền của chủ bãi
+        services.AddScoped<IResolveInternalSystemConfigUseCase, ResolveInternalSystemConfigUseCase>();
+        services.AddScoped<IGetOwnerPayoutAccountUseCase, GetOwnerPayoutAccountUseCase>();
+        services.AddScoped<IListOwnerPayoutAccountsUseCase, ListOwnerPayoutAccountsUseCase>();
+        // US-077: cảnh báo Staff hủy No-show bất thường (GateService đẩy sang qua endpoint nội bộ).
+        services.AddScoped<IRaiseStaffCancellationAlertUseCase, RaiseStaffCancellationAlertUseCase>();
         return services;
     }
 }

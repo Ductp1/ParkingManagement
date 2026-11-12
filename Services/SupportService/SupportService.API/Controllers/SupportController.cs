@@ -11,8 +11,120 @@ namespace SupportService.API.Controllers;
 [ApiController]
 [Route("api/v1/complaints")]
 public sealed class ComplaintsController(IListOwnerComplaintsUseCase listForOwner, IComplaintService complaintService,
-    IOwnerDisputeService ownerDisputes, ICurrentUser currentUser) : ControllerBase
+    IOwnerDisputeService ownerDisputes, IDisputeResolutionService disputes, ILotFineService lotFines, ICurrentUser currentUser)
+    : ControllerBase
 {
+    // ===== US-090: Chủ bãi phán quyết tranh chấp & override hoàn tiền – chỉ chủ bãi, không ai khác can thiệp =====
+    // Đặt dưới /api/v1/complaints vì Gateway đã route prefix này về SupportService. Chủ bãi lấy từ JWT (claim OwnerProfileId).
+
+    /// <summary>GET /api/v1/complaints/disputes?status=AwaitingOwner&amp;slaBreachedOnly=true – Hàng chờ tranh chấp về bãi của mình, kèm SLA (AC3).</summary>
+    [HttpGet("disputes")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<IReadOnlyList<DisputeQueueItemDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<DisputeQueueItemDto>>> DisputeQueue([FromQuery] ComplaintStatus? status,
+        [FromQuery] bool slaBreachedOnly = false, CancellationToken cancellationToken = default)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await disputes.ListQueueAsync(owner, status, slaBreachedOnly, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/complaints/disputes/precedents?category=SlotOccupied – Tiền lệ phán quyết ở các bãi của mình (AC2).</summary>
+    [HttpGet("disputes/precedents")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<IReadOnlyList<DisputePrecedentDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<IReadOnlyList<DisputePrecedentDto>>> Precedents([FromQuery] ComplaintCategory? category,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await disputes.ListPrecedentsAsync(owner, category, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/complaints/CP-0001/case-file – Hồ sơ tranh chấp đầy đủ (AC1).</summary>
+    [HttpGet("{code}/case-file")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<DisputeCaseFileDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<DisputeCaseFileDto>> CaseFile([FromRoute] string code, CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await disputes.GetCaseFileAsync(owner, code, cancellationToken));
+    }
+
+    /// <summary>POST /api/v1/complaints/CP-0001/dispute-messages – Chủ bãi nhắn cho tài xế trong lúc xử lý (AC3).</summary>
+    [HttpPost("{code}/dispute-messages")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<DisputeCaseFileDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<DisputeCaseFileDto>> DisputeMessage([FromRoute] string code, [FromBody] DisputeMessageRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        if (currentUser.UserId is not { } ownerUser) return Unauthorized();
+        return Ok(await disputes.AddMessageAsync(owner, ownerUser, code, request, cancellationToken));
+    }
+
+    /// <summary>
+    /// POST /api/v1/complaints/CP-0001/rulings – Chủ bãi phán quyết (1 lần): chuyển chỗ / ép hoàn tiền / bác khiếu nại,
+    /// kèm phạt xe đậu sai chỗ (AC2, AC4).
+    /// </summary>
+    [HttpPost("{code}/rulings")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<DisputeCaseFileDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<DisputeCaseFileDto>> Rule([FromRoute] string code, [FromBody] DisputeRulingRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        if (currentUser.UserId is not { } ownerUser) return Unauthorized();
+        return Ok(await disputes.RuleAsync(owner, ownerUser, code, request, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/complaints/fine-rates/1 – Mức phạt đậu sai chỗ của bãi mình.</summary>
+    [HttpGet("fine-rates/{parkingLotId:int}")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<LotFineRateDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotFineRateDto>> FineRate([FromRoute] int parkingLotId, CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await lotFines.GetRateAsync(owner, parkingLotId, cancellationToken));
+    }
+
+    /// <summary>PUT /api/v1/complaints/fine-rates/1 – Chủ bãi đặt mức phạt xe đậu sai chỗ cho bãi của mình.</summary>
+    [HttpPut("fine-rates/{parkingLotId:int}")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<LotFineRateDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LotFineRateDto>> SetFineRate([FromRoute] int parkingLotId, [FromBody] LotFineRateRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        if (currentUser.UserId is not { } ownerUser) return Unauthorized();
+        return Ok(await lotFines.SetRateAsync(owner, ownerUser, parkingLotId, request, cancellationToken));
+    }
+
+    /// <summary>GET /api/v1/complaints/violations?parkingLotId=1 – Biên bản xe đậu sai chỗ ở các bãi của mình.</summary>
+    [HttpGet("violations")]
+    [Authorize(Policy = "RequireOwner")]
+    [ProducesResponseType<IReadOnlyList<ParkingViolationDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<ParkingViolationDto>>> Violations([FromQuery] int? parkingLotId, CancellationToken cancellationToken)
+    {
+        if (currentUser.OwnerProfileId is not { } owner) return OwnerProfileMissing();
+        return Ok(await lotFines.ListViolationsAsync(owner, parkingLotId, cancellationToken));
+    }
+
     /// <summary>GET /api/v1/complaints/payout-holds – Khoản quyết toán đang bị phong tỏa vì tranh chấp (US-089 AC3).</summary>
     /// <remarks>Chủ bãi chỉ thấy khoản của mình (lấy từ JWT); Admin xem tất cả hoặc lọc bằng <paramref name="ownerProfileId"/>.</remarks>
     [HttpGet("payout-holds")]
@@ -119,6 +231,8 @@ public sealed class ReviewsController(IGetLotReviewsUseCase getLotReviews, IRevi
     [Authorize(Policy = "RequireOwner")]
     [ProducesResponseType<ModeratedReviewDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<ModeratedReviewDto>> Report([FromRoute] int id, [FromBody] ReviewReasonRequestDto request,

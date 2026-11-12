@@ -113,6 +113,26 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 TotalAmount = 40000,
                 PaidAmount = 40000,
             });
+            // US-091: 2 booking Confirmed ở bãi Vincom bắt đầu sau 10 phút (tài xế đã đến bãi) – 1 nhận chuyển bãi, 1 từ chối.
+            foreach (var code in new[] { "BK-IT-FULL-MOVE", "BK-IT-FULL-REFUND" })
+            {
+                db.Bookings.Add(new Booking
+                {
+                    Code = code,
+                    UserId = DemoIds.Driver1User,
+                    VehicleId = DemoIds.Driver1Car,
+                    PlateNumber = "51F12345",
+                    VehicleType = VehicleType.Sedan,
+                    ParkingLotId = DemoIds.LotVincom,
+                    OwnerProfileId = DemoIds.OwnerVincom,
+                    ParkingLotName = "Bãi xe Vincom Đồng Khởi",
+                    StartAtUtc = DateTime.UtcNow.AddMinutes(10),
+                    EndAtUtc = DateTime.UtcNow.AddHours(3),
+                    Status = BookingStatus.Confirmed,
+                    TotalAmount = 60000,
+                    PaidAmount = 60000,
+                });
+            }
             await db.SaveChangesAsync();
         }
 
@@ -135,6 +155,13 @@ public sealed class SupportApiFixture : IAsyncLifetime
                 });
                 // US-094: fixture không dựng ParkingService → tra bãi của chủ bãi bằng dữ liệu cố định.
                 services.AddScoped<IOwnerLotLookup, StubOwnerLots>();
+                // US-091: fixture không dựng ParkingService → bãi thay thế quanh Vincom là dữ liệu cố định.
+                services.AddScoped<IParkingLotSearch, StubParkingLotSearch>();
+                // US-090: lịch sử booking lấy từ BookingService thật; fixture không dựng GateService → log check-in/out cố định.
+                services.AddScoped<IBookingHistoryLookup>(sp => new BookingHistoryClient(
+                    new HttpClient(bookingServerHandler) { BaseAddress = BookingFactory.ClientOptions.BaseAddress },
+                    sp.GetRequiredService<ILogger<BookingHistoryClient>>()));
+                services.AddScoped<IGateSessionLookup, StubGateSessions>();
             }).ConfigureTestServices(services =>
                 // Program.cs nạp Keys/public.key thật; test thay bằng public key của cặp khóa test để kiểm tra token tự mint.
                 services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -201,6 +228,32 @@ public sealed class StubOwnerLots : IOwnerLotLookup
             DemoIds.OwnerTsn => [DemoIds.LotTsn, DemoIds.LotBenThanh],
             _ => [],
         });
+}
+
+/// <summary>US-091: ParkingService giả – quanh Vincom có Bến Thành (0,6 km, còn chỗ) và 1 bãi ngoài bán kính 1 km.</summary>
+public sealed class StubParkingLotSearch : IParkingLotSearch
+{
+    public Task<LotLocation?> GetLotAsync(int parkingLotId, CancellationToken cancellationToken = default)
+        => Task.FromResult<LotLocation?>(new LotLocation(parkingLotId, "Bãi xe Vincom Đồng Khởi", 10.7781, 106.7019, 0));
+
+    public Task<IReadOnlyList<SupportService.Application.DTOs.AlternativeLotDto>> SearchAvailableAsync(double latitude, double longitude,
+        double radiusKm, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<SupportService.Application.DTOs.AlternativeLotDto>>(
+        [
+            new(DemoIds.LotBenThanh, "Bãi xe chợ Bến Thành", "Lê Lợi, Q.1", 0.6, 15, true),
+            new(DemoIds.LotLandmark, "Bãi xe Landmark 81", "Bình Thạnh", 4.2, 30, true),
+        ]);
+}
+
+/// <summary>US-090: GateService giả – booking BK-IT-DONE có 1 lượt vào/ra nhận diện bằng camera LPR.</summary>
+public sealed class StubGateSessions : IGateSessionLookup
+{
+    public Task<IReadOnlyList<SupportService.Application.DTOs.GateSessionEvidenceDto>> ListForBookingAsync(int parkingLotId,
+        string bookingCode, CancellationToken cancellationToken = default)
+        => Task.FromResult<IReadOnlyList<SupportService.Application.DTOs.GateSessionEvidenceDto>>(bookingCode == "BK-IT-DONE"
+            ? [new("PS-IT-DONE", "Completed", "51F-123.45", DateTime.UtcNow.Date.AddDays(-1).AddHours(1),
+                DateTime.UtcNow.Date.AddDays(-1).AddHours(3), 120, "Lpr", 0.97, 50000m)]
+            : []);
 }
 
 /// <summary>Collection: SupportService (+ BookingService thật làm phụ thuộc) trên database pm_it_* riêng.</summary>
@@ -633,6 +686,197 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
             Assert.Contains("AuditRecorded", types);
         }
     }
+
+    [Fact] // US-091
+    public async Task Driver_reports_lot_full_then_accepts_transfer_or_declines_for_refund_and_events_are_published()
+    {
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        var bookingApi = fixture.BookingFactory.CreateClient();
+
+        // Quyền: không token 401; booking của tài xế khác 404
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await fixture.SupportClient.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-MOVE" })).StatusCode);
+        var otherDriver = fixture.CreateAuthenticatedClient(DemoIds.Driver2User, "Driver");
+        await Asserts.NotFoundAsync(await otherDriver.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-MOVE" }));
+
+        // AC1 + AC2: sự cố ưu tiên cao; gợi ý Bến Thành (0,6 km), bỏ bãi ngoài 1 km; báo lần 2 → 409
+        var reported = await driver.PostAsJsonAsync("/api/v1/lot-full-incidents",
+            new { bookingCode = "BK-IT-FULL-MOVE", note = "Bảo vệ báo bãi đã hết chỗ." });
+        Assert.Equal(HttpStatusCode.Created, reported.StatusCode);
+        var move = (await reported.Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        Assert.Equal(("Reported", "High", 60000m), (move.Status, move.Priority, move.PaidAmount));
+        Assert.Equal([DemoIds.LotBenThanh], move.Alternatives.Select(a => a.ParkingLotId));
+        await Asserts.ConflictAsync(await driver.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-MOVE" }), "đã được báo");
+        await Asserts.NotFoundAsync(await otherDriver.GetAsync($"/api/v1/lot-full-incidents/{move.Code}"));
+
+        // AC2: chọn bãi ngoài danh sách → 400; chọn Bến Thành → TransferAccepted; quyết định lần 2 → 409
+        Assert.Equal(HttpStatusCode.BadRequest, (await driver.PostAsJsonAsync($"/api/v1/lot-full-incidents/{move.Code}/accept-transfer",
+            new { parkingLotId = DemoIds.LotLandmark })).StatusCode);
+        var accepted = await driver.PostAsJsonAsync($"/api/v1/lot-full-incidents/{move.Code}/accept-transfer",
+            new { parkingLotId = DemoIds.LotBenThanh });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        var moved = (await accepted.Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        Assert.Equal(("TransferAccepted", DemoIds.LotBenThanh, false), (moved.Status, moved.NewParkingLotId!.Value, moved.IsSlaViolation));
+        await Asserts.ConflictAsync(await driver.PostAsync($"/api/v1/lot-full-incidents/{move.Code}/decline", null), "đã được xử lý");
+
+        // AC3: từ chối → yêu cầu hoàn 100% + voucher, ghi vi phạm SLA
+        var refundIncident = (await (await driver.PostAsJsonAsync("/api/v1/lot-full-incidents", new { bookingCode = "BK-IT-FULL-REFUND" }))
+            .Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        var declined = await driver.PostAsync($"/api/v1/lot-full-incidents/{refundIncident.Code}/decline", null);
+        Assert.Equal(HttpStatusCode.OK, declined.StatusCode);
+        var refunded = (await declined.Content.ReadFromJsonAsync<LotFullIncidentJson>())!;
+        Assert.Equal(("RefundRequested", 100, 20000m, true),
+            (refunded.Status, refunded.RefundPercent!.Value, refunded.VoucherAmount!.Value, refunded.IsSlaViolation));
+
+        // SupportService KHÔNG tự sửa booking – BookingService/PaymentService xử lý khi nhận sự kiện
+        Assert.Equal("Confirmed", (await bookingApi.GetFromJsonAsync<BookingJson>("/api/v1/bookings/BK-IT-FULL-MOVE"))!.Status);
+
+        // Admin theo dõi vi phạm SLA; tài xế không xem được danh sách
+        var admin = fixture.CreateAuthenticatedClient(DemoIds.AdminUser, "Admin");
+        var sla = await admin.GetFromJsonAsync<List<LotFullIncidentJson>>($"/api/v1/lot-full-incidents?parkingLotId={DemoIds.LotVincom}&slaViolationOnly=true");
+        Assert.Equal([refundIncident.Code], sla!.Select(i => i.Code));
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.GetAsync("/api/v1/lot-full-incidents")).StatusCode);
+
+        // Outbox: thông báo sự cố, yêu cầu chuyển booking, yêu cầu hoàn tiền + voucher, vi phạm SLA (kèm đúng dữ liệu)
+        await using var scope = fixture.SupportFactory.Services.CreateAsyncScope();
+        var outbox = await scope.ServiceProvider.GetRequiredService<SupportDbContext>().OutboxMessages
+            .Where(o => o.EventType.StartsWith("LotFull") || o.EventType == "LotSlaViolated")
+            .Select(o => new { o.EventType, o.PayloadJson }).ToListAsync();
+        Assert.Equal(2, outbox.Count(o => o.EventType == "LotFullIncidentReported"));
+        var transfer = System.Text.Json.JsonDocument.Parse(outbox.Single(o => o.EventType == "LotFullTransferAccepted").PayloadJson).RootElement;
+        Assert.Equal(("BK-IT-FULL-MOVE", DemoIds.LotBenThanh),
+            (transfer.GetProperty("BookingCode").GetString(), transfer.GetProperty("NewParkingLotId").GetInt32()));
+        var refundEvt = System.Text.Json.JsonDocument.Parse(outbox.Single(o => o.EventType == "LotFullRefundRequested").PayloadJson).RootElement;
+        Assert.Equal(("BK-IT-FULL-REFUND", 100), (refundEvt.GetProperty("BookingCode").GetString(), refundEvt.GetProperty("RefundPercent").GetInt32()));
+        Assert.Single(outbox, o => o.EventType == "LotSlaViolated");
+    }
+
+    [Fact] // US-090: chỗ đã đặt bị chiếm → chủ bãi (duy nhất) chuyển chỗ + phạt xe đậu sai chỗ; Admin không can thiệp; phán quyết không sửa được.
+    public async Task Owner_rules_slot_occupied_dispute_and_fines_violator_and_nobody_else_can_intervene()
+    {
+        // Arrange: khiếu nại "chỗ bị chiếm" về booking BK-IT-DONE (đã trả 50.000đ ở bãi Vincom), đang chờ chủ bãi Vincom xử lý.
+        const string code = "CP-IT-SLOT";
+        const string url = $"/api/v1/complaints/{code}";
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            db.Complaints.Add(new SupportService.Domain.Entities.Complaint
+            {
+                Code = code, UserId = DemoIds.Driver1User, BookingCode = "BK-IT-DONE", ParkingLotId = DemoIds.LotVincom,
+                OwnerProfileId = DemoIds.OwnerVincom, Category = ComplaintCategory.SlotOccupied, RequestedAmount = 50000m,
+                Description = "Đến bãi thì chỗ đã đặt bị xe khác đậu (integration test US-090).",
+                Status = ComplaintStatus.AwaitingOwner, OwnerResponseDueAtUtc = DateTime.UtcNow.AddHours(40), PayoutHeld = true,
+            });
+            await db.SaveChangesAsync();
+        }
+        var owner = fixture.CreateOwnerClient(DemoIds.OwnerVincomUser, DemoIds.OwnerVincom);
+        var otherOwner = fixture.CreateOwnerClient(DemoIds.OwnerTsnUser, DemoIds.OwnerTsn);
+        var admin = fixture.CreateAuthenticatedClient(DemoIds.AdminUser, "Admin");
+        var driver = fixture.CreateAuthenticatedClient(DemoIds.Driver1User, "Driver");
+        var move = new { decision = "MoveToSlot", reason = "Xe 51A-999.99 đậu sai vào chỗ đã đặt, chuyển tài xế sang chỗ trống B-12.",
+            newSlotCode = "B-12", violatorPlate = "51A-999.99" };
+
+        // Chỉ chủ bãi của bãi bị khiếu nại: không token 401; tài xế / Admin 403; chủ bãi khác 404
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.SupportClient.GetAsync($"{url}/case-file")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.GetAsync($"{url}/case-file")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await admin.GetAsync($"{url}/case-file")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await admin.PostAsJsonAsync($"{url}/rulings", move)).StatusCode);
+        await Asserts.NotFoundAsync(await otherOwner.GetAsync($"{url}/case-file"));
+        await Asserts.NotFoundAsync(await otherOwner.PostAsJsonAsync($"{url}/rulings", move));
+
+        // AC3: tranh chấp nằm trong hàng chờ của chủ bãi, SLA phản hồi đầu 24 giờ
+        var item = (await owner.GetFromJsonAsync<List<DisputeQueueJson>>("/api/v1/complaints/disputes"))!.Single(q => q.Code == code);
+        Assert.False(item.Sla.FirstResponseBreached);
+        Assert.Equal(item.Sla.StartedAtUtc.AddHours(24), item.Sla.FirstResponseDueAtUtc);
+
+        // AC1: hồ sơ có lịch sử booking (BookingService thật) và log check-in/out (GateService)
+        var file = await owner.GetFromJsonAsync<CaseFileJson>($"{url}/case-file");
+        Assert.Equal(("BK-IT-DONE", 50000m, true), (file!.Booking!.Code, file.Booking.PaidAmount, file.CanRule));
+        Assert.Equal("Lpr", Assert.Single(file.GateSessions).CheckInMethod);
+        Assert.Empty(file.UnavailableSources);
+
+        // Phạt đậu sai chỗ cần mức phạt chủ bãi đặt trước → 409; chủ bãi đặt cho bãi mình (bãi khác → 404)
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"{url}/rulings", move), "mức phạt");
+        await Asserts.NotFoundAsync(await owner.PutAsJsonAsync($"/api/v1/complaints/fine-rates/{DemoIds.LotTsn}", new { wrongSlotFine = 100000 }));
+        Assert.Equal(HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync($"/api/v1/complaints/fine-rates/{DemoIds.LotVincom}", new { wrongSlotFine = 200000 })).StatusCode);
+
+        // AC3: chủ bãi nhắn cho tài xế → tính là phản hồi đầu tiên; tài xế thấy tin nhắn trong ticket của mình
+        await owner.PostAsJsonAsync($"{url}/dispute-messages", new { message = "Nhân viên đang kiểm tra chỗ của anh." });
+        Assert.NotNull((await owner.GetFromJsonAsync<CaseFileJson>($"{url}/case-file"))!.Sla.FirstRespondedAtUtc);
+        var driverView = await fixture.SupportClient.GetFromJsonAsync<ComplaintDetailJson>($"{url}?userId={DemoIds.Driver1User}");
+        Assert.Contains(driverView!.Messages, m => m.SenderParty == "LotOwner");
+
+        // AC2: hoàn vượt số đã trả → 400; chuyển chỗ + lập biên bản phạt 200.000đ → Resolved, giải phóng khoản giữ; quyết lần 2 → 409
+        await Asserts.BadRequestAsync(await owner.PostAsJsonAsync($"{url}/rulings",
+            new { decision = "ForceRefund", reason = "Hoàn tiền vì không còn chỗ trống phù hợp.", refundAmount = 50001 }), "50.000đ");
+        var ruled = await owner.PostAsJsonAsync($"{url}/rulings", move);
+        Assert.Equal(HttpStatusCode.OK, ruled.StatusCode);
+        file = await ruled.Content.ReadFromJsonAsync<CaseFileJson>();
+        Assert.Equal(("Resolved", false, false), (file!.Status, file.PayoutHeld, file.CanRule));
+        Assert.Equal(("MoveToSlot", "B-12", DemoIds.OwnerVincomUser), (file.Ruling!.Decision, file.Ruling.NewSlotCode, file.Ruling.DecidedByUserId));
+        var violation = Assert.Single(file.Violations);
+        Assert.Equal(200000m, violation.FineAmount);
+        Assert.StartsWith("51A", violation.PlateNumber);
+        Assert.Contains((await owner.GetFromJsonAsync<List<ViolationJson>>("/api/v1/complaints/violations"))!, v => v.ComplaintCode == code);
+        await Asserts.ConflictAsync(await owner.PostAsJsonAsync($"{url}/rulings", move), "1 lần");
+
+        // AC2: tiền lệ ở các bãi của chủ bãi; chủ bãi khác không thấy
+        Assert.Contains((await owner.GetFromJsonAsync<List<PrecedentJson>>("/api/v1/complaints/disputes/precedents?category=SlotOccupied"))!,
+            p => p.ComplaintCode == code);
+        Assert.DoesNotContain((await otherOwner.GetFromJsonAsync<List<PrecedentJson>>("/api/v1/complaints/disputes/precedents"))!,
+            p => p.ComplaintCode == code);
+
+        // Outbox: phán quyết (Booking/Payment/Notification), biên bản phạt (Gate/Payment), audit log (AdminService)
+        Assert.Equal(["DisputeRuled"], await OutboxEventsForAsync(code));
+        await using (var scope = fixture.SupportFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<SupportDbContext>();
+            var payloads = await db.OutboxMessages.Where(o => o.EventType == "AuditRecorded" || o.EventType == "ParkingViolationFined")
+                .Select(o => new { o.EventType, o.PayloadJson }).ToListAsync();
+            var fined = payloads.Where(p => p.EventType == "ParkingViolationFined")
+                .Select(p => System.Text.Json.JsonDocument.Parse(p.PayloadJson).RootElement)
+                .Single(e => e.GetProperty("ComplaintId").GetInt32() == file.Id);
+            Assert.Equal(200000m, fined.GetProperty("FineAmount").GetDecimal());
+            var actions = payloads.Where(p => p.EventType == "AuditRecorded").Select(p => System.Text.Json.JsonDocument.Parse(p.PayloadJson).RootElement)
+                .Where(a => a.GetProperty("EntityName").GetString() == "Complaint" && a.GetProperty("EntityId").GetString() == file.Id.ToString())
+                .Select(a => a.GetProperty("Action").GetString()).ToList();
+            Assert.Equal(["DisputeRuled"], actions);
+
+            // AC4: phán quyết không sửa / xóa được kể cả bằng SQL tay (trigger)
+            var update = await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+                db.Database.ExecuteSqlRawAsync("UPDATE \"DisputeRulings\" SET \"Reason\" = 'sửa' WHERE \"ComplaintId\" = {0}", file.Id));
+            Assert.Contains("chỉ được thêm", update.MessageText);
+            await Assert.ThrowsAsync<Npgsql.PostgresException>(() =>
+                db.Database.ExecuteSqlRawAsync("DELETE FROM \"DisputeRulings\" WHERE \"ComplaintId\" = {0}", file.Id));
+        }
+    }
+
+    public sealed record DisputeSlaJson(DateTime StartedAtUtc, DateTime FirstResponseDueAtUtc, DateTime? FirstRespondedAtUtc,
+        bool FirstResponseBreached, DateTime ResolutionDueAtUtc, bool ResolutionBreached);
+
+    public sealed record DisputeQueueJson(string Code, string Status, DisputeSlaJson Sla);
+
+    public sealed record CaseFileJson(int Id, string Code, string Status, bool PayoutHeld, bool CanRule, DisputeSlaJson Sla,
+        RulingJson? Ruling, IReadOnlyList<ViolationJson> Violations, BookingEvidenceJson? Booking,
+        IReadOnlyList<GateSessionJson> GateSessions, IReadOnlyList<string> UnavailableSources);
+
+    public sealed record RulingJson(string Decision, decimal? RefundAmount, string? NewSlotCode, int DecidedByUserId);
+
+    public sealed record ViolationJson(string Code, string ComplaintCode, string PlateNumber, decimal FineAmount);
+
+    public sealed record BookingEvidenceJson(string Code, decimal PaidAmount);
+
+    public sealed record GateSessionJson(string Code, string CheckInMethod);
+
+    public sealed record PrecedentJson(string ComplaintCode, string Decision);
+
+    public sealed record LotFullIncidentJson(string Code, string Status, string Priority, string BookingCode, decimal PaidAmount,
+        IReadOnlyList<AlternativeJson> Alternatives, int? NewParkingLotId, int? RefundPercent, decimal? VoucherAmount, bool IsSlaViolation);
+
+    public sealed record AlternativeJson(int ParkingLotId, string Name, double DistanceKm);
+
+    public sealed record BookingJson(string Code, string Status);
 
     public sealed record ModeratedReviewJson(int Id, int ParkingLotId, int Rating, string? OwnerReply, bool IsReported, bool IsHidden);
 

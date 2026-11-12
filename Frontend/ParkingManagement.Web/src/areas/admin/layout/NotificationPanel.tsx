@@ -14,7 +14,7 @@ interface NotificationPanelProps {
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({ inbox, onRead, onReadAll }) => {
   const items = inbox.data?.items.items ?? [];
   return (
-    <div className="absolute top-10 right-0 z-40 flex w-[360px] flex-col rounded-[4px] border border-(--admin-border-default) bg-(--admin-surface-card) shadow-[0_4px_12px_rgb(0_0_0/0.12)]">
+    <div className="adm-dropdown absolute top-10 right-0 z-40 flex w-[360px] flex-col rounded-[4px] border border-(--admin-border-default) bg-(--admin-surface-card) shadow-[0_4px_12px_rgb(0_0_0/0.12)]">
       <div className="flex h-10 items-center justify-between border-b border-(--admin-border-default) px-3">
         <span className="adm-type-panel-title uppercase text-(--admin-text-secondary)">Notifications</span>
         {(inbox.data?.unreadCount ?? 0) > 0 && (

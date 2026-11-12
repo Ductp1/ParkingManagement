@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using BookingService.API.Controllers;
 using BookingService.Application.Features.Bookings;
+using BookingService.Domain.Rules;
 using BookingService.Infrastructure.Persistence;
 using BookingService.Infrastructure.Workers;
 using Microsoft.AspNetCore.Hosting;
@@ -10,13 +11,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.API.Controllers;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Domain.Entities;
-using ParkingService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests;
 
@@ -96,7 +97,18 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         ParkingFactory = BuildFactory<ParkingLotsController, ParkingDbContext>(
             TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, ParkingDbName));
         BookingFactory = BuildFactory<BookingsController, BookingDbContext>(
-            TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, BookingDbName));
+            TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, BookingDbName),
+            // US-103: fixture dùng chung tạo/hủy nhiều booking cho cùng tài xế trong vài giây – nới ngưỡng chống lạm dụng
+            // để bộ test này kiểm vòng đời booking; luật lạm dụng đã có unit test riêng (BookingAbusePolicy).
+            services =>
+            {
+                services.RemoveAll<BookingAbuseOptions>();
+                services.AddSingleton(new BookingAbuseOptions
+                {
+                    MaxBookingActionsPerHour = 10_000,
+                    NoShowMinFinishedBookings = 10_000,
+                });
+            });
 
         // Dựng host sớm ngay tại đây: migration + seed demo chạy xong trước test đầu tiên,
         // lỗi hạ tầng (PostgreSQL không chạy, thiếu secret...) báo ngay tại Initialize thay vì test đầu tiên.
@@ -113,16 +125,23 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
     /// Host thật + database cô lập: thay đăng ký DbContext bằng connection string của test
     /// (ConfigureServices chạy sau Program.cs nên luôn thắng; không đụng biến môi trường toàn cục).
     /// </summary>
-    private static WebApplicationFactory<TEntryPoint> BuildFactory<TEntryPoint, TContext>(string connectionString)
+    private static WebApplicationFactory<TEntryPoint> BuildFactory<TEntryPoint, TContext>(string connectionString,
+        Action<IServiceCollection>? configureServices = null)
         where TEntryPoint : class
         where TContext : DbContext
         => new WebApplicationFactory<TEntryPoint>().WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => services.UseIsolatedDatabase<TContext>(connectionString)));
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<TContext>(connectionString);
+                configureServices?.Invoke(services);
+            }));
 
     /// <summary>Làm tròn về đầu phút – ủy quyền cho TestTime.</summary>
     public static DateTime RoundToMinute(DateTime utc) => TestTime.RoundToMinute(utc);
 
     // ===================== Helper dùng chung cho các test =====================
+
+    private static int _bookingCallIndex = 0;
 
     /// <summary>
     /// Tạo booking qua API thật (US-022). Mặc định: driver 1 – xe 51A88888 – bãi Vincom slot B1-A02,
@@ -137,15 +156,16 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         int ownerProfileId = DemoIds.OwnerVincom,
         string parkingLotName = "Bãi xe Vincom Đồng Khởi",
         int? zoneId = DemoIds.ZoneVincomB,
-        int? slotId = 2,
-        string? slotCode = "B1-A02",
+        int? slotId = null,
+        string? slotCode = null,
         DateTime? startAtUtc = null,
         TimeSpan? duration = null,
         decimal totalAmount = 40000,
         string? promotionCode = null,
         bool requiresOwnerApproval = false)
     {
-        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2));
+        var call = Interlocked.Increment(ref _bookingCallIndex);
+        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2 + call * 3));
         var command = new
         {
             userId,
@@ -321,7 +341,7 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
     public async Task Creating_a_booking_starts_a_15_minute_hold_with_signed_qr_and_price_snapshot()
     {
         var before = DateTime.UtcNow;
-        var booking = await fixture.CreateBookingAsync();
+        var booking = await fixture.CreateBookingAsync(slotId: 2, slotCode: "B1-A02");
         var after = DateTime.UtcNow;
 
         // ----- Hợp đồng HTTP -----
@@ -668,8 +688,8 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
         Assert.Contains(mine!, b => b.Code == "BK-0002");
 
         // ----- 2 booking mới cho user ảo 9 → lọc status + thứ tự StartAtUtc giảm dần -----
-        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999");
-        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888");
+        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999", slotId: null, slotCode: null);
+        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888", slotId: null, slotCode: null);
 
         var listUser9 = await fixture.BookingClient.GetFromJsonAsync<List<BookingSummaryJson>>("/api/v1/bookings?userId=9");
         Assert.Equal(2, listUser9!.Count);

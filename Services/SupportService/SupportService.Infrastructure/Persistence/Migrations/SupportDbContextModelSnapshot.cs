@@ -103,6 +103,9 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("jsonb");
 
+                    b.Property<DateTime?>("FirstResponseAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("OwnerProfileId")
                         .HasColumnType("integer");
 
@@ -229,6 +232,65 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.ToTable("ComplaintMessages", (string)null);
                 });
 
+            modelBuilder.Entity("SupportService.Domain.Entities.DisputeRuling", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("ComplaintId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DecidedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("NewSlotCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<decimal?>("RefundAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComplaintId")
+                        .IsUnique();
+
+                    b.HasIndex("ParkingLotId", "Category", "CreatedAtUtc");
+
+                    b.ToTable("DisputeRulings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DisputeRulings_Data", "(\"Decision\" = 'ForceRefund' AND \"RefundAmount\" > 0 AND \"NewSlotCode\" IS NULL) OR (\"Decision\" = 'MoveToSlot' AND \"NewSlotCode\" IS NOT NULL AND \"RefundAmount\" IS NULL) OR (\"Decision\" = 'RejectComplaint' AND \"RefundAmount\" IS NULL AND \"NewSlotCode\" IS NULL)");
+                        });
+                });
+
             modelBuilder.Entity("SupportService.Domain.Entities.FaqArticle", b =>
                 {
                     b.Property<int>("Id")
@@ -277,6 +339,217 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.HasIndex("IsPublished", "Category", "SortOrder");
 
                     b.ToTable("FaqArticles", (string)null);
+                });
+
+            modelBuilder.Entity("SupportService.Domain.Entities.LotFineRate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("WrongSlotFine")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId")
+                        .IsUnique();
+
+                    b.ToTable("LotFineRates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LotFineRates_Amount", "\"WrongSlotFine\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("SupportService.Domain.Entities.LotFullIncident", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlternativesJson")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("text");
+
+                    b.Property<string>("BookingCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("BookingId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsSlaViolation")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("LotAvailableSlotsAtReport")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NewParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NewParkingLotName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int?>("RefundPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("VoucherAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("VoucherValidDays")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .IsUnique();
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("ParkingLotId", "IsSlaViolation");
+
+                    b.HasIndex("Status", "CreatedAtUtc");
+
+                    b.ToTable("LotFullIncidents", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LotFullIncidents_PaidAmount", "\"PaidAmount\" >= 0");
+
+                            t.HasCheckConstraint("CK_LotFullIncidents_RefundRequested", "\"Status\" <> 'RefundRequested' OR (\"RefundPercent\" = 100 AND \"VoucherAmount\" > 0 AND \"IsSlaViolation\" AND \"DecidedAtUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_LotFullIncidents_TransferAccepted", "\"Status\" <> 'TransferAccepted' OR (\"NewParkingLotId\" IS NOT NULL AND \"DecidedAtUtc\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("SupportService.Domain.Entities.ParkingViolation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("ComplaintId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("FineAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("IssuedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PlateNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("SlotCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("ComplaintId");
+
+                    b.HasIndex("ParkingLotId", "CreatedAtUtc");
+
+                    b.HasIndex("ParkingLotId", "PlateNumber");
+
+                    b.ToTable("ParkingViolations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ParkingViolations_Fine", "\"FineAmount\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("SupportService.Domain.Entities.Review", b =>
@@ -393,9 +666,35 @@ namespace SupportService.Infrastructure.Persistence.Migrations
                     b.Navigation("Complaint");
                 });
 
+            modelBuilder.Entity("SupportService.Domain.Entities.DisputeRuling", b =>
+                {
+                    b.HasOne("SupportService.Domain.Entities.Complaint", "Complaint")
+                        .WithOne("Ruling")
+                        .HasForeignKey("SupportService.Domain.Entities.DisputeRuling", "ComplaintId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Complaint");
+                });
+
+            modelBuilder.Entity("SupportService.Domain.Entities.ParkingViolation", b =>
+                {
+                    b.HasOne("SupportService.Domain.Entities.Complaint", "Complaint")
+                        .WithMany("Violations")
+                        .HasForeignKey("ComplaintId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Complaint");
+                });
+
             modelBuilder.Entity("SupportService.Domain.Entities.Complaint", b =>
                 {
                     b.Navigation("Messages");
+
+                    b.Navigation("Ruling");
+
+                    b.Navigation("Violations");
                 });
 #pragma warning restore 612, 618
         }

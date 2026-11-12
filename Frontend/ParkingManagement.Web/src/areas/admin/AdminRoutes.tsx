@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/overview/DashboardPage';
 import { PartnerListPage } from './pages/operations/partner/PartnerListPage';
 import { PartnerDetailPage } from './pages/operations/partner/PartnerDetailPage';
 import { ParkingLotDetailPage } from './pages/operations/lots/ParkingLotDetailPage';
+import { CapacityConfigPage } from './pages/operations/lots/CapacityConfigPage';
 import { KybListPage } from './pages/operations/kyb/KybListPage';
 import { KybDetailPage } from './pages/operations/kyb/KybDetailPage';
 import { ContractTemplateEditorPage } from './pages/operations/contract-templates/ContractTemplateEditorPage';
@@ -20,15 +21,24 @@ import { GateDevicesPage, GateSessionsPage } from './pages/operations/gate/GateA
 import { GATE_SUB_TABS } from './pages/operations/gate/gateTabs';
 import { FaqListPage } from './pages/communications/FaqListPage';
 import { SendNotificationPage } from './pages/communications/SendNotificationPage';
+import { CommissionPage } from './pages/finance/commission/CommissionPage';
+import { AdjustmentsPage } from './pages/finance/settlements/AdjustmentsPage';
+import { PayoutsPage } from './pages/finance/settlements/PayoutsPage';
+import { SettlementsPage } from './pages/finance/settlements/SettlementsPage';
 import { ExportsPage, ReportPage } from './pages/reports/ReportPages';
 import { REPORTS } from './pages/reports/reportSpecs';
 import { SystemSettingsListPage } from './pages/access/SystemSettingsListPage';
 import { SystemSettingDetailPage } from './pages/access/SystemSettingDetailPage';
 import { FeatureFlagsPage } from './pages/access/FeatureFlagsPage';
 import { RolesPermissionsPage } from './pages/access/RolesPermissionsPage';
+import { AuditLogListPage } from './pages/access/AuditLogListPage';
+import { AuditLogDetailPage } from './pages/access/AuditLogDetailPage';
+import { DataRequestsPage } from './pages/access/DataRequestsPage';
+import { IdentityReviewPage } from './pages/operations/identity/IdentityReviewPage';
+import { SanctionsListPage } from './pages/support/sanctions/SanctionsListPage';
 
 const SECURITY_TABS = [
-  { label: 'Data subject requests', to: '/admin/access/security-privacy' },
+  { label: 'Data subject requests', to: '/admin/access/security-privacy', end: true },
   { label: 'Security events', to: '/admin/access/security-privacy/security-events' },
 ];
 
@@ -71,6 +81,8 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/parking-lots/:id/:tab" element={<ParkingLotDetailPage />} />
         <Route path="operations/kyb-review" element={<KybListPage />} />
         <Route path="operations/kyb-review/:id" element={<KybDetailPage />} />
+        {/* US-005: duyệt CCCD/GPLX của người dùng (UserService). */}
+        <Route path="operations/identity-review" element={<IdentityReviewPage />} />
         <Route path="operations/lot-contracts" element={<LotContractListPage />} />
         <Route path="operations/contract-templates" element={<ContractTemplateListPage />} />
         <Route path="operations/contract-templates/:id" element={<ContractTemplateEditorPage />} />
@@ -79,22 +91,28 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/bookings" element={unavailable('bookings')} />
         <Route path="operations/bookings/monthly-passes" element={unavailable('monthlyPasses')} />
         <Route path="operations/bookings/:code" element={<BookingDetailPage />} />
+        {/* US-066: cấu hình sức chứa & vùng đệm vãng lai (mặc định bãi #1). */}
+        <Route path="operations/capacity-config" element={<CapacityConfigPage />} />
         <Route path="operations/gate-activity" element={<GateSessionsPage />} />
         <Route path="operations/gate-activity/devices" element={<GateDevicesPage />} />
         <Route path="operations/gate-activity/shifts" element={unavailable('gateShifts', { subTabs: GATE_SUB_TABS })} />
 
         {/* Finance */}
-        <Route path="finance/settlements" element={unavailable('settlements')} />
-        <Route path="finance/payouts" element={unavailable('payouts')} />
-        <Route path="finance/commission" element={unavailable('commission')} />
-        <Route path="finance/adjustments" element={unavailable('adjustments')} />
+        {/* US-080: quyết toán định kỳ – kỳ (chi tiết ?settlement=), chi trả, bút toán điều chỉnh. */}
+        <Route path="finance/settlements" element={<SettlementsPage />} />
+        <Route path="finance/payouts" element={<PayoutsPage />} />
+        {/* US-079: hoa hồng nền tảng – theo bãi / chủ bãi / nguồn tỷ lệ (bộ lọc trên URL, đổi tab giữ nguyên). */}
+        <Route path="finance/commission" element={<CommissionPage tab="lots" />} />
+        <Route path="finance/commission/owners" element={<CommissionPage tab="owners" />} />
+        <Route path="finance/commission/sources" element={<CommissionPage tab="sources" />} />
+        <Route path="finance/adjustments" element={<AdjustmentsPage />} />
         <Route path="finance/transactions" element={unavailable('transactions')} />
         <Route path="finance/refunds" element={unavailable('refunds')} />
 
         {/* Support & Sanctions */}
         <Route path="support/disputes" element={unavailable('disputes')} />
         <Route path="support/tickets" element={unavailable('tickets')} />
-        <Route path="support/sanctions" element={unavailable('sanctions')} />
+        <Route path="support/sanctions" element={<SanctionsListPage />} />
         <Route path="support/risk-flags" element={unavailable('riskFlags')} />
         <Route path="support/reviews" element={unavailable('reviews')} />
         <Route path="support/vouchers" element={unavailable('vouchers')} />
@@ -119,8 +137,10 @@ export const AdminRoutes: React.FC = () => {
         <Route path="access/feature-flags" element={<FeatureFlagsPage />} />
         <Route path="access/roles-permissions" element={<RolesPermissionsPage />} />
         <Route path="access/holidays" element={unavailable('holidays')} />
-        <Route path="access/audit-log" element={unavailable('auditLog')} />
-        <Route path="access/security-privacy" element={unavailable('dataRequests', { subTabs: SECURITY_TABS })} />
+        <Route path="access/audit-log" element={<AuditLogListPage />} />
+        <Route path="access/audit-log/:id" element={<AuditLogDetailPage />} />
+        {/* US-007: yêu cầu xem/xuất/sửa/xóa dữ liệu cá nhân (UserService). */}
+        <Route path="access/security-privacy" element={<DataRequestsPage subTabs={SECURITY_TABS} />} />
         <Route path="access/security-privacy/security-events" element={unavailable('securityEvents', { subTabs: SECURITY_TABS })} />
 
         <Route path="*" element={null} />

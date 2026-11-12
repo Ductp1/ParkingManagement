@@ -21,5 +21,8 @@
          permanent failure – yêu cầu của feedback PR) với NSubstitute + FakeTimeProvider.
          Vẫn KHÔNG cần database: INotificationRepository và các sender đều được substitute. -->
     <ProjectReference Include="..\NotificationService.Infrastructure\NotificationService.Infrastructure.csproj" />
+    <!-- Reference API để unit test SignalR hubs thật (T-601): NotificationHub, ParkingHub
+         (join/leave group, routing event theo group) – Context/Clients/Groups được NSubstitute thay thế. -->
+    <ProjectReference Include="..\NotificationService.API\NotificationService.API.csproj" />
   </ItemGroup>
 </Project>

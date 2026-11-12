@@ -5,6 +5,7 @@ using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using UserService.Application.Features.Identity;
 using UserService.Application.Interfaces;
+using UserService.Application.Features.Users;
 using UserService.Domain.Entities;
 
 namespace UserService.Test;
@@ -108,6 +109,125 @@ public class IdentityUseCaseTests
         await Accounts.RegisterAsync(new("User","a@example.com","Password123"),default);
         await Accounts.RequestOtpAsync(new("a@example.com"),default); Assert.Single(store.Otps);
     }
+    [Fact]
+    public async Task Reset_password_consumes_code_changes_hash_revokes_sessions_and_cannot_replay()
+    {
+        var user = Active();
+        await Accounts.RequestOtpAsync(new(user.Email!, OtpPurpose.ResetPassword), default);
+        var code = Code();
+        await Accounts.ResetPasswordAsync(new(user.Email!, code, "NewPassword123"), default);
+        Assert.Equal("hash:NewPassword123", user.PasswordHash);
+        Assert.Equal(1, store.SessionRevocations);
+        Assert.Contains(store.Security, e => e.EventType == SecurityEventType.PasswordChanged);
+        await Assert.ThrowsAsync<AuthenticationException>(() => Accounts.ResetPasswordAsync(new(user.Email!, code, "Another123"), default));
+    }
+
+    [Fact]
+    public async Task Registration_otp_cannot_be_used_for_password_reset()
+    {
+        var user = Active();
+        await Accounts.IssueOtpAsync(user, user.Email!, OtpPurpose.Register, default);
+        await Assert.ThrowsAsync<AuthenticationException>(() => Accounts.ResetPasswordAsync(new(user.Email!, Code(), "NewPassword123"), default));
+        Assert.Equal(0, store.SessionRevocations);
+    }
+
+    [Fact]
+    public async Task Reset_otp_locks_account_after_three_failures()
+    {
+        var user = Active();
+        await Accounts.RequestOtpAsync(new(user.Email!, OtpPurpose.ResetPassword), default);
+        for (var i = 0; i < 3; i++)
+            await Assert.ThrowsAsync<AuthenticationException>(() => Accounts.ResetPasswordAsync(new(user.Email!, "wrong", "NewPassword123"), default));
+        Assert.Equal(Now.AddMinutes(15), user.LockedUntilUtc);
+        Assert.Equal("", user.PasswordHash);
+    }
+
+    [Fact]
+    public async Task Forgot_password_does_not_issue_for_unknown_pending_or_unverified_contacts()
+    {
+        await Accounts.RequestOtpAsync(new("unknown@example.com", OtpPurpose.ResetPassword), default);
+        var user = Active(); user.EmailConfirmed = false;
+        await Accounts.RequestOtpAsync(new(user.Email!, OtpPurpose.ResetPassword), default);
+        user.EmailConfirmed = true; user.Status = UserStatus.PendingVerification;
+        await Accounts.RequestOtpAsync(new(user.Email!, OtpPurpose.ResetPassword), default);
+        Assert.Empty(store.Otps);
+    }
+
+    [Fact]
+    public async Task Reset_code_is_invalid_at_exact_expiry()
+    {
+        var user = Active();
+        await Accounts.RequestOtpAsync(new(user.Email!, OtpPurpose.ResetPassword), default);
+        var accounts = new AccountUseCases(store, new Passwords(), new Cipher(), delivery, new Clock(Now.AddSeconds(300)));
+        await Assert.ThrowsAsync<AuthenticationException>(() => accounts.ResetPasswordAsync(new(user.Email!, Code(), "NewPassword123"), default));
+    }
+
+    [Fact]
+    public async Task Profile_only_changes_current_users_display_fields()
+    {
+        var user = Active();
+        var useCase = new ProfileUseCases(store, new Current(), new Clock());
+        user.AvatarUrl = "/api/v1/users/avatars/existing.png";
+        await useCase.UpdateAsync(new(" Updated "), default);
+        Assert.Equal("Updated", user.FullName);
+        Assert.Equal("/api/v1/users/avatars/existing.png", user.AvatarUrl);
+        Assert.Equal("a@example.com", user.Email);
+        user.LockedUntilUtc = Now.AddMinutes(15);
+        await Assert.ThrowsAsync<AuthenticationException>(() => useCase.UpdateAsync(new("User"), default));
+    }
+
+    [Fact]
+    public async Task Avatar_upload_and_remove_only_change_current_users_avatar()
+    {
+        var user = Active(); user.AvatarUrl = "old";
+        var storage = new AvatarFiles();
+        var avatars = new AvatarUseCases(store, new Current(), storage, new Clock());
+        using var image = new MemoryStream([1]);
+        var response = await avatars.UploadAsync(image, 1, default);
+        Assert.Equal("new", response.AvatarUrl); Assert.Equal("new", user.AvatarUrl);
+        Assert.Contains("old", storage.Deleted);
+        Assert.Equal("a@example.com", user.Email);
+        await avatars.RemoveAsync(default);
+        Assert.Null(user.AvatarUrl); Assert.Contains("new", storage.Deleted);
+    }
+
+    [Fact]
+    public async Task Locked_user_upload_cleans_new_file_and_keeps_old_avatar()
+    {
+        var user = Active(); user.AvatarUrl = "old"; user.LockedUntilUtc = Now.AddMinutes(1);
+        var storage = new AvatarFiles();
+        using var image = new MemoryStream([1]);
+        await Assert.ThrowsAsync<AuthenticationException>(() => new AvatarUseCases(store, new Current(), storage, new Clock()).UploadAsync(image, 1, default));
+        Assert.Equal("old", user.AvatarUrl);
+        Assert.Contains("new", storage.Deleted); Assert.DoesNotContain("old", storage.Deleted);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2097153)]
+    public async Task Avatar_invalid_length_never_writes_file(long length)
+    {
+        Active(); var storage = new AvatarFiles(); using var image = new MemoryStream();
+        await Assert.ThrowsAsync<ValidationException>(() => new AvatarUseCases(store, new Current(), storage, new Clock()).UploadAsync(image, length, default));
+        Assert.Equal(0, storage.Saves);
+    }
+    private sealed class AvatarFiles : IAvatarStorage
+    {
+        public int Saves;
+        public List<string?> Deleted = [];
+        public Task<string> SaveAsync(Stream image, CancellationToken ct) { Saves++; return Task.FromResult("new"); }
+        public Task DeleteAsync(string? url, CancellationToken ct) { Deleted.Add(url); return Task.CompletedTask; }
+        public Task<byte[]?> ReadAsync(Guid id, CancellationToken ct) => Task.FromResult<byte[]?>(null);
+    }
+
+    private sealed class Current : ICurrentUser
+    {
+        public int? UserId => 1;
+        public string? Email => "a@example.com";
+        public IReadOnlyList<string> Roles => ["Driver"];
+        public int? OwnerProfileId => null;
+        public bool IsAuthenticated => true;
+    }
     private User Active()
     {
         var user=new User { FullName="User",Email="a@example.com",Status=UserStatus.Active,EmailConfirmed=true };
@@ -118,7 +238,6 @@ public class IdentityUseCaseTests
         using var json=JsonDocument.Parse(store.Messages.Last(m=>m.EventType=="OtpDeliveryRequested").PayloadJson);
         return new Cipher().Decrypt(json.RootElement.GetProperty("EncryptedCode").GetString()!,"otp-delivery");
     }
-    private static byte[] Png()=>[137,80,78,71,13,10,26,10,1];
     private static void Id(BaseEntity entity,int id)=>typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id))!.SetValue(entity,id);
     private sealed class Clock(DateTime? now=null):TimeProvider { public override DateTimeOffset GetUtcNow()=>new(now??Now); }
     private sealed class Passwords:IPasswordHasher { public string Hash(string value)=>"hash:"+value; public bool Verify(string value,string hash)=>hash==Hash(value); }
@@ -131,8 +250,8 @@ public class IdentityUseCaseTests
     private sealed class Store:IIdentityStore
     {
         public List<User> Users=[]; public List<OtpCode> Otps=[];public List<SecurityEvent> Security=[];
-        public List<IntegrationEvent> Events=[];public List<OutboxMessage> Messages=[];public List<StaffAssignment> Assignments=[];
-        public List<DataSubjectRequest> Requests=[];public int Commits;public int SessionRevocations;private int next=10;
+        public List<IntegrationEvent> Events=[];public List<OutboxMessage> Messages=[];
+        public int Commits;public int SessionRevocations;private int next=10;
         public Task<IIdentityTransaction> BeginAsync(CancellationToken ct)=>Task.FromResult<IIdentityTransaction>(new Tx(this));
         public Task<User?> FindContactAsync(string contact,CancellationToken ct)=>Task.FromResult(Users.FirstOrDefault(u=>u.Email==contact||u.PhoneNumber==contact));
         public Task<User?> FindUserAsync(int id,bool update,CancellationToken ct)=>Task.FromResult(Users.FirstOrDefault(u=>u.Id==id&&!u.IsDeleted));
@@ -149,8 +268,6 @@ public class IdentityUseCaseTests
                 case OtpCode otp:Otps.Add(otp);break;
                 case SecurityEvent ev:Security.Add(ev);break;
                 case OutboxMessage m:Messages.Add(m);break;
-                case StaffAssignment assignment:Add(assignment.StaffUser);assignment.StaffUserId=assignment.StaffUser.Id;Assignments.Add(assignment);break;
-                case DataSubjectRequest request:Requests.Add(request);break;
             }
         }
         public void Event(IntegrationEvent ev)=>Events.Add(ev);

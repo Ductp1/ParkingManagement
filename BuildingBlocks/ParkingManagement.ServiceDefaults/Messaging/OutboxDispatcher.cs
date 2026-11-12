@@ -45,11 +45,24 @@ public sealed class OutboxDispatcher<TContext>(IServiceScopeFactory scopes, ICon
         catch (Exception ex)
         {
             message.AttemptCount++;
-            // Chỉ lưu loại lỗi: không lưu URL/response body có OTP hoặc dữ liệu riêng tư.
-            message.LastError = ex.GetType().Name;
+            // Loại lỗi + dòng đầu thông điệp (ví dụ "535: Username and Password not accepted") để chẩn đoán được.
+            // Không lưu response body/URL đầy đủ: thông điệp chỉ lấy dòng đầu và cắt ngắn.
+            message.LastError = Describe(ex);
             message.NextAttemptAtUtc = now.AddSeconds(Math.Min(3600, Math.Pow(2, message.AttemptCount) * 5));
-            logger.LogWarning("Outbox {EventId} thất bại lần {AttemptCount}.", message.Id, message.AttemptCount);
+            logger.LogWarning("Outbox {EventId} ({EventType}) thất bại lần {AttemptCount}: {Error}",
+                message.Id, message.EventType, message.AttemptCount, message.LastError);
         }
         await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+    }
+
+    public static string Describe(Exception ex)
+    {
+        var root = ex is AggregateException { InnerException: { } inner } ? inner : ex;
+        static string First(string? message) => (message ?? "").Split('\n', 2)[0].Trim();
+        var text = First(root.Message) is { Length: > 0 } line ? $"{root.GetType().Name}: {line}" : root.GetType().Name;
+        // Lỗi TLS/SMTP thường có nguyên nhân thật ở InnerException (ví dụ chứng chỉ bị từ chối).
+        if (root.InnerException is { } cause && First(cause.Message) is { Length: > 0 } detail)
+            text += $" → {cause.GetType().Name}: {detail}";
+        return text.Length <= 500 ? text : text[..500];
     }
 }

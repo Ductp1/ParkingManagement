@@ -1,66 +1,130 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { searchParkingLots } from '@/store/slices/parkingSlice';
 
 export const DriverHomePage: React.FC = () => {
   const navigate = useNavigate();
-  const [selectedLotPopup, setSelectedLotPopup] = useState(true);
-  const [locationInput, setLocationInput] = useState('Landmark 81, Bình Thạnh');
-  const [radius, setRadius] = useState('3');
+  const dispatch = useAppDispatch();
+  const { searchResults, isLoading } = useAppSelector((state) => state.parking);
+  const { vehicles } = useAppSelector((state) => state.vehicle);
 
-  const lots = [
-    {
-      id: 1,
-      name: 'Landmark 81',
-      address: '208 Nguyễn Hữu Cảnh, Bình Thạnh',
-      price: '30K',
-      distance: '1.2 km',
-      time: '5 phút',
-      available: 42,
-      tag: '⚡ Trạm sạc EV',
-      status: 'Đang mở cửa',
-      statusColor: 'bg-emerald-500',
-      image: 'https://images.unsplash.com/photo-1573368723220-2a4c1483c66b?w=800&q=80',
+  const activeVehicle = vehicles.find((v) => v.isDefault) || vehicles[0];
+  const vehicleHeight = activeVehicle?.heightCm || 145; // Mặc định Sedan 145 cm
+
+  const [selectedLotPopup, setSelectedLotPopup] = useState(true);
+  const [locationInput, setLocationInput] = useState('Vị trí hiện tại (GPS)');
+  const [radius, setRadius] = useState('5');
+  const [coords, setCoords] = useState<{ lat: number; lng: number }>({ lat: 10.7769, lng: 106.7009 });
+  const [isLocating, setIsLocating] = useState(false);
+  const [isHeightFilterEnabled, setIsHeightFilterEnabled] = useState(true);
+  const [filterEv, setFilterEv] = useState(false);
+  const [filterRoof, setFilterRoof] = useState(false);
+  const [filterOpenNow, setFilterOpenNow] = useState(false);
+  const [filterAvailableOnly, setFilterAvailableOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<'Distance' | 'AvailableSlots' | 'Rating'>('Distance');
+
+  const performSearch = useCallback(
+    (
+      lat: number,
+      lng: number,
+      radKm: number,
+      heightCm?: number,
+      ev?: boolean,
+      roof?: boolean,
+      openNow?: boolean,
+      availableOnly?: boolean,
+      sort?: string
+    ) => {
+      const amenitiesList: string[] = [];
+      if (ev) amenitiesList.push('EV');
+      if (roof) amenitiesList.push('COVERED');
+
+      dispatch(
+        searchParkingLots({
+          lat,
+          lng,
+          radiusKm: radKm,
+          vehicleHeightCm: heightCm,
+          limit: 20,
+          amenities: amenitiesList.length > 0 ? amenitiesList.join(',') : undefined,
+          openNowOnly: openNow,
+          hasAvailableSlotsOnly: availableOnly,
+          sortBy: sort || 'Distance',
+        })
+      );
     },
-    {
-      id: 2,
-      name: 'Central Park',
-      address: 'Vinhomes Central Park, Bình Thạnh',
-      price: '25K',
-      distance: '2.4 km',
-      time: '8 phút',
-      available: 18,
-      tag: 'Hầm B1 & B2',
-      status: 'Đang mở cửa',
-      statusColor: 'bg-emerald-500',
-      image: 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=800&q=80',
+    [dispatch]
+  );
+
+  const triggerSearch = useCallback(
+    (overrides?: {
+      rad?: string;
+      height?: boolean;
+      ev?: boolean;
+      roof?: boolean;
+      openNow?: boolean;
+      available?: boolean;
+      sort?: 'Distance' | 'AvailableSlots' | 'Rating';
+    }) => {
+      const r = overrides?.rad !== undefined ? overrides.rad : radius;
+      const hEnabled = overrides?.height !== undefined ? overrides.height : isHeightFilterEnabled;
+      const ev = overrides?.ev !== undefined ? overrides.ev : filterEv;
+      const roof = overrides?.roof !== undefined ? overrides.roof : filterRoof;
+      const openNow = overrides?.openNow !== undefined ? overrides.openNow : filterOpenNow;
+      const avail = overrides?.available !== undefined ? overrides.available : filterAvailableOnly;
+      const s = overrides?.sort !== undefined ? overrides.sort : sortBy;
+
+      performSearch(
+        coords.lat,
+        coords.lng,
+        Number(r),
+        hEnabled ? vehicleHeight : undefined,
+        ev,
+        roof,
+        openNow,
+        avail,
+        s
+      );
     },
-    {
-      id: 3,
-      name: 'Saigon Centre',
-      address: '65 Lê Lợi, Quận 1',
-      price: '40K',
-      distance: '3.8 km',
-      time: '12 phút',
-      available: 5,
-      tag: 'Giữ chỗ tức thì',
-      status: 'Sắp đầy chỗ',
-      statusColor: 'bg-amber-500',
-      image: 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=800&q=80',
-    },
-    {
-      id: 4,
-      name: 'Bitexco Financial',
-      address: '2 Hải Triều, Bến Nghé, Quận 1',
-      price: '35K',
-      distance: '4.1 km',
-      time: '15 phút',
-      available: 28,
-      tag: 'An ninh 24/7',
-      status: 'Đang mở cửa',
-      statusColor: 'bg-emerald-500',
-      image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?w=800&q=80',
-    },
-  ];
+    [coords.lat, coords.lng, radius, isHeightFilterEnabled, vehicleHeight, filterEv, filterRoof, filterOpenNow, filterAvailableOnly, sortBy, performSearch]
+  );
+
+  const handleGetCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      triggerSearch();
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const nextCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setCoords(nextCoords);
+        setLocationInput('Vị trí GPS của bạn');
+        setIsLocating(false);
+        triggerSearch();
+      },
+      (err) => {
+        console.warn('Lỗi định vị GPS hoặc bị từ chối:', err.message);
+        setIsLocating(false);
+        setLocationInput('Trung tâm TP.HCM (Mặc định)');
+        triggerSearch();
+      },
+      { timeout: 8000, enableHighAccuracy: true }
+    );
+  }, [coords.lat, coords.lng, radius, performSearch]);
+
+  useEffect(() => {
+    handleGetCurrentLocation();
+  }, [handleGetCurrentLocation]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    triggerSearch();
+  };
+
+
 
   return (
     <div className="relative w-full overflow-hidden bg-slate-50 min-h-screen flex flex-col">
@@ -93,10 +157,7 @@ export const DriverHomePage: React.FC = () => {
         <div className="relative z-30 max-w-7xl mx-auto px-4 sm:px-6 pt-5">
           <div className="max-w-4xl mx-auto">
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                navigate('/driver/parking-lots');
-              }}
+              onSubmit={handleSearchSubmit}
               className="bg-white/95 rounded-2xl p-2 shadow-xl shadow-blue-900/10 border-2 border-blue-200/80 flex flex-wrap lg:flex-nowrap items-center gap-2"
             >
               {/* Field 1: Location */}
@@ -111,6 +172,15 @@ export const DriverHomePage: React.FC = () => {
                     placeholder="Nhập tên bãi hoặc khu vực..."
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={handleGetCurrentLocation}
+                  disabled={isLocating}
+                  title="Lấy vị trí GPS hiện tại"
+                  className="p-1.5 hover:bg-blue-100 rounded-lg text-blue-600 transition-colors cursor-pointer shrink-0"
+                >
+                  <i className={`fa-solid fa-crosshairs text-xs ${isLocating ? 'animate-spin text-blue-800' : ''}`}></i>
+                </button>
               </div>
               <div className="hidden lg:block w-px h-8 bg-slate-200"></div>
 
@@ -131,13 +201,19 @@ export const DriverHomePage: React.FC = () => {
                   <label className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Bán kính</label>
                   <select
                     value={radius}
-                    onChange={(e) => setRadius(e.target.value)}
+                    onChange={(e) => {
+                      const nextRad = e.target.value;
+                      setRadius(nextRad);
+                      performSearch(coords.lat, coords.lng, Number(nextRad));
+                    }}
                     className="p-0 bg-transparent border-none text-slate-800 text-xs font-semibold focus:outline-hidden cursor-pointer"
                   >
                     <option value="1">1 km</option>
                     <option value="2">2 km</option>
                     <option value="3">3 km</option>
                     <option value="5">5 km</option>
+                    <option value="10">10 km</option>
+                    <option value="15">15 km</option>
                   </select>
                 </div>
               </div>
@@ -152,25 +228,88 @@ export const DriverHomePage: React.FC = () => {
               </button>
             </form>
 
-            {/* Quick Filter Chips */}
-            <div className="flex items-center justify-center gap-2 mt-3 text-xs">
+            {/* Quick Filter Chips (US-015, US-016) */}
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-3 text-xs">
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-amber-300 shadow-xs hover:bg-amber-50 transition-all font-semibold text-[11px]"
+                onClick={() => {
+                  const nextState = !isHeightFilterEnabled;
+                  setIsHeightFilterEnabled(nextState);
+                  triggerSearch({ height: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border transition-all cursor-pointer shadow-xs ${
+                  isHeightFilterEnabled
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                }`}
+                title="Quy tắc an toàn TC-SEARCH-02: Ẩn bãi có trần < Chiều cao xe + 10cm"
               >
-                <span className="text-amber-500 font-black text-xs">⚡</span> Có sạc EV
+                <i className="fa-solid fa-shield-halved text-[10px]"></i>
+                <span>
+                  {isHeightFilterEnabled
+                    ? `🛡️ Chống cạ trần (${vehicleHeight} cm)`
+                    : 'Chống cạ trần (Tắt)'}
+                </span>
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-blue-200 shadow-xs hover:bg-blue-50 transition-all font-semibold text-[11px]"
+                onClick={() => {
+                  const nextState = !filterEv;
+                  setFilterEv(nextState);
+                  triggerSearch({ ev: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterEv
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white text-slate-800 border-amber-300 hover:bg-amber-50'
+                }`}
               >
-                <i className="fa-solid fa-warehouse text-blue-600 text-[10px]"></i> Hầm có mái
+                <span className="text-xs">⚡</span> Có sạc EV
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white text-slate-800 border border-emerald-200 shadow-xs hover:bg-emerald-50 transition-all font-semibold text-[11px]"
+                onClick={() => {
+                  const nextState = !filterRoof;
+                  setFilterRoof(nextState);
+                  triggerSearch({ roof: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterRoof
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-slate-800 border-indigo-200 hover:bg-indigo-50'
+                }`}
               >
-                <i className="fa-solid fa-video text-emerald-600 text-[10px]"></i> Camera 24/7
+                <i className="fa-solid fa-warehouse text-[10px]"></i> Hầm có mái
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !filterAvailableOnly;
+                  setFilterAvailableOnly(nextState);
+                  triggerSearch({ available: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterAvailableOnly
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white text-slate-800 border-emerald-200 hover:bg-emerald-50'
+                }`}
+              >
+                <i className="fa-solid fa-square-check text-[10px]"></i> Còn chỗ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !filterOpenNow;
+                  setFilterOpenNow(nextState);
+                  triggerSearch({ openNow: nextState });
+                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border transition-all cursor-pointer font-semibold text-[11px] shadow-xs ${
+                  filterOpenNow
+                    ? 'bg-sky-600 text-white border-sky-600'
+                    : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                <i className="fa-regular fa-clock text-[10px]"></i> Đang mở cửa
               </button>
             </div>
           </div>
@@ -329,7 +468,9 @@ export const DriverHomePage: React.FC = () => {
             <div className="text-left md:text-right">
               <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Xe đang liên kết</span>
               <span className="text-xs font-black text-slate-800 tracking-wide">
-                51K-889.32 <span className="font-medium text-slate-500">(Mercedes C300)</span>
+                {activeVehicle
+                  ? `${activeVehicle.plateDisplay || activeVehicle.plateNumber} (${activeVehicle.brand || ''} ${activeVehicle.model || 'Xe'} - Cao ${activeVehicle.heightCm} cm)`
+                  : '51K-889.32 (Mercedes C300 - Cao 145 cm)'}
               </span>
             </div>
             <button
@@ -346,11 +487,27 @@ export const DriverHomePage: React.FC = () => {
 
       {/* Recommended Parking Section */}
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 my-6 relative z-10 flex-1">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100"></span>
             <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Đề xuất tối ưu &amp; Bãi đỗ gần bạn</h2>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold shadow-xs">4 trạm gần nhất</span>
+            {searchResults.length > 0 && <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-bold shadow-xs">{searchResults.length} bãi</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sắp xếp:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => {
+                const s = e.target.value as 'Distance' | 'AvailableSlots' | 'Rating';
+                setSortBy(s);
+                triggerSearch({ sort: s });
+              }}
+              className="px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-hidden focus:border-blue-500 cursor-pointer"
+            >
+              <option value="Distance">📍 Gần nhất</option>
+              <option value="AvailableSlots">🟢 Nhiều chỗ trống nhất</option>
+              <option value="Rating">⭐ Đánh giá cao nhất</option>
+            </select>
           </div>
           <button
             onClick={() => navigate('/driver/parking-lots')}
@@ -363,88 +520,154 @@ export const DriverHomePage: React.FC = () => {
 
         {/* 4 Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {lots.map((lot) => (
-            <article
-              key={lot.id}
-              className="bg-white rounded-2xl border-2 border-blue-100 hover:border-blue-400 overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group"
-            >
-              <div className="relative h-36 overflow-hidden bg-slate-900">
-                <img
-                  alt={lot.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  src={lot.image}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30"></div>
-                <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10">
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full ${lot.statusColor} text-white text-[10px] font-bold shadow-sm`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-white"></span> {lot.status}
-                  </span>
-                </div>
-                <div className="absolute bottom-2.5 right-2.5 z-10">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold shadow-md">
-                    {lot.tag}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-3.5 flex-1 flex flex-col justify-between">
+          {isLoading ? (
+            Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="bg-white rounded-2xl border-2 border-slate-100 p-4 shadow-sm animate-pulse h-80 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-start justify-between gap-1 mb-0.5">
-                    <h3 className="font-extrabold text-slate-900 text-sm">{lot.name}</h3>
-                    <div className="text-right shrink-0">
-                      <span className="text-base font-black text-blue-700">{lot.price}</span>
-                      <span className="text-[10px] text-slate-400 font-semibold">/giờ</span>
-                    </div>
-                  </div>
-                  <p className="text-slate-500 text-[11px] mb-3 truncate">{lot.address}</p>
-
-                  <div className="flex items-center justify-between text-center py-2 px-2 bg-blue-50/60 rounded-xl text-slate-700 mb-3 border border-blue-100">
-                    <div className="flex-1">
-                      <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Khoảng cách</span>
-                      <span className="text-xs font-bold text-slate-800">
-                        <i className="fa-solid fa-location-dot text-blue-600 text-[10px] mr-1"></i>
-                        {lot.distance}
-                      </span>
-                    </div>
-                    <div className="w-px h-6 bg-blue-200/80"></div>
-                    <div className="flex-1">
-                      <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Thời gian</span>
-                      <span className="text-xs font-bold text-slate-800">
-                        <i className="fa-regular fa-clock text-blue-600 text-[10px] mr-1"></i>
-                        {lot.time}
-                      </span>
-                    </div>
-                    <div className="w-px h-6 bg-blue-200/80"></div>
-                    <div className="flex-1">
-                      <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Chỗ trống</span>
-                      <span className="text-xs font-black text-emerald-600">{lot.available} chỗ</span>
-                    </div>
-                  </div>
+                  <div className="h-36 bg-slate-200 rounded-xl mb-3"></div>
+                  <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
+                  <div className="h-3 bg-slate-200 rounded w-1/2 mb-4"></div>
                 </div>
-
-                <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-                  <button
-                    onClick={() => navigate('/driver/parking-lots')}
-                    type="button"
-                    className="flex-1 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <i className="fa-regular fa-map text-[11px]"></i>
-                    <span>Xem sơ đồ</span>
-                  </button>
-                  <button
-                    onClick={() => navigate('/driver/parking-lots')}
-                    type="button"
-                    className="flex-1 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5"
-                  >
-                    <i className="fa-solid fa-bolt text-[11px]"></i>
-                    <span>Đặt chỗ</span>
-                  </button>
-                </div>
+                <div className="h-10 bg-slate-100 rounded-xl"></div>
               </div>
-            </article>
-          ))}
+            ))
+          ) : searchResults.length === 0 ? (
+            <div className="col-span-full py-12 px-6 bg-white rounded-2xl border-2 border-dashed border-slate-200 text-center">
+              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-2xl">
+                <i className="fa-solid fa-map-location-dot"></i>
+              </div>
+              <h3 className="font-extrabold text-slate-800 text-base mb-1">
+                Không tìm thấy bãi đỗ nào trong bán kính {radius} km
+              </h3>
+              <p className="text-slate-500 text-xs mb-4 max-w-md mx-auto">
+                Khu vực xung quanh hiện chưa có bãi đỗ phù hợp hoặc các bãi đã tạm đóng. Hãy thử mở rộng phạm vi tìm kiếm.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRadius('10');
+                    performSearch(coords.lat, coords.lng, 10);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs transition-colors border border-blue-200 cursor-pointer"
+                >
+                  Mở rộng 10 km
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRadius('15');
+                    performSearch(coords.lat, coords.lng, 15);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors shadow-sm cursor-pointer"
+                >
+                  Mở rộng 15 km
+                </button>
+              </div>
+            </div>
+          ) : (
+            searchResults.map((lot) => {
+              const isAvailable = lot.availableSlots > 0;
+              const statusText = lot.isOpenNow
+                ? (isAvailable ? 'Đang mở cửa' : 'Đã kín chỗ')
+                : 'Đã đóng cửa';
+              const statusColor = lot.isOpenNow
+                ? (isAvailable ? 'bg-emerald-500' : 'bg-rose-500')
+                : 'bg-slate-500';
+              const defaultImg = 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?w=800&q=80';
+              const tagText = lot.amenities && lot.amenities.length > 0 ? lot.amenities[0] : (lot.availableSlots > 20 ? '⚡ Còn nhiều chỗ' : 'Giữ chỗ tức thì');
+
+              return (
+                <article
+                  key={lot.id}
+                  className="bg-white rounded-2xl border-2 border-blue-100 hover:border-blue-400 overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 flex flex-col group"
+                >
+                  <div className="relative h-36 overflow-hidden bg-slate-900">
+                    <img
+                      alt={lot.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      src={lot.coverImageUrl || defaultImg}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/30"></div>
+                    <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between z-10">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full ${statusColor} text-white text-[10px] font-bold shadow-sm`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-white"></span> {statusText}
+                      </span>
+                      {lot.ratingAverage && lot.ratingAverage > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-sm text-amber-300 text-[10px] font-bold">
+                          <i className="fa-solid fa-star text-[9px]"></i> {lot.ratingAverage.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="absolute bottom-2.5 right-2.5 z-10">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold shadow-md">
+                        {tagText}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-1 mb-0.5">
+                        <h3 className="font-extrabold text-slate-900 text-sm truncate" title={lot.name}>{lot.name}</h3>
+                      </div>
+                      <p className="text-slate-500 text-[11px] mb-1.5 truncate" title={lot.address}>{lot.address}</p>
+                      <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium mb-3">
+                        <i className="fa-solid fa-arrow-down-up-across-line text-blue-500 text-[10px]"></i>
+                        <span>Trần tối đa: <strong className="text-slate-700 font-bold">{lot.maxHeightCm} cm</strong></span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-center py-2 px-2 bg-blue-50/60 rounded-xl text-slate-700 mb-3 border border-blue-100">
+                        <div className="flex-1">
+                          <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Khoảng cách</span>
+                          <span className="text-xs font-bold text-slate-800">
+                            <i className="fa-solid fa-location-dot text-blue-600 text-[10px] mr-1"></i>
+                            {lot.distanceKm} km
+                          </span>
+                        </div>
+                        <div className="w-px h-6 bg-blue-200/80"></div>
+                        <div className="flex-1">
+                          <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Thời gian</span>
+                          <span className="text-xs font-bold text-slate-800">
+                            <i className="fa-regular fa-clock text-blue-600 text-[10px] mr-1"></i>
+                            {lot.estimatedTravelTimeMinutes} phút
+                          </span>
+                        </div>
+                        <div className="w-px h-6 bg-blue-200/80"></div>
+                        <div className="flex-1">
+                          <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Chỗ trống</span>
+                          <span className={`text-xs font-black ${lot.availableSlots > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {lot.availableSlots} chỗ
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                      <button
+                        onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${lot.latitude},${lot.longitude}`, '_blank')}
+                        type="button"
+                        className="flex-1 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <i className="fa-solid fa-diamond-turn-right text-blue-600 text-[11px]"></i>
+                        <span>Chỉ đường</span>
+                      </button>
+                      <button
+                        onClick={() => navigate(`/driver/parking-lots/${lot.id}`)}
+                        type="button"
+                        className="flex-1 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <i className="fa-solid fa-bolt text-[11px]"></i>
+                        <span>Đặt chỗ</span>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
         </div>
-      </main>
+        </main>
 
       {/* Trust & Performance Statistics Banner */}
       <section className="w-full bg-slate-900 text-slate-300 py-6 border-t border-slate-800 mt-12">

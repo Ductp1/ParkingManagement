@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
 using ParkingManagement.ServiceDefaults.Persistence;
+using ParkingManagement.ServiceDefaults.Messaging;
 using UserService.Application.Features.Users;
 using UserService.Infrastructure.Persistence;
 using UserService.Infrastructure.Persistence.Queries;
@@ -28,6 +29,9 @@ public static class DependencyInjection
                 UserService.Infrastructure.Authentication.CaptchaOptions>>().Value.TimeoutSeconds));
         services.AddServiceDbContext<UserDbContext>(configuration);
         services.AddScoped<IUserQueries, UserQueries>();
+        services.AddScoped<IAvatarStorage, UserService.Infrastructure.Storage.LocalAvatarStorage>();
+        services.AddScoped<UserService.Application.Features.Kyc.IKycStore, UserService.Infrastructure.Persistence.Repositories.KycStore>();
+        services.AddScoped<UserService.Application.Features.History.IDriverActivitySource, UserService.Infrastructure.Integrations.DriverActivitySource>();
         services.AddScoped<IDataSeeder<UserDbContext>, UserDataSeeder>();
 
         // Đăng ký Auth services
@@ -37,6 +41,9 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Auth.ISessionRepository, UserService.Infrastructure.Persistence.Repositories.SessionRepository>();
         services.AddScoped<UserService.Application.Features.Identity.IIdentityStore, UserService.Infrastructure.Persistence.Repositories.IdentityStore>();
         services.AddScoped<UserService.Application.Features.Users.IOwnerProfileRepository, UserService.Infrastructure.Persistence.Repositories.OwnerProfileRepository>();
+        services.AddScoped<UserService.Application.Features.Staff.IStaffStore, UserService.Infrastructure.Persistence.Repositories.StaffStore>();
+        services.AddScoped<UserService.Application.Features.Staff.IOwnerLotDirectory, UserService.Infrastructure.Integrations.ParkingLotDirectory>();
+        services.AddScoped<UserService.Application.Features.Privacy.IDataRequestStore, UserService.Infrastructure.Persistence.Repositories.DataRequestStore>();
         services.AddScoped<UserService.Application.Features.Identity.ISecretCipher, UserService.Infrastructure.Authentication.AesSecretCipher>();
         services.AddScoped<UserService.Application.Features.Identity.IOtpDeliveryConfiguration, UserService.Infrastructure.Integrations.OtpDeliveryConfiguration>();
         services.AddScoped<ParkingManagement.ServiceDefaults.ITokenPrincipalValidator, UserService.Infrastructure.Authentication.UserPrincipalValidator>();
@@ -44,6 +51,7 @@ public static class DependencyInjection
         services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<UserDbContext>>();
         services.AddHostedService<UserService.Infrastructure.Storage.IdentityRetentionWorker>();
         services.AddHttpClient("IdentityIntegrations", client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddRabbitMqEventBus(configuration);
         return services;
     }
 }
