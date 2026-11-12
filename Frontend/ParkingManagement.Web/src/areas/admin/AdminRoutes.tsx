@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/overview/DashboardPage';
 import { PartnerListPage } from './pages/operations/partner/PartnerListPage';
 import { PartnerDetailPage } from './pages/operations/partner/PartnerDetailPage';
 import { ParkingLotDetailPage } from './pages/operations/lots/ParkingLotDetailPage';
+import { ParkingLotsListPage } from './pages/operations/lots/ParkingLotsListPage';
 import { CapacityConfigPage } from './pages/operations/lots/CapacityConfigPage';
 import { KybListPage } from './pages/operations/kyb/KybListPage';
 import { KybDetailPage } from './pages/operations/kyb/KybDetailPage';
@@ -77,7 +78,7 @@ export const AdminRoutes: React.FC = () => {
         {/* Operations */}
         <Route path="operations/partner-onboarding" element={<PartnerListPage />} />
         <Route path="operations/partner-onboarding/:id" element={<PartnerDetailPage />} />
-        <Route path="operations/parking-lots" element={unavailable('parkingLots')} />
+        <Route path="operations/parking-lots" element={<ParkingLotsListPage />} />
         <Route path="operations/parking-lots/:id" element={<ParkingLotDetailPage />} />
         <Route path="operations/parking-lots/:id/:tab" element={<ParkingLotDetailPage />} />
         <Route path="operations/kyb-review" element={<KybListPage />} />

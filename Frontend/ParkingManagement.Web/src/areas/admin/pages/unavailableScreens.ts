@@ -10,7 +10,6 @@ import {
   GateDeviceStatus,
   NotificationChannel,
   NotificationStatus,
-  ParkingLotStatus,
   PaymentMethod,
   PaymentStatus,
   PromotionSponsor,
@@ -131,19 +130,6 @@ export const createFaqDialog: FormDialogSpec = {
 /* ===== Danh sách ===== */
 
 export const UNAVAILABLE_SCREENS = {
-  parkingLots: {
-    title: 'Parking Lots',
-    subtitle: '—',
-    filterGroups: [
-      { param: 'status', title: 'Lot status', values: values(ParkingLotStatus) },
-      { param: 'capacity', title: 'Capacity flags', allLabel: 'Any', values: ['Emergency stopped', 'Instant booking paused', 'Stale (no heartbeat)'] },
-    ],
-    searchPlaceholder: 'Search lot name, address, owner…',
-    toolbarFilters: ['City', 'Integration'],
-    columns: ['Lot', 'City / district', 'Available / total', 'Integration', 'KYB', 'Status', 'Capacity flag', ''],
-    service: 'ParkingService',
-    missingEndpoint: 'GET /api/v1/parking-lots (admin list)',
-  },
   bookings: {
     title: 'Bookings',
     subtitle: '13 statuses (BookingStatus)',
