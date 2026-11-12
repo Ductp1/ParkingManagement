@@ -141,6 +141,8 @@ public sealed class AdminApiFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
+        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         UserFactory?.Dispose();
         AdminFactory?.Dispose();
         try
