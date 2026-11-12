@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { parkingApi } from '@/api/parkingApi';
+import { bookingApi } from '@/api/bookingApi';
 import type { ParkingLotDto } from '@/types/parking';
+import type { BookingDetailDto } from '@/types/booking';
 
 interface SpotInfo {
   code: string;
@@ -59,8 +61,11 @@ const AVAILABLE_SPOTS: SpotInfo[] = [
   },
 ];
 
-/** Mã vé demo hiển thị trong modal đặt chỗ – gửi kèm dataJson thông báo để điều hướng về đúng đặt chỗ. */
-const DEMO_TICKET_CODE = '#PKM-2025-8842';
+/** Định dạng Date thành value cho input datetime-local (giờ máy). */
+const toLocalInput = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 export const LotDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -84,6 +89,17 @@ export const LotDetailPage: React.FC = () => {
   const [notifySent, setNotifySent] = useState<boolean>(false);
   const [showStickyStepper, setShowStickyStepper] = useState<boolean>(false);
   const [countdown, setCountdown] = useState<number>(493); // 8m 13s in seconds
+
+  // US-022/US-069: thời gian gửi & lấy xe dự kiến — người dùng chỉnh được (backend yêu cầu start >= now + 15 phút).
+  const defaultStart = new Date(Date.now() + 60 * 60 * 1000); // +1 giờ
+  const defaultEnd = new Date(defaultStart.getTime() + 4 * 60 * 60 * 1000); // +4 giờ gửi
+  const [startAtLocal, setStartAtLocal] = useState<string>(toLocalInput(defaultStart));
+  const [endAtLocal, setEndAtLocal] = useState<string>(toLocalInput(defaultEnd));
+
+  // US-022: tạo booking thật qua POST /api/v1/bookings (BookingService).
+  const [bookingBusy, setBookingBusy] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingResult, setBookingResult] = useState<BookingDetailDto | null>(null);
 
   // Fetch lot info from API
   useEffect(() => {
@@ -131,11 +147,30 @@ export const LotDetailPage: React.FC = () => {
   const vehicleModel = defaultVehicle?.model || 'EQE SUV';
   const vehicleColor = defaultVehicle?.color || 'Xanh Obsidian';
   const vehicleFuel = defaultVehicle?.fuelType || 'Electric';
+  const vehicleTypeStr = String(defaultVehicle?.vehicleType || 'Sedan');
+
+  // US-070/071: thời lượng theo khung giờ người dùng chọn
+  const durationHours = Math.max(
+    0,
+    Math.ceil((new Date(endAtLocal).getTime() - new Date(startAtLocal).getTime()) / 3600000)
+  );
+
+  // US-070/071: báo giá THẬT từ bảng giá của bãi (GET /api/v1/pricing/quote — PaymentService).
+  // Lỗi quote → null → fallback giá client bên dưới (không chặn UI).
+  const [quoteFinalAmount, setQuoteFinalAmount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!startAtLocal || !endAtLocal) return;
+    const startUtc = new Date(startAtLocal).toISOString();
+    const endUtc = new Date(endAtLocal).toISOString();
+    bookingApi
+      .getQuote(lotId, vehicleTypeStr, startUtc, endUtc)
+      .then((q) => setQuoteFinalAmount(q.finalAmount))
+      .catch(() => setQuoteFinalAmount(null));
+  }, [lotId, startAtLocal, endAtLocal, vehicleTypeStr]);
 
   // Pricing calculations
   const hourlyRate = 30000;
-  const durationHours = 4;
-  const parkingFee = hourlyRate * durationHours; // 120.000
+  const parkingFee = quoteFinalAmount ?? hourlyRate * durationHours; // giá thật từ PaymentService, fallback theo giờ client
   const techFee = 10000;
   const vipDiscount = 24000; // -20%
   const evFee = hasEvService ? 50000 : 0;
@@ -150,23 +185,62 @@ export const LotDetailPage: React.FC = () => {
     }
   };
 
-  // Xác nhận đặt chỗ: hiện modal vé + gửi thông báo InApp "Đặt chỗ thành công"
-  // qua NotificationService để demo chuông thông báo trên Navbar.
+  // US-022: xác nhận đặt chỗ → POST /api/v1/bookings (BookingService) → hiện modal vé THẬT
+  // (mã vé + QrToken từ backend) → gửi thông báo InApp "Đặt chỗ thành công" qua NotificationService.
   const handleConfirmBooking = async () => {
-    setShowSuccessModal(true);
+    setBookingError(null);
+    if (!defaultVehicle) {
+      setBookingError('Vui lòng thêm xe của bạn trong mục "Xe của tôi" trước khi đặt chỗ.');
+      return;
+    }
+    if (new Date(endAtLocal).getTime() <= new Date(startAtLocal).getTime()) {
+      setBookingError('Giờ ra dự kiến phải sau giờ vào dự kiến.');
+      return;
+    }
+
+    setBookingBusy(true);
     try {
-      await dispatch(
-        sendBookingConfirmedNotification({
-          userId,
-          parkingLotName: lot?.name || 'Landmark 81 Garage',
-          slotCode: currentSpot.code,
-          floor: `Hầm ${selectedFloor}`,
-          bookingCode: DEMO_TICKET_CODE,
-        })
-      ).unwrap();
-      setNotifySent(true);
-    } catch {
-      setNotifySent(false);
+      const result = await bookingApi.createBooking({
+        userId,
+        vehicleId: defaultVehicle.id,
+        plateNumber: defaultVehicle.plateNumber,
+        vehicleType: vehicleTypeStr,
+        parkingLotId: lotId,
+        ownerProfileId: lot?.ownerProfileId ?? 0,
+        parkingLotName: lot?.name || 'Bãi đỗ xe',
+        slotCode: selectedSpotCode,
+        allocationMode: 'Dynamic',
+        startAtUtc: new Date(startAtLocal).toISOString(),
+        endAtUtc: new Date(endAtLocal).toISOString(),
+        totalAmount,
+        requiresOwnerApproval: false,
+      });
+      setBookingResult(result);
+      setShowSuccessModal(true);
+
+      try {
+        await dispatch(
+          sendBookingConfirmedNotification({
+            userId,
+            parkingLotName: result.parkingLotName || (lot?.name || ''),
+            slotCode: result.slotCode || selectedSpotCode,
+            floor: `Hầm ${selectedFloor}`,
+            bookingCode: result.code,
+          })
+        ).unwrap();
+        setNotifySent(true);
+      } catch {
+        setNotifySent(false);
+      }
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { detail?: string; title?: string } } };
+      setBookingError(
+        axiosErr?.response?.data?.detail ||
+          axiosErr?.response?.data?.title ||
+          'Không tạo được booking — vui lòng thử lại sau.'
+      );
+    } finally {
+      setBookingBusy(false);
     }
   };
 
@@ -677,10 +751,12 @@ export const LotDetailPage: React.FC = () => {
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
                       Giờ vào dự kiến
                     </label>
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-bold text-slate-900">Hôm nay, 14:00</span>
-                      <span className="material-symbols-outlined text-blue-600 text-[20px]">calendar_today</span>
-                    </div>
+                    <input
+                      type="datetime-local"
+                      value={startAtLocal}
+                      onChange={(e) => setStartAtLocal(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white text-slate-900 text-sm font-semibold border border-slate-300 focus:outline-hidden focus:border-blue-600"
+                    />
                     <span className="text-xs text-emerald-700 flex items-center gap-1 font-medium">
                       <span className="material-symbols-outlined text-[14px]">sensors</span> Check-in tự động barrier
                     </span>
@@ -690,11 +766,13 @@ export const LotDetailPage: React.FC = () => {
                     <label className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">
                       Giờ ra dự kiến
                     </label>
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-bold text-slate-900">Hôm nay, 18:00</span>
-                      <span className="material-symbols-outlined text-blue-600 text-[20px]">calendar_today</span>
-                    </div>
-                    <span className="text-xs text-slate-500">Tổng thời lượng: 4 giờ 00 phút (Tính 4 giờ dịch vụ)</span>
+                    <input
+                      type="datetime-local"
+                      value={endAtLocal}
+                      onChange={(e) => setEndAtLocal(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white text-slate-900 text-sm font-semibold border border-slate-300 focus:outline-hidden focus:border-blue-600"
+                    />
+                    <span className="text-xs text-slate-500">Tổng thời lượng: {durationHours} giờ (Tính {durationHours} giờ dịch vụ)</span>
                   </div>
                 </div>
 
@@ -944,20 +1022,29 @@ export const LotDetailPage: React.FC = () => {
                   </label>
                 </div>
 
-                {/* CTA Button (AC3: Disable khi bãi không khả dụng) */}
+                {/* CTA Button (AC3: Disable khi bãi không khả dụng / đang xử lý) */}
                 <button
                   type="button"
-                  disabled={lot?.canBook === false}
+                  disabled={bookingBusy || lot?.canBook === false}
                   onClick={handleConfirmBooking}
                   className={`w-full py-4 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 mt-2 ${
                     lot?.canBook === false
                       ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
-                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20 cursor-pointer'
+                      : bookingBusy
+                        ? 'bg-blue-400 text-white cursor-wait shadow-none'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20 cursor-pointer'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-[20px]">{lot?.canBook === false ? 'block' : 'lock'}</span>
-                  <span>{lot?.canBook === false ? 'Tạm ngừng nhận đặt chỗ' : `Xác nhận & Thanh toán (${totalAmount.toLocaleString('vi-VN')}đ)`}</span>
+                  <span className="material-symbols-outlined text-[20px]">{lot?.canBook === false ? 'block' : bookingBusy ? 'hourglass_top' : 'lock'}</span>
+                  <span>{lot?.canBook === false ? 'Tạm ngừng nhận đặt chỗ' : bookingBusy ? 'Đang tạo booking...' : `Xác nhận & Thanh toán (${totalAmount.toLocaleString('vi-VN')}đ)`}</span>
                 </button>
+
+                {bookingError && (
+                  <div className="w-full flex items-start gap-2 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                    <span className="material-symbols-outlined text-[18px]">error</span>
+                    <span>{bookingError}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-center gap-2 text-center text-slate-500 text-[11px]">
                   <span className="material-symbols-outlined text-[15px] text-emerald-600">verified_user</span>
@@ -985,23 +1072,29 @@ export const LotDetailPage: React.FC = () => {
             <div className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 text-left flex flex-col gap-2.5 mb-5 text-xs">
               <div className="flex justify-between border-b pb-2">
                 <span className="text-slate-500">Mã vé:</span>
-                <span className="font-bold text-blue-600">{DEMO_TICKET_CODE}</span>
+                <span className="font-bold text-blue-600">{bookingResult?.code || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Bãi đỗ:</span>
-                <span className="font-semibold text-slate-800">{lot?.name || 'Landmark 81 Garage'}</span>
+                <span className="font-semibold text-slate-800">{bookingResult?.parkingLotName || lot?.name || 'Landmark 81 Garage'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Vị trí đỗ:</span>
-                <span className="font-bold text-emerald-600">Ô {currentSpot.code} (Hầm {selectedFloor})</span>
+                <span className="font-bold text-emerald-600">Ô {bookingResult?.slotCode || currentSpot.code} (Hầm {selectedFloor})</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Thời gian:</span>
-                <span className="font-semibold text-slate-800">Hôm nay, 14:00 - 18:00</span>
+                <span className="font-semibold text-slate-800">{startAtLocal.replace('T', ' ')} - {endAtLocal.replace('T', ' ')}</span>
               </div>
               <div className="flex justify-between border-t pt-2">
                 <span className="text-slate-500">Tổng thanh toán:</span>
                 <span className="font-extrabold text-blue-600">{totalAmount.toLocaleString('vi-VN')} đ</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Giữ chỗ đến:</span>
+                <span className="font-semibold text-slate-800">
+                  {bookingResult?.holdExpiresAtUtc ? new Date(bookingResult.holdExpiresAtUtc).toLocaleString('vi-VN') : '—'}
+                </span>
               </div>
             </div>
 
@@ -1024,7 +1117,7 @@ export const LotDetailPage: React.FC = () => {
                 onClick={() =>
                   navigate(
                     `/driver/payment-result?code=${encodeURIComponent(
-                      DEMO_TICKET_CODE
+                      bookingResult?.code || ''
                     )}&method=${paymentMethod}&amount=${totalAmount}&status=success`
                   )
                 }

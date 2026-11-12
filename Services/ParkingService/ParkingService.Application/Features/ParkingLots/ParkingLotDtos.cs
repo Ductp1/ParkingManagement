@@ -24,7 +24,8 @@ public sealed record ParkingLotDto(
     int RatingCount = 0,
     bool CanBook = true,
     IReadOnlyList<string>? Amenities = null,
-    IReadOnlyList<string>? Photos = null);
+    IReadOnlyList<string>? Photos = null,
+    int OwnerProfileId = 0);
 
 /// <summary>1 dòng kết quả tìm kiếm bãi gần nhất (US-014).</summary>
 public sealed record ParkingLotSearchItemDto(
@@ -158,7 +159,8 @@ public static class ParkingLotMapper
         lot.RatingCount,
         lot.IsPubliclyVisible,
         lot.Amenities?.Select(a => a.Name).ToList() ?? [],
-        lot.Photos?.OrderBy(p => p.SortOrder).Select(p => p.Url).ToList() ?? []);
+        lot.Photos?.OrderBy(p => p.SortOrder).Select(p => p.Url).ToList() ?? [],
+        lot.OwnerProfileId);
 
     public static OwnerParkingLotItemDto ToOwnerItemDto(this ParkingLot lot) => new(
         lot.Id,

@@ -151,24 +151,13 @@ export const OwnerLotsPage: React.FC = () => {
         setSelectedLotId(null);
       }
     } catch {
-      // Mock data fallback nếu backend chưa chạy
-      const mockLots: OwnerParkingLotItemDto[] = [
-        {
-          id: 4,
-          name: 'Bãi xe Chợ Bến Thành (đêm)',
-          address: 'Lê Lợi, Q.1, TP.HCM',
-          city: 'TP.HCM',
-          district: 'Quận 1',
-          totalSlots: 20,
-          availableSlots: 11,
-          maxHeightCm: 300,
-          status: 'Active',
-          openingHours: '18:00 - 07:00',
-          createdAtUtc: new Date().toISOString(),
-        },
-      ];
-      setLots(mockLots);
-      setSelectedLotId(4);
+      // Lỗi tải danh sách bãi → hiển thị thông báo lỗi (KHÔNG fallback dữ liệu giả).
+      setLots([]);
+      setSelectedLotId(null);
+      setActionMessage({
+        type: 'error',
+        text: 'Không tải được danh sách bãi đỗ từ hệ thống — vui lòng kiểm tra backend (Gateway :5000) đã chạy rồi bấm tải lại trang.',
+      });
     } finally {
       setLoadingLots(false);
     }
