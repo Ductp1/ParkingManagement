@@ -110,13 +110,8 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
     { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
   ],
-  Staff: [
-    { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
-    { label: 'Làn vào (ANPR Inbound)', path: '/gate/inbound', icon: 'login' },
-    { label: 'Làn ra (ANPR Outbound)', path: '/gate/outbound', icon: 'logout' },
-    { label: 'Soát vé thủ công', path: '/gate/manual', icon: 'edit_square' },
-    { label: 'Nhật ký trạm', path: '/gate/events', icon: 'history' },
-  ],
+  // Gate Console gói gọn trong 1 trang duy nhất (/gate) – không cần thanh menu con.
+  Staff: [],
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
     { label: 'Quản lý tài khoản', path: '/admin/users', icon: 'manage_accounts' },
@@ -403,6 +398,7 @@ export const MainNavbar: React.FC = () => {
       </div>
 
       {/* ===== TẦNG 2: MENU CHỨC NĂNG DÀNH RIÊNG CHO PHÂN HỆ CỦA TÀI KHOẢN ===== */}
+      {currentSubNavs.length > 0 && (
       <div className="bg-slate-50/90 border-t border-slate-200/80 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto h-11 flex items-center justify-between gap-4 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1">
@@ -441,6 +437,7 @@ export const MainNavbar: React.FC = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* ===== MENU MOBILE: HIỂN THỊ CÁC CHỨC NĂNG CỦA TÀI KHOẢN ===== */}
       {isMobileMenuOpen && (
@@ -476,29 +473,33 @@ export const MainNavbar: React.FC = () => {
             </>
           )}
 
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 pt-2 border-t border-slate-100">
-            Menu chức năng của {activePortal.label}:
-          </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            {currentSubNavs.map((sub) => {
-              const isSubActive = location.pathname === sub.path;
-              return (
-                <NavLink
-                  key={sub.path}
-                  to={sub.path}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 ${
-                    isSubActive
-                      ? 'bg-blue-600 text-white font-bold'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[15px]">{sub.icon}</span>
-                  <span className="truncate">{sub.label}</span>
-                </NavLink>
-              );
-            })}
-          </div>
+          {currentSubNavs.length > 0 && (
+            <>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2 pt-2 border-t border-slate-100">
+                Menu chức năng của {activePortal.label}:
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {currentSubNavs.map((sub) => {
+                  const isSubActive = location.pathname === sub.path;
+                  return (
+                    <NavLink
+                      key={sub.path}
+                      to={sub.path}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 ${
+                        isSubActive
+                          ? 'bg-blue-600 text-white font-bold'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[15px]">{sub.icon}</span>
+                      <span className="truncate">{sub.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </header>
