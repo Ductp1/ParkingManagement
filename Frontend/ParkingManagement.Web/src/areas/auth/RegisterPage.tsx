@@ -45,6 +45,14 @@ export function RegisterPage() {
     return () => window.clearInterval(timer);
   }, [retryAt, expiresAt]);
 
+  // Điều kiện mật khẩu (khớp kiểm tra ở handleRegister và phía server)
+  const passwordRules = [
+    { label: 'Ít nhất 8 ký tự', met: password.length >= 8 && new TextEncoder().encode(password).length <= 72 },
+    { label: 'Có chữ cái', met: /\p{L}/u.test(password) },
+    { label: 'Có chữ số', met: /\p{Nd}/u.test(password) },
+  ];
+  const confirmMismatch = confirmation.length > 0 && confirmation !== password;
+
   const remainingResend = Math.max(0, Math.ceil((retryAt - now) / 1000));
   const remainingExpire = expiresAt > 0 ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : 0;
 
@@ -161,7 +169,7 @@ export function RegisterPage() {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-white border border-slate-200 text-sm font-semibold text-slate-700 shadow-xl">
-          <i className="fa-solid fa-circle-notch fa-spin text-violet-600" />
+          <i className="fa-solid fa-circle-notch fa-spin text-blue-600" />
           <span>Đang kiểm tra phiên đăng nhập…</span>
         </div>
       </main>
@@ -175,28 +183,35 @@ export function RegisterPage() {
   return (
     <AuthLayout>
       <nav className="auth-tabs" aria-label="Tài khoản"><Link to="/login">Đăng nhập</Link><Link to="/register" aria-current="page" onClick={() => { setStep('register'); setError(''); setMessage(''); }}>Tạo tài khoản</Link></nav>
-      <div className="auth-progress" aria-label={step === 'register' ? 'Bước 1: Tạo tài khoản' : step === 'verify' ? 'Bước 2: Xác thực email' : 'Hoàn tất'}><span className="is-active" /><span className={step !== 'register' ? 'is-active' : ''} /><span className={step === 'done' ? 'is-active' : ''} /></div>
+      <ol className="auth-steps" aria-label="Các bước tạo tài khoản">
+        {(['Thông tin', 'Xác minh', 'Hoàn tất'] as const).map((label, i) => {
+          const current = step === 'register' ? 0 : step === 'verify' ? 1 : 2;
+          return (
+            <li key={label} className={i < current ? 'is-done' : i === current ? 'is-current' : ''} aria-current={i === current ? 'step' : undefined}>
+              {i + 1} {label}
+            </li>
+          );
+        })}
+      </ol>
       {step === 'register' && <>
-        <span className="auth-kicker">BẮT ĐẦU CÙNG PARKMASTER</span>
-        <h1 className="auth-heading">Chỗ đỗ thuận tiện.<br />Hành trình thảnh thơi.</h1>
-        <p className="auth-description">Tạo tài khoản tài xế chỉ với vài thông tin cơ bản.</p>
+        <h1 className="auth-heading">Tạo tài khoản tài xế</h1>
+        <p className="auth-description">Chỉ cần tên, email và mật khẩu. Chúng tôi gửi mã xác minh về email của bạn.</p>
         <form onSubmit={handleRegister} className="auth-form">
           <label className="auth-field" htmlFor="register-name">Họ và tên<input id="register-name" required maxLength={150} autoComplete="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Nguyễn Văn An" disabled={busy} /></label>
           <label className="auth-field" htmlFor="register-email">Địa chỉ email<input id="register-email" required type="email" maxLength={256} autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ban@example.com" disabled={busy} /></label>
-          <label className="auth-field" htmlFor="register-password">Mật khẩu<div className="auth-input-wrap"><input id="register-password" required minLength={8} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Tạo mật khẩu của bạn" disabled={busy} /><button className="auth-eye" type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div><span className="auth-hint">Ít nhất 8 ký tự, bao gồm chữ và số; tối đa 72 byte UTF-8.</span></label>
-          <label className="auth-field" htmlFor="register-confirm">Xác nhận mật khẩu<div className="auth-input-wrap"><input id="register-confirm" required type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} placeholder="Nhập lại mật khẩu" disabled={busy} /><button className="auth-eye" type="button" onClick={() => setShowConfirmation(!showConfirmation)} aria-label={showConfirmation ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'} aria-pressed={showConfirmation}>{showConfirmation ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></label>
+          <label className="auth-field" htmlFor="register-password">Mật khẩu<div className="auth-input-wrap"><input id="register-password" required minLength={8} type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Tạo mật khẩu của bạn" disabled={busy} /><button className="auth-eye" type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div><ul className="auth-rules" aria-label="Điều kiện mật khẩu">{passwordRules.map(r => <li key={r.label} className={r.met ? 'is-met' : ''}>{r.label}</li>)}</ul></label>
+          <label className="auth-field" htmlFor="register-confirm">Xác nhận mật khẩu<div className="auth-input-wrap"><input id="register-confirm" required aria-invalid={confirmMismatch} aria-describedby={confirmMismatch ? 'register-confirm-error' : undefined} type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} placeholder="Nhập lại mật khẩu" disabled={busy} /><button className="auth-eye" type="button" onClick={() => setShowConfirmation(!showConfirmation)} aria-label={showConfirmation ? 'Ẩn mật khẩu xác nhận' : 'Hiện mật khẩu xác nhận'} aria-pressed={showConfirmation}>{showConfirmation ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>{confirmMismatch && <span id="register-confirm-error" className="auth-field-error">Mật khẩu xác nhận chưa khớp.</span>}</label>
           {error && <div role="alert" className="auth-alert auth-alert-error">{error}</div>}
           <button className="auth-submit" type="submit" disabled={busy}>{busy ? 'Đang tạo tài khoản…' : 'Tạo tài khoản'}{!busy && <ArrowRight size={17} />}</button>
         </form>
         <p className="auth-switch">Đã có tài khoản? <Link to="/login">Đăng nhập</Link></p>
       </>}
       {step === 'verify' && <>
-        <span className="auth-kicker">CHỈ CÒN MỘT BƯỚC NỮA</span>
-        <h1 className="auth-heading">Xác thực tài khoản<br />của bạn.</h1>
-        <p className="auth-description">Nhập mã 6 số gửi đến email hoặc số điện thoại để kích hoạt tài khoản của bạn.</p>
+        <h1 className="auth-heading">Nhập mã xác minh</h1>
+        <p className="auth-description">Mã gồm 6 chữ số đã được gửi đến email của bạn và có hiệu lực trong 5 phút.</p>
         <form className="auth-form" onSubmit={event => { event.preventDefault(); void handleVerifyOtp(); }}>
           <label className="auth-field" htmlFor="verify-email">Email hoặc số điện thoại nhận mã<input id="verify-email" required maxLength={256} autoComplete="username" value={email} onChange={e => { setEmail(e.target.value); setCode(''); setExpiresAt(0); setRetryAt(0); }} disabled={busy || initialAction !== 'verify'} /></label>
-          <div><span className="auth-field" style={{ marginBottom: 12 }}>Mã xác thực OTP</span><OtpInput className="auth-otp" value={code} onChange={setCode} disabled={busy} hasError={!!error} autoFocus={!!email} />{expiresAt > 0 && <p className="auth-otp-timer">{remainingExpire > 0 ? <>Mã có hiệu lực trong <strong>{formatExpireTime(remainingExpire)}</strong></> : 'Mã đã hết hạn. Vui lòng gửi lại mã.'}</p>}</div>
+          <div><span className="auth-field" style={{ marginBottom: 12 }}>Mã xác minh</span><OtpInput className="auth-otp" value={code} onChange={setCode} disabled={busy} hasError={!!error} autoFocus={!!email} />{expiresAt > 0 && <p className="auth-otp-timer">{remainingExpire > 0 ? <>Mã có hiệu lực trong <strong>{formatExpireTime(remainingExpire)}</strong></> : 'Mã đã hết hạn. Vui lòng gửi lại mã.'}</p>}</div>
           {message && <div role="status" className="auth-alert auth-alert-success">{message}</div>}
           {error && <div role="alert" className="auth-alert auth-alert-error">{error}</div>}
           <button className="auth-submit" type="submit" disabled={busy || code.length !== 6 || !email.trim()}>{busy ? 'Đang xác thực…' : 'Xác thực tài khoản'}{!busy && <ArrowRight size={17} />}</button>
@@ -206,9 +221,8 @@ export function RegisterPage() {
       </>}
       {step === 'done' && <>
         <div className="auth-success-icon"><Check size={30} /></div>
-        <span className="auth-kicker">SẴN SÀNG LÊN ĐƯỜNG</span>
-        <h1 className="auth-heading">Chào mừng bạn<br />đến ParkMaster!</h1>
-        <p className="auth-description">Thông tin liên hệ <strong>{email}</strong> đã được xác thực. Bạn có thể đăng nhập và bắt đầu hành trình của mình.</p>
+        <h1 className="auth-heading">Tài khoản đã sẵn sàng</h1>
+        <p className="auth-description"><strong>{email}</strong> đã được xác minh. Đăng nhập để tìm và đặt chỗ đỗ.</p>
         <Link className="auth-submit" to="/login">Đến trang đăng nhập <ArrowRight size={17} /></Link>
       </>}
     </AuthLayout>

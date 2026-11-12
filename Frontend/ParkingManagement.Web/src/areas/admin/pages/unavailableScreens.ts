@@ -38,32 +38,6 @@ const endAfterStart = (startKey: string) => (v: unknown, all: FormValues) => {
 
 /* ===== Dialogs (Figma "… / Dialog – …"), chưa có endpoint ghi ===== */
 
-const createAdjustment: FormDialogSpec = {
-  title: 'Create adjustment',
-  description: 'Adds a FinancialAdjustments row. Without a settlement it applies to the next cycle.',
-  confirmLabel: 'Create adjustment',
-  fields: [
-    { key: 'owner', kind: 'select', label: 'Owner', required: true, options: [], placeholder: 'No owner source yet' },
-    { key: 'settlement', kind: 'select', label: 'Settlement', options: [], helper: 'Optional — only Draft / Pending review settlements' },
-    { key: 'amount', kind: 'number', label: 'Amount (₫)', required: true, helper: 'Positive = credit, negative = debit', validate: notZero },
-    { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 500, requiredMessage: 'A reason is required.' },
-const issueSanction: FormDialogSpec = {
-  title: 'Issue sanction',
-  description: 'Creates a Sanctions row. Owner-level locks go through Users › Lock owner (US-096).',
-  size: 640,
-  confirmLabel: 'Issue sanction',
-  fields: [
-    { key: 'owner', kind: 'select', label: 'Owner', required: true, options: [], placeholder: 'No owner source yet' },
-    { key: 'lot', kind: 'select', label: 'Lot (optional)', options: [], helper: 'Empty = whole owner' },
-    { key: 'level', kind: 'select', label: 'Level', required: true, options: enumOptions(values(SanctionLevel)) },
-    { key: 'reason', kind: 'textarea', label: 'Reason', required: true, maxLength: 1000, requiredMessage: 'A reason is required.' },
-    { key: 'evidence', kind: 'upload', label: 'Evidence (EvidenceJson)' },
-    { key: 'starts', kind: 'datetime', label: 'Starts', required: true, half: true },
-    { key: 'ends', kind: 'datetime', label: 'Ends', helper: 'Empty = no end (Permanent ban only)', half: true, validate: endAfterStart('starts') },
-    { key: 'penalty', kind: 'number', label: 'Penalty amount (₫)', helper: 'Optional · deducted from the owner’s settlement' },
-  ],
-};
-
 const issueVoucher: FormDialogSpec = {
   title: 'Issue compensation voucher',
   description: 'CompensationVouchers · Status = Issued. Optionally charged to an owner.',

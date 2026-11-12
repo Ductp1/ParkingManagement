@@ -1,6 +1,8 @@
 export type UserRole = 'Driver' | 'Owner' | 'Staff' | 'Admin';
 
 export interface AuthUser {
+  status?: string;
+  kycStatus?: string;
   id: number;
   fullName: string;
   phone?: string;

@@ -33,10 +33,12 @@ import { FeatureFlagsPage } from './pages/access/FeatureFlagsPage';
 import { RolesPermissionsPage } from './pages/access/RolesPermissionsPage';
 import { AuditLogListPage } from './pages/access/AuditLogListPage';
 import { AuditLogDetailPage } from './pages/access/AuditLogDetailPage';
+import { DataRequestsPage } from './pages/access/DataRequestsPage';
+import { IdentityReviewPage } from './pages/operations/identity/IdentityReviewPage';
 import { SanctionsListPage } from './pages/support/sanctions/SanctionsListPage';
 
 const SECURITY_TABS = [
-  { label: 'Data subject requests', to: '/admin/access/security-privacy' },
+  { label: 'Data subject requests', to: '/admin/access/security-privacy', end: true },
   { label: 'Security events', to: '/admin/access/security-privacy/security-events' },
 ];
 
@@ -79,6 +81,8 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/parking-lots/:id/:tab" element={<ParkingLotDetailPage />} />
         <Route path="operations/kyb-review" element={<KybListPage />} />
         <Route path="operations/kyb-review/:id" element={<KybDetailPage />} />
+        {/* US-005: duyệt CCCD/GPLX của người dùng (UserService). */}
+        <Route path="operations/identity-review" element={<IdentityReviewPage />} />
         <Route path="operations/lot-contracts" element={<LotContractListPage />} />
         <Route path="operations/contract-templates" element={<ContractTemplateListPage />} />
         <Route path="operations/contract-templates/:id" element={<ContractTemplateEditorPage />} />
@@ -135,7 +139,8 @@ export const AdminRoutes: React.FC = () => {
         <Route path="access/holidays" element={unavailable('holidays')} />
         <Route path="access/audit-log" element={<AuditLogListPage />} />
         <Route path="access/audit-log/:id" element={<AuditLogDetailPage />} />
-        <Route path="access/security-privacy" element={unavailable('dataRequests', { subTabs: SECURITY_TABS })} />
+        {/* US-007: yêu cầu xem/xuất/sửa/xóa dữ liệu cá nhân (UserService). */}
+        <Route path="access/security-privacy" element={<DataRequestsPage subTabs={SECURITY_TABS} />} />
         <Route path="access/security-privacy/security-events" element={unavailable('securityEvents', { subTabs: SECURITY_TABS })} />
 
         <Route path="*" element={null} />
