@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerFeedbackApi } from '@/api/ownerFeedbackApi';
+import { ownerLotsApi } from '@/api/ownerLotsApi';
+import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
 import type {
   ComplaintItem,
   ComplaintDetail,
@@ -37,7 +39,26 @@ export const OwnerFeedbackPage: React.FC = () => {
   // Trạng thái Đánh giá
   const [reviewsData, setReviewsData] = useState<LotReviewsResponse | null>(null);
   const [loadingReviews, setLoadingReviews] = useState(false);
-  const [selectedLotId, setSelectedLotId] = useState<number>(1);
+  const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
+  const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
+
+  useEffect(() => {
+    ownerLotsApi
+      .getMyLots(ownerProfileId)
+      .then((data) => {
+        setLots(data || []);
+        if (data && data.length > 0) {
+          setSelectedLotId(data[0].id);
+        } else {
+          setSelectedLotId(null);
+        }
+      })
+      .catch(() => {
+        setLots([]);
+        setSelectedLotId(null);
+      });
+  }, [ownerProfileId]);
+
   const [selectedStarFilter, setSelectedStarFilter] = useState<number | 'ALL'>('ALL');
   const [reportingReviewId, setReportingReviewId] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -69,12 +90,18 @@ export const OwnerFeedbackPage: React.FC = () => {
 
   // 2. Tải đánh giá bãi xe
   const fetchReviewsData = useCallback(async () => {
+    if (!selectedLotId) {
+      setReviewsData(null);
+      return;
+    }
+
     setLoadingReviews(true);
     try {
       const data = await ownerFeedbackApi.getLotReviews(selectedLotId, 30);
       setReviewsData(data);
     } catch (err) {
       console.error('Error fetching reviews data:', err);
+      setReviewsData(null);
     } finally {
       setLoadingReviews(false);
     }
@@ -235,13 +262,25 @@ export const OwnerFeedbackPage: React.FC = () => {
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
               <span className="text-xs font-bold text-slate-700">Xem đánh giá bãi xe:</span>
+
+              {/* Resolved conflict: sử dụng danh sách bãi xe thực tế */}
               <select
-                value={selectedLotId}
-                onChange={(e) => setSelectedLotId(Number(e.target.value))}
+                value={selectedLotId || ''}
+                onChange={(e) =>
+                  setSelectedLotId(e.target.value ? Number(e.target.value) : null)
+                }
+                disabled={lots.length === 0}
                 className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
               >
-                <option value={1}>Bãi xe trung tâm #1 (Landmark 81)</option>
-                <option value={2}>Bãi đỗ xe thông minh #2 (Bitexco)</option>
+                {lots.length === 0 ? (
+                  <option value="">Chưa có bãi đỗ xe</option>
+                ) : (
+                  lots.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      {lot.name} (#{lot.id})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -270,7 +309,9 @@ export const OwnerFeedbackPage: React.FC = () => {
             </h3>
 
             <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
-              <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mr-1">Lọc sao:</span>
+              <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mr-1">
+                Lọc sao:
+              </span>
               {(['ALL', 5, 4, 3, 2, 1] as const).map((starVal) => (
                 <button
                   key={starVal}

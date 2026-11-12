@@ -11,8 +11,11 @@ import {
   AlertCircle,
   Image,
   RefreshCw,
+  DollarSign,
 } from 'lucide-react';
 import { ownerFeedbackApi } from '@/api/ownerFeedbackApi';
+import { ownerBookingsApi } from '@/api/ownerBookingsApi';
+import { OwnerRefundModal } from '../bookings/OwnerRefundModal';
 import type {
   ComplaintItem,
   ComplaintDetail,
@@ -45,6 +48,23 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
   // Form giải trình
   const [responseText, setResponseText] = useState('');
   const [evidenceLinks, setEvidenceLinks] = useState<string[]>(['']);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundBookingId, setRefundBookingId] = useState<number | null>(null);
+  const [loadingRefundBooking, setLoadingRefundBooking] = useState(false);
+
+  const handleOpenRefund = async () => {
+    if (!complaint?.bookingCode) return;
+    setLoadingRefundBooking(true);
+    try {
+      const b = await ownerBookingsApi.getBookingByCode(complaint.bookingCode);
+      setRefundBookingId(b.id);
+      setIsRefundModalOpen(true);
+    } catch {
+      setErrorMessage('Không thể tìm thấy thông tin đặt chỗ để hoàn tiền.');
+    } finally {
+      setLoadingRefundBooking(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !complaint) {
@@ -356,23 +376,36 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              {/* Resolved conflict: giữ nút hoàn tiền từ stash và các nút submit/close */}
+              <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={onClose}
-                  disabled={submitting}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition"
+                  onClick={handleOpenRefund}
+                  disabled={submitting || loadingRefundBooking}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition"
                 >
-                  Đóng
+                  <DollarSign className="w-4 h-4" />
+                  <span>{loadingRefundBooking ? 'Đang kiểm tra...' : 'Hoàn tiền bồi hoàn (UI-24)'}</span>
                 </button>
-                <button
-                  type="submit"
-                  disabled={submitting || responseText.trim().length < 10}
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition flex items-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{submitting ? 'Đang gửi...' : 'Gửi giải trình cho nền tảng'}</span>
-                </button>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={submitting}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || responseText.trim().length < 10}
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition flex items-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{submitting ? 'Đang gửi...' : 'Gửi giải trình cho nền tảng'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           ) : (
@@ -413,6 +446,21 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
           )}
         </div>
       </div>
+
+      {isRefundModalOpen && refundBookingId && (
+        <OwnerRefundModal
+          isOpen={isRefundModalOpen}
+          onClose={() => setIsRefundModalOpen(false)}
+          bookingId={refundBookingId}
+          bookingCode={complaint.bookingCode}
+          ownerProfileId={ownerProfileId}
+          complaintId={detail?.id ?? complaint.id}
+          onSuccess={() => {
+            setIsRefundModalOpen(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 };

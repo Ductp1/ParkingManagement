@@ -148,24 +148,8 @@ export const OwnerLotsPage: React.FC = () => {
         setSelectedLotId(null);
       }
     } catch {
-      // Mock data fallback nếu backend chưa chạy
-      const mockLots: OwnerParkingLotItemDto[] = [
-        {
-          id: 4,
-          name: 'Bãi xe Chợ Bến Thành (đêm)',
-          address: 'Lê Lợi, Q.1, TP.HCM',
-          city: 'TP.HCM',
-          district: 'Quận 1',
-          totalSlots: 20,
-          availableSlots: 11,
-          maxHeightCm: 300,
-          status: 'Active',
-          openingHours: '18:00 - 07:00',
-          createdAtUtc: new Date().toISOString(),
-        },
-      ];
-      setLots(mockLots);
-      setSelectedLotId(4);
+      setLots([]);
+      setSelectedLotId(null);
     } finally {
       setLoadingLots(false);
     }
