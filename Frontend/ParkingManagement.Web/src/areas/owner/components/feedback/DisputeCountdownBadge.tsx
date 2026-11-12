@@ -67,8 +67,8 @@ export const DisputeCountdownBadge: React.FC<DisputeCountdownBadgeProps> = ({ st
 
   if (status === 'Rejected') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-neutral-100 text-neutral-600 border border-neutral-200">
-        <XCircle className="w-3.5 h-3.5 text-neutral-500" />
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+        <XCircle className="w-3.5 h-3.5 text-slate-500" />
         Bị từ chối
       </span>
     );

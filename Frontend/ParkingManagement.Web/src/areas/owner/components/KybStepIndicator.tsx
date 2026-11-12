@@ -86,7 +86,7 @@ export const KybStepIndicator: React.FC<KybStepIndicatorProps> = ({
                     ? 'border-emerald-500 bg-emerald-50/80 shadow-xs ring-2 ring-emerald-500/25'
                     : 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-slate-800'
                   : isCurrent
-                    ? 'border-indigo-600 bg-indigo-50/70 shadow-xs ring-2 ring-indigo-500/20 text-slate-900'
+                    ? 'border-blue-600 bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20 text-slate-900'
                     : 'border-slate-200/80 bg-slate-50/40 text-slate-400 cursor-not-allowed opacity-75'
               } ${isClickable && !isCurrent ? 'cursor-pointer hover:border-slate-300' : ''}`}
             >
@@ -98,7 +98,7 @@ export const KybStepIndicator: React.FC<KybStepIndicatorProps> = ({
                       ? 'bg-emerald-600 text-white shadow-xs scale-105'
                       : 'bg-emerald-600 text-white'
                     : isCurrent
-                      ? 'bg-indigo-600 text-white shadow-xs scale-105'
+                      ? 'bg-blue-600 text-white shadow-xs scale-105'
                       : 'bg-slate-100 text-slate-400 border border-slate-200'
                 }`}
               >
@@ -114,7 +114,7 @@ export const KybStepIndicator: React.FC<KybStepIndicatorProps> = ({
                           ? 'text-emerald-800'
                           : 'text-emerald-700'
                         : isCurrent
-                          ? 'text-indigo-700'
+                          ? 'text-blue-700'
                           : 'text-slate-400'
                     }`}
                   >

@@ -26,7 +26,7 @@ export const ZoneCard: React.FC<ZoneCardProps> = ({
       onClick={() => onSelect(zone)}
       className={`group relative rounded-2xl p-4 sm:p-5 transition-all cursor-pointer border ${
         isSelected
-          ? 'bg-indigo-50/70 border-indigo-500 shadow-md shadow-indigo-500/10 ring-2 ring-indigo-500/30'
+          ? 'bg-blue-50/70 border-blue-500 shadow-md shadow-blue-500/10 ring-2 ring-blue-500/30'
           : 'bg-white hover:bg-slate-50 border-slate-200/90 shadow-2xs hover:border-slate-300'
       }`}
     >
@@ -36,8 +36,8 @@ export const ZoneCard: React.FC<ZoneCardProps> = ({
           <span
             className={`font-mono text-xs font-black px-2.5 py-1 rounded-xl uppercase tracking-wider ${
               isSelected
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-900 text-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition-colors'
+                ? 'bg-blue-600 text-white'
+                : 'bg-slate-900 text-slate-100 group-hover:bg-blue-600 group-hover:text-white transition-colors'
             }`}
           >
             {zone.code}
@@ -65,7 +65,7 @@ export const ZoneCard: React.FC<ZoneCardProps> = ({
           <button
             type="button"
             onClick={() => onEdit(zone)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
             title="Chỉnh sửa khu vực"
           >
             <Edit2 size={14} />

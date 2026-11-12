@@ -127,7 +127,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
               <Layers size={18} />
             </div>
             <div>
@@ -171,7 +171,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                   onClick={() => handleSelectQuickLevel(q.value, q.label)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                     level === q.value
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                       : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                   }`}
                 >
@@ -193,7 +193,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="VD: Hầm B1 hoặc Tầng 2 Khu A"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">Duy nhất trong cùng khu vực</span>
             </div>
@@ -208,7 +208,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                 required
                 value={level}
                 onChange={(e) => setLevel(parseInt(e.target.value, 10) || 0)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-blue-600"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">Âm: Hầm, Dương: Nổi</span>
             </div>
@@ -223,7 +223,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <Ruler size={13} className="text-indigo-600" />
+                  <Ruler size={13} className="text-blue-600" />
                   Chiều cao trần tối đa (cm)
                 </label>
                 <input
@@ -233,14 +233,14 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                   value={maxHeightCm}
                   onChange={(e) => setMaxHeightCm(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
                   placeholder="VD: 220 (2.2 mét)"
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-indigo-600"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">Để trống nếu ngoài trời</span>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                  <Weight size={13} className="text-indigo-600" />
+                  <Weight size={13} className="text-blue-600" />
                   Tải trọng sàn tối đa (kg)
                 </label>
                 <input
@@ -251,7 +251,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                   value={maxWeightKg}
                   onChange={(e) => setMaxWeightKg(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
                   placeholder="VD: 2500 (2.5 tấn)"
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-indigo-600"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600"
                 />
                 <span className="text-[10px] text-slate-400 mt-1 block">Giới hạn tải trọng phương tiện</span>
               </div>
@@ -259,13 +259,13 @@ export const FloorModal: React.FC<FloorModalProps> = ({
           </div>
 
           {/* Ma trận lưới sơ đồ ô đỗ (Grid Matrix) */}
-          <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-3">
+          <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-100 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
-                <Grid size={14} className="text-indigo-600" />
+              <span className="text-xs font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Grid size={14} className="text-blue-600" />
                 Ma trận kích thước lưới sơ đồ ô đỗ
               </span>
-              <span className="text-xs font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-lg border border-indigo-200">
+              <span className="text-xs font-mono font-bold text-blue-700 bg-white px-2 py-0.5 rounded-lg border border-blue-200">
                 {gridColumns * gridRows} ô ma trận
               </span>
             </div>
@@ -282,7 +282,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                   required
                   value={gridColumns}
                   onChange={(e) => setGridColumns(parseInt(e.target.value, 10) || 1)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-blue-600"
                 />
               </div>
 
@@ -297,7 +297,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
                   required
                   value={gridRows}
                   onChange={(e) => setGridRows(parseInt(e.target.value, 10) || 1)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                  className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:border-blue-600"
                 />
               </div>
             </div>
@@ -338,7 +338,7 @@ export const FloorModal: React.FC<FloorModalProps> = ({
             <button
               type="submit"
               disabled={busy}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60"
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60"
             >
               {busy ? 'Đang lưu…' : isEdit ? 'Cập nhật Tầng' : 'Khai báo Tầng'}
             </button>

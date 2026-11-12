@@ -153,7 +153,7 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2">
-              <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+              <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
                 <Sliders size={18} />
               </span>
               <h3 className="text-base font-bold text-slate-900">
@@ -206,7 +206,7 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
               onClick={() => handleApplyPreset('smart')}
               className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                 bufferPercent === 10 && onlineQuota === maxAllowedOnlineQuota
-                  ? 'bg-indigo-50/80 border-indigo-300 ring-2 ring-indigo-400/30'
+                  ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-400/30'
                   : 'bg-slate-50/80 border-slate-200 hover:bg-slate-100/80'
               }`}
             >
@@ -304,13 +304,13 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
             </div>
 
             {/* Control 2: Hạn ngạch mở bán trên App (Online Quota) */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/40 border border-indigo-200/60 space-y-3">
+            <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/40 border border-blue-200/60 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="text-xs font-bold text-indigo-950 uppercase tracking-wider block">
+                  <label className="text-xs font-bold text-blue-950 uppercase tracking-wider block">
                     Hạn ngạch bán Online (Quota)
                   </label>
-                  <span className="text-[11px] text-indigo-800">
+                  <span className="text-[11px] text-blue-800">
                     Tối đa cho phép: <strong>{maxAllowedOnlineQuota} chỗ</strong>
                   </span>
                 </div>
@@ -327,9 +327,9 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
                         setLockThreshold(val);
                       }
                     }}
-                    className="w-20 px-2.5 py-1.5 text-center font-bold text-sm bg-white border border-indigo-300 rounded-xl text-indigo-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                    className="w-20 px-2.5 py-1.5 text-center font-bold text-sm bg-white border border-blue-300 rounded-xl text-blue-900 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-xs font-bold text-indigo-900">chỗ</span>
+                  <span className="text-xs font-bold text-blue-900">chỗ</span>
                 </div>
               </div>
 
@@ -347,10 +347,10 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
                     setLockThreshold(val);
                   }
                 }}
-                className="w-full accent-indigo-600 cursor-pointer h-2 bg-indigo-200 rounded-lg appearance-none"
+                className="w-full accent-blue-600 cursor-pointer h-2 bg-blue-200 rounded-lg appearance-none"
               />
 
-              <div className="flex justify-between text-[11px] text-indigo-700/80 font-medium">
+              <div className="flex justify-between text-[11px] text-blue-700/80 font-medium">
                 <span>0 chỗ</span>
                 <span>Chiếm {Math.round((onlineQuota / totalSlots) * 100)}% bãi</span>
                 <span>Tối đa: {maxAllowedOnlineQuota}</span>
@@ -466,7 +466,7 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
               <button
                 type="submit"
                 disabled={!isDirty || !!validationError || saving}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
               >
                 <Save size={15} />
                 <span>{saving ? 'Đang lưu cấu hình...' : 'Lưu cấu hình sức chứa'}</span>

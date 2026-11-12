@@ -133,7 +133,7 @@ export const QuickClosureModal: React.FC<QuickClosureModalProps> = ({
                   onChange={(e) => setClosedReason(e.target.value)}
                   placeholder="VD: Sự cố kỹ thuật / Sơn vạch kẻ / Bảo trì PCCC định kỳ..."
                   rows={3}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </>

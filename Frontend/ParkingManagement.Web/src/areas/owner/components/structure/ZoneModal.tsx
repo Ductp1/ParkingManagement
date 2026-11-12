@@ -104,7 +104,7 @@ export const ZoneModal: React.FC<ZoneModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
               <Building2 size={18} />
             </div>
             <div>
@@ -148,7 +148,7 @@ export const ZoneModal: React.FC<ZoneModalProps> = ({
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
                 placeholder="VD: ZA"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold uppercase text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold uppercase text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600"
               />
               <span className="text-[10px] text-slate-400 mt-1 block">Duy nhất trong bãi</span>
             </div>
@@ -164,7 +164,7 @@ export const ZoneModal: React.FC<ZoneModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="VD: Khu Tháp A - Khối Văn Phòng"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600"
               />
             </div>
           </div>
@@ -204,7 +204,7 @@ export const ZoneModal: React.FC<ZoneModalProps> = ({
               type="number"
               value={sortOrder}
               onChange={(e) => setSortOrder(parseInt(e.target.value, 10) || 0)}
-              className="w-full sm:w-32 px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-indigo-600"
+              className="w-full sm:w-32 px-3.5 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-blue-600"
             />
           </div>
 
@@ -257,7 +257,7 @@ export const ZoneModal: React.FC<ZoneModalProps> = ({
             <button
               type="submit"
               disabled={busy}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60"
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-60"
             >
               {busy ? 'Đang lưu…' : isEdit ? 'Cập nhật Khu vực' : 'Tạo Khu vực'}
             </button>

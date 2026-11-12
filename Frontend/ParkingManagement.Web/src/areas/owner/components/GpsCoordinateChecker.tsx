@@ -62,7 +62,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-              <MapPin size={16} className="text-indigo-600" />
+              <MapPin size={16} className="text-blue-600" />
               Đối chiếu Tọa độ GPS Ảnh Hiện Trường
             </h4>
             <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
@@ -80,7 +80,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
             <button
               type="button"
               onClick={handleGetCurrentLocation}
-              className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              className="px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
             >
               <Navigation size={12} />
               GPS Hiện tại
@@ -112,7 +112,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
               onChange(val, photoLng);
             }}
             placeholder={`VD: ${lotLat.toFixed(6)}`}
-            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-indigo-600 disabled:opacity-60"
+            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-blue-600 disabled:opacity-60"
           />
         </div>
 
@@ -130,7 +130,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
               onChange(photoLat, val);
             }}
             placeholder={`VD: ${lotLng.toFixed(6)}`}
-            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-indigo-600 disabled:opacity-60"
+            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-blue-600 disabled:opacity-60"
           />
         </div>
       </div>

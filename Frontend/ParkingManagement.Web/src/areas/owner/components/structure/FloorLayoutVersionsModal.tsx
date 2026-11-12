@@ -278,15 +278,15 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
         {/* Modal Header */}
         <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
               <History size={22} />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+                <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
                   Quản lý Sơ đồ Tầng (US-059 & US-060)
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
                   {versions.length} phiên bản
                 </span>
               </div>
@@ -320,7 +320,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
             onClick={() => setActiveTab('timeline')}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer border-b-2 ${
               activeTab === 'timeline'
-                ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                ? 'border-blue-600 text-blue-700 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
             }`}
           >
@@ -333,7 +333,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
             onClick={() => setActiveTab('preview')}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer border-b-2 ${
               activeTab === 'preview'
-                ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                ? 'border-blue-600 text-blue-700 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
             }`}
           >
@@ -346,7 +346,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
             onClick={() => setActiveTab('diff')}
             className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer border-b-2 ${
               activeTab === 'diff'
-                ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50'
+                ? 'border-blue-600 text-blue-700 bg-blue-50/50'
                 : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-50'
             }`}
           >
@@ -364,7 +364,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
             <div>
               {loadingVersions ? (
                 <div className="py-20 text-center text-xs font-semibold text-slate-500 flex flex-col items-center gap-2">
-                  <Loader2 size={24} className="animate-spin text-indigo-600" />
+                  <Loader2 size={24} className="animate-spin text-blue-600" />
                   <span>Đang tải lịch sử các phiên bản sơ đồ…</span>
                 </div>
               ) : versionsError ? (
@@ -389,7 +389,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
                     <span>Phiên bản v{latestVersionNo} đang hoạt động</span>
                   </div>
 
-                  <div className="relative border-l-2 border-indigo-100 ml-4 pl-6 space-y-6">
+                  <div className="relative border-l-2 border-blue-100 ml-4 pl-6 space-y-6">
                     {versions.map((ver) => {
                       const isCurrent = ver.versionNo === latestVersionNo;
                       const pubDate = ver.publishedAtUtc
@@ -405,8 +405,8 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
                           <div
                             className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 transition-all ${
                               isCurrent
-                                ? 'bg-indigo-600 border-white ring-4 ring-indigo-100'
-                                : 'bg-white border-slate-300 group-hover:border-indigo-400'
+                                ? 'bg-blue-600 border-white ring-4 ring-blue-100'
+                                : 'bg-white border-slate-300 group-hover:border-blue-400'
                             }`}
                           />
 
@@ -448,7 +448,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
                                     setSelectedVersionNo(ver.versionNo);
                                     setActiveTab('preview');
                                   }}
-                                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                                  className="px-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
                                 >
                                   <Grid size={13} />
                                   Xem sơ đồ
@@ -504,7 +504,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
                   <select
                     value={selectedVersionNo ?? ''}
                     onChange={(e) => setSelectedVersionNo(Number(e.target.value))}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-indigo-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-extrabold text-blue-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   >
                     {versions.map((v) => (
                       <option key={v.versionNo} value={v.versionNo}>
@@ -563,7 +563,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
 
               {loadingLayout ? (
                 <div className="py-24 text-center text-xs font-semibold text-slate-500 flex flex-col items-center gap-2">
-                  <Loader2 size={24} className="animate-spin text-indigo-600" />
+                  <Loader2 size={24} className="animate-spin text-blue-600" />
                   <span>Đang tải ma trận sơ đồ v{selectedVersionNo}…</span>
                 </div>
               ) : layoutError ? (
@@ -679,7 +679,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
 
               {loadingDiff ? (
                 <div className="py-20 text-center text-xs font-semibold text-slate-500 flex flex-col items-center gap-2">
-                  <Loader2 size={24} className="animate-spin text-indigo-600" />
+                  <Loader2 size={24} className="animate-spin text-blue-600" />
                   <span>Đang tính toán so sánh khác biệt giữa 2 phiên bản…</span>
                 </div>
               ) : diffError ? (
@@ -897,7 +897,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
                 onChange={(e) => setRollbackNote(e.target.value)}
                 placeholder="Nhập lý do khôi phục về phiên bản cũ..."
                 rows={3}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               />
             </div>
 
