@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { avatarSource, logoutSession } from '@/api/authApi';
@@ -84,6 +84,8 @@ interface SubNavItem {
   label: string;
   path: string;
   icon: string;
+  description?: string;
+  children?: SubNavItem[];
 }
 
 const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
@@ -95,12 +97,45 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
   ],
   Owner: [
+<<<<<<< Updated upstream
     { label: 'Tổng quan & Doanh thu', path: '/owner', icon: 'analytics' },
     { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
     { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
     { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
     { label: 'Khiếu nại & Đánh giá', path: '/owner/feedback', icon: 'rate_review' },
     { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
+=======
+    { label: 'Tổng quan', path: '/owner', icon: 'analytics' },
+    { label: 'Bãi đỗ & Sơ đồ', path: '/owner/lots', icon: 'view_quilt' },
+    { label: 'Đặt chỗ & Duyệt', path: '/owner/bookings', icon: 'event_available' },
+    { label: 'Doanh thu & Đối soát', path: '/owner/revenue', icon: 'account_balance_wallet' },
+    { label: 'Bảng giá', path: '/owner/pricing', icon: 'payments' },
+    {
+      label: 'Tiện ích & Cấu hình',
+      path: '/owner/more',
+      icon: 'tune',
+      children: [
+        {
+          label: 'Nhân viên trực cổng',
+          path: '/owner/staff',
+          icon: 'badge',
+          description: 'Cấp tài khoản & phân quyền ca trực',
+        },
+        {
+          label: 'Khiếu nại & Đánh giá',
+          path: '/owner/feedback',
+          icon: 'rate_review',
+          description: 'Giải quyết khiếu nại & bồi thường',
+        },
+        {
+          label: 'Tích hợp PMS / API',
+          path: '/owner/integrations',
+          icon: 'integration_instructions',
+          description: 'Khóa API & cấu hình Webhook',
+        },
+      ],
+    },
+>>>>>>> Stashed changes
   ],
   Staff: [
     { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
@@ -136,6 +171,23 @@ export const MainNavbar: React.FC = () => {
   const [loggingOut, setLoggingOut] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Đóng dropdown Tiện ích khi click ra ngoài hoặc đổi route
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [location.pathname]);
 
   // Xác định phân hệ đang active từ URL
   const getActiveRole = (pathname: string): UserRole => {
@@ -206,10 +258,81 @@ export const MainNavbar: React.FC = () => {
           </NavLink>
         </div>
 
-        {/* Menu Điều hướng Desktop: 4 mục cốt lõi, không thanh cuộn xám */}
+        {/* Menu Điều hướng Desktop: Gọn gàng, chuẩn responsive */}
         <div className="pm-navbar-desktop-menu">
           <nav aria-label={`Chức năng ${activePortal.label}`} className="pm-navbar-menu">
             {currentSubNavs.map((sub) => {
+              if (sub.children && sub.children.length > 0) {
+                const isDropdownActive = sub.children.some(
+                  (child) =>
+                    location.pathname === child.path ||
+                    (child.path !== activePortal.path && location.pathname.startsWith(child.path))
+                );
+
+                return (
+                  <div key={sub.label} className="relative" ref={moreMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsMoreMenuOpen((prev) => !prev)}
+                      className={`pm-navbar-menu-link flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
+                        isDropdownActive || isMoreMenuOpen
+                          ? activePortal.subActiveClass
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[17px]">{sub.icon}</span>
+                      <span>{sub.label}</span>
+                      <span
+                        className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
+                          isMoreMenuOpen ? 'rotate-180' : ''
+                        }`}
+                      >
+                        keyboard_arrow_down
+                      </span>
+                    </button>
+
+                    {isMoreMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-1.5 z-50 animate-fade-in flex flex-col gap-1">
+                        {sub.children.map((child) => {
+                          const isChildActive =
+                            location.pathname === child.path ||
+                            (child.path !== activePortal.path && location.pathname.startsWith(child.path));
+
+                          return (
+                            <NavLink
+                              key={child.path}
+                              to={child.path}
+                              onClick={() => setIsMoreMenuOpen(false)}
+                              className={`flex items-start gap-2.5 p-2 rounded-xl text-xs transition-all ${
+                                isChildActive
+                                  ? 'bg-blue-50 text-blue-700 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                  isChildActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="block truncate font-semibold">{child.label}</span>
+                                {child.description && (
+                                  <span className="block text-[11px] text-slate-400 font-normal leading-tight mt-0.5">
+                                    {child.description}
+                                  </span>
+                                )}
+                              </div>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               const isSubActive =
                 location.pathname === sub.path ||
                 (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
@@ -219,7 +342,7 @@ export const MainNavbar: React.FC = () => {
                   key={sub.path}
                   to={sub.path}
                   end={sub.path === activePortal.path}
-                  className={`pm-navbar-menu-link flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all ${
+                  className={`pm-navbar-menu-link flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all ${
                     isSubActive
                       ? activePortal.subActiveClass
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
@@ -504,6 +627,37 @@ export const MainNavbar: React.FC = () => {
 
           <div className="space-y-1 pt-2 border-t border-slate-100">
             {currentSubNavs.map((sub) => {
+              if (sub.children && sub.children.length > 0) {
+                return (
+                  <div key={sub.label} className="pt-2 pb-1">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">{sub.icon}</span>
+                      <span>{sub.label}</span>
+                    </div>
+                    <div className="space-y-1 pl-2">
+                      {sub.children.map((child) => {
+                        const isChildActive =
+                          location.pathname === child.path ||
+                          (child.path !== activePortal.path && location.pathname.startsWith(child.path));
+                        return (
+                          <NavLink
+                            key={child.path}
+                            to={child.path}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                              isChildActive ? activePortal.subActiveClass : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                            <span>{child.label}</span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
               const isSubActive =
                 location.pathname === sub.path ||
                 (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
@@ -513,9 +667,7 @@ export const MainNavbar: React.FC = () => {
                   to={sub.path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-                    isSubActive
-                      ? activePortal.subActiveClass
-                      : 'text-slate-700 hover:bg-slate-100'
+                    isSubActive ? activePortal.subActiveClass : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">{sub.icon}</span>

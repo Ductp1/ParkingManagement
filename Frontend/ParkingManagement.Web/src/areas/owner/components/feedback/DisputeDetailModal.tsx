@@ -11,8 +11,11 @@ import {
   AlertCircle,
   Image,
   RefreshCw,
+  DollarSign,
 } from 'lucide-react';
 import { ownerFeedbackApi } from '@/api/ownerFeedbackApi';
+import { ownerBookingsApi } from '@/api/ownerBookingsApi';
+import { OwnerRefundModal } from '../bookings/OwnerRefundModal';
 import type {
   ComplaintItem,
   ComplaintDetail,
@@ -45,6 +48,23 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
   // Form giải trình
   const [responseText, setResponseText] = useState('');
   const [evidenceLinks, setEvidenceLinks] = useState<string[]>(['']);
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundBookingId, setRefundBookingId] = useState<number | null>(null);
+  const [loadingRefundBooking, setLoadingRefundBooking] = useState(false);
+
+  const handleOpenRefund = async () => {
+    if (!complaint?.bookingCode) return;
+    setLoadingRefundBooking(true);
+    try {
+      const b = await ownerBookingsApi.getBookingByCode(complaint.bookingCode);
+      setRefundBookingId(b.id);
+      setIsRefundModalOpen(true);
+    } catch {
+      setErrorMessage('Không thể tìm thấy thông tin đặt chỗ để hoàn tiền.');
+    } finally {
+      setLoadingRefundBooking(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen || !complaint) {
@@ -356,7 +376,21 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                 </div>
               </div>
 
+<<<<<<< Updated upstream
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-100">
+=======
+              <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleOpenRefund}
+                  disabled={submitting || loadingRefundBooking}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>{loadingRefundBooking ? 'Đang kiểm tra...' : 'Hoàn tiền bồi hoàn (UI-24)'}</span>
+                </button>
+                <div className="flex items-center gap-3">
+>>>>>>> Stashed changes
                 <button
                   type="button"
                   onClick={onClose}
@@ -373,6 +407,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                   <Send className="w-4 h-4" />
                   <span>{submitting ? 'Đang gửi...' : 'Gửi giải trình cho nền tảng'}</span>
                 </button>
+              </div>
               </div>
             </form>
           ) : (
@@ -413,6 +448,21 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
           )}
         </div>
       </div>
+
+      {isRefundModalOpen && refundBookingId && (
+        <OwnerRefundModal
+          isOpen={isRefundModalOpen}
+          onClose={() => setIsRefundModalOpen(false)}
+          bookingId={refundBookingId}
+          bookingCode={complaint.bookingCode}
+          ownerProfileId={ownerProfileId}
+          complaintId={detail?.id ?? complaint.id}
+          onSuccess={() => {
+            setIsRefundModalOpen(false);
+            onClose();
+          }}
+        />
+      )}
     </div>
   );
 };

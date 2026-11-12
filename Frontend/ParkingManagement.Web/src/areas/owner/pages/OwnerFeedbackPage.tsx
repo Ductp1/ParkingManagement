@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerFeedbackApi } from '@/api/ownerFeedbackApi';
+import { ownerLotsApi } from '@/api/ownerLotsApi';
+import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
 import type {
   ComplaintItem,
   ComplaintDetail,
@@ -38,7 +40,25 @@ export const OwnerFeedbackPage: React.FC = () => {
   // Trạng thái Đánh giá
   const [reviewsData, setReviewsData] = useState<LotReviewsResponse | null>(null);
   const [loadingReviews, setLoadingReviews] = useState(false);
-  const [selectedLotId, setSelectedLotId] = useState<number>(1);
+  const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
+  const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
+
+  useEffect(() => {
+    ownerLotsApi
+      .getMyLots(ownerProfileId)
+      .then((data) => {
+        setLots(data || []);
+        if (data && data.length > 0) {
+          setSelectedLotId(data[0].id);
+        } else {
+          setSelectedLotId(null);
+        }
+      })
+      .catch(() => {
+        setLots([]);
+        setSelectedLotId(null);
+      });
+  }, [ownerProfileId]);
   const [selectedStarFilter, setSelectedStarFilter] = useState<number | 'ALL'>('ALL');
   const [reportingReviewId, setReportingReviewId] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -70,12 +90,17 @@ export const OwnerFeedbackPage: React.FC = () => {
 
   // 2. Tải đánh giá bãi xe
   const fetchReviewsData = useCallback(async () => {
+    if (!selectedLotId) {
+      setReviewsData(null);
+      return;
+    }
     setLoadingReviews(true);
     try {
       const data = await ownerFeedbackApi.getLotReviews(selectedLotId, 30);
       setReviewsData(data);
     } catch (err) {
       console.error('Error fetching reviews data:', err);
+      setReviewsData(null);
     } finally {
       setLoadingReviews(false);
     }
@@ -231,12 +256,29 @@ export const OwnerFeedbackPage: React.FC = () => {
               <Building2 className="w-4 h-4 text-neutral-500" />
               <span className="text-xs font-semibold text-neutral-700">Xem đánh giá bãi xe:</span>
               <select
+<<<<<<< Updated upstream
                 value={selectedLotId}
                 onChange={(e) => setSelectedLotId(Number(e.target.value))}
                 className="text-xs bg-white border border-neutral-300 rounded-lg px-3 py-1.5 font-semibold text-neutral-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
               >
                 <option value={1}>Bãi xe trung tâm #1 (Landmark)</option>
                 <option value={2}>Bãi đỗ xe thông minh #2</option>
+=======
+                value={selectedLotId || ''}
+                onChange={(e) => setSelectedLotId(e.target.value ? Number(e.target.value) : null)}
+                disabled={lots.length === 0}
+                className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
+              >
+                {lots.length === 0 ? (
+                  <option value="">Chưa có bãi đỗ xe</option>
+                ) : (
+                  lots.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      {lot.name} (#{lot.id})
+                    </option>
+                  ))
+                )}
+>>>>>>> Stashed changes
               </select>
             </div>
 
