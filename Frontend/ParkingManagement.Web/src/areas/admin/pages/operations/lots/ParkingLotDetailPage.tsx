@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { adminOperationsApi } from '@/api/adminOperationsApi';
-import type { AdminParkingLotDto, ParkingLotHierarchyDto } from '@/types/adminOperations';
+import type { AdminParkingLotDto } from '@/types/adminOperations';
 import { SanctionLevel } from '@/types/adminEnums';
 import { AdminTitleBar } from '../../../layout/AdminTitleBar';
 import { AdminButton } from '../../../components/AdminButton';
@@ -11,7 +11,6 @@ import { DetailList, DetailRow } from '../../../components/DetailRow';
 import { StatusIndicator } from '../../../components/StatusIndicator';
 import { StateBlock } from '../../../components/StateBlock';
 import { SubTabs } from '../../../components/SubTabs';
-import { CellMono, CellStatus, CellText, DataTable } from '../../../components/DataTable';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
 import { humanizeEnum } from '../../../utils/enumLabels';
@@ -19,24 +18,9 @@ import { formatNumber, orEmpty } from '../../../utils/format';
 import { IssueSanctionDialog, type IssueSanctionPreset } from '../../support/sanctions/IssueSanctionDialog';
 import { LotSanctionsPanel } from '../../support/sanctions/LotSanctionsPanel';
 import { useLotSanctions } from '../../support/sanctions/useLotSanctions';
-
-const TABS = [
-  { key: '', label: 'Information' },
-  { key: 'layout', label: 'Layout' },
-  { key: 'capacity', label: 'Capacity' },
-  { key: 'hours', label: 'Hours & Closures' },
-  { key: 'amenities', label: 'Amenities & Photos' },
-  { key: 'integration', label: 'Integration & Devices' },
-  { key: 'pricing', label: 'Pricing' },
-];
-
-const MISSING: Record<string, string> = {
-  capacity: 'GET /api/v1/parking-lots/{id}/capacity (LotCapacityConfigs)',
-  hours: 'GET /api/v1/parking-lots/{id}/operating-hours, /closures',
-  amenities: 'GET /api/v1/parking-lots/{id}/amenities (admin view)',
-  integration: 'GET /api/v1/parking-lots/{id}/integration',
-  pricing: 'GET /api/v1/rate-cards?parkingLotId=',
-};
+import { AmenitiesTab, CapacityTab, HoursTab, LayoutTab, PricingTab } from './LotDetailTabs';
+import { LOT_DETAIL_MISSING as MISSING, LOT_DETAIL_TABS as TABS } from './lotDetailFormat';
+import { NonPublicLotDetail } from './NonPublicLotDetail';
 
 const NO_ENDPOINT = 'No admin endpoint for this action yet';
 
@@ -86,45 +70,6 @@ const InformationTab: React.FC<{ lot: AdminParkingLotDto; sanctionsPanel: React.
   />
 );
 
-const LayoutTab: React.FC<{ lotId: number }> = ({ lotId }) => {
-  const query = useAdminQuery(() => adminOperationsApi.getParkingLotHierarchy(lotId), [lotId], (d) => d.zones.length === 0);
-  const tree: ParkingLotHierarchyDto | null = query.data;
-  if (!tree || query.status !== 'ready') {
-    return (
-      <QueryState
-        status={query.status}
-        error={query.error}
-        onRetry={query.refetch}
-        bare={false}
-        copy={{ emptyTitle: 'No layout yet', emptyMessage: 'The owner has not created zones, floors and slots.', errorTitle: 'Could not load the layout', service: 'ParkingService' }}
-      />
-    );
-  }
-  const floors = tree.zones.flatMap((z) => z.floors.map((f) => ({ zone: z, floor: f })));
-  return (
-    <Panel title="Zones & floors" description="Zones · Floors · Slots (ParkingService hierarchy)" padded={false}>
-      <DataTable
-        bare
-        rows={floors}
-        rowKey={(r) => r.floor.id}
-        columns={[
-          { key: 'zone', header: 'Zone', render: (r) => <CellText>{`${r.zone.code} · ${r.zone.name}`}</CellText> },
-          { key: 'floor', header: 'Floor', render: (r) => <CellText>{`${r.floor.name} (level ${r.floor.level})`}</CellText> },
-          { key: 'grid', header: 'Grid', render: (r) => <CellMono>{`${r.floor.gridColumns}×${r.floor.gridRows}`}</CellMono> },
-          { key: 'slots', header: 'Slots', render: (r) => <CellText>{r.floor.slots.length}</CellText> },
-          {
-            key: 'available',
-            header: 'Available',
-            render: (r) => <CellText>{r.floor.slots.filter((s) => s.isActive && s.state === 'Available').length}</CellText>,
-          },
-          { key: 'max', header: 'Max height', render: (r) => <CellText>{r.floor.maxHeightCm ? `${r.floor.maxHeightCm} cm` : '—'}</CellText> },
-          { key: 'state', header: 'State', render: (r) => <CellStatus value={r.zone.isClosed || r.floor.isClosed ? 'Closed' : 'Active'} label={r.zone.isClosed || r.floor.isClosed ? 'Closed' : 'Open'} /> },
-        ]}
-      />
-    </Panel>
-  );
-};
-
 /** Operations / Parking Lots / Detail – Information, Layout (API thật); các tab còn lại chờ endpoint. */
 export const ParkingLotDetailPage: React.FC = () => {
   const { id, tab = '' } = useParams();
@@ -141,6 +86,8 @@ export const ParkingLotDetailPage: React.FC = () => {
     ownerProfileId !== undefined && setIssuePreset({ ownerProfileId, lotIds: [lotId], level });
 
   if (!lot) {
+    // Bãi chờ duyệt / bị tạm dừng: endpoint công khai trả 404 → dựng trang từ lots-summary (audit §7.6).
+    if (valid && query.error?.status === 404) return <NonPublicLotDetail lotId={lotId} tab={tab} />;
     return (
       <>
         <AdminTitleBar title="Parking Lots" subtitle="—" />
@@ -198,6 +145,10 @@ export const ParkingLotDetailPage: React.FC = () => {
         <InformationTab lot={lot} sanctionsPanel={<LotSanctionsPanel lotId={lot.id} sanctions={sanctions} onIssue={() => openIssue()} />} />
       )}
       {tab === 'layout' && <LayoutTab lotId={lot.id} />}
+      {tab === 'capacity' && <CapacityTab lotId={lot.id} />}
+      {tab === 'hours' && <HoursTab lotId={lot.id} />}
+      {tab === 'amenities' && <AmenitiesTab lotId={lot.id} />}
+      {tab === 'pricing' && <PricingTab lotId={lot.id} />}
       {MISSING[tab] && (
         <StateBlock
           type="unavailable"

@@ -25,7 +25,16 @@ const isSessionStatus = (v: string): v is ParkingSessionStatus => (SESSION_STATU
 const sessionColumns = (lotName: (id: number) => string | undefined): DataTableColumn<AdminParkingSessionDto>[] => [
   { key: 'code', header: 'Session', render: (r) => <CellMono>{r.code}</CellMono> },
   { key: 'plate', header: 'Plate', render: (r) => <CellText>{r.plateDisplay || r.plateNumber}</CellText> },
-  { key: 'lot', header: 'Lot', render: (r) => <CellText>{lotName(r.parkingLotId) ?? ''}</CellText> },
+  {
+    key: 'lot',
+    header: 'Lot',
+    // Tên bãi tối thiểu 140px để không xuống dòng từng từ; màn hẹp thì bảng cuộn ngang bên trong.
+    render: (r) => (
+      <span className="inline-block min-w-[140px]">
+        <CellText>{lotName(r.parkingLotId) ?? ''}</CellText>
+      </span>
+    ),
+  },
   { key: 'booking', header: 'Booking', render: (r) => <CellText>{r.bookingCode ?? (r.isWalkIn ? 'Walk-in' : '—')}</CellText> },
   { key: 'entry', header: 'Entry', render: (r) => <CellMuted>{formatShortDateTime(r.entryAtUtc)}</CellMuted> },
   { key: 'exit', header: 'Exit', render: (r) => <CellMuted>{formatShortDateTime(r.exitAtUtc)}</CellMuted> },

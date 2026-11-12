@@ -70,23 +70,32 @@ export const ParkingLotsListPage: React.FC = () => {
   const hasFilter = Object.values(filters).some((v) => v !== '');
 
   const columns: DataTableColumn<AdminLotSummaryRow>[] = [
-    { key: 'lot', header: 'Lot', render: (r) => <CellLink to={`${BASE}/${r.parkingLotId}`}>{r.name}</CellLink> },
-    { key: 'area', header: 'City / district', width: 180, render: (r) => <CellTwoLine primary={r.city} secondary={r.district ?? undefined} /> },
+    // Không cố định độ rộng cột: bảng tự chia theo nội dung. Tên bãi tối thiểu 160px để không xuống dòng từng từ;
+    // màn hẹp (sidebar + cột lọc cố định, audit P1-11) thì bảng cuộn ngang bên trong.
+    {
+      key: 'lot',
+      header: 'Lot',
+      render: (r) => (
+        <span className="inline-block min-w-[160px]">
+          <CellLink to={`${BASE}/${r.parkingLotId}`}>{r.name}</CellLink>
+        </span>
+      ),
+    },
+    { key: 'area', header: 'City / district', render: (r) => <CellTwoLine primary={r.city} secondary={r.district ?? undefined} /> },
     ...(occupancyFailed
       ? []
       : [
           {
             key: 'occupancy',
             header: 'Parked / capacity',
-            width: 150,
             render: (r: AdminLotSummaryRow) =>
               occupancy.status === 'ready' ? <OccupancyCell lot={r} row={occupancyById.get(r.parkingLotId)} /> : <CellText>…</CellText>,
           },
         ]),
-    { key: 'slots', header: 'Total slots', width: 100, align: 'right', render: (r) => <CellText>{formatNumber(r.totalSlots)}</CellText> },
-    { key: 'tier', header: 'Integration', width: 110, render: (r) => <CellText>{humanizeEnum(String(r.integrationTier))}</CellText> },
-    { key: 'status', header: 'Status', width: 140, render: (r) => <StatusIndicator value={String(r.status)} /> },
-    { key: 'flags', header: 'Flags', width: 180, render: (r) => <FlagsCell lot={r} /> },
+    { key: 'slots', header: 'Total slots', align: 'right', render: (r) => <CellText>{formatNumber(r.totalSlots)}</CellText> },
+    { key: 'tier', header: 'Integration', render: (r) => <CellText>{humanizeEnum(String(r.integrationTier))}</CellText> },
+    { key: 'status', header: 'Status', render: (r) => <StatusIndicator value={String(r.status)} /> },
+    { key: 'flags', header: 'Flags', render: (r) => <FlagsCell lot={r} /> },
   ];
 
   const placeholder = (() => {
