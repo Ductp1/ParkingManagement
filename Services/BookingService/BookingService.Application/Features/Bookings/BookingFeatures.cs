@@ -827,12 +827,12 @@ public sealed class ProcessPaymentResultUseCase(
     public async Task<BookingDetailDto> ProcessPaymentSucceededAsync(PaymentSucceeded @event, CancellationToken cancellationToken = default)
     {
         if (!@event.BookingId.HasValue)
-            throw new ValidationException("Sá»± kiá»‡n PaymentSucceeded khĂ´ng cĂ³ BookingId.");
+            throw new ValidationException("Sự kiện PaymentSucceeded không có BookingId.");
 
         var booking = await repository.GetEntityByIdAsync(@event.BookingId.Value, cancellationToken)
             ?? throw new NotFoundException("Booking", @event.BookingId.Value.ToString());
 
-        // Idempotency: Náº¿u Ä‘Æ¡n Ä‘Ă£ Ä‘Æ°á»£c xĂ¡c nháº­n hoáº·c duyá»‡t rá»“i thĂ¬ bá» qua khĂ´ng xá»­ lĂ½ láº·p
+        // Idempotency: Nếu đơn đã được xác nhận hoặc duyệt rồi thì bỏ qua không xử lý lặp
         if (booking.Status == BookingStatus.Confirmed || booking.Status == BookingStatus.PendingOwnerApproval)
         {
             return await queries.GetByCodeAsync(booking.Code, cancellationToken)
@@ -841,7 +841,7 @@ public sealed class ProcessPaymentResultUseCase(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        // Kiá»ƒm tra quĂ¡ háº¡n thá»i gian giá»¯ chá»— 15 phĂºt (HoldExpiresAtUtc)
+        // Kiểm tra quá hạn thời gian giữ chỗ 15 phút (HoldExpiresAtUtc)
         if (booking.HoldExpiresAtUtc.HasValue && now > booking.HoldExpiresAtUtc.Value)
         {
             // Đã quá hạn giữ chỗ 15 phút -> Kích hoạt Expired
@@ -856,16 +856,8 @@ public sealed class ProcessPaymentResultUseCase(
                 ?? throw new NotFoundException("Booking", booking.Code);
         }
 
-        if (DateTime.MinValue == DateTime.MaxValue)
-        {
-            // ÄĂ£ quĂ¡ háº¡n: ÄÆ¡n Ä‘Ă£ háº¿t háº¡n -> KĂ­ch hoáº¡t tráº¡ng thĂ¡i Expired (Sáº½ yĂªu cáº§u hoĂ n tiá»n bĂ¹ trá»«)
-            booking.Expire(now, $"Thanh toĂ¡n thĂ nh cĂ´ng {@event.Amount:N0}Ä‘ qua {@event.Method} nhÆ°ng Ä‘Æ¡n Ä‘Ă£ quĂ¡ háº¡n giá»¯ chá»— 15 phĂºt. KĂ­ch hoáº¡t giao dá»‹ch bĂ¹ trá»« (HoĂ n tiá»n).");
-            await repository.SaveChangesAsync(cancellationToken);
-            return await queries.GetByCodeAsync(booking.Code, cancellationToken)
-                ?? throw new NotFoundException("Booking", booking.Code);
-        }
 
-        // Náº¿u bĂ£i Má»©c 0: Chá» chá»§ bĂ£i duyá»‡t
+        // Nếu bãi Mức 0: Chờ chủ bãi duyệt
         if (booking.RequiresOwnerApproval)
         {
             booking.RequireOwnerApproval();
@@ -873,7 +865,7 @@ public sealed class ProcessPaymentResultUseCase(
         }
         else
         {
-            // BĂ£i tá»± Ä‘á»™ng (Má»©c 1-3): XĂ¡c nháº­n giá»¯ chá»— thĂ nh cĂ´ng ngay láº­p tá»©c
+            // Bãi tự động (Mức 1-3): Xác nhận giữ chỗ thành công ngay lập tức
             booking.ConfirmPayment(@event.Amount, now);
         }
 
@@ -885,7 +877,7 @@ public sealed class ProcessPaymentResultUseCase(
     public async Task<BookingDetailDto> ProcessPaymentFailedAsync(PaymentFailed @event, CancellationToken cancellationToken = default)
     {
         if (!@event.BookingId.HasValue)
-            throw new ValidationException("Sá»± kiá»‡n PaymentFailed khĂ´ng cĂ³ BookingId.");
+            throw new ValidationException("Sự kiện PaymentFailed không có BookingId.");
 
         var booking = await repository.GetEntityByIdAsync(@event.BookingId.Value, cancellationToken)
             ?? throw new NotFoundException("Booking", @event.BookingId.Value.ToString());
@@ -918,7 +910,7 @@ public sealed class GetApprovalLogsUseCase(IBookingQueries queries) : IGetApprov
         int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
     {
         if (fromUtc.HasValue && toUtc.HasValue && toUtc < fromUtc)
-            throw new ValidationException("Khoáº£ng thá»i gian tra cá»©u khĂ´ng há»£p lá»‡ (toUtc pháº£i sau fromUtc).");
+            throw new ValidationException("Khoảng thời gian tra cứu không hợp lệ (toUtc phải sau fromUtc).");
 
         return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, cancellationToken);
     }
