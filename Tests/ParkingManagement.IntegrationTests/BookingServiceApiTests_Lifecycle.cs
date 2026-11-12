@@ -141,6 +141,8 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
 
     // ===================== Helper dùng chung cho các test =====================
 
+    private static int _bookingCallIndex = 0;
+
     /// <summary>
     /// Tạo booking qua API thật (US-022). Mặc định: driver 1 – xe 51A88888 – bãi Vincom slot B1-A02,
     /// bắt đầu sau 2 giờ, dài 2 giờ, giá 40.000đ, không khuyến mãi, Dynamic allocation.
@@ -154,15 +156,16 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         int ownerProfileId = DemoIds.OwnerVincom,
         string parkingLotName = "Bãi xe Vincom Đồng Khởi",
         int? zoneId = DemoIds.ZoneVincomB,
-        int? slotId = 2,
-        string? slotCode = "B1-A02",
+        int? slotId = null,
+        string? slotCode = null,
         DateTime? startAtUtc = null,
         TimeSpan? duration = null,
         decimal totalAmount = 40000,
         string? promotionCode = null,
         bool requiresOwnerApproval = false)
     {
-        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2));
+        var call = Interlocked.Increment(ref _bookingCallIndex);
+        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2 + call * 3));
         var command = new
         {
             userId,
@@ -338,7 +341,7 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
     public async Task Creating_a_booking_starts_a_15_minute_hold_with_signed_qr_and_price_snapshot()
     {
         var before = DateTime.UtcNow;
-        var booking = await fixture.CreateBookingAsync();
+        var booking = await fixture.CreateBookingAsync(slotId: 2, slotCode: "B1-A02");
         var after = DateTime.UtcNow;
 
         // ----- Hợp đồng HTTP -----
@@ -685,8 +688,8 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
         Assert.Contains(mine!, b => b.Code == "BK-0002");
 
         // ----- 2 booking mới cho user ảo 9 → lọc status + thứ tự StartAtUtc giảm dần -----
-        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999");
-        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888");
+        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999", slotId: null, slotCode: null);
+        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888", slotId: null, slotCode: null);
 
         var listUser9 = await fixture.BookingClient.GetFromJsonAsync<List<BookingSummaryJson>>("/api/v1/bookings?userId=9");
         Assert.Equal(2, listUser9!.Count);

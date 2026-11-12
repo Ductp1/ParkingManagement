@@ -47,15 +47,28 @@ public sealed class HoldExpiryWorker(
             .Where(b => b.Status == BookingStatus.PendingPayment && b.HoldExpiresAtUtc != null && b.HoldExpiresAtUtc < now)
             .ToListAsync(cancellationToken);
 
-        if (overdue.Count == 0) return 0;
+        // Quét thêm các đơn PendingOwnerApproval quá 15 phút (CreatedAtUtc < now - 15p) mà chủ bãi không duyệt
+        var approvalCutoff = now.AddMinutes(-15);
+        var overdueApprovals = await db.Bookings
+            .Where(b => b.Status == BookingStatus.PendingOwnerApproval && b.CreatedAtUtc < approvalCutoff)
+            .ToListAsync(cancellationToken);
+
+        if (overdue.Count == 0 && overdueApprovals.Count == 0) return 0;
 
         foreach (var b in overdue)
         {
             b.Expire(now);
         }
 
+        foreach (var b in overdueApprovals)
+        {
+            b.CancelByOwner(now, 0, "Quá 15 phút chủ bãi không phản hồi, tự động hủy để giải phóng chỗ");
+        }
+
         await db.SaveChangesAsync(cancellationToken);
-        logger.LogInformation("Đã tự động hết hạn {Count} đơn đặt chỗ quá hạn 15 phút.", overdue.Count);
-        return overdue.Count;
+        var total = overdue.Count + overdueApprovals.Count;
+        logger.LogInformation("Đã tự động xử lý {Count} đơn đặt chỗ quá hạn (PendingPayment: {PendingCount}, PendingOwnerApproval: {ApprovalCount}).",
+            total, overdue.Count, overdueApprovals.Count);
+        return total;
     }
 }
