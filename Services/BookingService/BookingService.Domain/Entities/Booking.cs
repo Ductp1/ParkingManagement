@@ -67,16 +67,23 @@ public class Booking : BaseEntity
 
     // ===== Quản lý chuyển đổi trạng thái vòng đời đặt chỗ (Task T-301) =====
 
-    /// <summary>Bắt đầu giữ chỗ miễn phí 15 phút khi vừa tạo đơn đặt chỗ (US-022).</summary>
-    public void MarkAsPendingPayment(DateTime nowUtc)
+    /// <summary>Bắt đầu giữ chỗ miễn phí khi vừa tạo đơn đặt chỗ (US-022). Nếu chọn PayAtGate thì hạn giữ chỗ kéo dài đến giờ hẹn + 15p.</summary>
+    public void MarkAsPendingPayment(DateTime nowUtc, bool payAtGate = false, DateTime? startAtUtc = null)
     {
         if (Status != BookingStatus.Created)
             throw new ConflictException($"Không thể bắt đầu thanh toán từ trạng thái {Status}. Chỉ cho phép từ Created.");
 
         Status = BookingStatus.PendingPayment;
-        HoldExpiresAtUtc = nowUtc.AddMinutes(15);
-
-        AddStatusLog(BookingStatus.Created, BookingStatus.PendingPayment, UserId, "Bắt đầu giữ chỗ miễn phí 15 phút");
+        if (payAtGate && startAtUtc.HasValue)
+        {
+            HoldExpiresAtUtc = startAtUtc.Value.AddMinutes(15);
+            AddStatusLog(BookingStatus.Created, BookingStatus.PendingPayment, UserId, "Thanh toán tại bãi: Giữ chỗ đến giờ hẹn (+15 phút ân hạn)");
+        }
+        else
+        {
+            HoldExpiresAtUtc = nowUtc.AddMinutes(15);
+            AddStatusLog(BookingStatus.Created, BookingStatus.PendingPayment, UserId, "Bắt đầu giữ chỗ miễn phí 15 phút");
+        }
     }
 
     /// <summary>Chờ chủ bãi duyệt đơn đối với bãi thủ công Mức 0 (US-031).</summary>

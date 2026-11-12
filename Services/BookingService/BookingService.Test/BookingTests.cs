@@ -1,4 +1,4 @@
-﻿using BookingService.Application.Features.Bookings;
+using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
 using ParkingManagement.SharedKernel.Enums;
@@ -389,6 +389,100 @@ public class BookingFeaturesTests
     }
 
     [Fact]
+    public async Task CreateBooking_when_slot_already_occupied_throws_conflict_exception()
+    {
+        // Fix bug mục 1 & ảnh chat: Người A đặt chỗ X rồi, người tiếp theo KHÔNG ĐƯỢC đặt chỗ X đó
+        var existingBooking = new Booking
+        {
+
+            Code = "BK-EXISTING-01",
+            UserId = 99,
+            VehicleId = 10,
+            PlateNumber = "51A-111.11",
+            ParkingLotId = 1,
+            SlotId = 2,
+            SlotCode = "B1-A02",
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddHours(1),
+            EndAtUtc = FixedNow.AddHours(3)
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(existingBooking);
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        // Khách hàng khác (UserId = 5) cố tình đặt cùng SlotId = 2 trong khung giờ giao nhau
+        var cmd = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 1,
+            PlateNumber: "51F-123.45",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: 1,
+            SlotId: 2,
+            SlotCode: "B1-A02",
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddHours(2), // Giao với 1h-3h
+            EndAtUtc: FixedNow.AddHours(4),
+            TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("đã có người đặt trước", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateBooking_when_user_already_has_active_booking_in_same_window_throws_validation_exception()
+    {
+        // US-025: 1 user không được tạo 2 đơn trùng khung giờ
+        var userExistingBooking = new Booking
+        {
+
+            Code = "BK-USER-01",
+            UserId = 5,
+            VehicleId = 1,
+            PlateNumber = "51A-111.11",
+            ParkingLotId = 1,
+            SlotId = 1,
+            SlotCode = "B1-A01",
+            Status = BookingStatus.PendingPayment,
+            StartAtUtc = FixedNow.AddHours(1),
+            EndAtUtc = FixedNow.AddHours(3)
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(userExistingBooking);
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        // Chính user đó (UserId = 5) tạo thêm đơn ở ô khác nhưng cùng khung giờ
+        var cmd = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 2,
+            PlateNumber: "51F-999.99",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: 1,
+            SlotId: 99,
+            SlotCode: "B1-A99",
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddHours(1).AddMinutes(30),
+            EndAtUtc: FixedNow.AddHours(2).AddMinutes(30),
+            TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("đang hoạt động trong khung giờ này", ex.Message);
+    }
+
+    [Fact]
     public async Task ModifyBooking_under_60_minutes_before_start_throws_validation_exception()
     {
         var booking = new Booking
@@ -404,7 +498,8 @@ public class BookingFeaturesTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, clock);
+        var qr = new QrTokenService();
+        var useCase = new ModifyBookingUseCase(repo, queries, qr, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 5,
@@ -415,6 +510,148 @@ public class BookingFeaturesTests
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync("BK-0001", cmd));
         Assert.Contains("60 phút", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateBooking_with_PayAtGate_sets_hold_time_until_start_plus_15m()
+    {
+        var repo = new FakeBookingRepo();
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        var startAt = FixedNow.AddHours(2); // Đặt trước 2 tiếng
+        var cmd = new CreateBookingCommand(
+            UserId: 5, VehicleId: 1, PlateNumber: "51F-123.45", VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1, OwnerProfileId: 1, ParkingLotName: "Bãi Vincom", ZoneId: 1, SlotId: 2, SlotCode: "A-02",
+            AllocationMode: AllocationMode.Dynamic, StartAtUtc: startAt, EndAtUtc: startAt.AddHours(2), TotalAmount: 60000,
+            PromotionCode: null, RequiresOwnerApproval: false, PayAtGate: true);
+
+        var result = await useCase.ExecuteAsync(cmd);
+
+        Assert.NotNull(result);
+        Assert.Equal(startAt.AddMinutes(15), result.HoldExpiresAtUtc); // Giữ đến giờ hẹn + 15p
+    }
+
+    [Fact]
+    public async Task CreateBooking_when_slot_is_dedicated_to_active_monthly_pass_throws_conflict_exception()
+    {
+        var repo = new FakeBookingRepo();
+        repo.ActiveMonthlyPassSlots.Add(10); // Slot 10 là của khách vé tháng
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        var cmd = new CreateBookingCommand(
+            UserId: 5, VehicleId: 1, PlateNumber: "51F-123.45", VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1, OwnerProfileId: 1, ParkingLotName: "Bãi Vincom", ZoneId: 1, SlotId: 10, SlotCode: "VIP-10",
+            AllocationMode: AllocationMode.Dynamic, StartAtUtc: FixedNow.AddHours(1), EndAtUtc: FixedNow.AddHours(3), TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("vé tháng", ex.Message);
+    }
+
+    [Fact]
+    public async Task CreateBooking_when_user_cancels_3_times_today_throws_validation_exception()
+    {
+        var repo = new FakeBookingRepo();
+        // Giả lập user 5 đã hủy 3 đơn hôm nay
+        for (int i = 1; i <= 3; i++)
+        {
+            repo.SavedBookings.Add(new Booking
+            {
+                Code = $"BK-OLD-{i}",
+                UserId = 5,
+                Status = BookingStatus.Cancelled,
+                CancelledAtUtc = FixedNow.AddHours(-1)
+            });
+        }
+
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CreateBookingUseCase(repo, qr, clock);
+
+        var cmd = new CreateBookingCommand(
+            UserId: 5, VehicleId: 1, PlateNumber: "51F-123.45", VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1, OwnerProfileId: 1, ParkingLotName: "Bãi Vincom", ZoneId: 1, SlotId: 2, SlotCode: "A-02",
+            AllocationMode: AllocationMode.Dynamic, StartAtUtc: FixedNow.AddHours(1), EndAtUtc: FixedNow.AddHours(3), TotalAmount: 60000,
+            PromotionCode: null);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("hủy 3 đơn", ex.Message);
+    }
+
+    [Fact]
+    public async Task CancelBooking_adds_BookingCancelled_event_to_outbox()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-CANCEL-01",
+            UserId = 5,
+            PaidAmount = 50000,
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddHours(2), // Hủy sớm > 60p -> hoàn 100%
+            EndAtUtc = FixedNow.AddHours(4)
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking);
+        var clock = new FixedClock(FixedNow);
+        var useCase = new CancelBookingUseCase(repo, clock);
+
+        var result = await useCase.ExecuteAsync(booking.Code, new CancelBookingCommand(5, "Đổi lịch"));
+
+        Assert.Equal(50000, result.RefundAmount);
+        Assert.Single(repo.OutboxMessages);
+        Assert.Equal("BookingCancelled", repo.OutboxMessages[0].EventType);
+        Assert.Contains("50000", repo.OutboxMessages[0].PayloadJson);
+    }
+
+    [Fact]
+    public async Task GateActions_CheckIn_too_early_throws_validation_exception()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-GATE-01",
+            UserId = 5,
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddHours(1), // Hẹn lúc 09:00
+            EndAtUtc = FixedNow.AddHours(3)
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking);
+        var queries = new FakeQueries(booking);
+        var clock = new FixedClock(FixedNow); // Hiện tại 08:00 (đến sớm 60 phút > 15 phút)
+        var useCase = new GateBookingActionsUseCase(repo, queries, clock);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.CheckInAsync(booking.Code, new GateActionCommand()));
+        Assert.Contains("Chưa đến khung giờ check-in", ex.Message);
+    }
+
+    [Fact]
+    public async Task GateActions_CheckIn_after_end_time_throws_validation_exception()
+    {
+        var booking = new Booking
+        {
+            Code = "BK-GATE-02",
+            UserId = 5,
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddHours(-3),
+            EndAtUtc = FixedNow.AddHours(-1) // Hết hạn lúc FixedNow - 1h
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking);
+        var queries = new FakeQueries(booking);
+        var clock = new FixedClock(FixedNow);
+        var useCase = new GateBookingActionsUseCase(repo, queries, clock);
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+            useCase.CheckInAsync(booking.Code, new GateActionCommand()));
+        Assert.Contains("quá hạn", ex.Message);
     }
 
     private sealed class FakeQueries(Booking? entity) : IBookingQueries
@@ -444,12 +681,56 @@ public class BookingFeaturesTests
     private sealed class FakeBookingRepo : IBookingRepository
     {
         public List<Booking> SavedBookings { get; } = [];
+        public List<int> ActiveMonthlyPassSlots { get; } = [];
+        public List<(string EventType, string PayloadJson)> OutboxMessages { get; } = [];
+
+        public Task<bool> IsSlotAssignedToActiveMonthlyPassAsync(int slotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(ActiveMonthlyPassSlots.Contains(slotId));
+
+        public Task<int> CountCancellationsTodayAsync(int userId, DateTime todayUtc, CancellationToken cancellationToken = default)
+        {
+            var count = SavedBookings.Count(b =>
+                b.UserId == userId &&
+                (b.Status == BookingStatus.Cancelled || b.Status == BookingStatus.CancelledNoRefund) &&
+                b.CancelledAtUtc >= todayUtc);
+            return Task.FromResult(count);
+        }
+
+        public Task AddOutboxMessageAsync(string eventType, string payloadJson, CancellationToken cancellationToken = default)
+        {
+            OutboxMessages.Add((eventType, payloadJson));
+            return Task.CompletedTask;
+        }
 
         public Task<Booking?> GetEntityByCodeAsync(string code, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Code == code));
 
         public Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Id == id));
+
+
+        public Task<bool> HasOverlappingBookingForSlotAsync(int slotId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+        {
+            var res = SavedBookings.Any(b =>
+                b.SlotId == slotId &&
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
+                b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
+                b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+            return Task.FromResult(res);
+        }
+
+        public Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+        {
+            var res = SavedBookings.Any(b =>
+                b.UserId == userId &&
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
+                b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
+                b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+            return Task.FromResult(res);
+        }
+
+
+
 
         public Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
         {
