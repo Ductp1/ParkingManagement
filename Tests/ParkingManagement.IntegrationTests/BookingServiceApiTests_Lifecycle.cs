@@ -156,8 +156,8 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         int ownerProfileId = DemoIds.OwnerVincom,
         string parkingLotName = "Bãi xe Vincom Đồng Khởi",
         int? zoneId = DemoIds.ZoneVincomB,
-        int? slotId = 2,
-        string? slotCode = "B1-A02",
+        int? slotId = null,
+        string? slotCode = null,
         DateTime? startAtUtc = null,
         TimeSpan? duration = null,
         decimal totalAmount = 40000,
@@ -341,7 +341,7 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
     public async Task Creating_a_booking_starts_a_15_minute_hold_with_signed_qr_and_price_snapshot()
     {
         var before = DateTime.UtcNow;
-        var booking = await fixture.CreateBookingAsync();
+        var booking = await fixture.CreateBookingAsync(slotId: 2, slotCode: "B1-A02");
         var after = DateTime.UtcNow;
 
         // ----- Hợp đồng HTTP -----
