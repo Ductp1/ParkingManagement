@@ -139,15 +139,15 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
           {/* Header */}
           <div className="p-5 sm:p-6 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0">
                 <Car size={22} />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+                  <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
                     Danh Sách & Quản Lý Ô Đỗ (US-058 & US-063)
                   </span>
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
                     {slots.length} ô
                   </span>
                 </div>
@@ -200,14 +200,14 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Tìm theo mã ô (VD: A-01, B-12)..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <select
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">Tất cả loại ô</option>
                 <option value="Standard">Tiêu chuẩn (Standard)</option>
@@ -221,7 +221,7 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
               >
                 <option value="ALL">Tất cả trạng thái</option>
                 <option value="ACTIVE">Đang hoạt động</option>
@@ -234,7 +234,7 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
           <div className="flex-1 overflow-y-auto px-6 py-2">
             {loading ? (
               <div className="py-20 text-center text-xs font-semibold text-slate-500 flex flex-col items-center gap-2">
-                <Loader2 size={24} className="animate-spin text-indigo-600" />
+                <Loader2 size={24} className="animate-spin text-blue-600" />
                 <span>Đang tải danh sách ô đỗ…</span>
               </div>
             ) : error ? (
@@ -266,7 +266,7 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
                               ? 'bg-amber-50 text-amber-600 border border-amber-200'
                               : slot.slotType === 'Vip'
                               ? 'bg-yellow-50 text-yellow-600 border border-yellow-200'
-                              : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+                              : 'bg-blue-50 text-blue-600 border border-blue-100'
                           }`}
                         >
                           {slot.slotType === 'EvCharging' ? (

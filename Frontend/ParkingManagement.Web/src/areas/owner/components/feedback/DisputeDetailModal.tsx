@@ -191,33 +191,33 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-neutral-100 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-100 overflow-hidden my-8 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/70">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
               <FileText className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-neutral-900 text-lg">
+                <h3 className="font-bold text-slate-900 text-lg">
                   Chi tiết tranh chấp {complaint.code}
                 </h3>
-                {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />}
+                {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-500" />}
                 <DisputeCountdownBadge
                   status={currentStatus}
                   dueAtUtc={detail?.ownerResponseDueAtUtc ?? complaint.ownerResponseDueAtUtc}
                 />
               </div>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Mã đặt chỗ: <span className="font-semibold text-neutral-700">{complaint.bookingCode}</span> • Bãi số: #{complaint.parkingLotId}
+              <p className="text-xs text-slate-500 mt-0.5">
+                Mã đặt chỗ: <span className="font-semibold text-slate-700">{complaint.bookingCode}</span> • Bãi số: #{complaint.parkingLotId}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -233,18 +233,18 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
           )}
 
           {/* Customer claim overview card */}
-          <div className="bg-neutral-50 border border-neutral-200/80 rounded-xl p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-2.5">
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
               <div>
-                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider block">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                   Phân loại tranh chấp
                 </span>
-                <span className="text-sm font-bold text-neutral-800">
+                <span className="text-sm font-bold text-slate-800">
                   {COMPLAINT_CATEGORY_LABELS[detail?.category ?? complaint.category] || complaint.category}
                 </span>
               </div>
               <div className="text-right">
-                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider block">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">
                   Yêu cầu bồi hoàn
                 </span>
                 <span className="text-base font-bold text-rose-600">
@@ -254,15 +254,15 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
             </div>
 
             <div>
-              <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider block mb-1">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
                 Nội dung khiếu nại từ khách hàng:
               </span>
-              <p className="text-sm text-neutral-800 bg-white p-3 rounded-lg border border-neutral-200/60 leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-slate-800 bg-white p-3 rounded-lg border border-slate-200/60 leading-relaxed whitespace-pre-wrap">
                 {detail?.description || complaint.description}
               </p>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-neutral-500 pt-1">
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
               <span>Thời gian gửi: {formatDate(detail?.createdAtUtc ?? complaint.createdAtUtc)}</span>
               {detail?.payoutHeld && (
                 <span className="text-amber-700 font-semibold bg-amber-100 px-2 py-0.5 rounded-sm">
@@ -275,7 +275,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
           {/* Customer evidence if any */}
           {detail?.evidenceUrls && detail.evidenceUrls.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold text-neutral-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Image className="w-3.5 h-3.5" />
                 <span>Bằng chứng từ khách hàng ({detail.evidenceUrls.length})</span>
               </h4>
@@ -298,10 +298,10 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
 
           {/* Form Phản Hồi khi đang AwaitingOwner */}
           {isAwaiting ? (
-            <form onSubmit={handleSubmitResponse} className="space-y-4 pt-2 border-t border-neutral-200">
-              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-900 leading-relaxed">
-                <p className="font-semibold flex items-center gap-1.5 mb-1 text-indigo-950">
-                  <ShieldAlert className="w-4 h-4 text-indigo-600" />
+            <form onSubmit={handleSubmitResponse} className="space-y-4 pt-2 border-t border-slate-200">
+              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-900 leading-relaxed">
+                <p className="font-semibold flex items-center gap-1.5 mb-1 text-blue-950">
+                  <ShieldAlert className="w-4 h-4 text-blue-600" />
                   Quyền và trách nhiệm giải trình của chủ bãi (US-089 AC1)
                 </p>
                 Quý chủ bãi có 48 giờ kể từ lúc khiếu nại được tạo để phản hồi giải trình kèm hình ảnh camera,
@@ -310,14 +310,14 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Nội dung giải trình / Phản hồi của bạn <span className="text-rose-500">*</span>
                   </label>
                   <span
                     className={`text-xs ${
                       responseText.trim().length < 10
                         ? 'text-rose-500 font-semibold'
-                        : 'text-neutral-400'
+                        : 'text-slate-400'
                     }`}
                   >
                     {responseText.length}/4000 ký tự (tối thiểu 10)
@@ -328,7 +328,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                   value={responseText}
                   onChange={(e) => setResponseText(e.target.value)}
                   placeholder="Nhập chi tiết giải trình của chủ bãi: kết quả kiểm tra camera an ninh, đối chiếu thời gian ra vào cổng, ghi chú của bảo vệ..."
-                  className="w-full text-sm rounded-xl border border-neutral-300 p-3 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  className="w-full text-sm rounded-xl border border-slate-300 p-3 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   disabled={submitting}
                 />
               </div>
@@ -336,14 +336,14 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
               {/* Bằng chứng kèm theo */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Liên kết bằng chứng xác thực (Tối đa 5 links)
                   </label>
                   {evidenceLinks.length < 5 && (
                     <button
                       type="button"
                       onClick={handleAddEvidenceLink}
-                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Thêm link</span>
@@ -359,14 +359,14 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                         value={link}
                         onChange={(e) => handleEvidenceChange(idx, e.target.value)}
                         placeholder={`https://drive.google.com/... hoặc link ảnh camera #${idx + 1}`}
-                        className="flex-1 text-xs rounded-lg border border-neutral-300 px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                        className="flex-1 text-xs rounded-lg border border-slate-300 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                         disabled={submitting}
                       />
                       {evidenceLinks.length > 1 && (
                         <button
                           type="button"
                           onClick={() => handleRemoveEvidence(idx)}
-                          className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-md transition"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md transition"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -376,9 +376,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                 </div>
               </div>
 
-<<<<<<< Updated upstream
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-neutral-100">
-=======
+              {/* Resolved conflict: giữ nút hoàn tiền từ stash và các nút submit/close */}
               <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
@@ -389,30 +387,30 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                   <DollarSign className="w-4 h-4" />
                   <span>{loadingRefundBooking ? 'Đang kiểm tra...' : 'Hoàn tiền bồi hoàn (UI-24)'}</span>
                 </button>
+
                 <div className="flex items-center gap-3">
->>>>>>> Stashed changes
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={submitting}
-                  className="px-4 py-2 text-xs font-semibold text-neutral-600 hover:text-neutral-800 hover:bg-neutral-100 rounded-xl transition"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting || responseText.trim().length < 10}
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition flex items-center gap-2"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>{submitting ? 'Đang gửi...' : 'Gửi giải trình cho nền tảng'}</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={submitting}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || responseText.trim().length < 10}
+                    className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-xs transition flex items-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{submitting ? 'Đang gửi...' : 'Gửi giải trình cho nền tảng'}</span>
+                  </button>
+                </div>
               </div>
             </form>
           ) : (
             /* Khi đã phản hồi hoặc đã giải quyết */
-            <div className="pt-3 border-t border-neutral-200 space-y-4">
+            <div className="pt-3 border-t border-slate-200 space-y-4">
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
@@ -439,7 +437,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-xl transition"
+                  className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
                 >
                   Đóng cửa sổ
                 </button>

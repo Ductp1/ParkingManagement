@@ -57,8 +57,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     subtitle: 'Cổng Đối Tác Chủ Bãi',
     path: '/owner',
     icon: 'domain',
-    badgeClass: 'bg-indigo-100 text-indigo-700',
-    subActiveClass: 'bg-indigo-50 text-indigo-700 font-bold',
+    badgeClass: 'bg-blue-100 text-blue-700',
+    subActiveClass: 'bg-blue-50 text-blue-700 font-bold',
   },
   {
     id: 'Staff',
@@ -96,15 +96,8 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Lịch sử đặt', path: '/driver/history', icon: 'receipt_long' },
     { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
   ],
+
   Owner: [
-<<<<<<< Updated upstream
-    { label: 'Tổng quan & Doanh thu', path: '/owner', icon: 'analytics' },
-    { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
-    { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
-    { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
-    { label: 'Khiếu nại & Đánh giá', path: '/owner/feedback', icon: 'rate_review' },
-    { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
-=======
     { label: 'Tổng quan', path: '/owner', icon: 'analytics' },
     { label: 'Bãi đỗ & Sơ đồ', path: '/owner/lots', icon: 'view_quilt' },
     { label: 'Đặt chỗ & Duyệt', path: '/owner/bookings', icon: 'event_available' },
@@ -128,6 +121,12 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
           description: 'Giải quyết khiếu nại & bồi thường',
         },
         {
+          label: 'Hồ sơ pháp lý KYB',
+          path: '/owner/kyb',
+          icon: 'verified',
+          description: 'Quản lý hồ sơ pháp lý chủ bãi',
+        },
+        {
           label: 'Tích hợp PMS / API',
           path: '/owner/integrations',
           icon: 'integration_instructions',
@@ -135,8 +134,8 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
         },
       ],
     },
->>>>>>> Stashed changes
   ],
+
   Staff: [
     { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
     { label: 'Làn vào (ANPR Inbound)', path: '/gate/inbound', icon: 'login' },
@@ -144,6 +143,7 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Soát vé thủ công', path: '/gate/manual', icon: 'edit_square' },
     { label: 'Nhật ký trạm', path: '/gate/events', icon: 'history' },
   ],
+
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
     { label: 'Quản lý tài khoản', path: '/admin/users', icon: 'manage_accounts' },
@@ -156,7 +156,7 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
 
 const ROLE_BADGE_META: Record<UserRole, { label: string; color: string }> = {
   Driver: { label: 'Tài xế', color: 'text-blue-600' },
-  Owner: { label: 'Chủ bãi', color: 'text-indigo-600' },
+  Owner: { label: 'Chủ bãi', color: 'text-blue-600' },
   Staff: { label: 'Nhân viên cổng', color: 'text-amber-600' },
   Admin: { label: 'Quản trị viên', color: 'text-purple-600' },
 };
@@ -201,9 +201,9 @@ export const MainNavbar: React.FC = () => {
   const activePortal = ROLE_PORTALS.find((p) => p.id === activeRole) || ROLE_PORTALS[0];
   const currentSubNavs = PORTAL_SUB_NAVS[activeRole] || PORTAL_SUB_NAVS.Driver;
 
-  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : []);
+  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : ['Driver', 'Owner']);
   const authorizedPortals = ROLE_PORTALS.filter(
-    (portal) => userRoles.includes('Admin') || userRoles.includes(portal.id)
+    (portal) => !user || userRoles.includes('Admin') || userRoles.includes(portal.id)
   );
 
   // ===== Hộp thông báo (NotificationService) =====
@@ -239,9 +239,9 @@ export const MainNavbar: React.FC = () => {
 
   return (
     <header className="pm-navbar bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-2xs">
-      {/* ===== BRAND LOGO + MENU ĐIỀU HƯỚNG TINH GỌN + USER DROPDOWN ===== */}
+      {/* ===== BRAND LOGO + TRUY CẬP NHANH CÁC ROLE QUA URL + USER DROPDOWN ===== */}
       <div className="pm-navbar-shell pm-navbar-top flex items-center justify-between">
-        {/* Brand Logo */}
+        {/* Brand Logo & Desktop Portal Switcher */}
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <NavLink to={activePortal.path} className="pm-navbar-brand flex items-center gap-2.5 group">
             <div className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg font-black shadow-xs group-hover:scale-105 transition-transform">
@@ -256,6 +256,30 @@ export const MainNavbar: React.FC = () => {
               </span>
             </div>
           </NavLink>
+
+          {/* Desktop Portal Switcher: Chuyển nhanh giữa Tài xế & Chủ bãi (chỉ hiển thị icon) */}
+          {authorizedPortals.length > 1 && (
+            <div className="hidden lg:flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80 shadow-2xs ml-2">
+              {authorizedPortals.map((portal) => {
+                const isCurrent = portal.id === activeRole;
+                return (
+                  <NavLink
+                    key={portal.id}
+                    to={portal.path}
+                    title={portal.label}
+                    aria-label={portal.label}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                      isCurrent
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{portal.icon}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Menu Điều hướng Desktop: Gọn gàng, chuẩn responsive */}
@@ -515,10 +539,10 @@ export const MainNavbar: React.FC = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900 truncate">
-                      {user?.fullName || 'Tài xế ParkMaster'}
+                      {user?.fullName || (activeRole === 'Owner' ? 'Chủ bãi ParkMaster' : 'Tài xế ParkMaster')}
                     </p>
                     <p className="text-[11px] text-slate-500 truncate">
-                      {user?.phone || user?.email || 'Tài xế'}
+                      {user?.phone || user?.email || (activeRole === 'Owner' ? 'Chủ bãi' : 'Tài xế')}
                     </p>
                   </div>
                 </div>
@@ -533,19 +557,39 @@ export const MainNavbar: React.FC = () => {
                     <span>Hồ sơ cá nhân</span>
                   </NavLink>
 
-                  <NavLink
-                    to="/driver/kyc"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="material-symbols-outlined text-[18px] text-blue-600">verified_user</span>
-                      <span>Xác minh KYC</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                      Hồ sơ
-                    </span>
-                  </NavLink>
+                  {/* Xác minh KYC: Hiển thị khi đang ở giao diện Tài xế */}
+                  {activeRole === 'Driver' && (
+                    <NavLink
+                      to="/driver/kyc"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600">verified_user</span>
+                        <span>Xác minh KYC</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Hồ sơ
+                      </span>
+                    </NavLink>
+                  )}
+
+                  {/* Hồ sơ pháp lý KYB: Chỉ hiển thị nếu người dùng đang ở giao diện Chủ bãi */}
+                  {activeRole === 'Owner' && (
+                    <NavLink
+                      to="/owner/kyb"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600">verified</span>
+                        <span>Hồ sơ pháp lý KYB</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Hồ sơ
+                      </span>
+                    </NavLink>
+                  )}
                 </div>
 
                 <div className="p-1.5 border-t border-slate-100">
@@ -582,7 +626,7 @@ export const MainNavbar: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className={`${authorizedPortals.length > 1 ? '' : 'lg:hidden '}p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer`}
+            className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
             aria-label="Mở menu"
             aria-expanded={isMobileMenuOpen}
             aria-controls="navbar-mobile-menu"
@@ -596,7 +640,7 @@ export const MainNavbar: React.FC = () => {
 
       {/* ===== MENU MOBILE ===== */}
       {isMobileMenuOpen && (
-        <div id="navbar-mobile-menu" className="pm-navbar-shell bg-white border-t border-slate-200 py-4 space-y-4 shadow-xl">
+        <div id="navbar-mobile-menu" className="lg:hidden pm-navbar-shell bg-white border-t border-slate-200 py-4 space-y-4 shadow-xl">
           {authorizedPortals.length > 1 && (
             <>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">

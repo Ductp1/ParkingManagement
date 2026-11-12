@@ -47,15 +47,15 @@ export const FloorTable: React.FC<FloorTableProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 sm:p-6 border-b border-slate-100 bg-slate-50/50">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+            <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
               Cấu trúc phân tầng
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold">
+            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
               {floors.length} tầng
             </span>
           </div>
           <h2 className="text-lg font-bold text-slate-900 mt-0.5">
-            Danh sách tầng thuộc: <span className="text-indigo-600">{zoneName}</span>
+            Danh sách tầng thuộc: <span className="text-blue-600">{zoneName}</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Quản lý cao độ, chiều cao tĩnh không, tải trọng sàn, sơ đồ mặt bằng và ô đỗ
@@ -65,10 +65,10 @@ export const FloorTable: React.FC<FloorTableProps> = ({
         <button
           type="button"
           onClick={onAddFloor}
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+          className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-sm transition-all flex items-center gap-2 cursor-pointer shrink-0"
         >
-          <Plus size={15} />
-          Thêm Tầng Mới
+          <Plus size={16} />
+          <span>Thêm Tầng Mới</span>
         </button>
       </div>
 
@@ -80,7 +80,7 @@ export const FloorTable: React.FC<FloorTableProps> = ({
       ) : sortedFloors.length === 0 ? (
         /* Empty State */
         <div className="p-10 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
             <Layers size={28} />
           </div>
           <h3 className="text-sm font-bold text-slate-900">
@@ -92,7 +92,7 @@ export const FloorTable: React.FC<FloorTableProps> = ({
           <button
             type="button"
             onClick={onAddFloor}
-            className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition-all inline-flex items-center gap-1.5 cursor-pointer"
+            className="mt-4 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all inline-flex items-center gap-1.5 cursor-pointer"
           >
             <Plus size={14} />
             Thêm Tầng Đầu Tiên
@@ -216,7 +216,7 @@ export const FloorTable: React.FC<FloorTableProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenLayoutVersions(floor)}
-                          className="px-2 py-1 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
+                          className="px-2 py-1 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200/80 transition-colors cursor-pointer flex items-center gap-1 font-semibold text-[11px]"
                           title="Xem sơ đồ & lịch sử phiên bản mặt bằng"
                         >
                           <History size={13} />
@@ -227,7 +227,7 @@ export const FloorTable: React.FC<FloorTableProps> = ({
                         <button
                           type="button"
                           onClick={() => onEditFloor(floor)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                           title="Chỉnh sửa thông số tầng"
                         >
                           <Edit2 size={14} />

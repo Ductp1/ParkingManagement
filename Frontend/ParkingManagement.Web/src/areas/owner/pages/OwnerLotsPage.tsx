@@ -766,36 +766,37 @@ export const OwnerLotsPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-8">
       {/* =====================================================================
           1. HEADER TRANG & BỘ CHỌN BÃI ĐỖ XE
       ====================================================================== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-semibold uppercase tracking-wider mb-2">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-slate-200">
+        <div className="flex flex-col gap-2 max-w-3xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
             {activeTab === 'structure' ? (
               <>
                 <Building2 size={13} />
-                Hạ tầng & Cấu trúc Phân tầng (US-058)
+                HẠ TẦNG & CẤU TRÚC PHÂN TẦNG (US-058)
               </>
             ) : activeTab === 'capacity' ? (
               <>
                 <Sliders size={13} />
-                Sức chứa & Phân bổ Real-time (UI-26)
+                SỨC CHỨA & PHÂN BỔ REAL-TIME (UI-26)
               </>
             ) : activeTab === 'operating' ? (
               <>
                 <Clock size={13} />
-                Lịch Hoạt Động & Giờ Mở Cửa (US-062)
+                LỊCH HOẠT ĐỘNG & GIỜ MỞ CỬA (US-062)
               </>
             ) : (
               <>
                 <Sparkles size={13} />
-                Danh Mục Tiện Ích & Dịch Vụ (US-064)
+                TIỆN ÍCH & DỊCH VỤ VẬN HÀNH (US-064)
               </>
             )}
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             {activeTab === 'structure'
               ? 'Khai báo Tầng & Khu vực (Zones & Floors)'
               : activeTab === 'capacity'
@@ -804,7 +805,7 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Lịch Hoạt Động & Khung Giờ Mở Cửa'
               : 'Tiện Ích & Thông Tin Vận Hành Bãi Xe'}
           </h1>
-          <p className="text-slate-500 text-xs sm:text-sm mt-1">
+          <p className="text-slate-500 text-sm leading-relaxed">
             {activeTab === 'structure'
               ? 'Thiết lập kiến trúc không gian bãi xe: Phân chia khu vực (tòa nhà / hầm), cao độ tầng và ma trận lưới ô đỗ.'
               : activeTab === 'capacity'
@@ -816,14 +817,15 @@ export const OwnerLotsPage: React.FC = () => {
         </div>
 
         {/* Hành động: Chọn bãi đỗ & Thêm bãi mới */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="flex flex-wrap items-center gap-3">
           {lots.length > 0 && (
-            <div className="relative">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+              <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
               <select
                 disabled={loadingLots}
                 value={selectedLotId || ''}
                 onChange={(e) => setSelectedLotId(parseInt(e.target.value, 10))}
-                className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 shadow-2xs focus:outline-hidden focus:border-indigo-600 pr-8"
+                className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer"
               >
                 {lots.map((lot) => (
                   <option key={lot.id} value={lot.id}>
@@ -837,10 +839,10 @@ export const OwnerLotsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 cursor-pointer"
           >
-            <Plus size={15} />
-            Đăng Ký Bãi Mới
+            <Plus size={18} />
+            <span>Đăng ký bãi mới</span>
           </button>
         </div>
       </div>
@@ -848,42 +850,47 @@ export const OwnerLotsPage: React.FC = () => {
       {/* Thông báo kết quả thao tác */}
       {actionMessage && (
         <div
-          className={`mt-4 p-4 rounded-2xl border text-xs font-semibold flex items-center justify-between ${
+          className={`p-4 rounded-xl border text-sm flex items-center justify-between animate-in fade-in ${
             actionMessage.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : 'bg-rose-50 text-rose-800 border-rose-200'
           }`}
         >
-          <span>{actionMessage.text}</span>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">
+              {actionMessage.type === 'success' ? 'check_circle' : 'error'}
+            </span>
+            <span className="font-semibold">{actionMessage.text}</span>
+          </div>
           <button
             type="button"
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer ml-3"
           >
-            Đóng
+            <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
       )}
 
       {/* Trường hợp Chủ bãi chưa có bất kỳ bãi xe nào */}
       {lots.length === 0 && !loadingLots && (
-        <div className="mt-8 rounded-3xl bg-white/90 border border-slate-200/90 p-10 text-center shadow-xs">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
+        <div className="rounded-3xl bg-white border border-dashed border-slate-300 p-12 text-center flex flex-col items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
             <Building2 size={32} />
           </div>
           <h2 className="text-xl font-bold text-slate-900">
             Bạn chưa đăng ký bãi đỗ xe nào
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
+          <p className="text-sm text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">
             Trước khi khai báo tầng và khu vực, vui lòng tạo cơ sở bãi đỗ xe đầu tiên của bạn trên hệ thống.
           </p>
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
-            className="mt-6 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition-all inline-flex items-center gap-2 cursor-pointer"
+            className="mt-6 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer"
           >
-            <Plus size={16} />
-            Khai báo Bãi đỗ xe đầu tiên
+            <Plus size={18} />
+            <span>Khai báo Bãi đỗ xe đầu tiên</span>
           </button>
         </div>
       )}
@@ -892,57 +899,57 @@ export const OwnerLotsPage: React.FC = () => {
           TAB NAVIGATION SWITCHER (4 TABS)
       ====================================================================== */}
       {selectedLot && (
-        <div className="flex items-center gap-2 mt-6 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/70 shadow-2xs flex-wrap">
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-2xs flex-wrap">
           <button
             type="button"
             onClick={() => handleTabChange('structure')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === 'structure'
-                ? 'bg-white text-indigo-700 shadow-xs'
+                ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             <FolderTree size={16} />
-            Sơ đồ & Phân tầng (US-058)
+            <span>Sơ đồ & Phân tầng (US-058)</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('capacity')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === 'capacity'
-                ? 'bg-white text-indigo-700 shadow-xs'
+                ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             <Sliders size={16} />
-            Sức chứa & Vùng đệm (UI-26)
+            <span>Sức chứa & Vùng đệm (UI-26)</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('operating')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === 'operating'
-                ? 'bg-white text-indigo-700 shadow-xs'
+                ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             <Clock size={16} />
-            Lịch hoạt động (US-062)
+            <span>Lịch hoạt động (US-062)</span>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange('amenities')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
               activeTab === 'amenities'
-                ? 'bg-white text-indigo-700 shadow-xs'
+                ? 'bg-white text-blue-700 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             <Sparkles size={16} />
-            Tiện ích bãi xe (US-064)
+            <span>Tiện ích bãi xe (US-064)</span>
           </button>
         </div>
       )}
@@ -957,7 +964,7 @@ export const OwnerLotsPage: React.FC = () => {
             <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng Khu vực</span>
               <div className="text-xl font-extrabold text-slate-900 mt-1 flex items-center gap-1.5">
-                <FolderTree size={18} className="text-indigo-600" />
+                <FolderTree size={18} className="text-blue-600" />
                 <span>{zones.length} Zone</span>
               </div>
             </div>
@@ -1007,7 +1014,7 @@ export const OwnerLotsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleOpenAddZone}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer"
                   >
                     <Plus size={14} />
                     Thêm Zone
@@ -1018,7 +1025,7 @@ export const OwnerLotsPage: React.FC = () => {
                 <div className="mt-4 space-y-3">
                   {loadingZones ? (
                     <div className="py-8 text-center text-xs text-slate-400">
-                      <RefreshCw size={18} className="animate-spin mx-auto mb-2 text-indigo-600" />
+                      <RefreshCw size={18} className="animate-spin mx-auto mb-2 text-blue-600" />
                       Đang tải danh sách khu vực…
                     </div>
                   ) : zones.length === 0 ? (
@@ -1059,7 +1066,7 @@ export const OwnerLotsPage: React.FC = () => {
                 />
               ) : (
                 <div className="rounded-3xl bg-white border border-slate-200/90 p-12 text-center shadow-xs">
-                  <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
                     <Layers size={28} />
                   </div>
                   <h3 className="text-sm font-bold text-slate-900">
@@ -1082,7 +1089,7 @@ export const OwnerLotsPage: React.FC = () => {
         <div className="mt-6 space-y-6">
           {loadingCapacity ? (
             <div className="py-16 text-center text-xs sm:text-sm text-slate-500 bg-white rounded-3xl border border-slate-200/90 shadow-xs">
-              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-indigo-600" />
+              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-blue-600" />
               Đang tải cấu hình sức chứa và thông số kỹ thuật bãi đỗ…
             </div>
           ) : capacityConfig ? (
@@ -1119,7 +1126,7 @@ export const OwnerLotsPage: React.FC = () => {
         <div className="mt-6 space-y-8">
           {loadingOperating ? (
             <div className="py-16 text-center text-xs sm:text-sm text-slate-500 bg-white rounded-3xl border border-slate-200/90 shadow-xs">
-              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-indigo-600" />
+              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-blue-600" />
               Đang tải lịch hoạt động bãi xe…
             </div>
           ) : (
@@ -1152,7 +1159,7 @@ export const OwnerLotsPage: React.FC = () => {
         <div className="mt-6 space-y-8">
           {loadingAmenities ? (
             <div className="py-16 text-center text-xs sm:text-sm text-slate-500 bg-white rounded-3xl border border-slate-200/90 shadow-xs">
-              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-indigo-600" />
+              <RefreshCw size={24} className="animate-spin mx-auto mb-3 text-blue-600" />
               Đang tải danh mục tiện ích và thuộc tính bãi xe…
             </div>
           ) : (

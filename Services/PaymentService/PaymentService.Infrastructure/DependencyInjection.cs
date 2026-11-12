@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddServiceDbContext<PaymentDbContext>(configuration);
         services.AddScoped<IRateCardRepository, RateCardRepository>();
         services.AddScoped<IRateCardManagementRepository, RateCardManagementRepository>();
+        services.AddScoped<IRateCardAuditLogRepository, RateCardAuditLogRepository>();
         services.AddScoped<IHolidayRepository, HolidayRepository>();
         services.AddScoped<IHolidayManagementRepository, HolidayManagementRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
@@ -30,7 +31,9 @@ public static class DependencyInjection
         services.AddScoped<IOwnerRevenueQueries, OwnerRevenueQueries>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IPromotionRepository, PromotionRepository>();
         services.AddScoped<IRefundRepository, RefundRepository>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IVnpayGateway, VnpayGateway>();
         return services;
     }

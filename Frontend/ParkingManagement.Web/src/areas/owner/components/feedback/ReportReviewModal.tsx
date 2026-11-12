@@ -66,21 +66,21 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-neutral-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/70">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
               <Flag className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-neutral-900 text-base">Khiếu nại đánh giá vi phạm</h3>
-              <p className="text-2xs text-neutral-500">Mã đánh giá: #{reviewId}</p>
+              <h3 className="font-bold text-slate-900 text-base">Khiếu nại đánh giá vi phạm</h3>
+              <p className="text-2xs text-slate-500">Mã đánh giá: #{reviewId}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition"
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -104,7 +104,7 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
           </div>
 
           <div>
-            <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider block mb-2">
+            <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-2">
               Lý do vi phạm chính
             </label>
             <div className="space-y-1.5">
@@ -114,7 +114,7 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
                   className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-xs cursor-pointer transition ${
                     selectedPreset === reason
                       ? 'border-rose-500 bg-rose-50/50 text-rose-900 font-semibold'
-                      : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                      : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <input
@@ -132,10 +132,10 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-neutral-700 uppercase tracking-wider">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Mô tả chi tiết bằng chứng vi phạm
               </label>
-              <span className="text-2xs text-neutral-400">
+              <span className="text-2xs text-slate-400">
                 {customDetail.length}/500 ký tự
               </span>
             </div>
@@ -144,16 +144,16 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
               value={customDetail}
               onChange={(e) => setCustomDetail(e.target.value)}
               placeholder="Nhập thêm chi tiết hoặc dẫn chứng để Admin nhanh chóng xem xét gỡ đánh giá..."
-              className="w-full text-xs rounded-xl border border-neutral-300 p-3 focus:outline-hidden focus:ring-2 focus:ring-rose-500 focus:border-transparent transition"
+              className="w-full text-xs rounded-xl border border-slate-300 p-3 focus:outline-hidden focus:ring-2 focus:ring-rose-500 focus:border-transparent transition"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-neutral-100">
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 text-xs font-semibold text-neutral-600 hover:bg-neutral-100 rounded-xl transition"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition"
             >
               Hủy
             </button>

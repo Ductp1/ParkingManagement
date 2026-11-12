@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using ParkingManagement.SharedKernel.Contracts;
@@ -231,12 +231,31 @@ public class PaymentSagaTests
     private sealed class FakeBookingRepo : IBookingRepository
     {
         public List<Booking> SavedBookings { get; } = [];
+        public List<(string EventType, string PayloadJson)> OutboxMessages { get; } = [];
+
+        public Task<bool> IsSlotAssignedToActiveMonthlyPassAsync(int slotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<int> CountCancellationsTodayAsync(int userId, DateTime todayUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+
+        public Task AddOutboxMessageAsync(string eventType, string payloadJson, CancellationToken cancellationToken = default)
+        {
+            OutboxMessages.Add((eventType, payloadJson));
+            return Task.CompletedTask;
+        }
 
         public Task<Booking?> GetEntityByCodeAsync(string code, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Code == code));
 
         public Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Id == id));
+
+        public Task<bool> HasOverlappingBookingForSlotAsync(int slotId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
 
         public Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
         {

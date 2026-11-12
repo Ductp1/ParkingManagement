@@ -48,7 +48,9 @@ export const OwnerHomePage: React.FC = () => {
   // 2. Tải danh sách bãi xe thực tế
   useEffect(() => {
     let isMounted = true;
+
     setLoadingLots(true);
+
     ownerLotsApi
       .getMyLots(ownerProfileId)
       .then((data) => {
@@ -70,6 +72,7 @@ export const OwnerHomePage: React.FC = () => {
   // 3. Tải báo cáo doanh thu & chuỗi dữ liệu thực tế
   const loadDashboardData = useCallback(async () => {
     setLoadingRevenue(true);
+
     const filter = {
       parkingLotId: selectedLotId === 'all' ? undefined : selectedLotId,
     };
@@ -77,8 +80,12 @@ export const OwnerHomePage: React.FC = () => {
     try {
       const [sumData, seriesData] = await Promise.all([
         ownerRevenueApi.getRevenueSummary(filter),
-        ownerRevenueApi.getRevenueSeries({ ...filter, granularity: 'Day' }),
+        ownerRevenueApi.getRevenueSeries({
+          ...filter,
+          granularity: 'Day',
+        }),
       ]);
+
       setSummary(sumData);
       setSeries(seriesData);
     } catch {
@@ -96,6 +103,7 @@ export const OwnerHomePage: React.FC = () => {
   // Format tiền tệ VNĐ
   const formatVnd = (val?: number | null) => {
     if (val === undefined || val === null) return '0 ₫';
+
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
       currency: 'VND',
@@ -103,9 +111,20 @@ export const OwnerHomePage: React.FC = () => {
   };
 
   // Thống kê sức chứa thực tế từ bãi xe
-  const totalSlots = useMemo(() => lots.reduce((acc, l) => acc + (l.totalSlots || 0), 0), [lots]);
-  const availableSlots = useMemo(() => lots.reduce((acc, l) => acc + (l.availableSlots || 0), 0), [lots]);
-  const activeLotsCount = useMemo(() => lots.filter((l) => l.status === 'Active').length, [lots]);
+  const totalSlots = useMemo(
+    () => lots.reduce((acc, lot) => acc + (lot.totalSlots || 0), 0),
+    [lots],
+  );
+
+  const availableSlots = useMemo(
+    () => lots.reduce((acc, lot) => acc + (lot.availableSlots || 0), 0),
+    [lots],
+  );
+
+  const activeLotsCount = useMemo(
+    () => lots.filter((lot) => lot.status === 'Active').length,
+    [lots],
+  );
 
   // 7 điểm dữ liệu biểu đồ gần nhất
   const chartPoints = useMemo(() => {
@@ -120,13 +139,20 @@ export const OwnerHomePage: React.FC = () => {
 
   const maxVal = useMemo(() => {
     if (chartPoints.length === 0) return 100_000;
+
     if (metricMode === 'revenue') {
-      const maxRev = Math.max(...chartPoints.map((p) => p.netRevenue || 0));
-      return Math.max(maxRev, 100_000);
-    } else {
-      const maxTraffic = Math.max(...chartPoints.map((p) => p.transactionCount || 0));
-      return Math.max(maxTraffic, 10);
+      const maxRevenue = Math.max(
+        ...chartPoints.map((point) => point.netRevenue || 0),
+      );
+
+      return Math.max(maxRevenue, 100_000);
     }
+
+    const maxTraffic = Math.max(
+      ...chartPoints.map((point) => point.transactionCount || 0),
+    );
+
+    return Math.max(maxTraffic, 10);
   }, [chartPoints, metricMode]);
 
   const getY = (val: number) => {
@@ -135,85 +161,93 @@ export const OwnerHomePage: React.FC = () => {
   };
 
   const svgDataPoints = useMemo(() => {
-    return chartPoints.map((pt, i) => {
-      const val = metricMode === 'revenue' ? pt.netRevenue || 0 : pt.transactionCount || 0;
-      let dayName = `D${i + 1}`;
-      let dateLabel = `--`;
+    return chartPoints.map((point, index) => {
+      const val =
+        metricMode === 'revenue'
+          ? point.netRevenue || 0
+          : point.transactionCount || 0;
 
-      if (pt.periodStart) {
+      let dayName = `D${index + 1}`;
+      let dateLabel = '--';
+
+      if (point.periodStart) {
         try {
-          const d = new Date(pt.periodStart);
+          const date = new Date(point.periodStart);
           const daysOfWeek = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-          dayName = daysOfWeek[d.getDay()] || `T${d.getDay() + 1}`;
-          dateLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+          dayName = daysOfWeek[date.getDay()] || `T${date.getDay() + 1}`;
+          dateLabel = `${String(date.getDate()).padStart(2, '0')}/${String(
+            date.getMonth() + 1,
+          ).padStart(2, '0')}`;
         } catch {
-          dateLabel = String(pt.periodStart).slice(5, 10);
+          dateLabel = String(point.periodStart).slice(5, 10);
         }
       }
 
       return {
-        x: xCoords[i] || (60 + i * 90),
+        x: xCoords[index] || 60 + index * 90,
         y: getY(val),
         val,
         dayName,
         dateLabel,
-        raw: pt,
+        raw: point,
       };
     });
   }, [chartPoints, metricMode, maxVal]);
 
-  const lineD = svgDataPoints.length > 0
-    ? svgDataPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x},${p.y}`).join(' ')
-    : '';
-  const areaD = svgDataPoints.length > 0
-    ? `${lineD} L ${svgDataPoints[svgDataPoints.length - 1].x},${baselineY} L ${svgDataPoints[0].x},${baselineY} Z`
-    : '';
+  const lineD =
+    svgDataPoints.length > 0
+      ? svgDataPoints
+          .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x},${point.y}`)
+          .join(' ')
+      : '';
+
+  const areaD =
+    svgDataPoints.length > 0
+      ? `${lineD} L ${
+          svgDataPoints[svgDataPoints.length - 1].x
+        },${baselineY} L ${svgDataPoints[0].x},${baselineY} Z`
+      : '';
 
   // Khung giờ 24h thực tế từ API (byHourOfDay)
   const hourlyData = useMemo(() => {
-    if (!summary?.byHourOfDay || summary.byHourOfDay.length === 0) return [];
-    const maxHourGross = Math.max(...summary.byHourOfDay.map((h) => h.grossRevenue || 0), 1);
-    return summary.byHourOfDay.map((h) => ({
-      hour: String(h.hour).padStart(2, '0'),
-      pct: Math.max(6, Math.round(((h.grossRevenue || 0) / maxHourGross) * 100)),
-      grossRevenue: h.grossRevenue || 0,
-      transactionCount: h.transactionCount || 0,
+    if (!summary?.byHourOfDay || summary.byHourOfDay.length === 0) {
+      return [];
+    }
+
+    const maxHourGross = Math.max(
+      ...summary.byHourOfDay.map((hour) => hour.grossRevenue || 0),
+      1,
+    );
+
+    return summary.byHourOfDay.map((hour) => ({
+      hour: String(hour.hour).padStart(2, '0'),
+      pct: Math.max(
+        6,
+        Math.round(((hour.grossRevenue || 0) / maxHourGross) * 100),
+      ),
+      grossRevenue: hour.grossRevenue || 0,
+      transactionCount: hour.transactionCount || 0,
     }));
   }, [summary]);
 
   return (
-<<<<<<< Updated upstream
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      {/* ===== HEADER ===== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-semibold uppercase tracking-wider mb-2">
-            🏢 Cổng Chủ Bãi (Owner Portal)
-=======
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-8">
-      {/* ===== HEADER THEO CHUẨN DESIGN ===== */}
+      {/* ===== HEADER ===== */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-slate-200">
         <div className="flex flex-col gap-2 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            PORTAL CHỦ BÃI • TỔNG QUAN & DỮ LIỆU VẬN HÀNH
->>>>>>> Stashed changes
+            PORTAL CHỦ BÃI • BÁO CÁO DOANH THU & CHỈ SỐ VẬN HÀNH
           </div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            Tổng quan Bãi đỗ & Báo cáo Doanh thu
+
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Tổng quan Bãi đỗ & Doanh thu
           </h1>
-<<<<<<< Updated upstream
-          <p className="text-slate-500 text-sm mt-1 max-w-3xl">
-            Sơ đồ thống kê doanh thu đa chiều: Theo dõi biểu đồ miền xu hướng, phân tích cơ cấu nguồn thu và chỉ số vận hành.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-200 border border-slate-200 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            Xuất Excel / PDF
-=======
+
           <p className="text-slate-500 text-sm leading-relaxed">
-            Dữ liệu vận hành thực tế: Theo dõi biến động doanh thu, sức chứa bãi xe và cơ cấu nguồn thu từ các hệ thống thanh toán tự động.
+            Dữ liệu vận hành thực tế: Theo dõi biến động doanh thu, sức chứa bãi
+            xe và cơ cấu nguồn thu từ các hệ thống thanh toán tự động.
           </p>
         </div>
 
@@ -223,36 +257,34 @@ export const OwnerHomePage: React.FC = () => {
             onClick={() => navigate('/owner/revenue')}
             className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center gap-2 shadow-xs cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px] text-blue-600">analytics</span>
+            <span className="material-symbols-outlined text-[18px] text-blue-600">
+              analytics
+            </span>
             <span>Báo cáo doanh thu & Quyết toán</span>
           </button>
+
           <button
             type="button"
             onClick={() => setIsExitModalOpen(true)}
             className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-sm font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px] text-rose-600">logout</span>
+            <span className="material-symbols-outlined text-[18px] text-rose-600">
+              logout
+            </span>
             <span>Xin rời nền tảng</span>
->>>>>>> Stashed changes
           </button>
-          <button type="button" onClick={() => navigate('/owner/kyb')} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-semibold hover:bg-indigo-700 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer">
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            Đăng ký bãi mới
+
+          <button
+            type="button"
+            onClick={() => navigate('/owner/kyb')}
+            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">add</span>
+            <span>Đăng ký bãi mới</span>
           </button>
         </div>
       </div>
 
-<<<<<<< Updated upstream
-      {/* ===== KHỐI 1: 4 THẺ CHỈ SỐ KPI CHÍNH ===== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mt-8">
-        {/* Doanh thu hôm nay */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Doanh thu hôm nay</span>
-            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[11px] font-bold">
-              +{revGrowth}%
-            </span>
-=======
       {/* Cảnh báo Rời nền tảng (UI-21) */}
       <OwnerExitStatusBanner
         exitStatus={exitStatus}
@@ -262,7 +294,10 @@ export const OwnerHomePage: React.FC = () => {
       {/* Cảnh báo Dữ liệu cũ Stale Data (UI-27) */}
       <StaleDataBanner
         isStale={isStaleData}
-        onRefresh={() => setIsStaleData(false)}
+        onRefresh={() => {
+          setIsStaleData(false);
+          void loadDashboardData();
+        }}
       />
 
       {/* ===== KHỐI 1: 4 THẺ CHỈ SỐ TELEMETRY RIBBON DỰA TRÊN DỮ LIỆU THỰC ===== */}
@@ -270,168 +305,141 @@ export const OwnerHomePage: React.FC = () => {
         {/* Doanh thu gộp */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">Doanh thu gộp (Gross)</span>
+            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
+              Doanh thu gộp (Gross)
+            </span>
+
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">payments</span>
+              <span className="material-symbols-outlined text-[20px]">
+                payments
+              </span>
             </div>
           </div>
+
           <div>
             <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
-              {formatVnd(summary?.totals?.grossRevenue)}
+              {loadingRevenue
+                ? 'Đang tải...'
+                : formatVnd(summary?.totals?.grossRevenue)}
             </div>
+
             <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
               <span className="w-2 h-2 rounded-full bg-blue-600"></span>
-              <span>Tổng {summary?.totals?.transactionCount || 0} lượt giao dịch</span>
+              <span>
+                Tổng {summary?.totals?.transactionCount || 0} lượt giao dịch
+              </span>
             </div>
->>>>>>> Stashed changes
           </div>
-          <div className="text-2xl font-extrabold text-slate-900 mt-2">14.850.000 đ</div>
-          <p className="text-xs text-slate-500 mt-1">342 lượt giao dịch • 84% lấp đầy</p>
         </div>
 
-<<<<<<< Updated upstream
-        {/* Doanh thu tháng này */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Doanh thu tháng này</span>
-            <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-[11px] font-bold">
-              89.2% Chỉ tiêu
-            </span>
-=======
         {/* Doanh thu thuần */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">Doanh thu thuần (Net)</span>
+            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
+              Doanh thu thuần (Net)
+            </span>
+
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">analytics</span>
+              <span className="material-symbols-outlined text-[20px]">
+                analytics
+              </span>
             </div>
           </div>
+
           <div>
             <div className="text-3xl font-extrabold text-emerald-600 tracking-tight">
-              {formatVnd(summary?.totals?.netRevenue)}
+              {loadingRevenue
+                ? 'Đang tải...'
+                : formatVnd(summary?.totals?.netRevenue)}
             </div>
+
             <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Đã trừ hoàn trả: {formatVnd(summary?.totals?.refundAmount)}</span>
+              <span>
+                Đã trừ hoàn trả: {formatVnd(summary?.totals?.refundAmount)}
+              </span>
             </div>
->>>>>>> Stashed changes
           </div>
-          <div className="text-2xl font-extrabold text-indigo-600 mt-2">312.400.000 đ</div>
-          <p className="text-xs text-slate-500 mt-1">Kỳ đối soát: 01/10 - 31/10/2026</p>
         </div>
 
-<<<<<<< Updated upstream
-        {/* Số dư có thể rút */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition-colors">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Số dư khả dụng</span>
-            <span className="material-symbols-outlined text-[18px] text-emerald-600">account_balance_wallet</span>
-=======
         {/* Hoa hồng nền tảng */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">Hoa hồng nền tảng</span>
+            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
+              Hoa hồng nền tảng
+            </span>
+
             <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+              <span className="material-symbols-outlined text-[20px]">
+                account_balance_wallet
+              </span>
             </div>
           </div>
+
           <div>
             <div className="text-3xl font-extrabold text-amber-600 tracking-tight">
-              {formatVnd(summary?.commission?.commissionAmount)}
+              {loadingRevenue
+                ? 'Đang tải...'
+                : formatVnd(summary?.commission?.commissionAmount)}
             </div>
+
             <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
               <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-              <span>{summary?.commission?.pendingCount || 0} đơn đang xử lý kỳ</span>
+              <span>
+                {summary?.commission?.pendingCount || 0} đơn đang xử lý kỳ
+              </span>
             </div>
->>>>>>> Stashed changes
           </div>
-          <div className="text-2xl font-extrabold text-emerald-600 mt-2">281.160.000 đ</div>
-          <p className="text-xs text-slate-500 mt-1">Vietcombank • 0011000000001</p>
         </div>
 
         {/* Công suất lấp đầy */}
-        <div className="p-5 bg-white rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-400 transition-colors">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
-<<<<<<< Updated upstream
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Công suất phục vụ</span>
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-=======
-            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">Sức chứa phục vụ</span>
+            <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
+              Công suất phục vụ
+            </span>
+
             <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">directions_car</span>
+              <span className="material-symbols-outlined text-[20px]">
+                directions_car
+              </span>
             </div>
           </div>
+
           <div>
             <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
               {availableSlots} / {totalSlots} Ô
             </div>
+
             <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span className="font-semibold text-slate-700">
                 Đang hoạt động: {activeLotsCount} / {lots.length} Bãi đỗ xe
               </span>
             </div>
->>>>>>> Stashed changes
           </div>
-          <div className="text-2xl font-extrabold text-blue-600 mt-2">168 / 200 Ô</div>
-          <p className="text-xs text-slate-500 mt-1">Đang hoạt động: 02 Bãi đỗ xe</p>
         </div>
       </div>
 
-<<<<<<< Updated upstream
-      {/* ===== KHỐI 2: SƠ ĐỒ THỐNG KÊ DOANH THU THEO PHONG CÁCH SPLINE AREA CHART ===== */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-=======
       {/* ===== KHỐI 2: SƠ ĐỒ THỐNG KÊ DOANH THU THỰC TẾ ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
->>>>>>> Stashed changes
         {/* CỘT TRÁI (2/3): BIỂU ĐỒ MIỀN XU HƯỚNG */}
         <div className="lg:col-span-2 p-6 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between overflow-hidden">
           <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
               <div>
                 <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                  {metricMode === 'revenue' ? 'Diễn biến doanh thu gần đây' : 'Lượt giao dịch gần đây'}
+                  {metricMode === 'revenue'
+                    ? 'Diễn biến doanh thu gần đây'
+                    : 'Lượt giao dịch gần đây'}
                 </h2>
+
                 <p className="text-xs text-slate-500 mt-0.5">
                   Theo dõi dữ liệu thực tế phát sinh trên các bãi đỗ
                 </p>
               </div>
 
               {/* Nhóm nút chọn kiểu hiển thị */}
-<<<<<<< Updated upstream
-              <div className="flex flex-wrap items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setMetricMode('revenue')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    metricMode === 'revenue'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Doanh số
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMetricMode('traffic')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    metricMode === 'traffic'
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Lượt xe
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPeriodMode(periodMode === 'week' ? 'month' : 'week')}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors flex items-center gap-1 cursor-pointer"
-                >
-                  <span>{periodMode === 'week' ? 'Tuần' : 'Tháng'}</span>
-                  <span className="material-symbols-outlined text-[14px]">expand_more</span>
-                </button>
-=======
               <div className="flex flex-wrap items-center gap-2">
                 <div className="p-1 bg-slate-100 rounded-xl flex items-center gap-1 border border-slate-200/70">
                   <button
@@ -445,6 +453,7 @@ export const OwnerHomePage: React.FC = () => {
                   >
                     Doanh thu
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setMetricMode('traffic')}
@@ -457,41 +466,39 @@ export const OwnerHomePage: React.FC = () => {
                     Lượt xe
                   </button>
                 </div>
->>>>>>> Stashed changes
               </div>
             </div>
 
             {/* Chọn bãi xe thực tế */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 mt-4 px-1">
-<<<<<<< Updated upstream
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-indigo-600"></span>
-                  <span className="font-semibold text-slate-800">7 ngày gần đây</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-4 h-0.5 bg-slate-400 border-dashed"></span>
-                  <span className="text-slate-500">7 ngày trước đó</span>
-                </div>
-              </div>
-=======
               <span className="text-xs font-semibold text-slate-600">
                 Hiển thị dữ liệu 7 ngày gần nhất:
               </span>
->>>>>>> Stashed changes
 
-              <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                <span className="text-slate-400 text-[11px] font-medium">Bãi xe:</span>
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                <span className="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                  Bãi xe:
+                </span>
+
                 <select
                   value={selectedLotId}
-                  onChange={(e) => setSelectedLotId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  onChange={(e) =>
+                    setSelectedLotId(
+                      e.target.value === 'all'
+                        ? 'all'
+                        : Number(e.target.value),
+                    )
+                  }
                   disabled={loadingLots}
                   className="text-xs text-slate-800 font-bold bg-transparent border-none focus:outline-hidden cursor-pointer"
                 >
-                  <option value="all">Tất cả các bãi ({lots.length} bãi)</option>
-                  {lots.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name} (#{l.id})
+                  <option value="all">
+                    Tất cả các bãi ({lots.length} bãi)
+                  </option>
+
+                  {lots.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      {lot.name} (#{lot.id})
                     </option>
                   ))}
                 </select>
@@ -500,53 +507,76 @@ export const OwnerHomePage: React.FC = () => {
 
             {/* CANVAS BIỂU ĐỒ MIỀN SVG */}
             <div className="relative w-full h-[250px] mt-4 select-none overflow-hidden rounded-xl">
-<<<<<<< Updated upstream
-              <svg className="w-full h-full" viewBox="0 0 660 235" preserveAspectRatio="none">
-                <defs>
-                  {/* Gradient miền phủ kỳ hiện tại */}
-                  <linearGradient id="currentAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.50" />
-                    <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.04" />
-                  </linearGradient>
-=======
               {loadingRevenue ? (
                 <div className="h-full flex items-center justify-center text-xs text-slate-400">
                   Đang tải biểu đồ...
                 </div>
               ) : svgDataPoints.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs">
-                  <span className="material-symbols-outlined text-[36px] text-slate-300 mb-1">query_stats</span>
+                  <span className="material-symbols-outlined text-[36px] text-slate-300 mb-1">
+                    query_stats
+                  </span>
                   <span>Chưa có dữ liệu giao dịch trong chu kỳ này.</span>
-                  <span className="text-[11px] text-slate-400 mt-0.5">Biểu đồ sẽ tự động hiển thị khi phát sinh lượt đỗ.</span>
+                  <span className="text-[11px] text-slate-400 mt-0.5">
+                    Biểu đồ sẽ tự động hiển thị khi phát sinh lượt đỗ.
+                  </span>
                 </div>
               ) : (
-                <svg className="w-full h-full" viewBox="0 0 660 235" preserveAspectRatio="none">
+                <svg
+                  className="w-full h-full"
+                  viewBox="0 0 660 235"
+                  preserveAspectRatio="none"
+                >
                   <defs>
-                    <linearGradient id="realCurrentAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient
+                      id="realCurrentAreaGrad"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
                       <stop offset="0%" stopColor="#2563eb" stopOpacity="0.45" />
                       <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
                     </linearGradient>
                   </defs>
->>>>>>> Stashed changes
 
                   {/* Grid lines */}
-                  <line x1="30" y1="55" x2="630" y2="55" stroke="#f1f5f9" strokeWidth="1" />
-                  <line x1="30" y1="105" x2="630" y2="105" stroke="#f1f5f9" strokeWidth="1" />
-                  <line x1="30" y1="150" x2="630" y2="150" stroke="#f1f5f9" strokeWidth="1" />
-                  <line x1="30" y1={baselineY} x2="630" y2={baselineY} stroke="#e2e8f0" strokeWidth="1.5" />
+                  <line
+                    x1="30"
+                    y1="55"
+                    x2="630"
+                    y2="55"
+                    stroke="#f1f5f9"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1="30"
+                    y1="105"
+                    x2="630"
+                    y2="105"
+                    stroke="#f1f5f9"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1="30"
+                    y1="150"
+                    x2="630"
+                    y2="150"
+                    stroke="#f1f5f9"
+                    strokeWidth="1"
+                  />
+                  <line
+                    x1="30"
+                    y1={baselineY}
+                    x2="630"
+                    y2={baselineY}
+                    stroke="#e2e8f0"
+                    strokeWidth="1.5"
+                  />
 
-<<<<<<< Updated upstream
-                  {/* Gradient nét vẽ */}
-                  <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#4f46e5" />
-                    <stop offset="50%" stopColor="#6366f1" />
-                    <stop offset="100%" stopColor="#06b6d4" />
-                  </linearGradient>
-                </defs>
-=======
                   {/* Area fill */}
                   <path d={areaD} fill="url(#realCurrentAreaGrad)" />
+
                   {/* Line stroke */}
                   <path
                     d={lineD}
@@ -556,24 +586,23 @@ export const OwnerHomePage: React.FC = () => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
->>>>>>> Stashed changes
 
-                  {/* Points */}
-                  {svgDataPoints.map((p, idx) => {
-                    const isHovered = hoveredIndex === idx;
+                  {/* Data points */}
+                  {svgDataPoints.map((point, index) => {
+                    const isHovered = hoveredIndex === index;
 
                     return (
                       <g
-                        key={idx}
+                        key={index}
                         className="cursor-pointer"
-                        onMouseEnter={() => setHoveredIndex(idx)}
+                        onMouseEnter={() => setHoveredIndex(index)}
                         onMouseLeave={() => setHoveredIndex(null)}
                       >
                         {isHovered && (
                           <line
-                            x1={p.x}
+                            x1={point.x}
                             y1="55"
-                            x2={p.x}
+                            x2={point.x}
                             y2={baselineY}
                             stroke="#3b82f6"
                             strokeWidth="1.5"
@@ -581,169 +610,52 @@ export const OwnerHomePage: React.FC = () => {
                           />
                         )}
 
-<<<<<<< Updated upstream
-                {/* 2. LỚP MIỀN PHỦ CHÍNH */}
-                <path d={currentAreaD} fill="url(#currentAreaGrad)" />
-                <path
-                  d={currentLineD}
-                  fill="none"
-                  stroke="url(#strokeGradient)"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                {/* 3. CÁC ĐIỂM CHẤM VÀ NHÃN */}
-                {currentPoints.map((p, idx) => {
-                  const isHovered = hoveredIndex === idx;
-                  const isToday = idx === 6;
-
-                  return (
-                    <g
-                      key={idx}
-                      className="cursor-pointer transition-all duration-200"
-                      onMouseEnter={() => setHoveredIndex(idx)}
-                      onClick={() => setHoveredIndex(idx)}
-                    >
-                      {/* Cột sáng dọc khi hover */}
-                      {isHovered && (
-                        <line
-                          x1={p.x}
-                          y1="55"
-                          x2={p.x}
-                          y2={baselineY}
-                          stroke="#6366f1"
-                          strokeWidth="1.5"
-                          strokeDasharray="3 3"
-                          opacity="0.8"
-=======
                         <circle
-                          cx={p.x}
-                          cy={p.y}
+                          cx={point.x}
+                          cy={point.y}
                           r={isHovered ? '6.5' : '4.5'}
                           fill="#2563eb"
                           stroke="#ffffff"
                           strokeWidth="2"
->>>>>>> Stashed changes
                         />
 
-<<<<<<< Updated upstream
-                      {/* Quầng sáng nhẹ nhàng cố định (không dùng animate-ping để tránh tràn lề) */}
-                      {isToday && (
-                        <circle cx={p.x} cy={p.y} r="9" fill="#4f46e5" opacity="0.25" />
-                      )}
-
-                      {/* Điểm nút tròn */}
-                      <circle
-                        cx={p.x}
-                        cy={p.y}
-                        r={isHovered ? '6.5' : isToday ? '5.5' : '4.5'}
-                        fill="#4f46e5"
-                        stroke="#ffffff"
-                        strokeWidth={isHovered ? '2.5' : '2'}
-                        className="transition-all duration-150"
-                      />
-
-                      {/* Nhãn giá trị trực tiếp trên đỉnh điểm */}
-                      <text
-                        x={p.x}
-                        y={p.y - 10}
-                        textAnchor="middle"
-                        className={`text-[11px] font-mono font-extrabold transition-all select-none ${
-                          isHovered || isToday ? 'fill-indigo-900 font-black' : 'fill-slate-700'
-                        }`}
-                      >
-                        {p.label}
-                      </text>
-
-                      {/* Nhãn Thứ và Ngày */}
-                      <text
-                        x={p.x}
-                        y="212"
-                        textAnchor="middle"
-                        className={`text-xs font-bold transition-colors select-none ${
-                          isHovered ? 'fill-indigo-700' : 'fill-slate-600'
-                        }`}
-                      >
-                        {p.data.day}
-                      </text>
-                      <text
-                        x={p.x}
-                        y="226"
-                        textAnchor="middle"
-                        className="text-[10px] font-mono fill-slate-400 select-none"
-                      >
-                        {p.data.date}
-                      </text>
-                    </g>
-                  );
-                })}
-              </svg>
-            </div>
-          </div>
-
-          {/* Hộp chi tiết khi hover / click chọn ngày */}
-          <div className="mt-4 p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                {activeStat.day}
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-slate-500">
-                  Chi tiết ngày <span className="font-bold text-slate-900">{activeStat.date}</span>:
-                </div>
-                <div className="text-lg font-extrabold text-indigo-900">
-                  {activeStat.currentRevenue.toFixed(1)} Triệu VNĐ ({activeStat.currentTraffic} lượt xe)
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-6 text-xs">
-              <div>
-                <span className="text-slate-400 block font-medium">So với tuần trước:</span>
-                <span className="font-extrabold text-emerald-600 text-sm">
-                  +{(activeStat.currentRevenue - activeStat.prevRevenue).toFixed(1)} Tr (+
-                  {(((activeStat.currentRevenue - activeStat.prevRevenue) / activeStat.prevRevenue) * 100).toFixed(0)}%)
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-medium">Công suất đỉnh:</span>
-                <span className="font-extrabold text-blue-600 text-sm">{activeStat.occupancy}% Lấp đầy</span>
-              </div>
-=======
                         {/* Top label */}
                         <text
-                          x={p.x}
-                          y={p.y - 10}
+                          x={point.x}
+                          y={point.y - 10}
                           textAnchor="middle"
                           className="text-[10px] font-mono font-bold fill-slate-700 select-none"
                         >
-                          {metricMode === 'revenue' ? formatVnd(p.val) : `${p.val} xe`}
+                          {metricMode === 'revenue'
+                            ? formatVnd(point.val)
+                            : `${point.val} xe`}
                         </text>
 
                         {/* Bottom day & date */}
                         <text
-                          x={p.x}
+                          x={point.x}
                           y="212"
                           textAnchor="middle"
-                          className={`text-xs font-bold select-none ${isHovered ? 'fill-blue-700' : 'fill-slate-600'}`}
+                          className={`text-xs font-bold select-none ${
+                            isHovered ? 'fill-blue-700' : 'fill-slate-600'
+                          }`}
                         >
-                          {p.dayName}
+                          {point.dayName}
                         </text>
+
                         <text
-                          x={p.x}
+                          x={point.x}
                           y="226"
                           textAnchor="middle"
                           className="text-[10px] font-mono fill-slate-400 select-none"
                         >
-                          {p.dateLabel}
+                          {point.dateLabel}
                         </text>
                       </g>
                     );
                   })}
                 </svg>
               )}
->>>>>>> Stashed changes
             </div>
           </div>
         </div>
@@ -753,106 +665,48 @@ export const OwnerHomePage: React.FC = () => {
           <div>
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
-                <span className="material-symbols-outlined text-indigo-600">donut_large</span>
+                <span className="material-symbols-outlined text-blue-600 text-[20px]">
+                  donut_large
+                </span>
                 Cơ cấu Nguồn thu
               </h3>
-<<<<<<< Updated upstream
-              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">Tháng 10</span>
-=======
+
               <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200/50">
                 Thực tế
               </span>
->>>>>>> Stashed changes
             </div>
 
             {summary?.byMethod && summary.byMethod.length > 0 ? (
               <div className="space-y-4 my-6">
-                {summary.byMethod.map((item, idx) => {
-                  const totalGross = summary?.totals?.grossRevenue || 1;
-                  const pct = Math.round(((item.grossRevenue || 0) / totalGross) * 100);
+                {summary.byMethod.map((item, index) => {
+                  const totalGross = summary.totals?.grossRevenue || 1;
+                  const pct = Math.round(
+                    ((item.grossRevenue || 0) / totalGross) * 100,
+                  );
 
-<<<<<<< Updated upstream
-                {/* 1. Vé vãng lai theo giờ (58%) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#4f46e5"
-                  strokeWidth="12"
-                  strokeDasharray="138.48 238.76"
-                  strokeDashoffset="0"
-                  fill="none"
-                />
-
-                {/* 2. Vé tháng / Thuê bao (28%) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#10b981"
-                  strokeWidth="12"
-                  strokeDasharray="66.85 238.76"
-                  strokeDashoffset="-138.48"
-                  fill="none"
-                />
-
-                {/* 3. Trạm sạc xe điện EV (9%) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#06b6d4"
-                  strokeWidth="12"
-                  strokeDasharray="21.48 238.76"
-                  strokeDashoffset="-205.33"
-                  fill="none"
-                />
-
-                {/* 4. Phụ thu qua đêm (5%) */}
-                <circle
-                  cx="50"
-                  cy="50"
-                  r="38"
-                  stroke="#f59e0b"
-                  strokeWidth="12"
-                  strokeDasharray="11.95 238.76"
-                  strokeDashoffset="-226.81"
-                  fill="none"
-                />
-              </svg>
-
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Tổng thu</span>
-                <span className="text-xl font-extrabold text-slate-900 tracking-tight">312.4 Tr</span>
-                <span className="text-[10px] text-emerald-600 font-bold">89% Chỉ tiêu</span>
-              </div>
-            </div>
-
-            {/* Chú giải các phần cơ cấu */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-indigo-600 shrink-0"></span>
-                  <span className="text-slate-700 font-medium">Vé vãng lai theo giờ</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-extrabold text-slate-900">58%</span>
-                  <span className="text-slate-400 text-[11px] ml-1.5">(181.2 Tr)</span>
-                </div>
-=======
                   return (
-                    <div key={idx} className="space-y-1.5">
+                    <div key={index} className="space-y-1.5">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-800">{item.key}</span>
+                        <span className="font-semibold text-slate-800">
+                          {item.key}
+                        </span>
+
                         <div className="text-right">
-                          <span className="font-bold text-slate-900">{formatVnd(item.netRevenue)}</span>
-                          <span className="text-slate-400 ml-1">({pct}%)</span>
+                          <span className="font-bold text-slate-900">
+                            {formatVnd(item.netRevenue)}
+                          </span>
+                          <span className="text-slate-400 ml-1">
+                            ({pct}%)
+                          </span>
                         </div>
                       </div>
+
                       <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                         <div
                           className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${Math.min(100, Math.max(5, pct))}%` }}
+                          style={{
+                            width: `${Math.min(100, Math.max(5, pct))}%`,
+                          }}
                         />
                       </div>
                     </div>
@@ -862,49 +716,37 @@ export const OwnerHomePage: React.FC = () => {
             ) : (
               <div className="py-16 text-center text-xs text-slate-400">
                 Chưa có dữ liệu phân loại nguồn thu trong kỳ này.
->>>>>>> Stashed changes
               </div>
             )}
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-<<<<<<< Updated upstream
-            <span>Hệ thống đối soát tự động ANPR & VietQR</span>
-            <span className="font-semibold text-indigo-600">Chi tiết đối soát →</span>
-=======
             <span>Hệ thống đối soát tự động ParkMaster</span>
+
             <button
+              type="button"
               onClick={() => navigate('/owner/revenue')}
               className="font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
             >
               Chi tiết đối soát →
             </button>
->>>>>>> Stashed changes
           </div>
         </div>
       </div>
 
-<<<<<<< Updated upstream
-      {/* ===== KHỐI 3: LƯU LƯỢNG GIỜ CAO ĐIỂM TRONG NGÀY & DOANH THU THEO TỪNG BÃI ===== */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
-        {/* LƯU LƯỢNG GIỜ CAO ĐIỂM (PEAK HOURS TRAFFIC) */}
-=======
       {/* ===== KHỐI 3: PHÂN BỔ KHUNG GIỜ THỰC TẾ & DANH SÁCH BÃI XE THẬT ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LƯU LƯỢNG 24H TỪ DỮ LIỆU THỰC */}
->>>>>>> Stashed changes
         <div className="lg:col-span-2 p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-2">
             <div>
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-<<<<<<< Updated upstream
-                <span className="material-symbols-outlined text-blue-600">schedule</span>
-                Phân bổ Lưu lượng & Doanh thu theo Khung giờ (24h)
-=======
-                <span className="material-symbols-outlined text-blue-600 text-[20px]">schedule</span>
+                <span className="material-symbols-outlined text-blue-600 text-[20px]">
+                  schedule
+                </span>
                 Phân bổ Doanh thu theo Khung giờ (24h)
->>>>>>> Stashed changes
               </h3>
+
               <p className="text-xs text-slate-500 mt-0.5">
                 Thống kê thực tế lượng giao dịch phát sinh qua 24 giờ trong ngày
               </p>
@@ -918,76 +760,22 @@ export const OwnerHomePage: React.FC = () => {
               </div>
             ) : (
               <div className="h-32 flex items-end justify-between gap-1 sm:gap-1.5">
-                {hourlyData.map((h) => (
-                  <div key={h.hour} className="flex-1 flex flex-col items-center h-full justify-end group">
+                {hourlyData.map((hour) => (
+                  <div
+                    key={hour.hour}
+                    className="flex-1 flex flex-col items-center h-full justify-end group"
+                  >
                     <div
-                      style={{ height: `${h.pct}%` }}
-<<<<<<< Updated upstream
-                      className={`w-full rounded-t-sm transition-all group-hover:opacity-80 ${
-                        isPeak
-                          ? 'bg-gradient-to-t from-red-600 to-amber-500 shadow-xs'
-                          : h.pct > 70
-                            ? 'bg-gradient-to-t from-indigo-600 to-blue-400'
-                            : 'bg-gradient-to-t from-slate-300 to-blue-200'
-                      }`}
-                    ></div>
-                    <span className="text-[9px] font-mono text-slate-400 mt-1">{h.hour}h</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-            <div>
-              <strong className="text-slate-800">Khung giờ vàng:</strong> 08:00 - 09:30 (Đạt 95% lấp đầy) và 17:00 - 18:30 (Đạt 93% lấp đầy).
-            </div>
-            <span className="text-indigo-600 font-semibold cursor-pointer hover:underline">
-              Cấu hình phụ thu giờ cao điểm →
-            </span>
-          </div>
-        </div>
-
-        {/* BẢNG SO SÁNH DOANH THU 2 BÃI XE */}
-        <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 text-sm">Hiệu suất từng Bãi đỗ xe</h3>
-            <span className="text-xs font-mono text-slate-400">Hôm nay</span>
-          </div>
-
-          <div className="space-y-4">
-            {/* Bãi 1 */}
-            <div className="p-3.5 rounded-xl border border-indigo-100 bg-indigo-50/40">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-900 mb-1">
-                <span className="truncate">Landmark 81 Central</span>
-                <span className="text-indigo-700 shrink-0">9.650.000 đ</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2">
-                <span>112 slots • 93% Lấp đầy</span>
-                <span className="text-emerald-600 font-semibold">RevPAS: 86.100 đ/ô</span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                <div className="bg-indigo-600 h-2 rounded-full" style={{ width: '93%' }}></div>
-              </div>
-            </div>
-
-            {/* Bãi 2 */}
-            <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-900 mb-1">
-                <span className="truncate">Bitexco Financial Garage</span>
-                <span className="text-indigo-700 shrink-0">5.200.000 đ</span>
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2">
-                <span>56 slots • 70% Lấp đầy</span>
-                <span className="text-blue-600 font-semibold">RevPAS: 65.000 đ/ô</span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
-                <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '70%' }}></div>
-=======
+                      style={{ height: `${hour.pct}%` }}
                       className="w-full rounded-t-sm bg-blue-500 group-hover:bg-blue-600 transition-all cursor-pointer"
-                      title={`${h.hour}h: ${formatVnd(h.grossRevenue)} (${h.transactionCount} đơn)`}
+                      title={`${hour.hour}h: ${formatVnd(
+                        hour.grossRevenue,
+                      )} (${hour.transactionCount} đơn)`}
                     />
-                    <span className="text-[9px] font-mono text-slate-400 mt-1">{h.hour}h</span>
+
+                    <span className="text-[9px] font-mono text-slate-400 mt-1">
+                      {hour.hour}h
+                    </span>
                   </div>
                 ))}
               </div>
@@ -999,8 +787,12 @@ export const OwnerHomePage: React.FC = () => {
         <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 text-sm">Bãi đỗ xe của bạn ({lots.length})</h3>
+              <h3 className="font-bold text-slate-900 text-sm">
+                Bãi đỗ xe của bạn ({lots.length})
+              </h3>
+
               <button
+                type="button"
                 onClick={() => navigate('/owner/lots')}
                 className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
               >
@@ -1008,46 +800,77 @@ export const OwnerHomePage: React.FC = () => {
               </button>
             </div>
 
-            {lots.length === 0 ? (
+            {loadingLots ? (
+              <div className="py-8 text-center text-xs text-slate-400">
+                Đang tải danh sách bãi đỗ xe...
+              </div>
+            ) : lots.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-400">
                 Chưa có bãi đỗ xe nào được khai báo.
               </div>
             ) : (
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {lots.map((lot) => {
-                  const occupancy = lot.totalSlots > 0
-                    ? Math.round(((lot.totalSlots - lot.availableSlots) / lot.totalSlots) * 100)
-                    : 0;
+                  const occupancy =
+                    lot.totalSlots > 0
+                      ? Math.round(
+                          ((lot.totalSlots - lot.availableSlots) /
+                            lot.totalSlots) *
+                            100,
+                        )
+                      : 0;
 
                   return (
-                    <div key={lot.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60">
+                    <div
+                      key={lot.id}
+                      className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60"
+                    >
                       <div className="flex items-center justify-between text-xs font-bold text-slate-900 mb-1">
                         <span className="truncate">{lot.name}</span>
-                        <span className="text-blue-700 shrink-0">#{lot.id}</span>
+                        <span className="text-blue-700 shrink-0">
+                          #{lot.id}
+                        </span>
                       </div>
+
                       <div className="flex items-center justify-between text-[11px] text-slate-500 mb-2">
-                        <span>{lot.totalSlots} slots • {lot.availableSlots} ô trống</span>
-                        <span className={`font-semibold ${lot.status === 'Active' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span>
+                          {lot.totalSlots} slots • {lot.availableSlots} ô trống
+                        </span>
+
+                        <span
+                          className={`font-semibold ${
+                            lot.status === 'Active'
+                              ? 'text-emerald-600'
+                              : 'text-amber-600'
+                          }`}
+                        >
                           {lot.status}
                         </span>
                       </div>
+
                       <div className="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
                         <div
                           className="bg-blue-600 h-1.5 rounded-full"
-                          style={{ width: `${Math.min(100, Math.max(0, occupancy))}%` }}
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.max(0, occupancy),
+                            )}%`,
+                          }}
                         />
                       </div>
                     </div>
                   );
                 })}
->>>>>>> Stashed changes
               </div>
             )}
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
             <span>Tổng cộng:</span>
-            <strong className="text-slate-900">{totalSlots} ô đỗ trên toàn hệ thống</strong>
+            <strong className="text-slate-900">
+              {totalSlots} ô đỗ trên toàn hệ thống
+            </strong>
           </div>
         </div>
       </div>
