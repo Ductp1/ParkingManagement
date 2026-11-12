@@ -136,13 +136,8 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     },
   ],
 
-  Staff: [
-    { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
-    { label: 'Làn vào (ANPR Inbound)', path: '/gate/inbound', icon: 'login' },
-    { label: 'Làn ra (ANPR Outbound)', path: '/gate/outbound', icon: 'logout' },
-    { label: 'Soát vé thủ công', path: '/gate/manual', icon: 'edit_square' },
-    { label: 'Nhật ký trạm', path: '/gate/events', icon: 'history' },
-  ],
+  // Gate Console gói gọn trong 1 trang duy nhất (/gate) – không cần thanh menu con.
+  Staff: [],
 
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },

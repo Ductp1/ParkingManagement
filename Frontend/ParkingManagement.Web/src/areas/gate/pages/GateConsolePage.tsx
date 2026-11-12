@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { gateApi, type ExitFeeQuoteDto, type ShiftBookingItemDto } from '@/api/gateApi';
+import { CameraScannerModal } from '@/areas/gate/components/CameraScannerModal';
 
 interface GateEvent {
   id: string;
@@ -43,12 +44,27 @@ export const GateConsolePage: React.FC = () => {
   const [bookings, setBookings] = useState<ShiftBookingItemDto[]>([]);
   const [inboundPlate, setInboundPlate] = useState('');
   const [inboundBookingCode, setInboundBookingCode] = useState('');
+  const [inboundQrToken, setInboundQrToken] = useState('');
   const [outboundPlate, setOutboundPlate] = useState('');
   const [quote, setQuote] = useState<ExitFeeQuoteDto | null>(null);
   const [events, setEvents] = useState<GateEvent[]>([]);
   const [alertNotice, setAlertNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [scanner, setScanner] = useState<{ mode: 'qr' | 'plate'; target: 'inbound' | 'outbound' } | null>(null);
+
+  const handleScanResult = (value: string) => {
+    if (!scanner) return;
+    if (scanner.mode === 'qr' && scanner.target === 'inbound') {
+      setInboundQrToken(value);
+    } else if (scanner.mode === 'plate' && scanner.target === 'inbound') {
+      setInboundPlate(value);
+    } else if (scanner.mode === 'plate' && scanner.target === 'outbound') {
+      setOutboundPlate(value);
+      setQuote(null);
+    }
+    setScanner(null);
+  };
 
   const showAlert = (msg: string) => {
     setAlertNotice(msg);
@@ -97,19 +113,23 @@ export const GateConsolePage: React.FC = () => {
     setBusy(true);
     try {
       const bookingCode = inboundBookingCode.trim().toUpperCase() || undefined;
+      const qrToken = inboundQrToken.trim() || undefined;
       const session = await gateApi.checkIn({
         parkingLotId: lotId,
-        method: bookingCode ? 'BookingCode' : 'Manual',
+        method: qrToken ? 'Qr' : bookingCode ? 'BookingCode' : 'Manual',
         plate,
         bookingCode,
+        qrToken,
         staffUserId: Number(staffUserId) || undefined,
       });
+      const methodLabel = qrToken ? 'QR vé đặt chỗ' : bookingCode ? `Booking ${bookingCode}` : 'Vãng lai';
       pushEvent(session.plateDisplay, 'Làn vào #1', 'Check-in',
-        bookingCode ? `Booking ${bookingCode}` : 'Vãng lai',
-        bookingCode ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200');
-      showAlert(`Làn vào #1: Đã check-in xe ${session.plateDisplay}${bookingCode ? ` (booking ${bookingCode})` : ''} và nâng cần Barie!`);
+        methodLabel,
+        qrToken || bookingCode ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200');
+      showAlert(`Làn vào #1: Đã check-in xe ${session.plateDisplay} (${methodLabel}) và nâng cần Barie!`);
       setInboundPlate('');
       setInboundBookingCode('');
+      setInboundQrToken('');
       void loadBookings();
     } catch (e) {
       setError((e as Error).message);
@@ -166,6 +186,15 @@ export const GateConsolePage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      {scanner && (
+        <CameraScannerModal
+          mode={scanner.mode}
+          title={scanner.mode === 'qr' ? 'Quét mã QR vé đặt chỗ' : 'Quét biển số xe (OCR)'}
+          onDetected={handleScanResult}
+          onClose={() => setScanner(null)}
+        />
+      )}
+
       {/* Toast Notice */}
       {alertNotice && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-xl text-sm font-semibold animate-bounce">
@@ -350,6 +379,13 @@ export const GateConsolePage: React.FC = () => {
               className="flex-1 px-4 py-2.5 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-mono uppercase"
             />
             <button
+              onClick={() => setScanner({ mode: 'plate', target: 'inbound' })}
+              className="px-3 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 shrink-0 flex items-center gap-1.5 cursor-pointer"
+              title="Quét biển số bằng camera/ảnh"
+            >
+              <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+            </button>
+            <button
               onClick={() => void handleInboundCheckIn()}
               disabled={busy}
               className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -367,6 +403,25 @@ export const GateConsolePage: React.FC = () => {
               className="flex-1 px-4 py-2 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-mono uppercase"
             />
           </div>
+          {inboundQrToken ? (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
+              <span className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
+                Đã quét QR vé đặt chỗ – check-in sẽ dùng method Qr
+              </span>
+              <button onClick={() => setInboundQrToken('')} className="text-emerald-600 hover:text-emerald-900 cursor-pointer">
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setScanner({ mode: 'qr', target: 'inbound' })}
+              className="w-full px-3 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+              QUÉT QR VÉ ĐẶT CHỖ
+            </button>
+          )}
         </div>
 
         {/* Right: Check-out */}
@@ -400,6 +455,13 @@ export const GateConsolePage: React.FC = () => {
               placeholder="Nhập biển số hoặc quét mã vé xuất..."
               className="flex-1 px-4 py-2.5 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:border-amber-500 font-mono uppercase"
             />
+            <button
+              onClick={() => setScanner({ mode: 'plate', target: 'outbound' })}
+              className="px-3 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 shrink-0 flex items-center gap-1.5 cursor-pointer"
+              title="Quét biển số bằng camera/ảnh"
+            >
+              <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+            </button>
             <button
               onClick={() => void handleExitQuote()}
               disabled={busy}
