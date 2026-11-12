@@ -21,12 +21,13 @@ export function LoginPage() {
   const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [openProfileAfterLogin, setOpenProfileAfterLogin] = useState(false);
 
   if (isLoading) {
     return (
       <main className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="flex items-center gap-3 px-6 py-3.5 rounded-2xl bg-white border border-slate-200 text-sm font-semibold text-slate-700 shadow-xl">
-          <i className="fa-solid fa-circle-notch fa-spin text-violet-600" />
+          <i className="fa-solid fa-circle-notch fa-spin text-blue-600" />
           <span>Đang kiểm tra phiên đăng nhập…</span>
         </div>
       </main>
@@ -61,7 +62,9 @@ export function LoginPage() {
             ? '/gate'
             : '/driver';
 
-    if (fromPath) {
+    if (openProfileAfterLogin) {
+      targetRoute = '/account/profile';
+    } else if (fromPath) {
       if (fromPath === '/account/profile') targetRoute = fromPath;
       else if (fromPath.startsWith('/admin') && userRoles.includes('Admin')) targetRoute = fromPath;
       else if (fromPath.startsWith('/owner') && (userRoles.includes('Owner') || userRoles.includes('Admin'))) targetRoute = fromPath;
@@ -104,6 +107,33 @@ export function LoginPage() {
 
       {/* Form đăng nhập chuẩn */}
       <form onSubmit={handleLogin} className="auth-form">
+        {import.meta.env.DEV && (
+          <details className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm">
+            <summary className="cursor-pointer font-semibold text-blue-800">Điền nhanh tài khoản demo</summary>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {[
+                ['Quản trị viên', 'admin'],
+                ['Chủ bãi Vincom', 'owner.vincom'],
+                ['Chủ bãi Tân Sơn Nhất', 'owner.tsn'],
+                ['Nhân viên cổng', 'staff.vincom'],
+                ['Tài xế 1', 'driver1'],
+                ['Tài xế 2', 'driver2'],
+              ].map(([label, account]) => (
+                <button key={account} type="button" disabled={busy}
+                  className="rounded-lg border border-blue-200 bg-white px-2 py-2 hover:bg-blue-100"
+                  onClick={() => {
+                    setIdentifier(account + '@smartparking.vn');
+                    setPassword('Demo@123');
+                    setOpenProfileAfterLogin(true);
+                    setError('');
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-slate-600">Xác minh CAPTCHA rồi đăng nhập để mở hồ sơ cá nhân.</p>
+          </details>
+        )}
         <label className="auth-field" htmlFor="login-contact">
           Email hoặc số điện thoại
           <input
@@ -111,7 +141,10 @@ export function LoginPage() {
             required
             autoComplete="username"
             value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
+            onChange={(e) => {
+              setIdentifier(e.target.value);
+              setOpenProfileAfterLogin(false);
+            }}
             placeholder="Nhập email hoặc số điện thoại"
             disabled={busy}
           />

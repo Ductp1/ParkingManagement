@@ -27,25 +27,28 @@ public class OwnerRevenueExportTests
     [Fact]
     public async Task Csv_HasBomHeaderAndOwnRowsNewestFirst()
     {
-        var older = Paid(OwnerA, LotA1, 50_000, Utc(2026, 10, 5, 1, 30), status: PaymentStatus.PartiallyRefunded, refunded: 12_000);
+        var older = Paid(OwnerA, LotA1, 50_000, Utc(2026, 10, 5, 1, 30), status: PaymentStatus.PartiallyRefunded, refunded: 12_000).WithId(1);
         older.Code = "PM-0001";
         older.BookingCode = "BK-0001";
         older.ProviderTransactionId = "VNP14500001";
         older.UserId = 42;
-        var newer = Paid(OwnerA, LotA2, 20_000, Utc(2026, 10, 6, 3), PaymentMethod.Cash, PaymentPurpose.WalkIn);
+        var newer = Paid(OwnerA, LotA2, 20_000, Utc(2026, 10, 6, 3), PaymentMethod.Cash, PaymentPurpose.WalkIn).WithId(2);
         newer.Code = "PM-0002";
-        var other = Paid(OwnerB, LotB1, 99_000, Utc(2026, 10, 6, 3));
+        var other = Paid(OwnerB, LotB1, 99_000, Utc(2026, 10, 6, 3)).WithId(3);
+        // US-079: giao dịch cũ đã tính (5.000 − 1.200 phần hoàn), giao dịch mới chưa có bút toán → Pending, cột tiền để trống (không phải 0).
+        CommissionEntry[] entries = [Accrual(older, 0.1m), Reversal(older, 0.1m, refundedAmount: 12_000)];
 
-        var file = await UseCase(new InMemoryOwnerRevenueQueries([older, newer, other])).ExecuteAsync(OwnerA, October);
+        var file = await UseCase(new InMemoryOwnerRevenueQueries([older, newer, other], commissionEntries: entries)).ExecuteAsync(OwnerA, October);
 
         Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, file.Content[..3]);
         Assert.Equal("owner-revenue-20261001-20261101.csv", file.FileName);
         Assert.Equal("text/csv; charset=utf-8", OwnerRevenueCsvFile.ContentType);
         Assert.Equal(
         [
-            "Code,PaidAtUtc,PaidAtIct,ParkingLotId,BookingCode,Method,Purpose,Status,Amount,RefundedAmount,NetAmount,ProviderTransactionRef",
-            "PM-0002,2026-10-06T03:00:00Z,06/10/2026 10:00:00,12,,Cash,WalkIn,Succeeded,20000,0,20000,",
-            "PM-0001,2026-10-05T01:30:00Z,05/10/2026 08:30:00,11,BK-0001,Vnpay,Booking,PartiallyRefunded,50000,12000,38000,****0001",
+            "Code,PaidAtUtc,PaidAtIct,ParkingLotId,BookingCode,Method,Purpose,Status,Amount,RefundedAmount,NetAmount,ProviderTransactionRef,"
+            + "CommissionRate,CommissionAmount,CommissionStatus",
+            "PM-0002,2026-10-06T03:00:00Z,06/10/2026 10:00:00,12,,Cash,WalkIn,Succeeded,20000,0,20000,,,,Pending",
+            "PM-0001,2026-10-05T01:30:00Z,05/10/2026 08:30:00,11,BK-0001,Vnpay,Booking,PartiallyRefunded,50000,12000,38000,****0001,0.1,3800,Calculated",
             "",
         ], Lines(file));
         Assert.DoesNotContain("99000", Encoding.UTF8.GetString(file.Content));

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using BookingService.API.Controllers;
 using BookingService.Application.Features.Bookings;
+using BookingService.Domain.Rules;
 using BookingService.Infrastructure.Persistence;
 using BookingService.Infrastructure.Workers;
 using Microsoft.AspNetCore.Hosting;
@@ -10,13 +11,13 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.API.Controllers;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Domain.Entities;
-using ParkingService.Infrastructure.Persistence;
 
 namespace ParkingManagement.IntegrationTests;
 
@@ -96,7 +97,18 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         ParkingFactory = BuildFactory<ParkingLotsController, ParkingDbContext>(
             TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, ParkingDbName));
         BookingFactory = BuildFactory<BookingsController, BookingDbContext>(
-            TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, BookingDbName));
+            TestDatabaseProvisioner.ReplaceDatabase(_baseConnectionString, BookingDbName),
+            // US-103: fixture dùng chung tạo/hủy nhiều booking cho cùng tài xế trong vài giây – nới ngưỡng chống lạm dụng
+            // để bộ test này kiểm vòng đời booking; luật lạm dụng đã có unit test riêng (BookingAbusePolicy).
+            services =>
+            {
+                services.RemoveAll<BookingAbuseOptions>();
+                services.AddSingleton(new BookingAbuseOptions
+                {
+                    MaxBookingActionsPerHour = 10_000,
+                    NoShowMinFinishedBookings = 10_000,
+                });
+            });
 
         // Dựng host sớm ngay tại đây: migration + seed demo chạy xong trước test đầu tiên,
         // lỗi hạ tầng (PostgreSQL không chạy, thiếu secret...) báo ngay tại Initialize thay vì test đầu tiên.
@@ -113,11 +125,16 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
     /// Host thật + database cô lập: thay đăng ký DbContext bằng connection string của test
     /// (ConfigureServices chạy sau Program.cs nên luôn thắng; không đụng biến môi trường toàn cục).
     /// </summary>
-    private static WebApplicationFactory<TEntryPoint> BuildFactory<TEntryPoint, TContext>(string connectionString)
+    private static WebApplicationFactory<TEntryPoint> BuildFactory<TEntryPoint, TContext>(string connectionString,
+        Action<IServiceCollection>? configureServices = null)
         where TEntryPoint : class
         where TContext : DbContext
         => new WebApplicationFactory<TEntryPoint>().WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => services.UseIsolatedDatabase<TContext>(connectionString)));
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<TContext>(connectionString);
+                configureServices?.Invoke(services);
+            }));
 
     /// <summary>Làm tròn về đầu phút – ủy quyền cho TestTime.</summary>
     public static DateTime RoundToMinute(DateTime utc) => TestTime.RoundToMinute(utc);

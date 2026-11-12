@@ -273,7 +273,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -308,7 +308,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -336,7 +336,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -365,7 +365,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5,
@@ -411,7 +411,7 @@ public class BookingFeaturesTests
         repo.SavedBookings.Add(existingBooking);
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         // Khách hàng khác (UserId = 5) cố tình đặt cùng SlotId = 2 trong khung giờ giao nhau
         var cmd = new CreateBookingCommand(
@@ -458,7 +458,7 @@ public class BookingFeaturesTests
         repo.SavedBookings.Add(userExistingBooking);
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         // Chính user đó (UserId = 5) tạo thêm đơn ở ô khác nhưng cùng khung giờ
         var cmd = new CreateBookingCommand(
@@ -518,7 +518,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var startAt = FixedNow.AddHours(2); // Đặt trước 2 tiếng
         var cmd = new CreateBookingCommand(
@@ -540,7 +540,7 @@ public class BookingFeaturesTests
         repo.ActiveMonthlyPassSlots.Add(10); // Slot 10 là của khách vé tháng
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5, VehicleId: 1, PlateNumber: "51F-123.45", VehicleType: VehicleType.Sedan,
@@ -553,24 +553,13 @@ public class BookingFeaturesTests
     }
 
     [Fact]
-    public async Task CreateBooking_when_user_cancels_3_times_today_throws_validation_exception()
+    public async Task CreateBooking_when_user_cancels_exceeds_abuse_threshold_throws_conflict_exception()
     {
         var repo = new FakeBookingRepo();
-        // Giả lập user 5 đã hủy 3 đơn hôm nay
-        for (int i = 1; i <= 3; i++)
-        {
-            repo.SavedBookings.Add(new Booking
-            {
-                Code = $"BK-OLD-{i}",
-                UserId = 5,
-                Status = BookingStatus.Cancelled,
-                CancelledAtUtc = FixedNow.AddHours(-1)
-            });
-        }
-
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
-        var useCase = new CreateBookingUseCase(repo, qr, clock);
+        var abuseGuard = new BookingAbuseGuard(new NoAbuseQueries(cancelled: 3), clock, new BookingAbuseOptions { MaxBookingActionsPerHour = 3 });
+        var useCase = new CreateBookingUseCase(repo, qr, abuseGuard, new NoPmsLotIntegration(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5, VehicleId: 1, PlateNumber: "51F-123.45", VehicleType: VehicleType.Sedan,
@@ -578,8 +567,8 @@ public class BookingFeaturesTests
             AllocationMode: AllocationMode.Dynamic, StartAtUtc: FixedNow.AddHours(1), EndAtUtc: FixedNow.AddHours(3), TotalAmount: 60000,
             PromotionCode: null);
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
-        Assert.Contains("hủy 3 đơn", ex.Message);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(cmd));
+        Assert.Contains("tạm thời bị chặn đặt/hủy", ex.Message);
     }
 
     [Fact]
@@ -598,7 +587,7 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new CancelBookingUseCase(repo, clock);
+        var useCase = NewCancelBookingUseCase(repo, clock);
 
         var result = await useCase.ExecuteAsync(booking.Code, new CancelBookingCommand(5, "Đổi lịch"));
 
@@ -676,6 +665,29 @@ public class BookingFeaturesTests
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
             int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
+    }
+
+    /// <summary>CreateBookingUseCase với guard chống lạm dụng luôn cho phép (US-103) và PMS không cấu hình (US-052).</summary>
+    private static CreateBookingUseCase NewCreateBookingUseCase(IBookingRepository repo, IQrTokenService qr, TimeProvider clock)
+        => new(repo, qr, new BookingAbuseGuard(new NoAbuseQueries(), clock), new NoPmsLotIntegration(), clock);
+
+    private static CancelBookingUseCase NewCancelBookingUseCase(IBookingRepository repo, TimeProvider clock)
+        => new(repo, new BookingAbuseGuard(new NoAbuseQueries(), clock), clock);
+
+    private sealed class NoAbuseQueries(int created = 0, int cancelled = 0) : IBookingAbuseQueries
+    {
+        public Task<int> CountCreatedSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(created);
+        public Task<int> CountCancellationsSinceAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(cancelled);
+        public Task<NoShowStatistics> GetNoShowStatisticsAsync(int userId, DateTime sinceUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(new NoShowStatistics(0, 0));
+    }
+
+    private sealed class NoPmsLotIntegration : ILotIntegrationClient
+    {
+        public Task<bool> PushBookingCreatedAsync(PmsBookingPush booking, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
     }
 
     private sealed class FakeBookingRepo : IBookingRepository

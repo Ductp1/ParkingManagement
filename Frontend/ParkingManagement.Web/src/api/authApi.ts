@@ -18,7 +18,7 @@ export async function verifyRegistration(contact: string, code: string) {
 export async function resendRegistrationOtp(contact: string) {
   await apiClient.post('/api/v1/auth/otp/resend', { contact, purpose: 'Register' });
 }
-interface UserDto { id: number; fullName: string; email?: string; phoneNumber?: string; roles: string[]; avatarUrl?: string | null }
+interface UserDto { status?: string; kycStatus?: string; id: number; fullName: string; email?: string; phoneNumber?: string; roles: string[]; avatarUrl?: string | null }
 
 function save(tokens: Tokens) {
   sessionStorage.setItem('parkmaster_token', tokens.accessToken);
@@ -34,7 +34,7 @@ export async function currentUser(): Promise<AuthUser> {
     .filter((r): r is UserRole => ['Driver', 'Owner', 'Staff', 'Admin'].includes(r));
   if (!roles.length) throw new Error('Tài khoản chưa có vai trò được hỗ trợ.');
   return { id: data.id, fullName: data.fullName, email: data.email, phone: data.phoneNumber,
-    roles, role: roles[0], avatarUrl: data.avatarUrl };
+    roles, role: roles[0], avatarUrl: data.avatarUrl, status: data.status, kycStatus: data.kycStatus };
 }
 export async function forgotPassword(contact: string) {
   await apiClient.post('/api/v1/auth/password/forgot', { contact });

@@ -54,10 +54,11 @@ public sealed class FakeGateEvents : IGateEventWriter
 {
     public List<GateEventDraft> Drafts { get; } = [];
 
-    public Task WriteAsync(GateEventDraft draft, CancellationToken cancellationToken = default)
+    public Task<GateEventRecord> WriteAsync(GateEventDraft draft, CancellationToken cancellationToken = default)
     {
         Drafts.Add(draft);
-        return Task.CompletedTask;
+        return Task.FromResult(new GateEventRecord(Drafts.Count, draft.ParkingLotId, draft.EventType.ToString(),
+            draft.ParkingSessionId, draft.PlateNumber, draft.PerformedByUserId, draft.Note, draft.ShiftId, DateTime.UtcNow));
     }
 }
 

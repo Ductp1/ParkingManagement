@@ -2,7 +2,8 @@ namespace ParkingManagement.SharedKernel.Enums;
 
 // ===== UserService =====
 /// <summary>Sự kiện bảo mật cần lưu vết (US-002).</summary>
-public enum SecurityEventType { LoginSucceeded = 1, LoginFailed = 2, OtpFailed = 3, AccountLocked = 4, AccountUnlocked = 5, PasswordChanged = 6, TokenRevoked = 7 }
+public enum SecurityEventType { LoginSucceeded = 1, LoginFailed = 2, OtpFailed = 3, AccountLocked = 4, AccountUnlocked = 5, PasswordChanged = 6, TokenRevoked = 7,
+    KycSubmitted = 8, KycApproved = 9, KycRejected = 10 }
 
 /// <summary>Quyền của chủ thể dữ liệu theo Nghị định 13/2023 (US-007).</summary>
 public enum DataRequestType { Access = 1, Correction = 2, Deletion = 3, WithdrawConsent = 4, Export = 5 }

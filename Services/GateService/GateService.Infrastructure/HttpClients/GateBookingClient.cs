@@ -12,7 +12,7 @@ namespace GateService.Infrastructure.HttpClients;
 /// Client HTTP gọi BookingService (TV3) phục vụ Gate Console (UC-20/UC-21/UC-22).
 /// Lỗi hạ tầng (mạng, 5xx, timeout) → DependencyUnavailableException (HTTP 503); 404 → null cho tra cứu.
 /// </summary>
-public sealed class GateBookingClient(HttpClient http, ILogger<GateBookingClient> logger) : IGateBookingClient
+public sealed class GateBookingClient(HttpClient http, ILogger<GateBookingClient> logger) : IGateBookingClient, IGateNoShowClient
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -26,7 +26,7 @@ public sealed class GateBookingClient(HttpClient http, ILogger<GateBookingClient
             ?? throw new DependencyUnavailableException($"BookingService trả dữ liệu rỗng khi tra cứu booking {bookingCode}.");
         return new GateBookingSnapshot(dto.Code, dto.Status, dto.ParkingLotId, dto.PlateNumber, dto.VehicleType,
             dto.StartAtUtc, dto.EndAtUtc, dto.SlotCode, dto.PriceSnapshot?.FinalAmount ?? 0,
-            dto.PriceSnapshot?.BillingGracePeriodMinutes ?? 15, dto.PriceSnapshot?.OverstayMultiplier ?? 1.5m);
+            dto.PriceSnapshot?.BillingGracePeriodMinutes ?? 15, dto.PriceSnapshot?.OverstayMultiplier ?? 1.5m, dto.SlotId);
     }
 
     public async Task<IReadOnlyList<GateBookingListItem>> ListForLotAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
@@ -49,7 +49,23 @@ public sealed class GateBookingClient(HttpClient http, ILogger<GateBookingClient
     public Task SyncCheckOutAsync(string bookingCode, int? staffUserId, CancellationToken cancellationToken = default)
         => SyncGateActionAsync(bookingCode, "check-out", staffUserId, cancellationToken);
 
-    /// <summary>Gọi endpoint nội bộ TV7 của BookingService: POST /api/v1/bookings/{code}/check-in|check-out.</summary>
+    /// <summary>US-039 (UC-24 bước 1): GET /api/v1/bookings/no-show-candidates – booking quá mốc ân hạn chưa check-in.</summary>
+    public async Task<IReadOnlyList<GateNoShowCandidate>> ListNoShowCandidatesAsync(int parkingLotId, int graceMinutes,
+        CancellationToken cancellationToken)
+    {
+        using var response = await SendAsync(HttpMethod.Get,
+            $"api/v1/bookings/no-show-candidates?parkingLotId={parkingLotId}&graceMinutes={graceMinutes}", null, cancellationToken);
+        await EnsureSuccessAsync(response, "lấy danh sách booking No-show", cancellationToken);
+        var items = await response.Content.ReadFromJsonAsync<List<NoShowCandidateApiResponse>>(Json, cancellationToken) ?? [];
+        return items.Select(i => new GateNoShowCandidate(i.Code, i.UserId, i.PlateNumber, i.ParkingLotName, i.SlotCode,
+            i.StartAtUtc, i.EndAtUtc, i.MinutesOverdue)).ToList();
+    }
+
+    /// <summary>US-039: POST /api/v1/bookings/{code}/no-show – BookingService chặn sai trạng thái (409).</summary>
+    public Task MarkNoShowAsync(string bookingCode, int staffUserId, CancellationToken cancellationToken)
+        => SyncGateActionAsync(bookingCode, "no-show", staffUserId, cancellationToken);
+
+    /// <summary>Gọi endpoint nội bộ TV7 của BookingService: POST /api/v1/bookings/{code}/check-in|check-out|no-show.</summary>
     private async Task SyncGateActionAsync(string bookingCode, string action, int? staffUserId, CancellationToken cancellationToken)
     {
         var body = new StringContent(JsonSerializer.Serialize(new { staffUserId, gateDeviceId = (int?)null }, Json),
@@ -103,10 +119,12 @@ public sealed class GateBookingClient(HttpClient http, ILogger<GateBookingClient
 
     // Bản ghi khớp camelCase JSON của BookingService (BookingDetailDto).
     private sealed record BookingApiResponse(string Code, string Status, int ParkingLotId, string PlateNumber,
-        string VehicleType, DateTime StartAtUtc, DateTime EndAtUtc, string? SlotCode, decimal TotalAmount,
+        string VehicleType, DateTime StartAtUtc, DateTime EndAtUtc, int? SlotId, string? SlotCode, decimal TotalAmount,
         PriceSnapshotResponse? PriceSnapshot);
     private sealed record PriceSnapshotResponse(decimal FinalAmount, int BillingGracePeriodMinutes, decimal OverstayMultiplier);
     private sealed record GateBookingListItemApiResponse(string Code, string PlateNumber, string VehicleType, string? SlotCode,
         DateTime StartAtUtc, DateTime EndAtUtc, string Status, bool IsOverdue, decimal TotalAmount);
+    private sealed record NoShowCandidateApiResponse(string Code, int UserId, string PlateNumber, string ParkingLotName,
+        string? SlotCode, DateTime StartAtUtc, DateTime EndAtUtc, int MinutesOverdue);
     private sealed record ProblemDetailResponse(string? Title, string? Detail);
 }

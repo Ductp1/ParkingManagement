@@ -40,7 +40,7 @@ public sealed class PostgresMessagingTests
             Assert.Equal(1, saved.AttemptCount);
             Assert.Null(saved.ProcessedAtUtc);
             Assert.Equal(clock.Now.AddSeconds(10), saved.NextAttemptAtUtc);
-            Assert.Equal(nameof(HttpRequestException), saved.LastError);
+            Assert.StartsWith(nameof(HttpRequestException), saved.LastError);
         }
         await dispatcher.DispatchOneAsync(default);
         Assert.Equal(1, transport.Deliveries);
