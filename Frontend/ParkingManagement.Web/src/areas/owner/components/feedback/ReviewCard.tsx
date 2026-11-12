@@ -77,15 +77,15 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-2xs hover:shadow-xs transition space-y-4">
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs hover:border-slate-300 transition-all space-y-4">
       {/* Top Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm shadow-2xs">
+          <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shadow-2xs">
             {review.reviewerName ? review.reviewerName.charAt(0).toUpperCase() : 'K'}
           </div>
           <div>
-            <h4 className="font-bold text-neutral-900 text-sm">{review.reviewerName}</h4>
+            <h4 className="font-bold text-slate-900 text-sm">{review.reviewerName}</h4>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="flex items-center">
                 {[1, 2, 3, 4, 5].map((s) => (
@@ -94,20 +94,20 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
                     className={`w-3.5 h-3.5 ${
                       s <= review.rating
                         ? 'fill-amber-400 text-amber-400'
-                        : 'text-neutral-200 fill-neutral-100'
+                        : 'text-slate-200 fill-slate-100'
                     }`}
                   />
                 ))}
               </div>
-              <span className="text-2xs text-neutral-400">•</span>
-              <span className="text-2xs text-neutral-500">{formatDate(review.createdAtUtc)}</span>
+              <span className="text-[11px] text-slate-300">•</span>
+              <span className="text-[11px] text-slate-500">{formatDate(review.createdAtUtc)}</span>
             </div>
           </div>
         </div>
 
         {/* Flag status pill if reported */}
         {review.isFlagged && (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
             <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
             Đang chờ Admin duyệt khiếu nại
           </span>
@@ -115,23 +115,23 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
       </div>
 
       {/* Customer Comment */}
-      <p className="text-sm text-neutral-800 leading-relaxed whitespace-pre-wrap pl-1">
-        {review.comment || <span className="italic text-neutral-400">Không có nhận xét chi tiết.</span>}
+      <p className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap pl-1 font-normal">
+        {review.comment || <span className="italic text-slate-400">Không có nhận xét chi tiết.</span>}
       </p>
 
       {/* Existing Owner Reply */}
       {review.ownerReply ? (
-        <div className="bg-neutral-50 border border-neutral-200/80 rounded-xl p-4 ml-2 md:ml-6 space-y-1.5">
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 ml-2 md:ml-6 space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-indigo-700 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-blue-700 flex items-center gap-1.5">
               <CornerDownRight className="w-3.5 h-3.5" />
               Phản hồi từ chủ bãi
             </span>
-            <span className="text-2xs text-neutral-400">
+            <span className="text-[11px] text-slate-400">
               {formatDate(review.ownerRepliedAtUtc)}
             </span>
           </div>
-          <p className="text-xs text-neutral-800 leading-relaxed whitespace-pre-wrap pt-0.5">
+          <p className="text-xs text-slate-800 leading-relaxed whitespace-pre-wrap pt-0.5 font-medium">
             {review.ownerReply}
           </p>
         </div>
@@ -139,22 +139,22 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
 
       {/* Inline Reply Form */}
       {isReplying && !review.ownerReply && (
-        <form onSubmit={handleSendReply} className="pt-2 border-t border-neutral-100 space-y-3">
+        <form onSubmit={handleSendReply} className="pt-2 border-t border-slate-100 space-y-3">
           {errorMessage && (
-            <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs flex items-center gap-2">
-              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-500" />
+            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           <div>
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-2xs font-bold text-neutral-600 uppercase tracking-wider">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
                 Viết phản hồi công khai (Mỗi đánh giá 1 lần)
               </span>
               <span
-                className={`text-2xs ${
-                  replyText.trim().length < 5 ? 'text-rose-500' : 'text-neutral-400'
+                className={`text-xs ${
+                  replyText.trim().length < 5 ? 'text-rose-500' : 'text-slate-400'
                 }`}
               >
                 {replyText.length}/2000 ký tự
@@ -165,7 +165,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Cảm ơn quý khách đã sử dụng dịch vụ và đóng góp ý kiến..."
-              className="w-full text-xs rounded-xl border border-neutral-300 p-3 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              className="w-full text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white p-3 focus:outline-hidden focus:ring-2 focus:ring-blue-500 transition font-medium"
               disabled={submitting}
             />
           </div>
@@ -178,14 +178,14 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
                 setErrorMessage(null);
               }}
               disabled={submitting}
-              className="px-3 py-1.5 text-xs text-neutral-600 hover:bg-neutral-100 rounded-lg transition"
+              className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={submitting || replyText.trim().length < 5}
-              className="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-2xs transition flex items-center gap-1.5"
+              className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer"
             >
               <Send className="w-3 h-3" />
               <span>{submitting ? 'Đang gửi...' : 'Gửi phản hồi'}</span>
@@ -196,11 +196,11 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
 
       {/* Action Footer (when not replying and no reply yet) */}
       {!review.ownerReply && !isReplying && (
-        <div className="flex items-center justify-between pt-2 border-t border-neutral-100 text-xs">
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
           <button
             type="button"
             onClick={() => setIsReplying(true)}
-            className="font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1.5 transition py-1"
+            className="font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 transition py-1 cursor-pointer"
           >
             <MessageSquare className="w-3.5 h-3.5" />
             <span>Phản hồi khách hàng</span>
@@ -210,7 +210,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
             <button
               type="button"
               onClick={() => onReportClick(review.id)}
-              className="text-neutral-400 hover:text-rose-600 flex items-center gap-1 transition py-1 text-2xs"
+              className="text-slate-400 hover:text-rose-600 flex items-center gap-1 transition py-1 text-xs cursor-pointer"
               title="Báo cáo đánh giá vi phạm gửi Admin"
             >
               <Flag className="w-3 h-3" />

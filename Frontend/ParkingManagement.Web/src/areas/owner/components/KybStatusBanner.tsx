@@ -266,13 +266,13 @@ export const KybStatusBanner: React.FC<KybStatusBannerProps> = ({
 
     default: // Draft or default
       return (
-        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 shadow-xs">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-5 shadow-xs">
           <div className="flex items-start gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
               <FileEdit size={20} />
             </div>
             <div>
-              <span className="text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">
+              <span className="text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-200 text-blue-900">
                 Bản nháp hồ sơ
               </span>
               <h3 className="text-base font-bold text-slate-900 mt-1">
