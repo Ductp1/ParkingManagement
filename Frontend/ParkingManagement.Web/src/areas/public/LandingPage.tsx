@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logoutSession } from '@/api/authApi';
-import { MainFooter } from '@/components/layout/MainFooter';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
+import { AuthScene } from '@/components/auth/AuthScene';
+import './landing.css';
+
+/* ===================== Nội dung ===================== */
 
 interface FeaturedLot {
   id: number;
@@ -15,74 +18,171 @@ interface FeaturedLot {
   image: string;
 }
 
+/** Dữ liệu minh hoạ cho trang giới thiệu (không phải số liệu trực tiếp). */
 const FEATURED_LOTS: FeaturedLot[] = [
+  { id: 1, name: 'Landmark 81', address: 'Bình Thạnh, TP.HCM', price: '30.000đ/giờ', available: 42, tag: 'Có trạm sạc xe điện', image: '/images/lot-1.jpg' },
+  { id: 2, name: 'Vinhomes Central Park', address: 'Bình Thạnh, TP.HCM', price: '25.000đ/giờ', available: 18, tag: 'Hầm B1–B2', image: '/images/lot-2.jpg' },
+  { id: 3, name: 'Saigon Centre', address: 'Quận 1, TP.HCM', price: '40.000đ/giờ', available: 9, tag: 'Đặt trước được', image: '/images/lot-3.jpg' },
+  { id: 4, name: 'Bitexco Financial', address: 'Quận 1, TP.HCM', price: '35.000đ/giờ', available: 28, tag: 'Camera 24/7', image: '/images/lot-4.jpg' },
+];
+
+const FEATURES = [
+  { icon: 'local_parking', title: 'Xem chỗ trống trước khi đi', desc: 'Số chỗ trống của từng bãi cập nhật theo lượt xe ra vào tại cổng.' },
+  { icon: 'event_available', title: 'Đặt chỗ trước', desc: 'Chọn giờ đến và xe sẽ gửi, chỗ được giữ cho bạn trong khung giờ đã đặt.' },
+  { icon: 'photo_camera', title: 'Qua cổng bằng biển số', desc: 'Camera đọc biển số và đối chiếu với lượt đặt, không cần lấy vé giấy.' },
+  { icon: 'height', title: 'Lọc theo chiều cao xe', desc: 'Ẩn các hầm có trần thấp hơn xe của bạn, tránh cạ nóc khi vào bãi.' },
+  { icon: 'account_balance_wallet', title: 'Thanh toán không tiền mặt', desc: 'Trả qua VNPAY, MoMo hoặc VietQR ngay trên điện thoại.' },
+  { icon: 'receipt_long', title: 'Lịch sử và hoá đơn', desc: 'Mọi lượt gửi xe và khoản đã trả nằm gọn trong tài khoản của bạn.' },
+];
+
+const STEPS = [
+  { title: 'Tìm bãi còn chỗ', desc: 'Nhập nơi bạn sắp đến, xem bãi gần nhất, giá theo giờ và số chỗ trống.' },
+  { title: 'Đặt chỗ', desc: 'Chọn giờ đến và xe, xác nhận và thanh toán trong vài bước.' },
+  { title: 'Lái xe vào cổng', desc: 'Cổng tự mở khi camera nhận ra biển số khớp với lượt đặt của bạn.' },
+];
+
+const OWNER_POINTS = [
+  'Quản lý sơ đồ tầng, khu và từng ô đỗ',
+  'Tự đặt bảng giá theo giờ, ngày và vé tháng',
+  'Theo dõi lượt xe, doanh thu và đối soát',
+  'Tạo tài khoản cho nhân viên trực cổng',
+];
+
+const FAQS = [
   {
-    id: 1,
-    name: 'Landmark 81',
-    address: 'Bình Thạnh, TP.HCM',
-    price: '30K/h',
-    available: 42,
-    tag: '⚡ Sạc EV',
-    image: '/images/lot-1.jpg',
+    q: 'Đặt chỗ trên ParkMaster có mất thêm phí không?',
+    a: 'Giá gửi xe do từng bãi đặt và luôn hiện rõ trước khi bạn xác nhận. Tổng tiền bạn trả được ghi trong hoá đơn của lượt đặt.',
   },
   {
-    id: 2,
-    name: 'Vinhomes Central Park',
-    address: 'Bình Thạnh, TP.HCM',
-    price: '25K/h',
-    available: 18,
-    tag: 'Hầm B1-B2',
-    image: '/images/lot-2.jpg',
+    q: 'Xe tôi cao, làm sao biết bãi có vào được không?',
+    a: 'Khai báo chiều cao xe trong mục Xe của tôi. Khi tìm bãi, ParkMaster ẩn các hầm có trần thấp hơn chiều cao xe cộng 10 cm.',
   },
   {
-    id: 3,
-    name: 'Saigon Centre',
-    address: 'Quận 1, TP.HCM',
-    price: '40K/h',
-    available: 9,
-    tag: 'Giữ trước',
-    image: '/images/lot-3.jpg',
+    q: 'Tôi có thể thanh toán bằng gì?',
+    a: 'Bạn thanh toán qua VNPAY, MoMo hoặc VietQR. Biên nhận được lưu trong Lịch sử đặt chỗ.',
   },
   {
-    id: 4,
-    name: 'Bitexco Financial',
-    address: 'Quận 1, TP.HCM',
-    price: '35K/h',
-    available: 28,
-    tag: 'Camera 24/7',
-    image: '/images/lot-4.jpg',
+    q: 'Làm sao để đưa bãi đỗ của tôi lên ParkMaster?',
+    a: 'Tạo tài khoản chủ bãi, khai báo bãi và nộp hồ sơ pháp lý. Sau khi đội ngũ ParkMaster duyệt hồ sơ và ký hợp đồng, bãi của bạn bắt đầu nhận đặt chỗ.',
+  },
+  {
+    q: 'Thông tin cá nhân của tôi được bảo vệ thế nào?',
+    a: 'Số giấy tờ tuỳ thân được mã hoá khi lưu và chỉ hiển thị vài số cuối. Bạn có thể tải về, yêu cầu sửa hoặc xoá dữ liệu của mình trong mục Dữ liệu của tôi.',
   },
 ];
 
-const ABOUT_PILLARS = [
-  {
-    icon: 'fa-microchip',
-    tag: 'Tầm nhìn 4.0',
-    title: 'Kiến tạo Đô thị Thông minh',
-    desc: 'Giải quyết triệt để vấn đề quá tải giao thông tĩnh bằng hạ tầng điều phối bãi đỗ kỹ thuật số tập trung trên nền tảng đám mây.',
-  },
-  {
-    icon: 'fa-network-wired',
-    tag: 'Hệ sinh thái',
-    title: 'Kết nối Thời gian thực',
-    desc: 'Đồng bộ tức thời giữa mạng lưới cảm biến mặt đất, camera quang học và ứng dụng di động cho tài xế & đơn vị quản lý.',
-  },
-  {
-    icon: 'fa-shield-halved',
-    tag: 'Chuẩn quốc tế',
-    title: 'Bảo mật & Tự động toàn trình',
-    desc: 'Áp dụng định danh xe không chạm, thanh toán phi tiền mặt và mã hóa xác thực RS256 chuẩn bảo mật ngân hàng.',
-  },
+const FAQ_JSON_LD = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: FAQS.map((f) => ({ '@type': 'Question', name: f.q, acceptedAnswer: { '@type': 'Answer', text: f.a } })),
+});
+
+const NAV_LINKS = [
+  { label: 'Tính năng', id: 'features' },
+  { label: 'Cách hoạt động', id: 'how' },
+  { label: 'Chủ bãi', id: 'owners' },
+  { label: 'Câu hỏi', id: 'faq' },
 ];
+
+/* ===================== Chế độ sáng / tối ===================== */
+
+type ThemeChoice = 'light' | 'dark' | 'system';
+const THEME_KEY = 'parkmaster-landing-theme';
+
+const readTheme = (): ThemeChoice => {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    // Mặc định giao diện sáng: khung cảnh thành phố ban ngày là điểm nhấn của trang
+    return v === 'dark' || v === 'system' ? v : 'light';
+  } catch {
+    return 'light';
+  }
+};
+
+function useLandingTheme() {
+  const [choice, setChoice] = useState<ThemeChoice>(readTheme);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false);
+
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
+    if (!mq) return;
+    const onChange = (e: MediaQueryListEvent) => setSystemDark(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const update = (next: ThemeChoice) => {
+    setChoice(next);
+    try {
+      if (next === 'light') localStorage.removeItem(THEME_KEY);
+      else localStorage.setItem(THEME_KEY, next);
+    } catch {
+      /* trình duyệt chặn lưu trữ: vẫn đổi được trong phiên hiện tại */
+    }
+  };
+
+  return { choice, dark: choice === 'dark' || (choice === 'system' && systemDark), update };
+}
+
+const THEME_OPTIONS: { value: ThemeChoice; icon: string; label: string }[] = [
+  { value: 'light', icon: 'light_mode', label: 'Giao diện sáng' },
+  { value: 'dark', icon: 'dark_mode', label: 'Giao diện tối' },
+  { value: 'system', icon: 'contrast', label: 'Theo hệ thống' },
+];
+
+/* ===================== Thành phần nhỏ ===================== */
+
+const Icon: React.FC<{ name: string; className?: string }> = ({ name, className = '' }) => (
+  <span className={`material-symbols-outlined ${className}`} aria-hidden="true">{name}</span>
+);
+
+const BrandMark: React.FC<{ size?: number }> = ({ size = 34 }) => (
+  <span
+    aria-hidden="true"
+    style={{ width: size, height: size }}
+    className="grid shrink-0 place-items-center rounded-[9px] bg-[#2f6fd6] text-white font-extrabold text-xl shadow-[inset_0_0_0_2px_rgb(255_255_255/0.7)]"
+  >
+    P
+  </span>
+);
+
+const ThemeSwitch: React.FC<{ choice: ThemeChoice; onChange: (v: ThemeChoice) => void }> = ({ choice, onChange }) => (
+  <div role="radiogroup" aria-label="Chế độ hiển thị" className="flex rounded-xl border border-(--lp-glass-line) bg-(--lp-glass) p-0.5">
+    {THEME_OPTIONS.map((o) => (
+      <button
+        key={o.value}
+        type="button"
+        role="radio"
+        aria-checked={choice === o.value}
+        title={o.label}
+        aria-label={o.label}
+        onClick={() => onChange(o.value)}
+        className={`grid h-8 w-8 place-items-center rounded-lg cursor-pointer ${
+          choice === o.value ? 'bg-(--lp-glass-strong) text-(--lp-text) shadow-sm' : 'text-(--lp-faint) hover:text-(--lp-text)'
+        }`}
+      >
+        <Icon name={o.icon} className="text-[18px]" />
+      </button>
+    ))}
+  </div>
+);
+
+/* ===================== Trang ===================== */
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user, isAuthenticated } = useAppSelector((state) => state.auth);
+  const theme = useLandingTheme();
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [sentSuccess, setSentSuccess] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  useEffect(() => {
+    document.title = 'ParkMaster — Tìm chỗ đỗ xe còn trống ở TP.HCM';
+  }, []);
 
   const getPortalPath = () => {
     if (!user) return '/login';
@@ -92,401 +192,359 @@ export const LandingPage: React.FC = () => {
     return '/driver';
   };
 
+  const findLots = () => navigate(isAuthenticated ? '/driver/parking-lots' : '/register');
+
   const scrollToId = (id: string) => {
+    setMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logoutSession();
+      dispatch(logout());
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
+  const authButtons =
+    isAuthenticated && user ? (
+      <>
+        <button type="button" onClick={() => navigate(getPortalPath())} className="lp-btn px-4 py-2 text-sm">
+          Vào trang của tôi
+        </button>
+        <button
+          type="button"
+          disabled={loggingOut}
+          onClick={handleLogout}
+          className="rounded-lg px-3 py-2 text-sm font-semibold text-(--lp-text) hover:bg-(--lp-glass) cursor-pointer disabled:opacity-50"
+        >
+          Đăng xuất
+        </button>
+      </>
+    ) : (
+      <>
+        <button type="button" onClick={() => navigate('/login')} className="rounded-lg px-3 py-2 text-sm font-semibold text-(--lp-text) hover:bg-(--lp-glass) cursor-pointer">
+          Đăng nhập
+        </button>
+        <button type="button" onClick={() => navigate('/register')} className="lp-btn px-4 py-2 text-sm">
+          Tạo tài khoản
+        </button>
+      </>
+    );
+
   return (
-    <div className="relative min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white bg-[#fafafc] text-slate-900 overflow-x-hidden">
-      {/* =====================================================================
-          BACKGROUND PURE WHITE & DEEP NAVY (PHONG CÁCH APPLE / STRIPE SAAS)
-      ====================================================================== */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        {/* Hình nền kiến trúc to hiển thị mơ màng bán trong suốt */}
-        <img
-          src="/images/hero-bg.jpg"
-          alt="Smart Parking Background"
-          className="w-full h-full object-cover object-center scale-105 opacity-16"
-        />
+    <div className={`lp min-h-screen ${theme.dark ? 'lp-dark' : ''}`}>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-(--lp-primary) focus:px-4 focus:py-2 focus:text-(--lp-on-primary)"
+      >
+        Bỏ qua tới nội dung
+      </a>
 
-        {/* Lớp phủ trắng sương ngọc trai sang trọng */}
-        <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-[#fafafc]/85 to-white/95 backdrop-blur-[2px]" />
+      {/* ===== Thanh điều hướng: kính mờ ===== */}
+      <header className="fixed inset-x-0 top-0 z-50">
+        <div className="mx-auto mt-3 flex h-14 max-w-7xl items-center gap-6 rounded-2xl px-4 sm:mx-4 lg:mx-auto lg:px-6 lp-glass">
+          <a href="#main" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="flex items-center gap-2.5">
+            <BrandMark size={32} />
+            <span className="text-lg font-bold">ParkMaster</span>
+          </a>
 
-        {/* Lưới vi điểm tối giản thanh lịch */}
-        <div
-          className="absolute inset-0 opacity-[0.35]"
-          style={{
-            backgroundImage:
-              'radial-gradient(rgba(15, 23, 42, 0.12) 1px, transparent 1px)',
-            backgroundSize: '28px 28px',
-          }}
-        />
-
-        {/* Vầng sáng xanh Cobalt dịu nhẹ đặt phía sau tiêu đề */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/3 w-[850px] h-[480px] bg-gradient-to-b from-blue-500/8 via-sky-400/5 to-transparent rounded-full blur-[130px]" />
-      </div>
-
-      {/* =====================================================================
-          1. HEADER KÍNH TRẮNG NGỌC TRAI BÁN TRONG SUỐT — TÊN DỰ ÁN TO & NỔI BẬT
-      ====================================================================== */}
-      <header className="sticky top-0 z-50 w-full bg-white/85 backdrop-blur-2xl border-b border-slate-200/80 shadow-[0_2px_15px_rgba(15,23,42,0.03)] transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          {/* Logo & Tên dự án to nổi bật */}
-          <button
-            type="button"
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center gap-3.5 text-left cursor-pointer group"
-          >
-            {/* Biểu tượng Logo ParkMaster chuẩn hệ thống với đèn tín hiệu công nghệ */}
-            <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-blue-600 to-blue-700 text-white flex items-center justify-center font-black text-2xl sm:text-3xl shadow-md shadow-blue-600/25 group-hover:scale-105 transition-transform select-none">
-              P
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white" />
-              </span>
-            </div>
-
-            {/* Tên dự án to nổi bật */}
-            <div>
-              <span className="font-black text-slate-900 text-2xl sm:text-3xl tracking-tight block leading-none">
-                ParkMaster
-              </span>
-              <span className="text-[11px] text-slate-500 font-bold tracking-widest uppercase block mt-1.5">
-                SMART PARKING SYSTEM
-              </span>
-            </div>
-          </button>
-
-          {/* Menu điều hướng tối giản */}
-          <nav className="hidden md:flex items-center gap-1.5">
-            {[
-              { label: 'Giới thiệu', id: 'about' },
-              { label: 'Bãi đỗ tiêu biểu', id: 'lots' },
-              { label: 'Liên hệ', id: 'contact' },
-            ].map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => scrollToId(m.id)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-blue-700 hover:bg-slate-100/80 transition-colors cursor-pointer"
+          <nav aria-label="Trang chủ" className="hidden flex-1 items-center justify-center gap-1 md:flex">
+            {NAV_LINKS.map((l) => (
+              <a
+                key={l.id}
+                href={`#${l.id}`}
+                onClick={(e) => { e.preventDefault(); scrollToId(l.id); }}
+                className="rounded-lg px-3 py-2 text-sm font-semibold text-(--lp-muted) hover:bg-(--lp-glass-strong) hover:text-(--lp-text)"
               >
-                {m.label}
-              </button>
+                {l.label}
+              </a>
             ))}
           </nav>
 
-          {/* Nút hành động */}
-          <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              24 Bãi Online
-            </span>
-
-            {isAuthenticated && user ? (
-              <div className="flex items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => navigate(getPortalPath())}
-                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/10 active:scale-[0.98] transition-all cursor-pointer"
-                >
-                  Vào hệ thống ({user.role})
-                </button>
-                <button
-                  type="button"
-                  disabled={loggingOut}
-                  onClick={async () => {
-                    setLoggingOut(true);
-                    try {
-                      await logoutSession();
-                      dispatch(logout());
-                    } finally {
-                      setLoggingOut(false);
-                    }
-                  }}
-                  className="text-xs font-semibold text-slate-500 hover:text-red-600 cursor-pointer px-2"
-                >
-                  Thoát
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => navigate('/register')}
-                className="px-5 py-2.5 rounded-xl border border-blue-600 text-blue-600 hover:bg-blue-50 text-xs font-bold active:scale-[0.98] transition-all cursor-pointer whitespace-nowrap"
-              >
-                Đăng ký
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-md shadow-slate-900/10 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Đăng nhập
-              </button>
-              </div>
-            )}
+          <div className="ml-auto hidden items-center gap-2 md:flex">
+            <ThemeSwitch choice={theme.choice} onChange={theme.update} />
+            {authButtons}
           </div>
-        </div>
-      </header>
 
-      {/* =====================================================================
-          2. HERO TRẮNG TINH KHIẾT VỚI TÊN DỰ ÁN TO & THẺ KÍNH BÁN TRONG SUỐT
-      ====================================================================== */}
-      <section className="relative z-10 pt-12 sm:pt-16 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="rounded-3xl bg-white/80 backdrop-blur-2xl border border-slate-200/90 p-6 sm:p-12 lg:p-14 shadow-[0_20px_60px_rgba(15,23,42,0.04)] relative overflow-hidden">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-            {/* Cột trái: Tên dự án to khổng lồ & Thông điệp */}
-            <div className="lg:col-span-7 space-y-5">
-              <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 text-xs font-extrabold shadow-2xs">
-                <i className="fa-solid fa-bolt text-blue-600 text-xs" />
-                HỆ SINH THÁI PARKMASTER · SMART PARKING SYSTEM
-              </span>
-
-              {/* Tên dự án to nổi bật */}
-              <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-slate-900 tracking-tight leading-[1.08]">
-                ParkMaster <br />
-                <span className="text-blue-600">Smart Parking</span>
-              </h1>
-
-              <p className="text-sm sm:text-base text-slate-600 max-w-lg leading-relaxed">
-                Nền tảng số hóa bãi đỗ xe thông minh ứng dụng AI & IoT — Biết trước chỗ trống, khóa vị trí theo sơ đồ tầng và qua cổng không chạm trong 0.2 giây.
-              </p>
-
-              <div className="pt-2 flex flex-wrap items-center gap-3.5">
-                <button
-                  type="button"
-                  onClick={() => navigate(isAuthenticated ? getPortalPath() : '/login')}
-                  className="px-7 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all cursor-pointer"
-                >
-                  Tìm bãi đỗ ngay →
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollToId('about')}
-                  className="px-6 py-3.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer"
-                >
-                  Tìm hiểu giải pháp
-                </button>
-              </div>
-
-              {/* 3 chỉ số ngắn gọn trên thẻ trắng bán trong suốt */}
-              <div className="pt-4 grid grid-cols-3 gap-3 max-w-md">
-                {[
-                  { num: '1.482', label: 'Ô trống live' },
-                  { num: '0.18s', label: 'Nhận diện AI' },
-                  { num: '24 Bãi', label: 'Đô thị TP.HCM' },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className="p-3 rounded-2xl bg-slate-50/80 border border-slate-200/80 text-center shadow-2xs"
-                  >
-                    <div className="text-lg sm:text-xl font-black text-blue-700">
-                      {s.num}
-                    </div>
-                    <div className="text-[11px] text-slate-500 font-semibold">
-                      {s.label}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cột phải: Khung camera ANPR kính bán trong suốt */}
-            <div className="lg:col-span-5">
-              <div className="relative rounded-2xl overflow-hidden shadow-xl border border-slate-200/90 group">
-                <img
-                  src="/images/camera-anpr.jpg"
-                  alt="ParkMaster Camera ANPR"
-                  className="w-full h-72 sm:h-84 object-cover group-hover:scale-105 transition-transform duration-700"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
-
-                {/* Huy hiệu kính nổi trên ảnh */}
-                <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-slate-200 text-slate-900 text-xs font-bold shadow-md flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Cổng ANPR #01 · Trực tuyến</span>
-                </div>
-
-                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-xs">
-                  <span className="font-mono font-bold bg-slate-900/90 px-3 py-1.5 rounded-lg border border-white/20 text-white">
-                    51K-889.32 (0.18s)
-                  </span>
-                  <span className="font-bold text-emerald-400">
-                    ✓ Barie mở tự động
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* =====================================================================
-          3. GIỚI THIỆU VỀ SMART PARKING MANAGEMENT (KÍNH BÁN TRONG SUỐT)
-      ====================================================================== */}
-      <section id="about" className="relative z-10 py-14 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold uppercase tracking-wider">
-            Về chúng tôi
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 mt-3 tracking-tight">
-            Giải pháp Smart Parking Management
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-2 leading-relaxed">
-            Nền tảng công nghệ toàn diện giúp chuyển đổi số hạ tầng bãi gửi xe, mang lại trải nghiệm gửi xe thông minh, minh bạch và an toàn tuyệt đối.
-          </p>
-        </div>
-
-        {/* 3 Cột trụ giới thiệu bán trong suốt sang trọng */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {ABOUT_PILLARS.map((item) => (
-            <div
-              key={item.title}
-              className="p-7 rounded-2xl bg-white/80 hover:bg-white backdrop-blur-xl border border-slate-200/90 hover:border-blue-400 shadow-[0_8px_30px_rgba(15,23,42,0.03)] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between group"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <i className={`fa-solid ${item.icon} text-lg`} />
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-                    {item.tag}
-                  </span>
-                </div>
-
-                <h3 className="font-extrabold text-slate-900 text-base mb-2">
-                  {item.title}
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  {item.desc}
-                </p>
-              </div>
-
-              <div className="mt-6 pt-3.5 border-t border-slate-100 flex items-center gap-1.5 text-xs font-bold text-blue-600">
-                <span>Tiêu chuẩn ParkMaster</span>
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* =====================================================================
-          4. BÃI ĐỖ TIÊU BIỂU (4 THẺ KÍNH TRẮNG BÁN TRONG SUỐT)
-      ====================================================================== */}
-      <section id="lots" className="relative z-10 py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-4 ring-blue-100" />
-            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Bãi đỗ tiêu biểu
-            </h2>
-          </div>
           <button
             type="button"
-            onClick={() => navigate(isAuthenticated ? '/driver/parking-lots' : '/login')}
-            className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+            className="ml-auto grid h-10 w-10 place-items-center rounded-lg text-(--lp-text) hover:bg-(--lp-glass-strong) md:hidden cursor-pointer"
+            aria-label={menuOpen ? 'Đóng menu' : 'Mở menu'}
+            aria-expanded={menuOpen}
+            aria-controls="lp-mobile-menu"
+            onClick={() => setMenuOpen((v) => !v)}
           >
-            Xem tất cả 24 bãi →
+            <Icon name={menuOpen ? 'close' : 'menu'} className="text-[24px]" />
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {FEATURED_LOTS.map((lot) => (
-            <div
-              key={lot.id}
-              onClick={() => navigate(isAuthenticated ? '/driver/parking-lots' : '/login')}
-              className="rounded-2xl bg-white/85 hover:bg-white backdrop-blur-xl border border-slate-200/90 hover:border-blue-400 shadow-[0_8px_30px_rgba(15,23,42,0.03)] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer group flex flex-col justify-between"
-            >
-              <div>
-                <div className="relative h-36 overflow-hidden bg-slate-950">
-                  <img
-                    src={lot.image}
-                    alt={lot.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent" />
-                  <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full bg-white/95 backdrop-blur-xs text-slate-900 text-[10px] font-bold shadow-sm">
-                    {lot.tag}
-                  </span>
-                  <span className="absolute bottom-2.5 right-2.5 px-2.5 py-0.5 rounded-md bg-blue-600 text-white text-[10px] font-mono font-bold shadow-sm">
-                    {lot.price}
-                  </span>
-                </div>
-
-                <div className="p-3.5">
-                  <h3 className="font-extrabold text-slate-900 text-sm">
-                    {lot.name}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    {lot.address}
-                  </p>
-                </div>
-              </div>
-
-              <div className="px-3.5 pb-3.5 pt-1 flex items-center justify-between border-t border-slate-100 text-xs">
-                <span className="font-bold text-emerald-600 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  {lot.available} chỗ trống
-                </span>
-                <span className="font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
-                  Đặt ngay →
-                </span>
-              </div>
+        {menuOpen && (
+          <div id="lp-mobile-menu" className="mx-4 mt-2 rounded-2xl px-3 pb-4 pt-2 md:hidden lp-glass">
+            <nav aria-label="Trang chủ" className="flex flex-col">
+              {NAV_LINKS.map((l) => (
+                <a
+                  key={l.id}
+                  href={`#${l.id}`}
+                  onClick={(e) => { e.preventDefault(); scrollToId(l.id); }}
+                  className="rounded-lg px-3 py-3 font-semibold hover:bg-(--lp-glass-strong)"
+                >
+                  {l.label}
+                </a>
+              ))}
+            </nav>
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-(--lp-line) pt-3">
+              {authButtons}
+              <span className="ml-auto"><ThemeSwitch choice={theme.choice} onChange={theme.update} /></span>
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+        )}
+      </header>
 
-      {/* =====================================================================
-          5. LIÊN HỆ KÍNH BÁN TRONG SUỐT PHONG CÁCH APPLE / STRIPE
-      ====================================================================== */}
-      <section id="contact" className="relative z-10 py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="rounded-3xl bg-white/90 backdrop-blur-2xl border border-slate-200/90 p-6 sm:p-8 shadow-[0_12px_40px_rgba(15,23,42,0.04)] flex flex-col md:flex-row items-center justify-between gap-5">
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-slate-900">
-              Đăng ký vé tháng & Hợp tác chủ bãi ParkMaster
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Hotline hỗ trợ 24/7: <strong className="text-blue-600">1900 6868</strong>
+      <main id="main">
+        {/* ===== Hero: khung cảnh thành phố + thẻ kính mờ ===== */}
+        <section className="relative isolate flex min-h-[100svh] items-center overflow-hidden px-4 pb-40 pt-28">
+          <AuthScene className="lp-hero-scene" />
+          <div className="mx-auto w-full max-w-2xl rounded-3xl px-6 py-10 text-center sm:px-12 lp-glass">
+            <h1 className="mx-auto max-w-[16ch] text-4xl font-bold leading-[1.1] tracking-tight sm:text-5xl">
+              Biết bãi nào còn chỗ trước khi bạn rời nhà.
+            </h1>
+            <p className="mx-auto mt-5 max-w-[48ch] text-lg leading-relaxed text-(--lp-muted)">
+              Xem chỗ trống, đặt chỗ trước và qua cổng bằng biển số tại các bãi đỗ đối tác ở TP.HCM.
+            </p>
+            <form
+              onSubmit={(e) => { e.preventDefault(); findLots(); }}
+              className="mx-auto mt-8 flex max-w-lg flex-col gap-2 rounded-2xl bg-(--lp-glass-strong) p-2 sm:flex-row"
+            >
+              <label htmlFor="hero-where" className="sr-only">Bạn muốn đỗ xe ở đâu?</label>
+              <div className="flex flex-1 items-center gap-2 px-3">
+                <Icon name="location_on" className="text-[22px] text-(--lp-primary)" />
+                <input
+                  id="hero-where"
+                  placeholder="Bạn muốn đỗ xe ở đâu?"
+                  className="w-full bg-transparent py-3 text-base text-(--lp-text) placeholder:text-(--lp-faint) focus:outline-none"
+                />
+              </div>
+              <button type="submit" className="lp-btn px-6 py-3">Tìm bãi đỗ</button>
+            </form>
+            <ul className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Chỗ trống minh hoạ">
+              {FEATURED_LOTS.slice(0, 3).map((lot) => (
+                <li key={lot.id} className="flex items-center gap-2 rounded-full bg-(--lp-glass-strong) px-3 py-1.5 text-sm">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="font-medium">{lot.name}</span>
+                  <span className="lp-num text-base font-semibold text-(--lp-primary)">{lot.available}</span>
+                  <span className="text-(--lp-faint)">chỗ</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* ===== Tính năng ===== */}
+        <section id="features" className="scroll-mt-24 mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Mọi thứ cần cho một lượt gửi xe</h2>
+            <p className="mx-auto mt-3 max-w-[56ch] text-lg text-(--lp-muted)">Từ lúc tìm bãi đến lúc ra cổng, bạn làm tất cả trên điện thoại.</p>
+          </div>
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="rounded-2xl p-6 lp-glass">
+                <span className="grid h-12 w-12 place-items-center rounded-xl bg-(--lp-primary-soft) text-(--lp-primary)">
+                  <Icon name={f.icon} className="text-[26px]" />
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{f.title}</h3>
+                <p className="mt-1.5 leading-relaxed text-(--lp-muted)">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ===== Cách hoạt động: 3 bước nối tiếp ===== */}
+        <section id="how" className="scroll-mt-24 mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+          <div className="rounded-3xl px-6 py-12 sm:px-12 lp-glass">
+            <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">Ba bước từ nhà đến chỗ đỗ</h2>
+            <ol className="mt-12 grid gap-10 md:grid-cols-3 md:gap-0">
+              {STEPS.map((s, i) => (
+                <li key={s.title} className="text-center md:px-6">
+                  <div className="relative flex items-center justify-center">
+                    {i > 0 && <span aria-hidden="true" className="absolute right-1/2 hidden w-full border-t-[3px] border-dashed border-(--lp-line) md:block" />}
+                    <span className="lp-btn lp-num relative h-14 w-14 text-3xl font-semibold">{i + 1}</span>
+                  </div>
+                  <h3 className="mt-5 text-xl font-semibold">{s.title}</h3>
+                  <p className="mx-auto mt-2 max-w-[30ch] leading-relaxed text-(--lp-muted)">{s.desc}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        {/* ===== Bãi đỗ đối tác ===== */}
+        <section aria-labelledby="lots-title" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h2 id="lots-title" className="text-3xl font-bold tracking-tight sm:text-4xl">Bãi đỗ đối tác</h2>
+            <button type="button" onClick={findLots} className="font-semibold text-(--lp-primary) hover:underline cursor-pointer">
+              Xem tất cả bãi đỗ
+            </button>
+          </div>
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURED_LOTS.map((lot) => (
+              <button key={lot.id} type="button" onClick={findLots} className="group overflow-hidden rounded-2xl text-left cursor-pointer lp-glass">
+                <div className="relative">
+                  <img src={lot.image} alt={`Bãi đỗ ${lot.name}`} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                  <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-sm font-semibold text-[#0f1f38]">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="lp-num text-base">{lot.available}</span> chỗ trống
+                  </span>
+                </div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-lg font-semibold group-hover:text-(--lp-primary)">{lot.name}</h3>
+                    <span className="lp-num whitespace-nowrap text-lg font-semibold">{lot.price}</span>
+                  </div>
+                  <p className="text-sm text-(--lp-faint)">{lot.address}</p>
+                  <p className="mt-2 text-sm text-(--lp-muted)">{lot.tag}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+          <p className="mt-6 text-sm text-(--lp-faint)">Số chỗ trống và giá trên trang này là dữ liệu minh hoạ.</p>
+        </section>
+
+        {/* ===== Dành cho chủ bãi ===== */}
+        <section id="owners" className="scroll-mt-24 mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
+          <div className="grid items-center gap-10 rounded-3xl p-6 sm:p-10 lg:grid-cols-2 lp-glass">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Bạn có bãi đỗ? Đưa bãi lên ParkMaster.</h2>
+              <p className="mt-4 max-w-[52ch] text-lg leading-relaxed text-(--lp-muted)">
+                Nhận khách đặt chỗ trước và quản lý toàn bộ bãi từ một trang: sơ đồ, giá, lượt xe và nhân viên.
+              </p>
+              <ul className="mt-6 space-y-3">
+                {OWNER_POINTS.map((pt) => (
+                  <li key={pt} className="flex items-start gap-3">
+                    <Icon name="check_circle" className="mt-0.5 text-[22px] text-(--lp-ok)" />
+                    <span>{pt}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {sentSuccess ? (
+                <p role="status" className="mt-8 font-semibold text-(--lp-ok)">
+                  Đã ghi nhận số {phoneInput}. Chúng tôi sẽ gọi lại trong giờ hành chính.
+                </p>
+              ) : (
+                <form
+                  className="mt-8"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (phoneInput.trim()) setSentSuccess(true);
+                  }}
+                >
+                  <label htmlFor="owner-phone" className="block font-semibold">Để lại số điện thoại, chúng tôi gọi lại hướng dẫn</label>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      id="owner-phone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      required
+                      value={phoneInput}
+                      onChange={(e) => setPhoneInput(e.target.value)}
+                      placeholder="0901 234 567"
+                      className="w-full rounded-xl border border-(--lp-glass-line) bg-(--lp-glass-strong) px-4 py-3 text-base text-(--lp-text) placeholder:text-(--lp-faint) focus:border-(--lp-primary) focus:outline-none"
+                    />
+                    <button type="submit" className="lp-btn shrink-0 px-6 py-3">Gọi lại cho tôi</button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            <figure className="relative">
+              <img
+                src="/images/camera-anpr.jpg"
+                alt="Hầm đỗ xe có camera đọc biển số tại cổng"
+                loading="lazy"
+                className="aspect-[4/3] w-full rounded-2xl object-cover"
+              />
+              <figcaption className="absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl bg-white/90 px-4 py-3 text-[#0f1f38] backdrop-blur">
+                <span className="lp-num rounded border-2 border-[#0f1f38] px-2.5 py-0.5 text-2xl font-semibold tracking-wide">51K-889.32</span>
+                <span className="text-sm font-semibold text-[#0f7a4f]">Khớp lượt đặt, cổng đã mở</span>
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        {/* ===== Câu hỏi thường gặp ===== */}
+        <section id="faq" className="scroll-mt-24 mx-auto max-w-3xl px-4 pb-24 sm:px-6">
+          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">Câu hỏi thường gặp</h2>
+          <p className="mt-3 text-center text-(--lp-muted)">
+            Chưa thấy câu trả lời? Gọi <a href="tel:19006868" className="lp-num text-lg font-semibold text-(--lp-text) hover:underline">1900 6868</a>.
+          </p>
+          <div className="lp-faq mt-10 space-y-3">
+            {FAQS.map((f) => (
+              <details key={f.q} className="rounded-2xl px-5 lp-glass">
+                <summary className="flex cursor-pointer items-center justify-between gap-6 py-4 text-lg font-semibold">
+                  {f.q}
+                  <Icon name="add" className="lp-faq-sign text-[24px] text-(--lp-faint)" />
+                </summary>
+                <p className="max-w-[62ch] pb-5 leading-relaxed text-(--lp-muted)">{f.a}</p>
+              </details>
+            ))}
+          </div>
+          <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: FAQ_JSON_LD }} />
+        </section>
+      </main>
+
+      {/* ===== Chân trang: tối như mặt đường ===== */}
+      <footer className="bg-(--lp-ink) text-slate-300">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-6 border-b border-white/10 px-4 py-12 sm:px-6 md:flex-row md:items-center lg:px-8">
+          <h2 className="max-w-[22ch] text-2xl font-bold tracking-tight text-white sm:text-3xl">Lần tới đi đâu, bạn sẽ biết trước chỗ đỗ.</h2>
+          <button
+            type="button"
+            onClick={() => navigate(isAuthenticated ? getPortalPath() : '/register')}
+            className="lp-btn px-6 py-3"
+          >
+            {isAuthenticated ? 'Vào trang của tôi' : 'Tạo tài khoản miễn phí'}
+          </button>
+        </div>
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr] lg:px-8">
+          <div className="max-w-xs">
+            <div className="flex items-center gap-2.5 text-white">
+              <BrandMark size={30} />
+              <span className="text-lg font-bold">ParkMaster</span>
+            </div>
+            <p className="mt-4 leading-relaxed">Tìm chỗ đỗ, đặt trước và qua cổng bằng biển số tại TP.HCM.</p>
+            <p className="mt-4">
+              Hỗ trợ: <a href="tel:19006868" className="lp-num text-lg text-white hover:underline">1900 6868</a>
             </p>
           </div>
-
-          {sentSuccess ? (
-            <div className="text-xs font-bold text-emerald-800 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200">
-              ✓ Đã ghi nhận số {phoneInput}. Chúng tôi sẽ liên hệ lại ngay!
-            </div>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (phoneInput.trim()) setSentSuccess(true);
-              }}
-              className="flex w-full md:w-auto items-center gap-2"
-            >
-              <input
-                required
-                value={phoneInput}
-                onChange={(e) => setPhoneInput(e.target.value)}
-                placeholder="Số điện thoại của bạn..."
-                className="w-full sm:w-56 px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-blue-600"
-              />
-              <button
-                type="submit"
-                className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all cursor-pointer shrink-0 shadow-md shadow-slate-900/10 active:scale-[0.98]"
-              >
-                Gửi ngay
-              </button>
-            </form>
-          )}
+          <nav aria-label="Liên kết nhanh">
+            <h2 className="font-semibold text-white">ParkMaster</h2>
+            <ul className="mt-3 space-y-2">
+              {NAV_LINKS.map((l) => (
+                <li key={l.id}>
+                  <a href={`#${l.id}`} onClick={(e) => { e.preventDefault(); scrollToId(l.id); }} className="hover:text-white">
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <nav aria-label="Pháp lý">
+            <h2 className="font-semibold text-white">Pháp lý</h2>
+            <ul className="mt-3 space-y-2">
+              <li><a href="#" className="hover:text-white">Điều khoản sử dụng</a></li>
+              <li><a href="#" className="hover:text-white">Chính sách bảo mật</a></li>
+              <li><a href="#" className="hover:text-white">Biểu phí dịch vụ</a></li>
+            </ul>
+          </nav>
         </div>
-      </section>
-
-      {/* Footer chung hệ thống */}
-      <div className="relative z-10 mt-auto">
-        <MainFooter />
-      </div>
+        <div className="border-t border-white/10">
+          <p className="mx-auto max-w-7xl px-4 py-5 text-sm sm:px-6 lg:px-8">© {new Date().getFullYear()} ParkMaster. Đồ án quản lý bãi đỗ xe.</p>
+        </div>
+      </footer>
     </div>
   );
 };

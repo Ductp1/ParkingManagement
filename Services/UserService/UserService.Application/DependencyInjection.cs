@@ -24,6 +24,10 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Auth.IRefreshSessionUseCase, UserService.Application.Features.Auth.RefreshSessionUseCase>();
         services.AddScoped<UserService.Application.Features.Auth.ILogoutUseCase, UserService.Application.Features.Auth.LogoutUseCase>();
         services.AddScoped<UserService.Application.Features.Identity.AccountUseCases>();
+        services.AddScoped<UserService.Application.Features.Staff.StaffUseCases>();
+        services.AddScoped<UserService.Application.Features.Privacy.DataRequestUseCases>();
+        services.AddScoped<UserService.Application.Features.Kyc.KycUseCases>();
+        services.AddScoped<UserService.Application.Features.History.ParkingHistoryUseCases>();
         return services;
     }
 }

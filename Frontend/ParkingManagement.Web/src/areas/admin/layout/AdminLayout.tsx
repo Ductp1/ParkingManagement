@@ -70,7 +70,7 @@ export const AdminLayout: React.FC = () => {
             inbox={inbox}
             onReadNotification={readOne}
             onReadAll={readAll}
-            profile={{ name, email, roles, profilePath: userId ? `/admin/operations/users/${userId}` : null }}
+            profile={{ name, email, roles, profilePath: '/account/profile' }}
             onSignOut={() => setSignOutOpen(true)}
           />
           <main ref={mainRef} className="flex min-w-0 flex-1 flex-col gap-4 p-4">
