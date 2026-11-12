@@ -327,9 +327,6 @@ public sealed class CreateBookingUseCase(
         // Chạy SAU khi kiểm tra dữ liệu đầu vào: yêu cầu sai luôn trả 400, chỉ yêu cầu hợp lệ mới bị đánh giá lạm dụng (409).
         await abuseGuard.EnsureCanCreateBookingAsync(command.UserId, cancellationToken);
 
-        // US-025: Giới hạn 1 booking Active/Pending cùng khung giờ cho 1 tài xế (Idempotency Lock / Chống giữ chỗ ảo)
-        if (await repository.HasOverlappingBookingForUserAsync(command.UserId, command.StartAtUtc, command.EndAtUtc, null, cancellationToken))
-            throw new ValidationException("Bạn đã có một đơn đặt chỗ khác đang hoạt động trong khung giờ này.");
 
         // US-024: Chống đặt trùng chỗ (Concurrency / Double Booking Prevention)
         if (command.SlotId.HasValue && command.SlotId.Value > 0)
@@ -529,9 +526,6 @@ public sealed class ModifyBookingUseCase(
                     throw new ConflictException($"Vị trí đỗ {booking.SlotCode ?? booking.SlotId.Value.ToString()} đã có người đặt trước trong khung giờ mới này. Vui lòng chọn khung giờ khác.");
             }
 
-            // Kiểm tra trùng lịch của chính user (US-025)
-            if (await repository.HasOverlappingBookingForUserAsync(booking.UserId, command.NewStartAtUtc.Value, command.NewEndAtUtc.Value, booking.Id, cancellationToken))
-                throw new ValidationException("Bạn đã có một đơn đặt chỗ khác đang hoạt động trong khung giờ mới này.");
 
             booking.Modifications.Add(new BookingModification
             {

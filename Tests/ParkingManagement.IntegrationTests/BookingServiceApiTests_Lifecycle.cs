@@ -141,6 +141,8 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
 
     // ===================== Helper dùng chung cho các test =====================
 
+    private static int _bookingCallIndex = 0;
+
     /// <summary>
     /// Tạo booking qua API thật (US-022). Mặc định: driver 1 – xe 51A88888 – bãi Vincom slot B1-A02,
     /// bắt đầu sau 2 giờ, dài 2 giờ, giá 40.000đ, không khuyến mãi, Dynamic allocation.
@@ -162,7 +164,8 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         string? promotionCode = null,
         bool requiresOwnerApproval = false)
     {
-        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2));
+        var call = Interlocked.Increment(ref _bookingCallIndex);
+        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2 + call * 3));
         var command = new
         {
             userId,

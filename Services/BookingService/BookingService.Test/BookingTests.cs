@@ -436,12 +436,11 @@ public class BookingFeaturesTests
     }
 
     [Fact]
-    public async Task CreateBooking_when_user_already_has_active_booking_in_same_window_throws_validation_exception()
+    public async Task CreateBooking_allows_user_to_book_different_slots_in_same_window()
     {
-        // US-025: 1 user không được tạo 2 đơn trùng khung giờ
+        // 1 user có thể đặt 2 ô đỗ khác nhau cho 2 xe khác nhau trong cùng khung giờ
         var userExistingBooking = new Booking
         {
-
             Code = "BK-USER-01",
             UserId = 5,
             VehicleId = 1,
@@ -460,7 +459,7 @@ public class BookingFeaturesTests
         var clock = new FixedClock(FixedNow);
         var useCase = NewCreateBookingUseCase(repo, qr, clock);
 
-        // Chính user đó (UserId = 5) tạo thêm đơn ở ô khác nhưng cùng khung giờ
+        // Chính user đó (UserId = 5) tạo thêm đơn ở ô khác (SlotId = 99)
         var cmd = new CreateBookingCommand(
             UserId: 5,
             VehicleId: 2,
@@ -478,8 +477,10 @@ public class BookingFeaturesTests
             TotalAmount: 60000,
             PromotionCode: null);
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(cmd));
-        Assert.Contains("đang hoạt động trong khung giờ này", ex.Message);
+        var result = await useCase.ExecuteAsync(cmd);
+        Assert.NotNull(result);
+        Assert.Equal(5, result.UserId);
+        Assert.Equal("51F-999.99", result.PlateNumber);
     }
 
     [Fact]

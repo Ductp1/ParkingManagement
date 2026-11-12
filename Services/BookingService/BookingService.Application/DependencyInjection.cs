@@ -22,7 +22,10 @@ public static class DependencyInjection
         // US-039: danh sách booking quá 30 phút ân hạn check-in cho Staff hủy No-show.
         services.AddScoped<IListNoShowCandidatesUseCase, ListNoShowCandidatesUseCase>();
         // US-103: guard chặn lạm dụng đặt/hủy – ngưỡng bind từ "BookingAbuse" (Infrastructure đăng ký options).
-        services.AddScoped<BookingAbuseGuard>();
+        services.AddScoped(sp => new BookingAbuseGuard(
+            sp.GetRequiredService<IBookingAbuseQueries>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetService<BookingService.Domain.Rules.BookingAbuseOptions>()));
         // UC-20: danh sách booking trong ca trực cho Staff App (US-076).
         services.AddScoped<IListGateBookingsUseCase, ListGateBookingsUseCase>();
         services.AddScoped<IProcessPaymentResultUseCase, ProcessPaymentResultUseCase>();
