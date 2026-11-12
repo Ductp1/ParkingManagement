@@ -14,6 +14,8 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { useAdminToast } from '../../../hooks/useAdminToast';
 import { useListParams } from '../../../hooks/useListParams';
 import { formatDateTimeIct } from '../../../utils/format';
+import { AuditTrailLink } from '../../../components/AuditTrailLink';
+import { KYC_AUDIT_ENTITY, auditLogListLink } from '../../access/auditLogFormat';
 
 export const IDENTITY_BASE = '/admin/operations/identity-review';
 
@@ -60,6 +62,13 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
                 <span className="adm-type-body-mono">{item.maskedNumber}</span>
               </DetailRow>
               <DetailRow label="Submitted">{formatDateTimeIct(item.submittedAtUtc)}</DetailRow>
+              <DetailRow label="User">
+                <CellLink to={`/admin/operations/users/${item.userId}`}>{`User #${item.userId}`}</CellLink>
+              </DetailRow>
+              {/* T-803: lịch sử duyệt / từ chối danh tính của người này trong Audit Log (US-100). */}
+              <DetailRow label="History">
+                <CellLink to={auditLogListLink({ service: 'UserService', entity: KYC_AUDIT_ENTITY, entityId: String(item.userId) })}>View in audit log</CellLink>
+              </DetailRow>
             </DetailList>
           </section>
 
@@ -158,9 +167,13 @@ export const IdentityReviewPage: React.FC = () => {
       title="Identity Review"
       subtitle={subtitle}
       actions={
-        <AdminButton variant="onNavy" icon="refresh" onClick={query.refetch}>
-          Refresh
-        </AdminButton>
+        <>
+          {/* T-803: mọi quyết định KYC trong Audit Log (US-100). */}
+          <AuditTrailLink to={auditLogListLink({ service: 'UserService', entity: KYC_AUDIT_ENTITY })} />
+          <AdminButton variant="onNavy" icon="refresh" onClick={query.refetch}>
+            Refresh
+          </AdminButton>
+        </>
       }
       top={
         <Banner tone="info">

@@ -22,6 +22,7 @@ import { formatDateTime, formatShortDateTime, formatVnd, orEmpty } from '../../.
 import { LockOwnerDialog, RetrySyncDialog, UnlockOwnerDialog } from './UserDialogs';
 import { AuditTrailLink } from '../../../components/AuditTrailLink';
 import { auditLogListLink } from '../../access/auditLogFormat';
+import { UserDataRequestsPanel } from './UserDataRequestsPanel';
 
 type UserDialog = 'lock' | 'unlock' | 'retry' | null;
 
@@ -276,12 +277,7 @@ export const UserDetailPage: React.FC = () => {
                 columns={[{ key: 'role', header: 'Role', render: (r) => <CellText>{humanizeEnum(r)}</CellText> }]}
               />
             </Panel>
-            <Panel title="Security events" description="SecurityEvents (latest 3)">
-              <StateBlock type="unavailable" bare className="min-h-0 py-4" message="UserService has no endpoint for security events yet." />
-            </Panel>
-            <Panel title="Data subject requests" description="DataSubjectRequests">
-              <StateBlock type="unavailable" bare className="min-h-0 py-4" message="UserService has no endpoint for data requests yet." />
-            </Panel>
+            <UserDataRequestsPanel userId={user.id} />
           </>
         }
       />
