@@ -723,13 +723,6 @@ public sealed class GateBookingActionsUseCase(
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        // Chặn check-in quá sớm trước giờ hẹn hơn 15 phút
-        if (now < booking.StartAtUtc.AddMinutes(-15))
-        {
-            var earlyMinutes = (int)Math.Ceiling((booking.StartAtUtc - now).TotalMinutes);
-            throw new ValidationException($"Chưa đến khung giờ check-in hợp lệ. Bạn đến sớm {earlyMinutes} phút (chỉ cho phép vào trước giờ hẹn tối đa 15 phút).");
-        }
-
         // Chặn check-in khi đã quá hạn giờ kết thúc
         if (now > booking.EndAtUtc)
         {

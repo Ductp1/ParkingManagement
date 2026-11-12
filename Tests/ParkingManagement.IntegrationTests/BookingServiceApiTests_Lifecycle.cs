@@ -688,8 +688,8 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
         Assert.Contains(mine!, b => b.Code == "BK-0002");
 
         // ----- 2 booking mới cho user ảo 9 → lọc status + thứ tự StartAtUtc giảm dần -----
-        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999");
-        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888");
+        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999", slotId: null, slotCode: null);
+        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888", slotId: null, slotCode: null);
 
         var listUser9 = await fixture.BookingClient.GetFromJsonAsync<List<BookingSummaryJson>>("/api/v1/bookings?userId=9");
         Assert.Equal(2, listUser9!.Count);

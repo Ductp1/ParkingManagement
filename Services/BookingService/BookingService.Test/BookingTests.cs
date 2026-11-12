@@ -599,29 +599,6 @@ public class BookingFeaturesTests
     }
 
     [Fact]
-    public async Task GateActions_CheckIn_too_early_throws_validation_exception()
-    {
-        var booking = new Booking
-        {
-            Code = "BK-GATE-01",
-            UserId = 5,
-            Status = BookingStatus.Confirmed,
-            StartAtUtc = FixedNow.AddHours(1), // Hẹn lúc 09:00
-            EndAtUtc = FixedNow.AddHours(3)
-        };
-
-        var repo = new FakeBookingRepo();
-        repo.SavedBookings.Add(booking);
-        var queries = new FakeQueries(booking);
-        var clock = new FixedClock(FixedNow); // Hiện tại 08:00 (đến sớm 60 phút > 15 phút)
-        var useCase = new GateBookingActionsUseCase(repo, queries, clock);
-
-        var ex = await Assert.ThrowsAsync<ValidationException>(() =>
-            useCase.CheckInAsync(booking.Code, new GateActionCommand()));
-        Assert.Contains("Chưa đến khung giờ check-in", ex.Message);
-    }
-
-    [Fact]
     public async Task GateActions_CheckIn_after_end_time_throws_validation_exception()
     {
         var booking = new Booking
