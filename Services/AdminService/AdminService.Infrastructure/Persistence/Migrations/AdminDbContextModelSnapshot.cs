@@ -621,6 +621,13 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.Property<int?>("CreatedUserId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("EditTokenExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EditTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(254)

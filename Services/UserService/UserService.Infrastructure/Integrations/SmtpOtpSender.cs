@@ -31,6 +31,22 @@ public sealed class SmtpOtpSender(IConfiguration config)
         => DeliverAsync($"staff-{eventId:N}", destination,
             EmailTemplates.StaffCredentials(fullName, destination, temporaryPassword, ownerName, lotName, LoginUrl()), ct);
 
+    /// <summary>Link kích hoạt tài khoản chủ bãi (US-116 U2/U3): mật khẩu do chủ bãi tự đặt, email không chứa mật khẩu.</summary>
+    public Task SendOwnerActivationAsync(Guid eventId, string destination, string fullName, string businessName, string activationLink,
+        DateTime expiresAtUtc, CancellationToken ct)
+        => DeliverAsync($"owner-activation-{eventId:N}", destination,
+            EmailTemplates.OwnerActivation(fullName, businessName, activationLink, expiresAtUtc), ct);
+
+    /// <summary>
+    /// Trang kích hoạt (App:OwnerActivationUrl, mặc định frontend local). Token nằm sau "#" nên trình duyệt không gửi lên server,
+    /// không xuất hiện trong log truy cập hay header Referer.
+    /// </summary>
+    public static string OwnerActivationLink(IConfiguration config, string token)
+    {
+        var page = string.IsNullOrWhiteSpace(config["App:OwnerActivationUrl"]) ? "http://localhost:5173/owner/activate" : config["App:OwnerActivationUrl"]!;
+        return $"{page}#token={Uri.EscapeDataString(token)}";
+    }
+
     /// <summary>Trang đăng nhập trong email; cấu hình App:LoginUrl, mặc định frontend chạy local.</summary>
     private string LoginUrl() => string.IsNullOrWhiteSpace(config["App:LoginUrl"]) ? "http://localhost:5173/login" : config["App:LoginUrl"]!;
 

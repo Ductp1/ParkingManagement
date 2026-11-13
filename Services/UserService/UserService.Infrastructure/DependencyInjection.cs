@@ -42,6 +42,10 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Identity.IIdentityStore, UserService.Infrastructure.Persistence.Repositories.IdentityStore>();
         services.AddScoped<UserService.Application.Features.Users.IOwnerProfileRepository, UserService.Infrastructure.Persistence.Repositories.OwnerProfileRepository>();
         services.AddScoped<UserService.Application.Features.Staff.IStaffStore, UserService.Infrastructure.Persistence.Repositories.StaffStore>();
+        // US-116 U2–U5: tài khoản chủ bãi do Admin cấp + link kích hoạt ("OwnerActivation:TtlHours", mặc định 72).
+        services.AddScoped<UserService.Application.Features.Identity.IOwnerAccountStore, UserService.Infrastructure.Persistence.Repositories.OwnerAccountStore>();
+        services.AddSingleton(new UserService.Application.Features.Identity.OwnerActivationOptions(
+            TimeSpan.FromHours(Math.Clamp(configuration.GetValue("OwnerActivation:TtlHours", 72), 1, 24 * 14))));
         services.AddScoped<UserService.Application.Features.Staff.IOwnerLotDirectory, UserService.Infrastructure.Integrations.ParkingLotDirectory>();
         services.AddScoped<UserService.Application.Features.Privacy.IDataRequestStore, UserService.Infrastructure.Persistence.Repositories.DataRequestStore>();
         services.AddScoped<UserService.Application.Features.Identity.ISecretCipher, UserService.Infrastructure.Authentication.AesSecretCipher>();

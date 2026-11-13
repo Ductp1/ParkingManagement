@@ -7,6 +7,8 @@ import { HistoryPage } from '@/areas/account/HistoryPage';
 import { PrivacyPage } from '@/areas/account/PrivacyPage';
 import { LandingPage } from '@/areas/public/LandingPage';
 import { PartnerApplyPage } from '@/areas/public/PartnerApplyPage';
+import { PartnerApplyEditPage } from '@/areas/public/PartnerApplyEditPage';
+import { OwnerActivatePage } from '@/areas/public/OwnerActivatePage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -39,6 +41,9 @@ export const AppRoutes: React.FC = () => {
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/partner/apply" element={<PartnerApplyPage />} />
+      <Route path="/partner/apply/edit" element={<PartnerApplyEditPage />} />
+      {/* Link kích hoạt trong email (US-116 U4/U5) – công khai, xếp hạng cao hơn /owner/* cần đăng nhập. */}
+      <Route path="/owner/activate" element={<OwnerActivatePage />} />
       <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>
         <Route element={<ProtectedRoute />}>

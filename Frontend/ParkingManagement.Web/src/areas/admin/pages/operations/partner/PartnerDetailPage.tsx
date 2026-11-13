@@ -24,10 +24,11 @@ import { formatDate, formatDateTimeIct, formatNumber, orEmpty } from '../../../u
 import { KYB_BASE } from '../kyb/kybFormat';
 import { bankText, percentText } from '../lot-contracts/lotContractFormat';
 import { IssueAccountDialog } from './PartnerAccountDialog';
+import { PartnerEditLinkDialog } from './PartnerEditLinkDialog';
 import { AuditTrailLink } from '../../../components/AuditTrailLink';
 import { auditLogListLink } from '../../access/auditLogFormat';
 
-type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | null;
+type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | 'editLink' | null;
 
 const FLOW: Array<{ status: string; title: string }> = [
   { status: S.Submitted, title: 'Submitted' },
@@ -138,6 +139,8 @@ export const PartnerDetailPage: React.FC = () => {
         </AdminButton>
         <AdminButton onClick={() => setDialog('createAccount')}>Create owner account</AdminButton>
       </>
+    ) : app.status === S.NeedsMoreInfo ? (
+      <AdminButton onClick={() => setDialog('editLink')}>Link for applicant</AdminButton>
     ) : app.status === S.AccountIssued ? (
       <AdminButton onClick={() => setDialog('resend')}>Resend activation</AdminButton>
     ) : undefined;
@@ -154,7 +157,12 @@ export const PartnerDetailPage: React.FC = () => {
           </>
         }
       />
-      {app.status === S.NeedsMoreInfo && <Banner tone="warning">More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant.</Banner>}
+      {app.status === S.NeedsMoreInfo && (
+        <Banner tone="warning">
+          More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant. Send them a link with “Link for applicant”; their
+          update moves the application back to Under review.
+        </Banner>
+      )}
       {app.status === S.Rejected && <Banner tone="danger">Rejected: {orEmpty(app.rejectReason)}</Banner>}
       {app.status === S.Cancelled && <Banner tone="danger">Cancelled: {orEmpty(app.cancelReason)}</Banner>}
       {app.status === S.AccountIssued && (
@@ -271,10 +279,13 @@ export const PartnerDetailPage: React.FC = () => {
         description="Status changes to Needs more info. The note is stored on the application."
         confirmLabel="Send request"
         field={{ label: 'Note to applicant', required: true, requiredMessage: 'A note is required.', placeholder: 'What should the applicant fix or add?', maxLength: 1000 }}
-        onClose={close}
+        // Gửi xong ActionDialog tự gọi onClose: giữ dialog "Link for applicant" vừa mở thay vì đóng hết.
+        onClose={() => setDialog((d) => (d === 'requestInfo' ? null : d))}
         onSubmit={async (note) => {
           await adminPartnerOnboardingApi.requestInfo(app.id, { note });
           done('Info requested');
+          // Bước tiếp theo luôn là gửi link bổ sung cho đối tác.
+          setDialog('editLink');
         }}
       >
         {summary}
@@ -324,6 +335,7 @@ export const PartnerDetailPage: React.FC = () => {
         {summary}
       </ActionDialog>
       {dialog === 'createAccount' && <IssueAccountDialog app={app} onClose={close} onDone={done} />}
+      {dialog === 'editLink' && <PartnerEditLinkDialog app={app} onClose={close} />}
     </>
   );
 };

@@ -61,7 +61,7 @@ describe('partnerApplyForm', () => {
     expect(Object.keys(stepErrors(emptyForm(), 0)).sort()).toEqual(['email', 'fullName', 'phone']);
     expect(Object.keys(stepErrors(emptyForm(), 2))).toEqual(['primaryLotAddress']);
     expect(validate(filled({ lotCount: '101', estimatedCarSlots: '1.5', taxCode: '12345' }))).toMatchObject({
-      lotCount: 'Số bãi đỗ từ 1 đến 100.',
+      lotCount: 'Số bãi dự kiến từ 1 đến 100.',
       taxCode: 'Mã số thuế gồm 10 số, 10-3 số (chi nhánh) hoặc 12 số (cá nhân).',
     });
   });

@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthLayout } from '@/components/auth/AuthLayout';
-import { submitPartnerApplication, type PartnerApplicationReceipt } from '@/api/partnerApplicationsApi';
+import { submitPartnerApplication } from '@/api/partnerApplicationsApi';
 import {
   BUSINESS_TYPES,
   STEPS,
@@ -25,17 +25,35 @@ const submitErrorMessage = (err: unknown) => {
   return err instanceof Error ? err.message : 'Không gửi được hồ sơ. Vui lòng thử lại.';
 };
 
-/**
- * /partner/apply – "Đăng ký đối tác" (US-116 T1 / US-053): chủ bãi nộp hồ sơ 4 bước, KHÔNG tạo tài khoản ở bước này.
- * ParkMaster thẩm định (Admin › Partner Onboarding) rồi gửi link kích hoạt tài khoản chủ bãi qua email.
- */
-export function PartnerApplyPage() {
-  const [form, setForm] = useState<PartnerApplyForm>(emptyForm);
+const DEFAULT_INTROS = [
+  'Gửi thông tin để ParkMaster thẩm định. Chưa cần tạo tài khoản – chúng tôi gửi link kích hoạt khi hồ sơ được duyệt.',
+  'Thông tin pháp lý in vào hợp đồng hợp tác của từng bãi.',
+  'Chỉ để ParkMaster đánh giá sơ bộ – bạn khai báo từng bãi và nộp hồ sơ KYB sau khi có tài khoản.',
+  'Kiểm tra lại thông tin trước khi gửi.',
+];
+
+interface PartnerApplyWizardProps {
+  heading: string;
+  /** Dữ liệu điền sẵn (bổ sung hồ sơ – T4); mặc định form trống. */
+  initial?: PartnerApplyForm;
+  /** Nội dung hiện trên cùng (ví dụ yêu cầu bổ sung của ParkMaster). */
+  notice?: ReactNode;
+  /** Câu giới thiệu theo từng bước (4 phần tử). */
+  intros?: string[];
+  submitLabel?: string;
+  /** Gửi hồ sơ, trả mã hồ sơ để hiện màn hoàn tất. */
+  onSubmit: (form: PartnerApplyForm) => Promise<string>;
+  renderDone: (code: string) => ReactNode;
+}
+
+/** Wizard 4 bước dùng chung cho nộp hồ sơ mới (T1) và bổ sung hồ sơ qua link (T4). */
+export function PartnerApplyWizard({ heading, initial, notice, intros = DEFAULT_INTROS, submitLabel = 'Gửi hồ sơ', onSubmit, renderDone }: PartnerApplyWizardProps) {
+  const [form, setForm] = useState<PartnerApplyForm>(() => initial ?? emptyForm());
   const [step, setStep] = useState(0);
   const [shownErrors, setShownErrors] = useState<PartnerApplyErrors>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [receipt, setReceipt] = useState<PartnerApplicationReceipt | null>(null);
+  const [doneCode, setDoneCode] = useState<string | null>(null);
 
   const last = STEPS.length - 1;
 
@@ -68,7 +86,7 @@ export function PartnerApplyPage() {
     }
     setBusy(true);
     try {
-      setReceipt(await submitPartnerApplication(toRequest(form)));
+      setDoneCode(await onSubmit(form));
     } catch (err) {
       setError(submitErrorMessage(err));
     } finally {
@@ -110,27 +128,11 @@ export function PartnerApplyPage() {
     </label>
   );
 
-  if (receipt) {
+  if (doneCode) {
     return (
       <AuthLayout>
         <div className="partner-apply-card" style={{ textAlign: 'center' }}>
-          <div className="auth-success-icon">
-            <Check size={30} />
-          </div>
-          <h1 className="auth-heading">Đã nhận hồ sơ của bạn</h1>
-          <p className="auth-description">Mã hồ sơ – vui lòng ghi lại để tra cứu khi liên hệ ParkMaster:</p>
-          <span className="partner-apply-code">{receipt.code}</span>
-          <ol className="partner-apply-next">
-            <li>ParkMaster thẩm định hồ sơ và có thể gọi cho bạn để bổ sung thông tin.</li>
-            <li>Khi hồ sơ được duyệt, bạn nhận email kích hoạt tài khoản chủ bãi.</li>
-            <li>Đăng nhập để khai báo từng bãi và nộp hồ sơ KYB; bãi nhận đặt chỗ sau khi được duyệt và ký hợp đồng.</li>
-          </ol>
-          <Link className="auth-submit" to="/">
-            Về trang chủ <ArrowRight size={17} />
-          </Link>
-          <p className="auth-switch">
-            Cần hỗ trợ? Gọi <a href="tel:19006868">{HOTLINE}</a>
-          </p>
+          {renderDone(doneCode)}
         </div>
       </AuthLayout>
     );
@@ -163,13 +165,9 @@ export function PartnerApplyPage() {
             </li>
           ))}
         </ol>
-        <h1 className="auth-heading">Đăng ký đối tác chủ bãi</h1>
-        <p className="auth-description">
-          {step === 0 && 'Gửi thông tin để ParkMaster thẩm định. Chưa cần tạo tài khoản – chúng tôi gửi link kích hoạt khi hồ sơ được duyệt.'}
-          {step === 1 && 'Thông tin pháp lý in vào hợp đồng hợp tác của từng bãi.'}
-          {step === 2 && 'Ước lượng là đủ – bạn khai báo chi tiết từng bãi sau khi có tài khoản.'}
-          {step === 3 && 'Kiểm tra lại thông tin trước khi gửi.'}
-        </p>
+        <h1 className="auth-heading">{heading}</h1>
+        <p className="auth-description">{intros[step]}</p>
+        {notice}
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           {step === 0 && (
@@ -211,14 +209,11 @@ export function PartnerApplyPage() {
 
           {step === 2 && (
             <>
+              {input('lotCount', 'Số bãi dự kiến', { type: 'number', inputMode: 'numeric' })}
+              {input('primaryLotAddress', 'Khu vực / địa chỉ bãi chính', { maxLength: 300, placeholder: 'Quận 1, TP.HCM hoặc địa chỉ cụ thể' })}
               <div className="partner-apply-row">
-                {input('lotCount', 'Số bãi đỗ', { type: 'number', inputMode: 'numeric' })}
-                {input('operatingHours', 'Giờ hoạt động', { optional: true, maxLength: 100, placeholder: '06:00–22:00 hoặc 24/7' })}
-              </div>
-              {input('primaryLotAddress', 'Địa chỉ bãi chính', { maxLength: 300 })}
-              <div className="partner-apply-row">
-                {input('estimatedCarSlots', 'Số chỗ ô tô', { optional: true, type: 'number', inputMode: 'numeric' })}
-                {input('estimatedMotorbikeSlots', 'Số chỗ xe máy', { optional: true, type: 'number', inputMode: 'numeric' })}
+                {input('estimatedCarSlots', 'Tổng chỗ ô tô', { optional: true, type: 'number', inputMode: 'numeric' })}
+                {input('estimatedMotorbikeSlots', 'Tổng chỗ xe máy', { optional: true, type: 'number', inputMode: 'numeric' })}
               </div>
             </>
           )}
@@ -239,11 +234,10 @@ export function PartnerApplyPage() {
                   ['Địa chỉ', form.businessAddress.trim()],
                   ['Người đại diện', [form.legalRepresentativeName.trim(), form.legalRepresentativePosition.trim()].filter(Boolean).join(' – ')],
                 ])}
-                {reviewGroup('Bãi đỗ', 2, [
+                {reviewGroup('Quy mô dự kiến', 2, [
                   ['Số bãi', form.lotCount],
-                  ['Bãi chính', form.primaryLotAddress.trim()],
+                  ['Khu vực', form.primaryLotAddress.trim()],
                   ['Ô tô / xe máy', [form.estimatedCarSlots || '—', form.estimatedMotorbikeSlots || '—'].join(' / ')],
-                  ['Giờ hoạt động', form.operatingHours.trim()],
                 ])}
               </dl>
               <div>
@@ -280,7 +274,7 @@ export function PartnerApplyPage() {
               </button>
             )}
             <button className="auth-submit" type="submit" disabled={busy}>
-              {busy ? 'Đang gửi hồ sơ…' : step === last ? 'Gửi hồ sơ' : 'Tiếp tục'}
+              {busy ? 'Đang gửi hồ sơ…' : step === last ? submitLabel : 'Tiếp tục'}
               {!busy && <ArrowRight size={17} />}
             </button>
           </div>
@@ -290,5 +284,44 @@ export function PartnerApplyPage() {
         </p>
       </div>
     </AuthLayout>
+  );
+}
+
+/** Màn hoàn tất của hồ sơ mới: mã hồ sơ + các bước tiếp theo. */
+function ReceivedView({ code }: { code: string }) {
+  return (
+    <>
+      <div className="auth-success-icon">
+        <Check size={30} />
+      </div>
+      <h1 className="auth-heading">Đã nhận hồ sơ của bạn</h1>
+      <p className="auth-description">Mã hồ sơ – vui lòng ghi lại để tra cứu khi liên hệ ParkMaster:</p>
+      <span className="partner-apply-code">{code}</span>
+      <ol className="partner-apply-next">
+        <li>ParkMaster thẩm định hồ sơ và có thể gọi cho bạn để bổ sung thông tin.</li>
+        <li>Khi hồ sơ được duyệt, bạn nhận email kích hoạt tài khoản chủ bãi.</li>
+        <li>Đăng nhập để khai báo từng bãi và nộp hồ sơ KYB; bãi nhận đặt chỗ sau khi được duyệt và ký hợp đồng.</li>
+      </ol>
+      <Link className="auth-submit" to="/">
+        Về trang chủ <ArrowRight size={17} />
+      </Link>
+      <p className="auth-switch">
+        Cần hỗ trợ? Gọi <a href="tel:19006868">{HOTLINE}</a>
+      </p>
+    </>
+  );
+}
+
+/**
+ * /partner/apply – "Đăng ký đối tác" (US-116 T1 / US-053): chủ bãi nộp hồ sơ 4 bước, KHÔNG tạo tài khoản ở bước này.
+ * ParkMaster thẩm định (Admin › Partner Onboarding) rồi gửi link kích hoạt tài khoản chủ bãi qua email.
+ */
+export function PartnerApplyPage() {
+  return (
+    <PartnerApplyWizard
+      heading="Đăng ký đối tác chủ bãi"
+      onSubmit={async (form) => (await submitPartnerApplication(toRequest(form))).code}
+      renderDone={(code) => <ReceivedView code={code} />}
+    />
   );
 }

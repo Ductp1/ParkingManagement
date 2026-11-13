@@ -26,6 +26,7 @@ internal sealed class PartnerApplicationConfiguration : IEntityTypeConfiguration
         e.Property(x => x.InfoRequestNote).HasMaxLength(1000);
         e.Property(x => x.RejectReason).HasMaxLength(1000);
         e.Property(x => x.CancelReason).HasMaxLength(1000);
+        e.Property(x => x.EditTokenHash).HasMaxLength(64);
         e.Property(x => x.PayoutBankBin).HasMaxLength(10);
         e.Property(x => x.PayoutBankName).HasMaxLength(100);
         e.Property(x => x.PayoutBankAccountNumber).HasMaxLength(30);

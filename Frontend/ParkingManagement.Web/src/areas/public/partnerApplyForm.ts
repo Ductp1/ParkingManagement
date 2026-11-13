@@ -36,7 +36,8 @@ export const STEPS: Array<{ label: string; fields: PartnerApplyField[] }> = [
     label: 'Doanh nghiệp',
     fields: ['businessType', 'businessName', 'taxCode', 'businessAddress', 'legalRepresentativeName', 'legalRepresentativePosition'],
   },
-  { label: 'Bãi đỗ', fields: ['lotCount', 'primaryLotAddress', 'estimatedCarSlots', 'estimatedMotorbikeSlots', 'operatingHours'] },
+  // Chỉ để ParkMaster đánh giá sơ bộ – KHÔNG tạo bãi. Bãi thật khai báo sau khi có tài khoản (Owner portal → KYB → hợp đồng từng bãi).
+  { label: 'Quy mô dự kiến', fields: ['lotCount', 'primaryLotAddress', 'estimatedCarSlots', 'estimatedMotorbikeSlots'] },
   { label: 'Xác nhận', fields: ['consentAccepted'] },
 ];
 
@@ -103,8 +104,8 @@ export const validate = (f: PartnerApplyForm): PartnerApplyErrors => {
     businessAddress: lengthError(f.businessAddress, 'Địa chỉ kinh doanh', 5, 300),
     legalRepresentativeName: lengthError(f.legalRepresentativeName, 'Người đại diện theo pháp luật', 2, 200),
     legalRepresentativePosition: optionalMax(f.legalRepresentativePosition, 'Chức vụ người đại diện', 100),
-    lotCount: Number.isInteger(lots) && lots >= 1 && lots <= MAX_LOTS ? undefined : `Số bãi đỗ từ 1 đến ${MAX_LOTS}.`,
-    primaryLotAddress: lengthError(f.primaryLotAddress, 'Địa chỉ bãi chính', 5, 300),
+    lotCount: Number.isInteger(lots) && lots >= 1 && lots <= MAX_LOTS ? undefined : `Số bãi dự kiến từ 1 đến ${MAX_LOTS}.`,
+    primaryLotAddress: lengthError(f.primaryLotAddress, 'Khu vực / địa chỉ bãi chính', 5, 300),
     estimatedCarSlots: slotsError(f.estimatedCarSlots, 'Số chỗ ô tô'),
     estimatedMotorbikeSlots: slotsError(f.estimatedMotorbikeSlots, 'Số chỗ xe máy'),
     operatingHours: optionalMax(f.operatingHours, 'Giờ hoạt động', 100),
@@ -140,3 +141,44 @@ export const toRequest = (f: PartnerApplyForm): PartnerApplicationRequest => ({
   operatingHours: orNull(f.operatingHours),
   consentAccepted: f.consentAccepted,
 });
+
+/** Hồ sơ đọc từ link bổ sung → form (ô số để chuỗi, ô trống = ""); phải đồng ý lại trước khi gửi. */
+export const fromEditView = (v: {
+  fullName: string; email: string; phone: string; position: string | null; businessType: string; businessName: string; taxCode: string;
+  businessAddress: string; legalRepresentativeName: string; legalRepresentativePosition: string | null; lotCount: number;
+  primaryLotAddress: string; estimatedCarSlots: number | null; estimatedMotorbikeSlots: number | null; operatingHours: string | null;
+}): PartnerApplyForm => ({
+  fullName: v.fullName,
+  email: v.email,
+  phone: v.phone,
+  position: v.position ?? '',
+  businessType: v.businessType === 'Company' || v.businessType === 'HouseholdBusiness' ? v.businessType : '',
+  businessName: v.businessName,
+  taxCode: v.taxCode,
+  businessAddress: v.businessAddress,
+  legalRepresentativeName: v.legalRepresentativeName,
+  legalRepresentativePosition: v.legalRepresentativePosition ?? '',
+  lotCount: String(v.lotCount),
+  primaryLotAddress: v.primaryLotAddress,
+  estimatedCarSlots: v.estimatedCarSlots === null ? '' : String(v.estimatedCarSlots),
+  estimatedMotorbikeSlots: v.estimatedMotorbikeSlots === null ? '' : String(v.estimatedMotorbikeSlots),
+  operatingHours: v.operatingHours ?? '',
+  consentAccepted: false,
+});
+
+/**
+ * Đọc tham số sau "#" của link trong email / tin nhắn (token không nằm trong query string nên không lên server, log hay Referer),
+ * rồi xóa khỏi thanh địa chỉ để token không ở lại lịch sử trình duyệt.
+ */
+export const takeHashParams = (): URLSearchParams => {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+  return params;
+};
+
+/** Điều kiện mật khẩu khi kích hoạt tài khoản chủ bãi – cùng quy tắc với đăng ký và UserService (IdentityRules.Password). */
+export const passwordProblems = (password: string) => [
+  { label: 'Ít nhất 8 ký tự', met: password.length >= 8 && new TextEncoder().encode(password).length <= 72 },
+  { label: 'Có chữ cái', met: /\p{L}/u.test(password) },
+  { label: 'Có chữ số', met: /\p{Nd}/u.test(password) },
+];

@@ -35,3 +35,43 @@ export async function submitPartnerApplication(request: PartnerApplicationReques
   const { data } = await apiClient.post<PartnerApplicationReceipt>('/api/v1/partner-applications', request);
   return data;
 }
+
+/** P2 (T4): hồ sơ đang chờ bổ sung, đọc bằng link ParkMaster gửi – token đi trong header, không nằm trong URL gọi API. */
+export interface PartnerApplicationEditView {
+  code: string;
+  status: string;
+  infoRequestNote: string | null;
+  editLinkExpiresAtUtc: string | null;
+  fullName: string;
+  email: string;
+  phone: string;
+  position: string | null;
+  businessType: PartnerBusinessType | string;
+  businessName: string;
+  taxCode: string;
+  businessAddress: string;
+  legalRepresentativeName: string;
+  legalRepresentativePosition: string | null;
+  lotCount: number;
+  primaryLotAddress: string;
+  estimatedCarSlots: number | null;
+  estimatedMotorbikeSlots: number | null;
+  operatingHours: string | null;
+}
+
+const EDIT_TOKEN_HEADER = 'X-Edit-Token';
+
+export async function getPartnerApplicationForEdit(code: string, token: string): Promise<PartnerApplicationEditView> {
+  const { data } = await apiClient.get<PartnerApplicationEditView>(`/api/v1/partner-applications/${encodeURIComponent(code)}`, {
+    headers: { [EDIT_TOKEN_HEADER]: token },
+  });
+  return data;
+}
+
+/** P3 (T4): gửi bổ sung → hồ sơ quay lại "đang thẩm định"; link hết hiệu lực. */
+export async function resubmitPartnerApplication(code: string, token: string, request: PartnerApplicationRequest): Promise<PartnerApplicationReceipt> {
+  const { data } = await apiClient.put<PartnerApplicationReceipt>(`/api/v1/partner-applications/${encodeURIComponent(code)}/resubmit`, request, {
+    headers: { [EDIT_TOKEN_HEADER]: token },
+  });
+  return data;
+}

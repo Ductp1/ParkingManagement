@@ -112,7 +112,7 @@ describe('New partner application dialog', () => {
     await user.type(field('Business name'), 'Công ty TNHH Bãi xe Thủ Đức');
     await user.type(field('Business address'), '12 Võ Văn Ngân, TP. Thủ Đức');
     await user.type(field('Legal representative'), 'Trần Văn Minh');
-    await user.type(field('Main lot address'), '45 Kha Vạn Cân, TP. Thủ Đức');
+    await user.type(field('Area / main lot address'), '45 Kha Vạn Cân, TP. Thủ Đức');
     await user.click(screen.getByRole('switch'));
     await user.type(field('Call note'), 'Hotline 13/11');
     await user.click(screen.getByRole('button', { name: 'Create application' }));
@@ -141,7 +141,7 @@ describe('New partner application dialog', () => {
     await user.type(field('Business name'), 'Hộ kinh doanh Minh');
     await user.type(field('Business address'), '12 Võ Văn Ngân, TP. Thủ Đức');
     await user.type(field('Legal representative'), 'Trần Văn Minh');
-    await user.type(field('Main lot address'), '45 Kha Vạn Cân, TP. Thủ Đức');
+    await user.type(field('Area / main lot address'), '45 Kha Vạn Cân, TP. Thủ Đức');
     await user.click(screen.getByRole('switch'));
     await user.click(screen.getByRole('button', { name: 'Create application' }));
 

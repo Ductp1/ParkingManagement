@@ -18,6 +18,7 @@ public sealed class AdminPartnerApplicationsController(
     IListPartnerApplicationsUseCase listApplications,
     IGetPartnerApplicationUseCase getApplication,
     ICreatePartnerApplicationUseCase createApplication,
+    IIssuePartnerEditLinkUseCase issueEditLink,
     IStartPartnerReviewUseCase startReview,
     IRequestPartnerInfoUseCase requestInfo,
     IRejectPartnerApplicationUseCase reject,
@@ -75,6 +76,20 @@ public sealed class AdminPartnerApplicationsController(
     public Task<ActionResult<PartnerApplicationDetailDto>> RequestInfo(int id, [FromBody] PartnerRequestInfoRequest request,
         CancellationToken cancellationToken)
         => AsAdmin(adminId => requestInfo.ExecuteAsync(id, request, adminId, cancellationToken));
+
+    /// <summary>
+    /// POST /api/v1/admin/partner-applications/12/edit-link (T3) – hồ sơ NeedsMoreInfo: cấp link bổ sung một lần (7 ngày) để Admin gửi
+    /// đối tác. 200 { code, token, expiresAtUtc } – token chỉ trả lần này; cấp lại thì link cũ hết hiệu lực.
+    /// </summary>
+    [HttpPost("{id:int}/edit-link")]
+    [ProducesResponseType<PartnerEditLinkDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PartnerEditLinkDto>> IssueEditLink(int id, CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is not { } adminUserId) return Unauthorized();
+        return Ok(await issueEditLink.ExecuteAsync(id, adminUserId, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/admin/partner-applications/12/reject { reason } (A11, T9).</summary>
     [HttpPost("{id:int}/reject")]

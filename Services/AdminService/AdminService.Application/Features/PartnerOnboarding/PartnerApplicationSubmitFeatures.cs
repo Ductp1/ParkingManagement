@@ -123,6 +123,26 @@ public sealed record PartnerApplicationInput(
         return digits.Replace("+", string.Empty);
     }
 
+    /// <summary>T4: chép dữ liệu đã sửa vào hồ sơ đang chờ bổ sung (mã hồ sơ và trạng thái giữ nguyên).</summary>
+    public void ApplyTo(PartnerApplication app)
+    {
+        app.FullName = FullName;
+        app.Email = Email;
+        app.Phone = Phone;
+        app.Position = Position;
+        app.BusinessType = BusinessType;
+        app.BusinessName = BusinessName;
+        app.TaxCode = TaxCode;
+        app.BusinessAddress = BusinessAddress;
+        app.LegalRepresentativeName = LegalRepresentativeName;
+        app.LegalRepresentativePosition = LegalRepresentativePosition;
+        app.LotCount = LotCount;
+        app.PrimaryLotAddress = PrimaryLotAddress;
+        app.EstimatedCarSlots = EstimatedCarSlots;
+        app.EstimatedMotorbikeSlots = EstimatedMotorbikeSlots;
+        app.OperatingHours = OperatingHours;
+    }
+
     /// <summary>Hồ sơ mới trạng thái Submitted (T1); mã hồ sơ do repository gán khi lưu.</summary>
     public PartnerApplication ToApplication(DateTime consentAcceptedAtUtc)
     {
@@ -170,8 +190,12 @@ public sealed record OpenApplicationMatch(string Code, bool Email, bool Phone, b
 
 public interface IPartnerApplicationIntakeRepository
 {
-    /// <summary>Hồ sơ đang xử lý trùng email, SĐT hoặc MST (null = không trùng).</summary>
-    Task<OpenApplicationMatch?> FindOpenDuplicateAsync(string email, string phone, string taxCode, CancellationToken cancellationToken);
+    /// <summary>Hồ sơ đang xử lý trùng email, SĐT hoặc MST (null = không trùng); excludeId = bỏ qua chính hồ sơ đang sửa (T4).</summary>
+    Task<OpenApplicationMatch?> FindOpenDuplicateAsync(string email, string phone, string taxCode, CancellationToken cancellationToken,
+        int? excludeId = null);
+
+    /// <summary>Hồ sơ theo mã PA-… có tracking (đối tác mở link bổ sung – T4).</summary>
+    Task<PartnerApplication?> FindByCodeTrackedAsync(string code, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gán mã PA-{năm}-NNNN, lưu hồ sơ rồi audit log (cần Id) trong CÙNG 1 transaction. Trùng mã do 2 request cùng lúc → thử mã kế tiếp.

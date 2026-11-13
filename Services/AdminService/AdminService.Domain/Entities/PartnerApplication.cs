@@ -74,6 +74,13 @@ public class PartnerApplication : BaseEntity
     public int? CreatedUserId { get; set; }
     public int? CreatedOwnerProfileId { get; set; }
 
+    /// <summary>
+    /// T3 / T4: SHA-256 của link bổ sung hồ sơ (một lần, có hạn) Admin gửi cho đối tác khi hồ sơ NeedsMoreInfo; token gốc không lưu.
+    /// Cấp lại link → link cũ hết hiệu lực; đối tác gửi bổ sung → xóa.
+    /// </summary>
+    public string? EditTokenHash { get; private set; }
+    public DateTime? EditTokenExpiresAtUtc { get; private set; }
+
     /// <summary>Optimistic concurrency (ServiceDefaults đóng dấu mỗi lần lưu): hai Admin thao tác cùng lúc → người sau 409.</summary>
     public byte[] RowVersion { get; set; } = [];
 
@@ -180,6 +187,44 @@ public class PartnerApplication : BaseEntity
         EnsureCanMove(PartnerApplicationStatus.Cancelled);
         CancelReason = Required(reason, "Lý do hủy");
         MoveTo(PartnerApplicationStatus.Cancelled);
+    }
+
+    // ===================== Đối tác bổ sung hồ sơ (T3 link / T4) và kích hoạt (T8) =====================
+
+    /// <summary>T3: cấp (hoặc cấp lại) link bổ sung khi hồ sơ đang NeedsMoreInfo; lưu SHA-256 của token.</summary>
+    public void IssueEditToken(int adminUserId, string tokenHash, DateTime expiresAtUtc)
+    {
+        EnsureAdmin(adminUserId);
+        if (Status != PartnerApplicationStatus.NeedsMoreInfo)
+            throw new ConflictException($"Chỉ cấp link bổ sung khi hồ sơ {Code} đang chờ bổ sung (hiện tại: {Status}).");
+        EditTokenHash = string.IsNullOrWhiteSpace(tokenHash) ? throw new ArgumentException("Thiếu token.", nameof(tokenHash)) : tokenHash;
+        EditTokenExpiresAtUtc = expiresAtUtc;
+    }
+
+    /// <summary>Link bổ sung còn dùng được: đúng token, chưa hết hạn, hồ sơ vẫn đang chờ bổ sung.</summary>
+    public bool AcceptsEditToken(string tokenHash, DateTime nowUtc)
+        => Status == PartnerApplicationStatus.NeedsMoreInfo && EditTokenHash is not null && EditTokenExpiresAtUtc > nowUtc
+           && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+               System.Text.Encoding.ASCII.GetBytes(EditTokenHash), System.Text.Encoding.ASCII.GetBytes(tokenHash));
+
+    /// <summary>T4: đối tác gửi lại hồ sơ đã sửa → UnderReview (Admin đang thẩm định tiếp), link hết hiệu lực.</summary>
+    public void Resubmit(DateTime consentAcceptedAtUtc)
+    {
+        EnsureCanMove(PartnerApplicationStatus.UnderReview);
+        if (Status != PartnerApplicationStatus.NeedsMoreInfo)
+            throw new ConflictException($"Hồ sơ {Code} không ở trạng thái chờ bổ sung.");
+        ConsentAcceptedAtUtc = consentAcceptedAtUtc;
+        EditTokenHash = null;
+        EditTokenExpiresAtUtc = null;
+        MoveTo(PartnerApplicationStatus.UnderReview);
+    }
+
+    /// <summary>T8: chủ bãi đã tự đặt mật khẩu bên UserService → hồ sơ hoàn tất.</summary>
+    public void MarkActivated()
+    {
+        if (Status != PartnerApplicationStatus.AccountIssued)
+            throw new ConflictException($"Không thể chuyển hồ sơ đối tác {Code} từ trạng thái {Status} sang {PartnerApplicationStatus.Activated}.");
+        MoveTo(PartnerApplicationStatus.Activated);
     }
 
     private void EnsureCanMove(PartnerApplicationStatus target)

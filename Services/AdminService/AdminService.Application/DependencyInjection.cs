@@ -58,6 +58,12 @@ public static class DependencyInjection
         // US-116 T1: hồ sơ mới – đối tác tự nộp (form public) hoặc Admin nhập thay
         services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
         services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
+        // US-116 T3/T4: link bổ sung hồ sơ + đối tác gửi bổ sung; T8: đồng bộ trạng thái kích hoạt từ UserService
+        services.AddSingleton(PartnerEditLinkOptions.Default);
+        services.AddScoped<IIssuePartnerEditLinkUseCase, IssuePartnerEditLinkUseCase>();
+        services.AddScoped<IGetPartnerApplicationForEditUseCase, GetPartnerApplicationForEditUseCase>();
+        services.AddScoped<IResubmitPartnerApplicationUseCase, ResubmitPartnerApplicationUseCase>();
+        services.AddScoped<IOwnerActivationSync, OwnerActivationSync>();
         // US-116: thẩm định – bắt đầu xem xét, yêu cầu bổ sung, từ chối, hủy
         services.AddScoped<IStartPartnerReviewUseCase, StartPartnerReviewUseCase>();
         services.AddScoped<IRequestPartnerInfoUseCase, RequestPartnerInfoUseCase>();

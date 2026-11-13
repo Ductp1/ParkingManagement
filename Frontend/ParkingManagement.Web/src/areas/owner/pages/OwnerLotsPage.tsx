@@ -57,7 +57,8 @@ import { LotAttributesEditor } from '../components/operating/LotAttributesEditor
 export const OwnerLotsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAppSelector((s) => s.auth);
-  const ownerProfileId = user?.id || 2;
+  // OwnerProfile.Id của chủ bãi đang đăng nhập (KHÔNG phải User.Id); 0 = tài khoản không có hồ sơ chủ bãi → API trả lỗi thay vì đọc nhầm tenant khác.
+  const ownerProfileId = user?.ownerProfileId ?? 0;
 
   // Danh sách bãi đỗ
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
@@ -1286,7 +1287,7 @@ export const OwnerLotsPage: React.FC = () => {
           loadOwnerLots(newLotId);
           setActionMessage({
             type: 'success',
-            text: `Đã đăng ký cơ sở bãi đỗ "${lotName}" thành công! Vui lòng khai báo Zone và Floor bên dưới.`,
+            text: `Đã đăng ký cơ sở bãi đỗ "${lotName}" (đang chờ duyệt). Khai báo Zone và Floor bên dưới, sau đó nộp hồ sơ KYB ở mục Hồ sơ KYB để ParkMaster thẩm định và lập hợp đồng – bãi chỉ nhận khách sau khi được duyệt.`,
           });
         }}
       />

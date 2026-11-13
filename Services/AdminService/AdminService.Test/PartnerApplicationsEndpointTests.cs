@@ -129,6 +129,31 @@ public class PartnerApplicationsEndpointTests
             => throw new NotSupportedException($"{targetMethod?.DeclaringType?.Name}.{targetMethod?.Name} không dùng trong test này.");
     }
 
+    [Fact]
+    public async Task Partner_reads_and_resubmits_with_the_edit_link_header()
+    {
+        await using var host = await ApiHost.StartAsync();
+        await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+        var app = host.Store.Applications.Single();
+        app.StartReview(1);
+        app.RequestInfo(1, "Bổ sung số chỗ ô tô");
+        var link = await new IssuePartnerEditLinkUseCase(host.Store, PartnerEditLinkOptions.Default, TimeProvider.System).ExecuteAsync(app.Id, 1);
+
+        var noToken = await host.Client.GetAsync($"{PublicUrl}/{app.Code}");
+        var read = new HttpRequestMessage(HttpMethod.Get, $"{PublicUrl}/{app.Code}");
+        read.Headers.Add(PartnerApplicationsController.EditTokenHeader, link.Token);
+        var readResponse = await host.Client.SendAsync(read);
+        var put = new HttpRequestMessage(HttpMethod.Put, $"{PublicUrl}/{app.Code}/resubmit") { Content = JsonContent.Create(Valid() with { LotCount = 4 }, options: Json) };
+        put.Headers.Add(PartnerApplicationsController.EditTokenHeader, link.Token);
+        var putResponse = await host.Client.SendAsync(put);
+
+        Assert.Equal(HttpStatusCode.BadRequest, noToken.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, readResponse.StatusCode);
+        Assert.Equal("Bổ sung số chỗ ô tô", (await readResponse.Content.ReadFromJsonAsync<JsonElement>(Json)).GetProperty("infoRequestNote").GetString());
+        Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
+        Assert.Equal((AdminService.Domain.Enums.PartnerApplicationStatus.UnderReview, 4), (app.Status, app.LotCount));
+    }
+
     private sealed class FixedTime(DateTime now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(now);
@@ -169,11 +194,14 @@ public class PartnerApplicationsEndpointTests
             builder.Services.AddSingleton<IPartnerApplicationQueries>(host.Store);
             builder.Services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
             builder.Services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
+            builder.Services.AddSingleton<IPartnerApplicationRepository>(host.Store);
+            builder.Services.AddScoped<IGetPartnerApplicationForEditUseCase, GetPartnerApplicationForEditUseCase>();
+            builder.Services.AddScoped<IResubmitPartnerApplicationUseCase, ResubmitPartnerApplicationUseCase>();
             foreach (var type in new[]
                      {
                          typeof(IListPartnerApplicationsUseCase), typeof(IGetPartnerApplicationUseCase), typeof(IStartPartnerReviewUseCase),
                          typeof(IRequestPartnerInfoUseCase), typeof(IRejectPartnerApplicationUseCase), typeof(ICancelPartnerApplicationUseCase),
-                         typeof(IIssueOwnerAccountUseCase), typeof(IResendOwnerActivationUseCase),
+                         typeof(IIssueOwnerAccountUseCase), typeof(IResendOwnerActivationUseCase), typeof(IIssuePartnerEditLinkUseCase),
                      })
                 builder.Services.AddSingleton(type, _ => UnusedProxy.For(type));
 

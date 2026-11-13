@@ -11,6 +11,8 @@ namespace AdminService.API.Security;
 public static class PartnerApplicationRateLimit
 {
     public const string Policy = "partner-apply";
+    /// <summary>Mở / gửi link bổ sung hồ sơ (T4): 30 lần mỗi IP mỗi giờ – đủ cho đối tác mở lại vài lần, chặn dò token.</summary>
+    public const string EditPolicy = "partner-edit";
     public const string PerHourKey = "Security:PartnerApplicationsPerHour";
     public const int DefaultPerHour = 5;
 
@@ -23,6 +25,9 @@ public static class PartnerApplicationRateLimit
             options.AddPolicy(Policy, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = perHour, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
+            options.AddPolicy(EditPolicy, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromHours(1), QueueLimit = 0 }));
         });
     }
 

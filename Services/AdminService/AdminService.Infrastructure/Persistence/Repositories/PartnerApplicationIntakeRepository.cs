@@ -17,11 +17,11 @@ public sealed class PartnerApplicationIntakeRepository(AdminDbContext db) : IPar
         [PartnerApplicationStatus.Activated, PartnerApplicationStatus.Rejected, PartnerApplicationStatus.Cancelled];
 
     public async Task<OpenApplicationMatch?> FindOpenDuplicateAsync(string email, string phone, string taxCode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int? excludeId = null)
     {
         var lowerEmail = email.ToLowerInvariant();
         var match = await db.PartnerApplications.AsNoTracking()
-            .Where(a => !Closed.Contains(a.Status)
+            .Where(a => !Closed.Contains(a.Status) && (excludeId == null || a.Id != excludeId)
                         && (a.Email.ToLower() == lowerEmail || a.Phone == phone || a.TaxCode == taxCode))
             .OrderBy(a => a.Id)
             .Select(a => new { a.Code, a.Email, a.Phone, a.TaxCode })
@@ -30,6 +30,9 @@ public sealed class PartnerApplicationIntakeRepository(AdminDbContext db) : IPar
             ? null
             : new OpenApplicationMatch(match.Code, match.Email.ToLower() == lowerEmail, match.Phone == phone, match.TaxCode == taxCode);
     }
+
+    public Task<PartnerApplication?> FindByCodeTrackedAsync(string code, CancellationToken cancellationToken)
+        => db.PartnerApplications.FirstOrDefaultAsync(a => a.Code == code, cancellationToken);
 
     public async Task AddSubmittedAsync(PartnerApplication application, int year, Func<PartnerApplication, AuditLog> buildAuditLog,
         CancellationToken cancellationToken)

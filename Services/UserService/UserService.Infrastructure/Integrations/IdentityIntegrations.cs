@@ -73,6 +73,24 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
             apiKey = config["Otp:ApiKey"];
             payload = new { message.Id, staff.Destination, Purpose = "StaffCredentials", staff.FullName, staff.OwnerName, staff.LotName, Code = password };
         }
+        else if (message.EventType == OwnerAccountUseCases.ActivationEvent)
+        {
+            var activation = JsonSerializer.Deserialize<OwnerActivationPayload>(message.PayloadJson)!;
+            var now = clock.GetUtcNow().UtcDateTime;
+            // Link đã bị thu hồi (gửi lại link mới / đã kích hoạt) hoặc hết hạn trước khi kịp gửi → không gửi nữa.
+            if (!await db.OtpCodes.AnyAsync(o => o.Id == activation.ActivationId && o.ConsumedAtUtc == null && o.ExpiresAtUtc > now, ct)) return;
+            var link = SmtpOtpSender.OwnerActivationLink(config, cipher.Decrypt(activation.EncryptedToken, OwnerAccountUseCases.ActivationCipherPurpose));
+            if (config["Otp:Transport"] == "Smtp")
+            {
+                await new SmtpOtpSender(config).SendOwnerActivationAsync(message.Id, activation.Destination, activation.FullName,
+                    activation.BusinessName, link, activation.ExpiresAtUtc, ct);
+                return;
+            }
+            url = OtpDeliveryConfiguration.Endpoint(config["Otp:DeliveryUrl"], environment);
+            apiKey = config["Otp:ApiKey"];
+            payload = new { message.Id, activation.Destination, Purpose = "OwnerActivation", activation.FullName, activation.BusinessName,
+                activation.ExpiresAtUtc, Link = link };
+        }
         else
         {
             await eventBus.DeliverAsync(message, ct);
@@ -85,6 +103,8 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
         response.EnsureSuccessStatusCode();
     }
     private sealed record StaffCredentialsPayload(int UserId, string Destination, string FullName, string OwnerName, string LotName, string EncryptedPassword);
+    private sealed record OwnerActivationPayload(int ActivationId, int UserId, string Destination, string FullName, string BusinessName,
+        DateTime ExpiresAtUtc, string EncryptedToken);
     private sealed record OtpPayload(int OtpId, int UserId, string Destination, string Purpose, DateTime ExpiresAtUtc, string EncryptedCode);
 }
 

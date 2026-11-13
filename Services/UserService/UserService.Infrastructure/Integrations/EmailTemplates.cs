@@ -72,6 +72,26 @@ public static class EmailTemplates
         return new Email("Tài khoản ParkMaster của bạn đã sẵn sàng", Layout(title, body), text);
     }
 
+    /// <summary>US-116: hồ sơ đối tác đã được duyệt – chủ bãi bấm link để tự đặt mật khẩu và kích hoạt tài khoản.</summary>
+    public static Email OwnerActivation(string fullName, string businessName, string activationLink, DateTime expiresAtUtc)
+    {
+        var title = "Kích hoạt tài khoản chủ bãi";
+        var expires = Vn(expiresAtUtc);
+        var body = $"""
+            <p style="margin:0 0 6px;font-size:15px;line-height:1.6;color:#0f172a;">Xin chào <strong>{E(fullName)}</strong>,</p>
+            <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#475569;">Hồ sơ đối tác của <strong style="color:#0f172a;">{E(businessName)}</strong> đã được ParkMaster duyệt. Bấm nút dưới đây để đặt mật khẩu và kích hoạt tài khoản chủ bãi.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+              <tr><td style="border-radius:10px;background:#2563eb;">
+                <a href="{E(activationLink)}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Kích hoạt tài khoản</a>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:#64748b;">Link dùng được một lần, hết hạn lúc <strong style="color:#0f172a;">{E(expires)}</strong>. Sau khi kích hoạt, đăng nhập để khai báo từng bãi và nộp hồ sơ KYB.</p>
+            <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">Nếu bạn không đăng ký làm đối tác ParkMaster, hãy bỏ qua email này.</p>
+            """;
+        var text = $"{title}\n\nXin chào {fullName},\n\nHồ sơ đối tác của {businessName} đã được ParkMaster duyệt. Mở link dưới đây để đặt mật khẩu và kích hoạt tài khoản chủ bãi:\n{activationLink}\n\nLink dùng được một lần, hết hạn lúc {expires}.\n\nParkMaster";
+        return new Email("Kích hoạt tài khoản chủ bãi ParkMaster", Layout(title, body), text);
+    }
+
     /// <summary>Khung chung: logo P xanh, tiêu đề, thẻ nội dung trắng, chân trang hỗ trợ.</summary>
     private static string Layout(string title, string body) => $"""
         <!doctype html>

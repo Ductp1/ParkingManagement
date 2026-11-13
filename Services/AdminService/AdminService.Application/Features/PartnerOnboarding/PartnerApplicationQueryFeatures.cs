@@ -45,17 +45,27 @@ public interface IListPartnerApplicationsUseCase
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-116 (A1): Admin xem danh sách hồ sơ đăng ký đối tác.</summary>
-public sealed class ListPartnerApplicationsUseCase(IPartnerApplicationQueries queries) : IListPartnerApplicationsUseCase
+/// <summary>
+/// US-116 (A1): Admin xem danh sách hồ sơ đăng ký đối tác. Hồ sơ AccountIssued trên trang đang xem được đồng bộ trạng thái kích hoạt
+/// từ UserService (T8) trước khi trả về.
+/// </summary>
+public sealed class ListPartnerApplicationsUseCase(IPartnerApplicationQueries queries, IOwnerActivationSync? activation = null)
+    : IListPartnerApplicationsUseCase
 {
-    public Task<PagedResult<PartnerApplicationSummaryDto>> ExecuteAsync(PartnerApplicationStatus? status, string? search, int page,
+    public async Task<PagedResult<PartnerApplicationSummaryDto>> ExecuteAsync(PartnerApplicationStatus? status, string? search, int page,
         int pageSize, CancellationToken cancellationToken = default)
     {
         if (page < 1) throw new ValidationException("page phải ≥ 1.");
         if (pageSize is < 1 or > 100) throw new ValidationException("pageSize phải trong khoảng 1–100.");
         var term = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         if (term is { Length: > 200 }) throw new ValidationException("Từ khóa tìm kiếm tối đa 200 ký tự.");
-        return queries.ListAsync(status, term, page, pageSize, cancellationToken);
+        var result = await queries.ListAsync(status, term, page, pageSize, cancellationToken);
+        if (activation is null) return result;
+
+        var changed = false;
+        foreach (var row in result.Items.Where(r => r.Status == nameof(PartnerApplicationStatus.AccountIssued)))
+            changed |= await activation.SyncAsync(row.Id, cancellationToken);
+        return changed ? await queries.ListAsync(status, term, page, pageSize, cancellationToken) : result;
     }
 }
 
@@ -64,12 +74,17 @@ public interface IGetPartnerApplicationUseCase
     Task<PartnerApplicationDetailDto> ExecuteAsync(int id, CancellationToken cancellationToken = default);
 }
 
-/// <summary>US-116 (A2): Admin xem chi tiết hồ sơ đối tác kèm các phiên bản hợp đồng.</summary>
-public sealed class GetPartnerApplicationUseCase(IPartnerApplicationQueries queries) : IGetPartnerApplicationUseCase
+/// <summary>US-116 (A2): Admin xem chi tiết hồ sơ đối tác; hồ sơ AccountIssued được đồng bộ trạng thái kích hoạt (T8).</summary>
+public sealed class GetPartnerApplicationUseCase(IPartnerApplicationQueries queries, IOwnerActivationSync? activation = null)
+    : IGetPartnerApplicationUseCase
 {
     public async Task<PartnerApplicationDetailDto> ExecuteAsync(int id, CancellationToken cancellationToken = default)
     {
         if (id <= 0) throw new ValidationException("id phải là số nguyên dương.");
-        return await queries.GetDetailAsync(id, cancellationToken) ?? throw new NotFoundException("Hồ sơ đối tác", id);
+        var detail = await queries.GetDetailAsync(id, cancellationToken) ?? throw new NotFoundException("Hồ sơ đối tác", id);
+        if (activation is null || detail.Status != nameof(PartnerApplicationStatus.AccountIssued)) return detail;
+        return await activation.SyncAsync(id, cancellationToken)
+            ? await queries.GetDetailAsync(id, cancellationToken) ?? detail
+            : detail;
     }
 }

@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Auth.ILogoutUseCase, UserService.Application.Features.Auth.LogoutUseCase>();
         services.AddScoped<UserService.Application.Features.Identity.AccountUseCases>();
         services.AddScoped<UserService.Application.Features.Staff.StaffUseCases>();
+        services.AddScoped<UserService.Application.Features.Identity.OwnerAccountUseCases>();   // US-116 U2–U5
         services.AddScoped<UserService.Application.Features.Privacy.DataRequestUseCases>();
         services.AddScoped<UserService.Application.Features.Kyc.KycUseCases>();
         services.AddScoped<UserService.Application.Features.History.ParkingHistoryUseCases>();

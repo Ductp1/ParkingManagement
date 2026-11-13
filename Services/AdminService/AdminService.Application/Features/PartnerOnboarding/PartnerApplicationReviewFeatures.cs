@@ -42,7 +42,8 @@ public static class PartnerApplicationAudit
         payoutBankAccount = app.PayoutBankAccountNumber,
     };
 
-    public static AuditLog Build(PartnerApplication app, string action, int adminUserId, object before, string? reason) => new()
+    /// <summary>adminUserId = null khi thao tác không do Admin (đối tác gửi bổ sung, đồng bộ trạng thái kích hoạt từ UserService).</summary>
+    public static AuditLog Build(PartnerApplication app, string action, int? adminUserId, object before, string? reason) => new()
     {
         SourceService = "AdminService",
         UserId = adminUserId,

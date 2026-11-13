@@ -5,6 +5,7 @@ import type {
   IssueOwnerAccountRequest,
   PartnerApplicationDetailDto,
   PartnerApplicationListQuery,
+  PartnerEditLinkDto,
   PartnerApplicationSummaryDto,
   PartnerReasonRequest,
   PartnerRequestInfoRequest,
@@ -35,6 +36,9 @@ export const adminPartnerOnboardingApi = {
   /** A4 – UnderReview → NeedsMoreInfo. */
   requestInfo: (id: number, data: PartnerRequestInfoRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/request-info`, data }),
+
+  /** T3 – hồ sơ NeedsMoreInfo: cấp (lại) link bổ sung một lần, 7 ngày; link cũ hết hiệu lực. */
+  issueEditLink: (id: number) => adminRequest<PartnerEditLinkDto>({ method: 'POST', url: `${BASE}/${id}/edit-link` }),
 
   /** A9 – UnderReview → AccountIssued: UserService tạo tài khoản chủ bãi; lưu tài khoản nhận thanh toán. */
   issueAccount: (id: number, data: IssueOwnerAccountRequest) =>

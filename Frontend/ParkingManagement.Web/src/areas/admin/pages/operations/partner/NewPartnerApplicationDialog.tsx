@@ -29,7 +29,8 @@ interface NewPartnerApplicationDialogProps {
 
 /**
  * New partner application (US-116 T1): Admin nhập hồ sơ nhận qua điện thoại – cùng 4 phần với form public
- * (Contact · Business · Parking lots · Consent). Hồ sơ vào trạng thái Submitted, thẩm định như hồ sơ tự nộp.
+ * (Contact · Business · Expected scale · Consent). Hồ sơ vào trạng thái Submitted, thẩm định như hồ sơ tự nộp.
+ * Expected scale chỉ để thẩm định sơ bộ – bãi thật do chủ bãi khai báo sau khi có tài khoản (KYB → hợp đồng từng bãi).
  * Lỗi kiểm tra hiện theo từng ô sau khi rời ô hoặc bấm tạo; 400 / 409 từ server hiện nguyên văn ở cuối dialog.
  */
 export const NewPartnerApplicationDialog: React.FC<NewPartnerApplicationDialogProps> = ({ open, onClose, onCreated }) => {
@@ -123,15 +124,17 @@ export const NewPartnerApplicationDialog: React.FC<NewPartnerApplicationDialogPr
         </Row>
       </Section>
 
-      <Section title="Parking lots">
+      <Section title="Expected scale">
+        <p className="adm-type-body-small m-0 text-(--admin-text-secondary)">
+          For screening only. The owner declares each lot and submits its KYB after activating the account; each lot gets its own contract.
+        </p>
         <Row>
-          {text('lotCount', 'Number of lots', { required: true, type: 'number', suffix: 'lots' })}
-          {text('operatingHours', 'Opening hours', { maxLength: 100, placeholder: '06:00–22:00' })}
+          {text('lotCount', 'Expected number of lots', { required: true, type: 'number', suffix: 'lots' })}
+          {text('primaryLotAddress', 'Area / main lot address', { required: true, maxLength: 300, placeholder: 'District 1, HCMC' })}
         </Row>
-        {text('primaryLotAddress', 'Main lot address', { required: true, maxLength: 300 })}
         <Row>
-          {text('estimatedCarSlots', 'Car spots (estimate)', { type: 'number', suffix: 'spots' })}
-          {text('estimatedMotorbikeSlots', 'Motorbike spots (estimate)', { type: 'number', suffix: 'spots' })}
+          {text('estimatedCarSlots', 'Car spots (total)', { type: 'number', suffix: 'spots' })}
+          {text('estimatedMotorbikeSlots', 'Motorbike spots (total)', { type: 'number', suffix: 'spots' })}
         </Row>
       </Section>
 

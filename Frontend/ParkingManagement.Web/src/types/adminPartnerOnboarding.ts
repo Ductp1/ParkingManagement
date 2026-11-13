@@ -64,6 +64,13 @@ export interface PartnerApplicationDetailDto {
   nextStatuses: Array<PartnerApplicationStatus | string>;
 }
 
+/** POST …/{id}/edit-link (T3): link bổ sung hồ sơ một lần cho đối tác – token chỉ trả về lần này. */
+export interface PartnerEditLinkDto {
+  code: string;
+  token: string;
+  expiresAtUtc: string;
+}
+
 /** AdminService PartnerBusinessType. */
 export type PartnerBusinessType = 'Company' | 'HouseholdBusiness';
 

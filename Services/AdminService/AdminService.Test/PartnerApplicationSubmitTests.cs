@@ -33,15 +33,28 @@ public class PartnerApplicationSubmitTests
     }
 
     /// <summary>Repository + cổng đọc trong bộ nhớ: gán Id / mã như DB, giữ audit log.</summary>
-    internal sealed class InMemoryIntake : IPartnerApplicationIntakeRepository, IPartnerApplicationQueries
+    internal sealed class InMemoryIntake : IPartnerApplicationIntakeRepository, IPartnerApplicationQueries, IPartnerApplicationRepository
     {
         public List<PartnerApplication> Applications { get; } = [];
         public List<AuditLog> Audits { get; } = [];
 
-        public Task<OpenApplicationMatch?> FindOpenDuplicateAsync(string email, string phone, string taxCode, CancellationToken ct)
+        public Task<OpenApplicationMatch?> FindOpenDuplicateAsync(string email, string phone, string taxCode, CancellationToken ct,
+            int? excludeId = null)
         {
-            var open = Applications.FirstOrDefault(a => !a.IsTerminal && (a.Email == email || a.Phone == phone || a.TaxCode == taxCode));
+            var open = Applications.FirstOrDefault(a => !a.IsTerminal && a.Id != excludeId
+                                                        && (a.Email == email || a.Phone == phone || a.TaxCode == taxCode));
             return Task.FromResult(open is null ? null : new OpenApplicationMatch(open.Code, open.Email == email, open.Phone == phone, open.TaxCode == taxCode));
+        }
+
+        public Task<PartnerApplication?> FindByCodeTrackedAsync(string code, CancellationToken ct)
+            => Task.FromResult(Applications.FirstOrDefault(a => a.Code == code));
+
+        public Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken ct) => Task.FromResult(Applications.FirstOrDefault(a => a.Id == id));
+
+        public Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken ct)
+        {
+            Audits.Add(auditLog);
+            return Task.CompletedTask;
         }
 
         public Task AddSubmittedAsync(PartnerApplication application, int year, Func<PartnerApplication, AuditLog> buildAuditLog, CancellationToken ct)
