@@ -63,7 +63,7 @@ const FAQS = [
   },
   {
     q: 'Làm sao để đưa bãi đỗ của tôi lên ParkMaster?',
-    a: 'Tạo tài khoản chủ bãi, khai báo bãi và nộp hồ sơ pháp lý. Sau khi đội ngũ ParkMaster duyệt hồ sơ và ký hợp đồng, bãi của bạn bắt đầu nhận đặt chỗ.',
+    a: 'Gửi hồ sơ "Đăng ký đối tác" ở mục Chủ bãi. ParkMaster thẩm định rồi gửi email kích hoạt tài khoản chủ bãi; sau đó bạn khai báo từng bãi và nộp hồ sơ pháp lý. Bãi bắt đầu nhận đặt chỗ khi hồ sơ bãi được duyệt và ký hợp đồng.',
   },
   {
     q: 'Thông tin cá nhân của tôi được bảo vệ thế nào?',
@@ -176,8 +176,6 @@ export const LandingPage: React.FC = () => {
   const theme = useLandingTheme();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [phoneInput, setPhoneInput] = useState('');
-  const [sentSuccess, setSentSuccess] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
@@ -430,35 +428,14 @@ export const LandingPage: React.FC = () => {
                 ))}
               </ul>
 
-              {sentSuccess ? (
-                <p role="status" className="mt-8 font-semibold text-(--lp-ok)">
-                  Đã ghi nhận số {phoneInput}. Chúng tôi sẽ gọi lại trong giờ hành chính.
-                </p>
-              ) : (
-                <form
-                  className="mt-8"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (phoneInput.trim()) setSentSuccess(true);
-                  }}
-                >
-                  <label htmlFor="owner-phone" className="block font-semibold">Để lại số điện thoại, chúng tôi gọi lại hướng dẫn</label>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      id="owner-phone"
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      required
-                      value={phoneInput}
-                      onChange={(e) => setPhoneInput(e.target.value)}
-                      placeholder="0901 234 567"
-                      className="w-full rounded-xl border border-(--lp-glass-line) bg-(--lp-glass-strong) px-4 py-3 text-base text-(--lp-text) placeholder:text-(--lp-faint) focus:border-(--lp-primary) focus:outline-none"
-                    />
-                    <button type="submit" className="lp-btn shrink-0 px-6 py-3">Gọi lại cho tôi</button>
-                  </div>
-                </form>
-              )}
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button type="button" onClick={() => navigate('/partner/apply')} className="lp-btn px-6 py-3">
+                  Đăng ký đối tác
+                </button>
+                <span className="text-(--lp-muted)">
+                  Cần tư vấn? Gọi <a href="tel:19006868" className="lp-num font-semibold text-(--lp-text) hover:underline">1900 6868</a>
+                </span>
+              </div>
             </div>
 
             <figure className="relative">
