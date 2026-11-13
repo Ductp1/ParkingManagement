@@ -40,6 +40,23 @@ internal sealed class PartnerApplicationConfiguration : IEntityTypeConfiguration
     }
 }
 
+/// <summary>US-053: giấy tờ pháp lý của hồ sơ đối tác – khóa file duy nhất; FK Restrict (ServiceDefaults áp cho mọi FK).</summary>
+internal sealed class PartnerApplicationDocumentConfiguration : IEntityTypeConfiguration<PartnerApplicationDocument>
+{
+    public void Configure(EntityTypeBuilder<PartnerApplicationDocument> e)
+    {
+        e.ToTable("PartnerApplicationDocuments");
+        e.Property(x => x.DocumentType).HasConversion<string>().HasMaxLength(30);
+        e.Property(x => x.FileKey).HasMaxLength(300).IsRequired();
+        e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+        e.Property(x => x.OriginalFileName).HasMaxLength(200).IsRequired();
+        e.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+        e.HasIndex(x => x.FileKey).IsUnique();
+        e.HasIndex(x => x.PartnerApplicationId);
+        e.HasOne(x => x.PartnerApplication).WithMany().HasForeignKey(x => x.PartnerApplicationId);
+    }
+}
+
 /// <summary>US-116: mẫu hợp đồng (loại hợp đồng có tên) – mỗi Version một dòng; nhiều mẫu Active cùng lúc; Bên A theo từng mẫu.</summary>
 internal sealed class ContractTemplateConfiguration : IEntityTypeConfiguration<ContractTemplate>
 {

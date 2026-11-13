@@ -6,6 +6,7 @@ import { AccountLayout } from '@/areas/account/AccountLayout';
 import { HistoryPage } from '@/areas/account/HistoryPage';
 import { PrivacyPage } from '@/areas/account/PrivacyPage';
 import { LandingPage } from '@/areas/public/LandingPage';
+import { PartnerRegisterPage } from '@/areas/public/PartnerRegisterPage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -37,6 +38,7 @@ export const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/partner/register" element={<PartnerRegisterPage />} />
       <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>
         <Route element={<ProtectedRoute />}>

@@ -26,6 +26,19 @@ public enum PartnerBusinessType
     HouseholdBusiness = 2,
 }
 
+/// <summary>[AdminService] Loại giấy tờ pháp lý nộp kèm hồ sơ đăng ký đối tác (US-053).</summary>
+public enum PartnerDocumentType
+{
+    /// <summary>Giấy chứng nhận đăng ký doanh nghiệp / hộ kinh doanh (bắt buộc).</summary>
+    BusinessLicense = 1,
+    /// <summary>CCCD / hộ chiếu của người đại diện pháp luật (bắt buộc).</summary>
+    RepresentativeId = 2,
+    /// <summary>Giấy tờ quyền sử dụng mặt bằng bãi: sổ đỏ, hợp đồng thuê… (tùy chọn).</summary>
+    LotLegalProof = 3,
+    /// <summary>Giấy tờ khác: PCCC, giấy phép con… (tùy chọn).</summary>
+    Other = 4,
+}
+
 /// <summary>[AdminService] Trạng thái hợp đồng của một bãi đỗ (US-116, mục 14.4).</summary>
 public enum LotContractStatus
 {

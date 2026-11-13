@@ -205,6 +205,7 @@ export function RegisterPage() {
           <button className="auth-submit" type="submit" disabled={busy}>{busy ? 'Đang tạo tài khoản…' : 'Tạo tài khoản'}{!busy && <ArrowRight size={17} />}</button>
         </form>
         <p className="auth-switch">Đã có tài khoản? <Link to="/login">Đăng nhập</Link></p>
+        <p className="auth-switch">Bạn là chủ bãi xe? <Link to="/partner/register">Đăng ký làm đối tác</Link></p>
       </>}
       {step === 'verify' && <>
         <h1 className="auth-heading">Nhập mã xác minh</h1>
