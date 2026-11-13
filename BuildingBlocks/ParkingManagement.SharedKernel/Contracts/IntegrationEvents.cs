@@ -24,7 +24,6 @@ public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNu
 public sealed record ParkingLotApproved(int ParkingLotId, int OwnerProfileId, string Name) : IntegrationEvent;
 public sealed record SlotStateChanged(int ParkingLotId, int SlotId, string SlotCode, string OldState, string NewState) : IntegrationEvent;
 public sealed record LayoutPublished(int ParkingLotId, int FloorId, int VersionNo) : IntegrationEvent;
-
 // ===== ParkingService – US-068 (heartbeat/stale data) + US-069 (emergency stop) =====
 /// <summary>1 booking bị ảnh hưởng khi đóng bãi khẩn cấp — payload US-069 → US-086 fan-out thông báo.</summary>
 public sealed record EmergencyAffectedBooking(int BookingId, string Code, int UserId, string Status, DateTime StartAtUtc, DateTime EndAtUtc);

@@ -79,22 +79,8 @@ public class LotOperationsTests
         public override DateTimeOffset GetUtcNow() => new(utc, TimeSpan.Zero);
     }
 
-    private static (StalenessMonitorWorker Worker, FakeRepo Repo, RecordingEvents Events) BuildWorker(List<ParkingLot> lots)
-    {
-        var repo = new FakeRepo(lots);
-        var events = new RecordingEvents();
-        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
-        services.AddScoped<ILotOperationsRepository>(_ => repo);
-        services.AddScoped<ILotEventPublisher>(_ => events);
-        var provider = services.BuildServiceProvider();
-        var worker = new StalenessMonitorWorker(
-            provider.GetRequiredService<IServiceScopeFactory>(),
-            Microsoft.Extensions.Options.Options.Create(new StalenessOptions { StaleAfterMinutes = 3, PollSeconds = 30 }),
-            new FixedClock(Now),
-            Microsoft.Extensions.Logging.Abstractions.NullLogger<StalenessMonitorWorker>.Instance);
-        return (worker, repo, events);
-    }
-
+    // Lưu ý: test sweep của StalenessMonitorWorker (bản US-068 mới) nằm trong LotHeartbeatTests.cs —
+    // bản này giữ test entity/evaluator/use case/dashboard của thế hệ LotOperations.
 
     // ===== US-068: StalenessEvaluator (pure) =====
 
@@ -178,42 +164,6 @@ public class LotOperationsTests
         var repo = new FakeRepo([]);
         await Assert.ThrowsAsync<NotFoundException>(
             () => new RecordHeartbeatUseCase(repo, new FixedClock(Now)).ExecuteAsync(99));
-    }
-
-    // ===== US-068: StalenessMonitorWorker.EvaluateAllAsync =====
-
-    [Fact]
-    public async Task Stale_worker_marks_overdue_active_lot_and_publishes_event_once()
-    {
-        var lot = Lot();
-        lot.RecordHeartbeat(Now.AddMinutes(-10));
-        var (worker, repo, events) = BuildWorker([lot]);
-
-        var transitions = await worker.EvaluateAllAsync();
-
-        Assert.Equal(1, transitions);
-        Assert.True(lot.IsDataStale);
-        var evt = Assert.Single(events.Events);
-        var stale = Assert.IsType<LotDataMarkedStale>(evt);
-        Assert.Equal(3, stale.ParkingLotId);
-        Assert.Equal(Now.AddMinutes(-10), stale.LastHeartbeatAtUtc);
-        Assert.Equal(1, repo.SaveCalls);
-    }
-
-    [Fact]
-    public async Task Stale_worker_ignores_fresh_and_non_active_lots()
-    {
-        var fresh = Lot(1);
-        fresh.RecordHeartbeat(Now.AddSeconds(-30));
-        var overdueButInactive = Lot(2);
-        overdueButInactive.RecordHeartbeat(Now.AddMinutes(-10));
-        overdueButInactive.GetType().GetProperty(nameof(ParkingLot.Status))! // Suspended → worker chỉ quét lot Active
-            .SetValue(overdueButInactive, ParkingLotStatus.Suspended);
-        var (worker, _, events) = BuildWorker([fresh, overdueButInactive]);
-
-        Assert.Equal(0, await worker.EvaluateAllAsync());
-        Assert.Empty(events.Events);
-        Assert.False(fresh.IsDataStale);
     }
 
     // ===== US-067: GetOperationsOverviewUseCase =====

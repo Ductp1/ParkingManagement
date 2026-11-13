@@ -4,7 +4,7 @@ import { useAppSelector, useAppDispatch } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { parkingApi } from '@/api/parkingApi';
 import { bookingApi } from '@/api/bookingApi';
-import type { ParkingLotDto } from '@/types/parking';
+import type { ParkingLotDto, LotOperationalStatusDto } from '@/types/parking';
 import type { BookingDetailDto } from '@/types/booking';
 
 interface SpotInfo {
@@ -109,6 +109,26 @@ export const LotDetailPage: React.FC = () => {
       .catch(() => {
         // Fallback default
       });
+  }, [lotId]);
+
+  // US-068: độ tươi dữ liệu bãi (heartbeat & stale) – tự làm mới mỗi 30 giây để cảnh báo kịp thời
+  const [opStatus, setOpStatus] = useState<LotOperationalStatusDto | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const loadStatus = async () => {
+      try {
+        const status = await parkingApi.getOperationalStatus(lotId);
+        if (!cancelled) setOpStatus(status);
+      } catch {
+        if (!cancelled) setOpStatus(null);
+      }
+    };
+    void loadStatus();
+    const interval = setInterval(() => void loadStatus(), 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [lotId]);
 
   // Scroll listener for sticky stepper
@@ -246,6 +266,23 @@ export const LotDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      {/* US-068: cảnh báo dữ liệu bãi có thể KHÔNG chính xác khi quá hạn heartbeat (stale) */}
+      {opStatus?.isDataStale && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+          <div className="max-w-4xl mx-auto">
+            <p className="text-xs font-bold text-amber-800">
+              ⚠️ Dữ liệu số chỗ trống của bãi này có thể KHÔNG chính xác
+            </p>
+            <p className="text-[11px] text-amber-700 mt-0.5">
+              Bãi không gửi cập nhật trong {opStatus.staleAfterMinutes} phút
+              {opStatus.lastHeartbeatAtUtc
+                ? ` (cập nhật gần nhất: ${new Date(opStatus.lastHeartbeatAtUtc).toLocaleTimeString('vi-VN')})`
+                : ' (chưa từng nhận dữ liệu từ thiết bị bãi)'}
+              . Vui lòng liên hệ hotline bãi trước khi đặt chỗ.
+            </p>
+          </div>
+        </div>
+      )}
       {/* 1. Smart Sticky Stepper (Floats under header on scroll) */}
       <div
         className={`fixed top-16 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300 ease-in-out ${

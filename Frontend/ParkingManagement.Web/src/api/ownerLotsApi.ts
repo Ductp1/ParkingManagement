@@ -43,4 +43,36 @@ export const ownerLotsApi = {
     );
     return response.data;
   },
+
+  /**
+   * US-068: gửi heartbeat (thiết bị/controller/chủ bãi báo dữ liệu còn sống).
+   * Bãi đang stale sẽ tự phục hồi; trả Recovered = true nếu vừa thoát stale.
+   */
+  sendHeartbeat: async (
+    lotId: number
+  ): Promise<{ parkingLotId: number; lastHeartbeatAtUtc: string; isDataStale: boolean; recovered: boolean }> => {
+    const response = await apiClient.post(
+      `/api/v1/parking-lots/${lotId}/operations/heartbeat`
+    );
+    return response.data;
+  },
+
+  /**
+   * US-068: lấy độ tươi dữ liệu hiện tại của bãi ("NeverReported" | "Fresh" | "Stale").
+   */
+  getOperationalStatus: async (
+    lotId: number
+  ): Promise<{
+    parkingLotId: number;
+    lotName: string;
+    status: string;
+    isDataStale: boolean;
+    lastHeartbeatAtUtc: string | null;
+    staleAfterMinutes: number;
+  }> => {
+    const response = await apiClient.get(
+      `/api/v1/parking-lots/${lotId}/operations/status`
+    );
+    return response.data;
+  },
 };

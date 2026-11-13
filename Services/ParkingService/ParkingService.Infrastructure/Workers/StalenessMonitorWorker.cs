@@ -1,82 +1,77 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using ParkingManagement.SharedKernel.Contracts;
-using ParkingService.Application.Features.LotOperations;
+using ParkingService.Application.Abstractions;
+using ParkingService.Application.Features.LotHeartbeat;
+using ParkingService.Domain;
 
 namespace ParkingService.Infrastructure.Workers;
 
 /// <summary>
-/// US-068: worker nền định kỳ quét các bãi Active quá hạn heartbeat → chuyển stale +
-/// phát LotDataMarkedStale (NotificationService cảnh báo chủ bãi, dashboard hiển thị "dữ liệu cũ").
-/// Mỗi lượt quét tạo 1 DI scope riêng — repo + publisher trong scope dùng chung ParkingDbContext
-/// nên mark-stale + outbox flush atomic. Heartbeat resume (LotDataRecovered) do
-/// RecordHeartbeatUseCase phát khi thiết bị quay lại, worker không lo phần đó.
+/// US-068: BackgroundService quét mọi bãi Active mỗi <see cref="LotHeartbeatSettings.PollSeconds"/> giây;
+/// quá <see cref="LotHeartbeatSettings.StaleAfterMinutes"/> không heartbeat → MarkStale() + phát
+/// LotDataMarkedStale qua outbox (idempotent: chỉ phát đúng một lần cho mỗi lần chuyển Fresh → Stale).
+/// Heartbeat mới nhận được sẽ tự phục hồi stale và phát LotDataRecovered tại use case ghi nhận heartbeat.
 /// </summary>
 public sealed class StalenessMonitorWorker(
     IServiceScopeFactory scopeFactory,
-    IOptions<StalenessOptions> options,
-    TimeProvider timeProvider,
+    LotHeartbeatSettings settings,
+    TimeProvider clock,
     ILogger<StalenessMonitorWorker> logger) : BackgroundService
 {
-    private readonly StalenessOptions _options = options.Value;
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "🛰 StalenessMonitorWorker khởi động: quét mỗi {PollSeconds}s, stale sau {StaleAfterMinutes} phút không heartbeat.",
-            _options.PollSeconds, _options.StaleAfterMinutes);
+            "StalenessMonitorWorker khởi động: PollSeconds={PollSeconds}, StaleAfterMinutes={StaleAfterMinutes}",
+            settings.PollSeconds, settings.StaleAfterMinutes);
 
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(5, _options.PollSeconds)));
-        try
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(Math.Max(5, settings.PollSeconds)));
+        while (!stoppingToken.IsCancellationRequested)
         {
-            while (await timer.WaitForNextTickAsync(stoppingToken))
+            try
             {
-                try
-                {
-                    await EvaluateAllAsync(stoppingToken);
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    // Lỗi tạm thời (DB timeout…) — vòng sau quét lại, transition idempotent nên không lo lặp.
-                    logger.LogError(ex, "StalenessMonitorWorker lượt quét hiện tại thất bại, thử lại ở vòng sau.");
-                }
+                if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
+                await SweepAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                // Một lượt quét lỗi không được phép làm worker chết – lượt sau sẽ quét lại.
+                logger.LogError(ex, "StalenessMonitorWorker: lượt quét stale thất bại, sẽ thử lại ở chu kỳ kế tiếp.");
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { /* shutdown */ }
+
+        logger.LogInformation("StalenessMonitorWorker đã dừng.");
     }
 
-    /// <summary>Quét 1 lượt toàn bộ bãi Active. Trả về số bãi vừa chuyển sang stale.</summary>
-    public async Task<int> EvaluateAllAsync(CancellationToken cancellationToken = default)
+    /// <summary>Điểm vào cho unit test – chạy một lượt quét ngay (không qua timer).</summary>
+    public Task SweepForTest(CancellationToken cancellationToken = default) => SweepAsync(cancellationToken);
+
+    private async Task SweepAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var repository = scope.ServiceProvider.GetRequiredService<ILotOperationsRepository>();
-        var events = scope.ServiceProvider.GetRequiredService<ILotEventPublisher>();
+        var stalenessRepository = scope.ServiceProvider.GetRequiredService<ILotStalenessRepository>();
 
-        var lots = await repository.GetActiveLotsAsync(cancellationToken);
-        var threshold = TimeSpan.FromMinutes(_options.StaleAfterMinutes);
-        var now = timeProvider.GetUtcNow().UtcDateTime;
-        var transitions = 0;
+        var nowUtc = clock.GetUtcNow().UtcDateTime;
+        var events = new List<IntegrationEvent>();
 
-        foreach (var lot in lots)
+        foreach (var lot in await stalenessRepository.ListActiveAsync(cancellationToken))
         {
-            if (!lot.MarkStaleIfOverdue(now, threshold))
-                continue;
-
-            transitions++;
-            events.Enqueue(new LotDataMarkedStale(lot.Id, lot.Name, lot.OwnerProfileId, lot.LastHeartbeatAtUtc, now));
-            logger.LogWarning("🟠 Lot {LotId} ({LotName}) chuyển STALE: heartbeat cuối {LastHeartbeatAtUtc:O}.",
-                lot.Id, lot.Name, lot.LastHeartbeatAtUtc);
+            if (StalenessEvaluator.IsStale(lot.LastHeartbeatAtUtc, settings.StaleAfter, nowUtc) && lot.MarkStale())
+                events.Add(new LotDataMarkedStale(lot.Id, lot.Name, lot.OwnerProfileId, lot.LastHeartbeatAtUtc, nowUtc));
         }
 
-        if (transitions > 0)
-            await repository.SaveChangesAsync(cancellationToken);
-
-        return transitions;
+        if (events.Count > 0)
+        {
+            await stalenessRepository.SaveWithEventsAsync(events, cancellationToken);
+            logger.LogWarning(
+                "US-068 đánh dấu {Count} bãi stale (StaleAfterMinutes={StaleAfterMinutes}): {LotIds}",
+                events.Count, settings.StaleAfterMinutes,
+                string.Join(',', events.Cast<LotDataMarkedStale>().Select(e => e.ParkingLotId)));
+        }
     }
 }
