@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminLotsApi } from '@/api/adminLotsApi';
 import type { AdminLotOccupancyRow, AdminLotSummaryRow } from '@/types/adminLots';
-import { ListScreen } from '../../../components/PageLayout';
 import { Banner } from '../../../components/Banner';
 import { FilterColumn, FilterPanel } from '../../../components/FilterColumn';
 import { SearchBox, ToolbarRow, ToolbarSelect } from '../../../components/Toolbar';
@@ -15,6 +14,7 @@ import { DEFAULT_PAGE_SIZE, useListParams } from '../../../hooks/useListParams';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatNumber, formatPercent, formatTimeIct } from '../../../utils/format';
 import { LOT_FLAGS, LOT_STATUSES, countBy, distinct, filterLots, type LotListFilters } from './lotListFilters';
+import { ListScreen, QueryIssueState } from '../../../components/PageLayout';
 
 const BASE = '/admin/operations/parking-lots';
 
@@ -106,6 +106,10 @@ export const ParkingLotsListPage: React.FC = () => {
         return <StateBlock type="empty" title="No parking lots yet" message="Lots appear here after an owner registers them." bare />;
       case 'forbidden':
         return <StateBlock type="noPermission" message="Only administrators can view all parking lots." bare />;
+      case 'notFound':
+      case 'offline':
+      case 'sessionExpired':
+        return <QueryIssueState status={summary.status} error={summary.error} onRetry={summary.refetch} bare />;
       case 'error':
       case 'unavailable':
         return (

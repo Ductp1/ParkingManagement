@@ -33,9 +33,12 @@
     --admin-text-placeholder: #74777f;
     --admin-text-on-navy: #ffffff;
     --admin-text-on-navy-muted: #adc7f7;
-    /* status (dot + text) */
-    --admin-status-success: #16a34a;
-    --admin-status-warning: #d97706;
+    /* status – chấm / thanh / viền (≥ 3:1 trên mọi nền surface) */
+    --admin-status-success: #16a149;
+    --admin-status-warning: #d27306;
+    /* status – CHỮ (≥ 4.5:1 trên mọi nền surface, WCAG AA) */
+    --admin-status-success-text: #15803d;
+    --admin-status-warning-text: #b45309;
     --admin-status-danger: #dc2626;
     --admin-status-info: #1a365d;
     /* chart */
@@ -98,5 +101,24 @@
     mask-repeat: no-repeat;
     -webkit-mask-size: 100% 100%;
     mask-size: 100% 100%;
+  }
+}
+
+/*
+ * Focus bàn phím (T-801): mọi phần tử tương tác trong admin có viền focus rõ (≥ 3:1).
+ * Trong vùng nền navy (.adm-on-navy, vd. title bar) đổi sang trắng. Chuột không hiện viền (:focus-visible).
+ */
+@layer components {
+  .admin-portal :focus-visible,
+  .admin-scope :focus-visible {
+    outline: 2px solid var(--admin-brand-navy-800);
+    outline-offset: 2px;
+  }
+  .admin-portal .adm-on-navy :focus-visible,
+  .admin-scope .adm-on-navy :focus-visible {
+    outline-color: var(--admin-text-on-navy);
+  }
+  .admin-portal tr[data-row-link]:focus-visible {
+    outline-offset: -2px;
   }
 }

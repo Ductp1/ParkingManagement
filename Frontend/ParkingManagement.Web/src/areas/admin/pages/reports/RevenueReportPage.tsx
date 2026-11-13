@@ -14,6 +14,7 @@ import { displayDate } from '../finance/commission/commissionPeriod';
 import { RevenueDailyChart } from './RevenueDailyChart';
 import { REVENUE_PERIOD_OPTIONS, resolveRevenueRange, share } from './revenuePeriod';
 import { useLotNames } from './useLotNames';
+import { QueryIssueState } from '../../components/PageLayout';
 
 const TOP_LOTS = 10;
 const LOT_DETAIL = '/admin/operations/parking-lots';
@@ -36,7 +37,7 @@ const Kpis: React.FC<{ data: AdminCommissionSummaryDto | null; loading: boolean 
   const refundShare = t ? share(t.refundedAmount, t.grossAmount) : null;
   const commissionNote =
     t && t.pendingCount > 0 ? (
-      <span className="adm-type-kpi-delta text-(--admin-status-warning)">
+      <span className="adm-type-kpi-delta text-(--admin-status-warning-text)">
         {`Not final · ${formatNumber(t.pendingCount)} ${t.pendingCount === 1 ? 'payment' : 'payments'} not calculated yet`}
       </span>
     ) : undefined;
@@ -122,6 +123,10 @@ export const RevenueReportPage: React.FC = () => {
     switch (query.status) {
       case 'forbidden':
         return <StateBlock type="noPermission" message="Only administrators can view platform revenue." />;
+      case 'notFound':
+      case 'offline':
+      case 'sessionExpired':
+        return <QueryIssueState status={query.status} error={query.error} onRetry={query.refetch} />;
       case 'error':
       case 'unavailable':
         return (

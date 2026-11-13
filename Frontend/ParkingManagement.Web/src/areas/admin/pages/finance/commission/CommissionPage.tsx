@@ -34,6 +34,7 @@ import {
   type CommissionSourceRow,
 } from './commissionRows';
 import { useCommissionData, type SourceQuery } from './useCommissionData';
+import { isQueryFailure } from '../../../utils/queryStatus';
 
 export type CommissionTab = 'lots' | 'owners' | 'sources';
 
@@ -59,7 +60,7 @@ const Pending: React.FC<{ count: number | null | undefined }> = ({ count }) =>
   count === null || count === undefined ? (
     <CellMuted>{EMPTY}</CellMuted>
   ) : count > 0 ? (
-    <span className="adm-type-body-strong whitespace-nowrap text-(--admin-status-warning)" title={PENDING_HINT}>
+    <span className="adm-type-body-strong whitespace-nowrap text-(--admin-status-warning-text)" title={PENDING_HINT}>
       {formatNumber(count)} chờ tính
     </span>
   ) : (
@@ -173,7 +174,7 @@ const KpiGrid: React.FC<{ totals: AdminCommissionTotalsDto | null; status: Sourc
   );
   const pending = totals?.pendingCount ?? 0;
   const pendingNote = pending > 0 && (
-    <span className="adm-type-kpi-delta text-(--admin-status-warning)" title={PENDING_HINT}>
+    <span className="adm-type-kpi-delta text-(--admin-status-warning-text)" title={PENDING_HINT}>
       {PENDING_HINT}
     </span>
   );
@@ -185,7 +186,7 @@ const KpiGrid: React.FC<{ totals: AdminCommissionTotalsDto | null; status: Sourc
       {tile('Đã hoàn', totals?.refundedAmount, formatVnd)}
       {tile('Doanh thu thuần', totals?.netAmount, formatVnd)}
       {tile('Hoa hồng', totals?.commissionAmount, formatVnd, pending > 0 && (
-        <span className="adm-type-kpi-delta text-(--admin-status-warning)" title={PENDING_HINT}>
+        <span className="adm-type-kpi-delta text-(--admin-status-warning-text)" title={PENDING_HINT}>
           Chưa đủ · còn {formatNumber(pending)} giao dịch chờ tính
         </span>
       ))}
@@ -343,12 +344,12 @@ export const CommissionPage: React.FC<{ tab: CommissionTab }> = ({ tab }) => {
           Thiếu thông tin một số bãi từ ParkingService – chỉ hiện các bãi có hợp đồng đã ký.{rates.data.partialReason ? ` (${rates.data.partialReason})` : ''}
         </Banner>
       )}
-      {(rates.status === 'error' || rates.status === 'unavailable' || rates.status === 'forbidden') && (
+      {rates.status !== 'idle' && isQueryFailure(rates.status) && (
         <Banner tone="danger" action={<AdminButton variant="secondary" onClick={rates.retry}>Thử lại</AdminButton>}>
           Không tải được tỷ lệ hoa hồng (AdminService): {rates.error?.message}
         </Banner>
       )}
-      {(summary.status === 'error' || summary.status === 'unavailable' || summary.status === 'forbidden') && (
+      {summary.status !== 'idle' && isQueryFailure(summary.status) && (
         <Banner tone="danger" action={<AdminButton variant="secondary" onClick={summary.retry}>Thử lại</AdminButton>}>
           Không tải được số hoa hồng (PaymentService): {summary.error?.message}
         </Banner>

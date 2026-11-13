@@ -9,6 +9,7 @@ import { ADMIN_HOME_PATH, resolveAdminLocation } from '../navigation';
 import type { AdminOutletContext } from '../hooks/useAdminBreadcrumb';
 import { useAdminQuery } from '../hooks/useAdminQuery';
 import { usePageEnter } from '../hooks/usePageEnter';
+import { useAdminSessionExpiry } from '../hooks/useAdminSessionExpiry';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminToastProvider } from '../components/AdminToastProvider';
@@ -31,6 +32,8 @@ export const AdminLayout: React.FC = () => {
   const mainRef = useRef<HTMLElement>(null);
   // Chuyển trang: nội dung chính fade + dịch lên, shell đứng yên (WAAPI, không remount màn).
   usePageEnter(mainRef, pathname);
+
+  useAdminSessionExpiry();
 
   const me = useAdminQuery(() => adminUsersApi.getCurrentUser(), []);
   const userId = me.data?.id ?? storeUser?.id ?? null;

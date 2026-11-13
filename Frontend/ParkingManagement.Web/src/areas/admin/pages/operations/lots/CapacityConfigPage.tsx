@@ -18,6 +18,8 @@ import { formatDateTimeIct, formatNumber } from '../../../utils/format';
 import { CapacityForm } from './CapacityForm';
 import { CapacityUsagePanel } from './CapacityUsagePanel';
 import { capacityWarnings, checkForm, fieldErrorText, toCapacityFailure, valuesFrom } from './capacityCopy';
+import { QueryIssueState } from '../../../components/PageLayout';
+import { isQueryIssue } from '../../../utils/queryStatus';
 
 const NO_TOUCH: Record<CapacityFieldName, boolean> = { capacity: false, transientBuffer: false, subscriberQuota: false };
 
@@ -176,6 +178,7 @@ const LotCapacityEditor: React.FC<{ lotId: number; lotName: string }> = ({ lotId
   };
 
   if (query.status === 'forbidden') return <StateBlock type="noPermission" message="Only administrators can change lot capacity." />;
+  if (isQueryIssue(query.status)) return <QueryIssueState status={query.status} error={query.error} onRetry={query.refetch} />;
   if (query.status === 'error' || query.status === 'unavailable') {
     return (
       <StateBlock

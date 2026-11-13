@@ -6,6 +6,7 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTimeIct, formatNumber } from '../../../utils/format';
 import { isOpenRequest, loadUserDataRequests, requestCode } from './userDataRequests';
+import { QueryIssueState } from '../../../components/PageLayout';
 
 const DSR_PAGE = '/admin/access/security-privacy';
 
@@ -38,6 +39,10 @@ export const UserDataRequestsPanel: React.FC<{ userId: number }> = ({ userId }) 
         );
       case 'forbidden':
         return <StateBlock type="noPermission" bare className="min-h-0 py-4" message="Only administrators can see data requests." />;
+      case 'notFound':
+      case 'offline':
+      case 'sessionExpired':
+        return <QueryIssueState status={query.status} error={query.error} onRetry={query.refetch} bare className="min-h-0 py-4" />;
       case 'error':
       case 'unavailable':
         return (

@@ -6,7 +6,6 @@ import type { AdminApiError } from '@/api/adminClientApi';
 import type { AdminQueryStatus } from '@/types/adminCommon';
 import type { RateCardDto } from '@/types/adminLots';
 import { Panel } from '../../../components/Panel';
-import { DetailColumns, QueryState } from '../../../components/PageLayout';
 import { DetailList, DetailRow } from '../../../components/DetailRow';
 import { StateBlock } from '../../../components/StateBlock';
 import { StatusIndicator } from '../../../components/StatusIndicator';
@@ -15,6 +14,7 @@ import { humanizeEnum } from '../../../utils/enumLabels';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { formatDate, formatDateTimeIct, formatNumber, formatVnd } from '../../../utils/format';
 import { CLOSURE_LABEL, band, hoursText, mondayFirst, multiplier, sortClosures } from './lotDetailFormat';
+import { DetailColumns, QueryState, QueryIssueState } from '../../../components/PageLayout';
 
 /**
  * Operations / Parking Lots / Detail – 4 sub-tab chỉ đọc (P0-4, US-081): Capacity, Hours & Closures, Amenities & Photos, Pricing.
@@ -39,6 +39,10 @@ const TabState: React.FC<TabStateProps> = ({ status, error, onRetry, emptyTitle,
       return <StateBlock type="empty" title={emptyTitle} message={emptyMessage} />;
     case 'forbidden':
       return <StateBlock type="noPermission" message="Only administrators can view this lot's settings." />;
+    case 'notFound':
+    case 'offline':
+    case 'sessionExpired':
+      return <QueryIssueState status={status} error={error} onRetry={onRetry} />;
     case 'error':
     case 'unavailable':
       return (

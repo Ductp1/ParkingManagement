@@ -4,7 +4,8 @@ import { adminLotsApi } from '@/api/adminLotsApi';
 import type { AdminLotSummaryRow, LotAttributesDto } from '@/types/adminLots';
 import { AdminTitleBar } from '../../../layout/AdminTitleBar';
 import { Banner } from '../../../components/Banner';
-import { DetailColumns, SummaryRow } from '../../../components/PageLayout';
+import { DetailColumns, QueryIssueState, SummaryRow } from '../../../components/PageLayout';
+import { isQueryIssue } from '../../../utils/queryStatus';
 import { DetailList, DetailRow } from '../../../components/DetailRow';
 import { Panel } from '../../../components/Panel';
 import { StateBlock } from '../../../components/StateBlock';
@@ -79,6 +80,8 @@ export const NonPublicLotDetail: React.FC<{ lotId: number; tab: string }> = ({ l
           </div>
         ) : status === 'forbidden' ? (
           <StateBlock type="noPermission" message="Only administrators can view this lot." />
+        ) : isQueryIssue(status) ? (
+          <QueryIssueState status={status} error={lots.query.error} onRetry={lots.query.refetch} notFoundTitle="Parking lot not found" />
         ) : (
           <StateBlock
             type="error"

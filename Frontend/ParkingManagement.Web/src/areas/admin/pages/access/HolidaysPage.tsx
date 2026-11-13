@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { adminHolidaysApi } from '@/api/adminHolidaysApi';
 import type { HolidayDto } from '@/types/adminHolidays';
-import { ListScreen } from '../../components/PageLayout';
 import { ActionDialog } from '../../components/ActionDialog';
 import { AdminButton } from '../../components/AdminButton';
 import { CellMuted, CellText, CellTwoLine, DataTable, type DataTableColumn } from '../../components/DataTable';
@@ -13,6 +12,7 @@ import { useAdminToast } from '../../hooks/useAdminToast';
 import { useListParams } from '../../hooks/useListParams';
 import { formatNumber } from '../../utils/format';
 import { MAX_HOLIDAY_YEAR, MIN_HOLIDAY_YEAR, currentIctYear, formatHolidayDate, holidayWeekday, holidayYearOptions, parseHolidayYear } from './holidayFormat';
+import { ListScreen, QueryIssueState } from '../../components/PageLayout';
 
 /** Tên ngày lễ tối đa 100 ký tự (cột Holidays.Name của PaymentDb). */
 const NAME_MAX_LENGTH = 100;
@@ -102,6 +102,10 @@ export const HolidaysPage: React.FC = () => {
         return <StateBlock type="empty" title={`No holidays in ${year}`} message="Add the public holidays for this year so holiday rates apply on those dates." bare />;
       case 'forbidden':
         return <StateBlock type="noPermission" message="Only administrators can manage holidays." bare />;
+      case 'notFound':
+      case 'offline':
+      case 'sessionExpired':
+        return <QueryIssueState status={query.status} error={query.error} onRetry={query.refetch} bare />;
       case 'error':
       case 'unavailable':
         return (

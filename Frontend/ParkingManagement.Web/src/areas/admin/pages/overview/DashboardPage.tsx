@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { AdminTitleBar } from '../../layout/AdminTitleBar';
 import { AdminButton } from '../../components/AdminButton';
 import { KpiStrip } from '../../components/KpiTile';
-import { DetailColumns } from '../../components/PageLayout';
+import { DetailColumns, QueryIssueState } from '../../components/PageLayout';
+import { isQueryIssue } from '../../utils/queryStatus';
 import { Panel } from '../../components/Panel';
 import { StateBlock } from '../../components/StateBlock';
 import { formatClockIct, formatDate, formatDateTimeIct, formatNumber, formatVnd, ictDateParam } from '../../utils/format';
@@ -239,6 +240,8 @@ export const DashboardPage: React.FC = () => {
         {liveRegion}
         {query.status === 'forbidden' ? (
           <StateBlock type="noPermission" title="Không có quyền xem dashboard" message={query.error?.message} />
+        ) : isQueryIssue(query.status) ? (
+          <QueryIssueState status={query.status} error={query.error} onRetry={refresh} />
         ) : (
           <StateBlock
             type="error"
