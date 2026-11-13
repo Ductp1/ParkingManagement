@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 using PaymentService.Application.Features;
 using PaymentService.Application.Features.Reports;
@@ -35,6 +36,10 @@ public static class DependencyInjection
         services.AddScoped<IRefundRepository, RefundRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IVnpayGateway, VnpayGateway>();
+        // US-083: PaymentSucceeded/PaymentFailed đã ghi OutboxMessages từ IPN use case —
+        // chỉ cần bật event bus + dispatcher để event chảy tới BookingService/NotificationService.
+        services.AddRabbitMqEventBus(configuration);
+        services.AddHostedService<ParkingManagement.ServiceDefaults.Messaging.OutboxDispatcher<PaymentDbContext>>();
         return services;
     }
 }

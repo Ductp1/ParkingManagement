@@ -3,6 +3,8 @@ import * as SignalR from '@microsoft/signalr';
 
 /**
  * US-065/US-066 – Hub SignalR nhận cập nhật slot & sức chứa theo bãi xe.
+ * US-067/068/069/086 – thêm event "LotStatusChanged" (emergency stop/lift, stale/recovered)
+ * để dashboard vận hành cập nhật tức thì thay vì chờ chu kỳ poll 30s.
  * Gọi TRỰC TIẾP :5106 vì Gateway chưa có route /hubs/* (xem useNotificationHub.ts).
  * Event "CapacityChanged" → cập nhật số chỗ trống real-time không cần F5.
  */
@@ -19,9 +21,26 @@ export interface CapacityChangedEvent {
   timestampUtc: string;
 }
 
-export const useParkingHub = (lotId: number, onCapacityChanged?: (event: CapacityChangedEvent) => void): void => {
+/** US-067/068/069/086: payload event "LotStatusChanged" (khớp LotStatusMessage của NotificationService). */
+export interface LotStatusChangedEvent {
+  lotId: number;
+  lotName: string;
+  status: string;
+  emergencyStopped: boolean;
+  emergencyReason?: string | null;
+  isDataStale: boolean;
+  timestampUtc: string;
+}
+
+export const useParkingHub = (
+  lotId: number,
+  onCapacityChanged?: (event: CapacityChangedEvent) => void,
+  onLotStatusChanged?: (event: LotStatusChangedEvent) => void,
+): void => {
   const callbackRef = useRef(onCapacityChanged);
   callbackRef.current = onCapacityChanged;
+  const statusCallbackRef = useRef(onLotStatusChanged);
+  statusCallbackRef.current = onLotStatusChanged;
 
   useEffect(() => {
     let stopped = false;
@@ -34,6 +53,10 @@ export const useParkingHub = (lotId: number, onCapacityChanged?: (event: Capacit
 
     connection.on('CapacityChanged', (msg: CapacityChangedEvent) => {
       if (msg.lotId === lotId) callbackRef.current?.(msg);
+    });
+
+    connection.on('LotStatusChanged', (msg: LotStatusChangedEvent) => {
+      if (msg.lotId === lotId) statusCallbackRef.current?.(msg);
     });
 
     const subscribe = async (): Promise<void> => {
@@ -54,7 +77,7 @@ export const useParkingHub = (lotId: number, onCapacityChanged?: (event: Capacit
         await connection.start();
         await subscribe();
       } catch {
-        if (!stopped) window.setTimeout(() => { void start(); }, 5000);
+        if (!stopped) window.setTimeout(() => { if (!stopped) void start(); }, 5000);
       }
     };
     void start();

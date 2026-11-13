@@ -143,4 +143,44 @@ public class LotAdmissionGateDbTests
             await DropDbAsync(cs);
         }
     }
+
+    [Fact]
+    public async Task Emergency_stopped_lot_refused_and_fail_open_when_provider_down()
+    {
+        var cs = await CreateScratchDbAsync();
+        try
+        {
+            await SeedAsync(cs, capacity: 5, buffer: 5, total: 0, transient: 0);
+
+            await using (var db = new GateDbContext(Options(cs)))
+            {
+                // US-069: bãi đang TẠM ĐÓNG KHẨN CẤP → từ chối, KHÔNG đụng bộ đếm admission.
+                var stopped = new LotAdmissionGate(db, new FixedStatusProvider(
+                    new LotOperationalStatusSnapshot(3, "Bãi 3", "Suspended", EmergencyStopped: true, "Sự cố cháy")));
+                var (admitted, reason) = await stopped.TryAdmitAsync(3, AdmissionType.Transient);
+                Assert.False(admitted);
+                Assert.Equal(AdmissionRejectReasons.LotEmergencyStopped, reason);
+
+                // FAIL-OPEN: ParkingService chết (provider trả null) → admission vẫn chạy theo luật US-066.
+                var failOpen = new LotAdmissionGate(db, new FixedStatusProvider(null));
+                var (admittedAfter, reasonAfter) = await failOpen.TryAdmitAsync(3, AdmissionType.Transient);
+                Assert.True(admittedAfter);
+                Assert.Null(reasonAfter);
+            }
+
+            await using var verify = new GateDbContext(Options(cs));
+            var counter = await verify.LotAdmissionCounters.SingleAsync(c => c.ParkingLotId == 3);
+            Assert.Equal(1, counter.Total); // chỉ đúng lượt fail-open được nhận chỗ
+        }
+        finally
+        {
+            await DropDbAsync(cs);
+        }
+    }
+
+    private sealed class FixedStatusProvider(LotOperationalStatusSnapshot? snapshot) : ILotOperationalStatusProvider
+    {
+        public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(snapshot);
+    }
 }

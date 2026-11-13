@@ -19,6 +19,11 @@ const NOTIFICATION_ICONS: Record<string, { icon: string; color: string }> = {
   PAYMENT_FAILED: { icon: 'money_off', color: 'bg-red-100 text-red-600' },
   COMPLAINT_CREATED: { icon: 'support_agent', color: 'bg-orange-100 text-orange-600' },
   COMPLAINT_RESOLVED: { icon: 'task_alt', color: 'bg-emerald-100 text-emerald-600' },
+  // US-086: cảnh báo khẩn cấp đa kênh (đóng/mở bãi) + US-068 stale/recovered.
+  EMERGENCY_CLOSURE: { icon: 'report', color: 'bg-red-100 text-red-600' },
+  LOT_EMERGENCY_LIFTED: { icon: 'lock_open', color: 'bg-emerald-100 text-emerald-600' },
+  LOT_DATA_STALE: { icon: 'wifi_off', color: 'bg-amber-100 text-amber-600' },
+  LOT_DATA_RECOVERED: { icon: 'wifi', color: 'bg-emerald-100 text-emerald-600' },
 };
 const DEFAULT_NOTIFICATION_ICON = { icon: 'notifications', color: 'bg-slate-100 text-slate-600' };
 

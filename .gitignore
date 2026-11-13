@@ -524,3 +524,6 @@ lerna-debug.log*
 # Local certificates and private keys
 *.p12
 *.pfx
+
+# Backup cua appsettings.Local (tranh leak password RabbitMQ local)
+**/appsettings.*.bak

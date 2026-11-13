@@ -1,9 +1,9 @@
 name: CI
 
-# CI cho toàn hệ thống microservice:
-#   build           → solution compile được (gồm cả project API không có test riêng)
-#   unit-tests      → 9 job song song, mỗi service 1 job (mỗi người theo dõi service của mình)
-#   integration     → WebApplicationFactory + SQL Server 2022 (service container), DB riêng cho từng service host
+# CI cho toan bo he thong microservice:
+#   build           -> solution compile duoc (gom ca project API khong co test rieng)
+#   unit-tests      -> 9 job song song, moi service 1 job (moi nguoi theo doi service cua minh)
+#   integration     -> WebApplicationFactory + SQL Server 2022 (service container), DB rieng cho tung service host
 on:
   pull_request:
     branches: [main, develop]
@@ -17,6 +17,8 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # CI khong co RabbitMQ -> tat EventBus cho moi host service (WebApplicationFactory van start duoc).
+  EventBus__Enabled: "false"
 
 jobs:
   build:
@@ -35,15 +37,15 @@ jobs:
       - name: Build
         run: dotnet build ParkingManagement.slnx -c Release --no-restore --nologo
 
-  # Xác định service nào có code thay đổi để chỉ chạy unit test của các service đó.
-  # - pull_request: dorny/paths-filter so sánh PR với base branch (dùng GitHub API lấy danh sách file thay đổi)
-  # - push thẳng vào main/develop, hoặc thay đổi code dùng chung (BuildingBlocks, Directory.Build.props,
-  #   solution, CI workflow) → chạy unit test của TẤT CẢ service (giữ hành vi an toàn như cũ)
+  # Xac dinh service nao co code thay doi de chi chay unit test cua cac service do.
+  # - pull_request: dorny/paths-filter so sanh PR voi base branch (dung GitHub API lay danh sach file thay doi)
+  # - push thang vao main/develop, hoac thay doi code dung chung (BuildingBlocks, Directory.Build.props,
+  #   solution, CI workflow) -> chay unit test cua TAT CA service (giu hanh vi an toan nhu cu)
   changes:
     name: Detect changed services
     runs-on: ubuntu-latest
     outputs:
-      # JSON dùng làm dynamic matrix cho job unit-tests, ví dụ: {"service":["UserService"]}
+      # JSON dung lam dynamic matrix cho job unit-tests, vi du: {"service":["UserService"]}
       services: ${{ steps.matrix.outputs.services }}
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +73,7 @@ jobs:
               - 'Services/AdminService/**'
             SupportService:
               - 'Services/SupportService/**'
-            # Code/ảnh hưởng dùng chung cho mọi service
+            # Code/anh huong dung chung cho moi service
             shared:
               - 'BuildingBlocks/**'
               - 'Directory.Build.props'
@@ -83,26 +85,25 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           CHANGED_SERVICES: ${{ steps.filter.outputs.changes }}   # JSON array, vd: ["UserService"]
-          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" nếu code dùng chung thay đổi
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" neu code dung chung thay doi
         run: |
           ALL='["UserService","VehicleService","ParkingService","BookingService","PaymentService","NotificationService","GateService","AdminService","SupportService"]'
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$SHARED_CHANGED" != "true" ]; then
-            # PR chỉ đụng service cụ thể → chỉ test các service đó
+            # PR chi dung service cu the -> chi test cac service do
             services="{\"service\":${CHANGED_SERVICES:-[]}}"
           else
             services="{\"service\":$ALL}"
           fi
           echo "services=$services" >> "$GITHUB_OUTPUT"
-
   unit-tests:
-    name: Unit tests – ${{ matrix.service }}
+    name: Unit tests - ${{ matrix.service }}
     needs: [build, changes]
     runs-on: ubuntu-latest
     environment: environment
 
-    # US-066: GateService.Test có 3 test chạy trên PostgreSQL thật (LotAdmissionGateDbTests –
-    # kiểm chứng row-lock chống race condition, không thể giả lập trên InMemory). Job matrix
-    # dùng chung nên các service khác cũng có sẵn postgres (vô hại – không dùng tới).
+    # US-066: GateService.Test co 3 test chay tren PostgreSQL that (LotAdmissionGateDbTests -
+    # kiem chung row-lock chong race condition, khong the gia lap tren InMemory). Job matrix
+    # dung chung nen cac service khac cung co san postgres (vo hai - khong dung toi).
     services:
       postgres:
         image: postgres:17-alpine
@@ -116,15 +117,14 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-
     env:
       Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
-      # T-704: secret HMAC xác thực QR token check-in (BookingService ↔ GateService). Cùng tên với biến môi trường local.
+      # T-704: secret HMAC xac thuc QR token check-in (BookingService <-> GateService). Cung ten voi bien moi truong local.
       QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
     strategy:
-      fail-fast: false                       # 1 service đỏ không hủy service khác
-      # Matrix động từ job "changes": PR chỉ đổi service nào thì chỉ chạy unit test service đó.
-      # Matrix rỗng (PR không đụng service nào) → job này tự skip. Push thẳng/code dùng chung → chạy tất cả.
+      fail-fast: false                       # 1 service do khong huy service khac
+      # Matrix dong tu job "changes": PR chi doi service nao thi chi chay unit test service do.
+      # Matrix rong (PR khong dung service nao) -> job nay tu skip. Push thang/code dung chung -> chay tat ca.
       matrix: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
@@ -133,8 +133,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Unit test – đa số không cần database; riêng GateService có 3 test US-066 chạy trên
-      # PostgreSQL thật từ service container postgres khai báo ở trên (localhost:5432).
+      # Unit test - da so khong can database; rieng GateService co 3 test US-066 chay tren
+      # PostgreSQL that tu service container postgres khai bao o tren (localhost:5432).
       - name: Test
         run: >
           dotnet test Services/${{ matrix.service }}/${{ matrix.service }}.Test/${{ matrix.service }}.Test.csproj
@@ -156,12 +156,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     env:
-      # T-704: GateService đọc secret QR token từ biến môi trường – sẵn sàng khi GateService được
-      # thêm vào integration test. Lưu ý: secret phải là repository/organization secret
-      # (job này không khai báo `environment:` nên không thấy environment-scoped secrets).
+      # T-704: GateService doc secret QR token tu bien moi truong - san sang khi GateService duoc
+      # them vao integration test. Luu y: secret phai la repository/organization secret
+      # (job nay khong khai bao environment: nen khong thay environment-scoped secrets).
       QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
 
-    # PostgreSQL thật cho integration test (WebApplicationFactory → PostgreSQL qua localhost:5432)
+    # PostgreSQL that cho integration test (WebApplicationFactory -> PostgreSQL qua localhost:5432)
     services:
       postgres:
         image: postgres:17-alpine
@@ -175,7 +175,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-
     steps:
       - uses: actions/checkout@v4
 
@@ -183,8 +182,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Tạo sẵn DB riêng cho từng service host (mỗi DbContext có bảng __EFMigrationsHistory riêng,
-      # dùng chung 1 DB sẽ xung đột migration). Provider Npgsql không tự tạo database khi Migrate.
+      # Tao san DB rieng cho tung service host (moi DbContext co bang __EFMigrationsHistory rieng,
+      # dung chung 1 DB se xung dot migration). Provider Npgsql khong tu tao database khi Migrate.
       - name: Prepare databases
         run: |
           cid=$(docker ps -q --filter "ancestor=postgres:17-alpine" | head -n1)
@@ -192,8 +191,8 @@ jobs:
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_booking_ci;"
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_user_ci;"
 
-      # Ghi đè ConnectionStrings:ServiceDb bằng biến môi trường (ưu tiên cao hơn appsettings.json)
-      - name: Test – UserService (pm_user_ci)
+      # Ghi de ConnectionStrings:ServiceDb bang bien moi truong (uu tien cao hon appsettings.json)
+      - name: Test - UserService (pm_user_ci)
         env:
           TV1_TEST_DB: "Host=localhost;Port=5432;Database=pm_user_ci;Username=postgres;Password=postgres"
         run: >
@@ -203,7 +202,7 @@ jobs:
           --logger "trx;LogFileName=Integration_User.trx"
           --results-directory ./test-results
 
-      - name: Test – ParkingService (pm_parking_ci)
+      - name: Test - ParkingService (pm_parking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_parking_ci;Username=postgres;Password=postgres"
         run: >
@@ -213,7 +212,7 @@ jobs:
           --logger "trx;LogFileName=Integration_Parking.trx"
           --results-directory ./test-results
 
-      - name: Test – BookingService (pm_booking_ci)
+      - name: Test - BookingService (pm_booking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
         run: >
@@ -223,10 +222,10 @@ jobs:
           --logger "trx;LogFileName=Integration_Booking.trx"
           --results-directory ./test-results
 
-      # Test – 6 suite per-service còn lại (Vehicle, Payment, Notification, Gate, Admin, Support).
-      # Mỗi suite tự tạo database pm_it_* riêng rồi tự xóa khi chạy xong, nên không cần tạo sẵn DB ở "Prepare databases"
-      # (connection string dưới đây chỉ dùng host/port/user/password; tên database bị fixture ghi đè).
-      - name: Test – Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
+      # Test - 6 suite per-service con lai (Vehicle, Payment, Notification, Gate, Admin, Support).
+      # Moi suite tu tao database pm_it_* rieng roi tu xoa khi chay xong, nen khong can tao san DB o "Prepare databases"
+      # (connection string duoi day chi dung host/port/user/password; ten database bi fixture ghi de).
+      - name: Test - Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
         run: >

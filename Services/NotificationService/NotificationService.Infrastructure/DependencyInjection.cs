@@ -3,8 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 using NotificationService.Application.Features;
 using NotificationService.Application.Features.DeviceTokens;
 using NotificationService.Application.Features.Dispatcher;
+using NotificationService.Application.Features.Ingestion;
 using NotificationService.Application.Features.Notifications;
 using NotificationService.Application.Features.Preferences;
+using NotificationService.Application.Features.Reminders;
+using NotificationService.Infrastructure.Integrations;
 using NotificationService.Infrastructure.Persistence;
 using NotificationService.Infrastructure.Services.UserDirectory;
 using NotificationService.Infrastructure.Persistence.Queries;
@@ -16,6 +19,7 @@ using NotificationService.Infrastructure.Services.FcmSender;
 using NotificationService.Infrastructure.Services.InAppSender;
 using NotificationService.Infrastructure.Services.SmsSender;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace NotificationService.Infrastructure;
@@ -62,6 +66,35 @@ public static class DependencyInjection
 
         // Dispatcher orchestrator
         services.AddScoped<INotificationDispatcher, NotificationDispatcher>();
+
+        // ===== US-083→086 foundation: renderer i18n + settings ngôn ngữ + consumer integration events =====
+        services.AddScoped<ITemplateRenderer, DbTemplateRenderer>();
+        services.AddScoped<IUserNotificationSettingsPort, UserNotificationSettingsRepository>();
+        services.AddScoped<ITransactionalNotificationSender, DispatcherTransactionalNotificationSender>();
+        services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
+        services.AddScoped<IOwnerBookingNotifications, OwnerBookingNotifications>();
+        // ===== US-086: cảnh báo khẩn cấp đa kênh + tracking trạng thái gửi =====
+        services.AddScoped<Application.Features.Tracking.IDeliveryStatusReadStore, NotificationService.Infrastructure.Persistence.Queries.NotificationDeliveryStatusStore>();
+        services.AddScoped<Application.Features.Tracking.IGetDeliveryStatusUseCase, Application.Features.Tracking.GetDeliveryStatusUseCase>();
+
+        // ===== US-086: emergency đa kênh + tracking trạng thái gửi =====
+        services.AddSingleton(configuration.GetSection(EmergencyNotificationOptions.SectionName)
+            .Get<EmergencyNotificationOptions>() ?? new EmergencyNotificationOptions());
+        services.AddScoped<IEmergencyAlertStore, Persistence.Repositories.EmergencyAlertStore>();
+        services.AddScoped<IEmergencyDeliveryQueries, Persistence.Repositories.EmergencyAlertStore>();
+        services.AddScoped<IEmergencyNotifications, Application.Features.Ingestion.EmergencyNotifications>();
+
+        // ===== US-084: nhắc lịch booking (đặt/hủy/reschedule job + worker quét due) =====
+        services.Configure<ReminderOptions>(configuration.GetSection(ReminderOptions.SectionName));
+        // Use case nhận ReminderOptions trực tiếp → đăng ký cả instance (host DI validation cần).
+        services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ReminderOptions>>().Value);
+        services.AddScoped<Application.Features.Reminders.IReminderJobRepository, ReminderJobRepository>();
+        services.AddScoped<Application.Features.Reminders.IBookingReminderScheduler, Application.Features.Reminders.BookingReminderScheduler>();
+        services.AddHostedService<Workers.ReminderSchedulerWorker>();
+
+        // MassTransit + RabbitMQ: queue "notification.service" nhận event booking/payment/lot theo routing key
+        // (= EventType). TransactionalInbox chặn xử lý trùng theo EventId (idempotency US-083).
+        services.AddRabbitMqInboxConsumer<NotificationDbContext, NotificationIntegrationEventHandler>(configuration);
 
         return services;
     }

@@ -3,11 +3,15 @@ using NotificationService.API.Hubs;
 using NotificationService.API.Services;
 using NotificationService.Application;
 using NotificationService.Application.Features.Dispatcher;
+using NotificationService.Application.Features.Ingestion;
 using NotificationService.Infrastructure;
 using NotificationService.Infrastructure.Persistence;
 using ParkingManagement.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Ghi đè cấu hình máy local (RabbitMQ password...) — file bị gitignore, xem UserService.API cùng pattern.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddEnvironmentVariables();
 
 // ===== Composition Root: lắp ráp các layer của NotificationService =====
 builder.AddServiceDefaults("NotificationService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
@@ -15,9 +19,16 @@ builder.Services.AddNotificationApplication();                                  
 builder.Services.AddNotificationInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 builder.Services.AddSignalR();                                                  // SignalR for real-time notifications & parking lot updates
 
+// US-086: JWT do UserService phát hành (RS256) — chỉ endpoint emergency-alerts yêu cầu đăng nhập
+// ([Authorize] trên EmergencyAlertsController); các endpoint giữ nguyên hành vi cũ.
+builder.Services.AddJwtAuth(Path.GetFullPath(
+    builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
+
 // IInAppNotificationBroadcaster: implementation SignalR – BẮT BUỘC đăng ký,
 // nếu không resolve IInAppNotificationSender (Injected vào Dispatcher) sẽ nổ runtime.
 builder.Services.AddScoped<IInAppNotificationBroadcaster, SignalRInAppNotificationBroadcaster>();
+// US-067/086: broadcaster trạng thái bãi lên hub /hubs/parking (emergency stop, stale data).
+builder.Services.AddScoped<ILotHubBroadcaster, SignalRLotStatusBroadcaster>();
 
 var app = builder.Build();
 
@@ -30,6 +41,7 @@ using (var scope = app.Services.CreateScope())
     _ = sp.GetRequiredService<INotificationDispatcher>();       // Infrastructure: dispatcher + 4 channel senders
     _ = sp.GetRequiredService<IInAppNotificationSender>();      // Infrastructure: in-app sender
     _ = sp.GetRequiredService<IInAppNotificationBroadcaster>(); // API: SignalRInAppNotificationBroadcaster
+    _ = sp.GetRequiredService<ILotHubBroadcaster>();            // API: SignalRLotStatusBroadcaster (US-086)
 }
 
 // Tạo/cập nhật database riêng của service + nạp dữ liệu demo (bật/tắt trong appsettings → "Database").

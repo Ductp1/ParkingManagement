@@ -1,14 +1,19 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.ServiceDefaults;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 using ParkingService.Application.Abstractions;
 using ParkingService.Application.Features.KybMisdeclaration;
+using ParkingService.Application.Features.LotHeartbeat;
+using ParkingService.Application.Features.LotOperations;
+using ParkingService.Infrastructure.HttpClients;
 using ParkingService.Infrastructure.Integrations;
 using ParkingService.Infrastructure.Persistence;
 using ParkingService.Infrastructure.Persistence.Queries;
 using ParkingService.Infrastructure.Persistence.Repositories;
 using ParkingService.Infrastructure.Persistence.Seeding;
+using ParkingService.Infrastructure.Workers;
 
 namespace ParkingService.Infrastructure;
 
@@ -44,7 +49,38 @@ public static class DependencyInjection
         services.AddSingleton(new KybMisdeclarationSettings(
             configuration.GetValue<int?>($"{KybMisdeclarationSettings.SectionName}:MinorCorrectionDays")
             ?? KybMisdeclarationSettings.DefaultMinorCorrectionDays));
+        // US-068: ngưỡng stale ("LotHeartbeat:StaleAfterMinutes", 1–120, mặc định 3) + chu kỳ quét worker ("PollSeconds", 5–3600, mặc định 30).
+        services.AddSingleton(new LotHeartbeatSettings(
+            configuration.GetValue<int?>($"{LotHeartbeatSettings.SectionName}:StaleAfterMinutes")
+                ?? LotHeartbeatSettings.DefaultStaleAfterMinutes,
+            configuration.GetValue<int?>($"{LotHeartbeatSettings.SectionName}:PollSeconds")
+                ?? LotHeartbeatSettings.DefaultPollSeconds));
+        services.AddScoped<ILotStalenessRepository, LotStalenessRepository>();
+        // US-068: worker quét bãi Active quá hạn heartbeat → IsDataStale + event LotDataMarkedStale (outbox).
+        services.AddHostedService<StalenessMonitorWorker>();
         services.AddScoped<IDataSeeder<ParkingDbContext>, ParkingDataSeeder>();
+
+        // Lot Operations (US-067/068/069): repository + outbox publisher dùng CHUNG ParkingDbContext scope
+        // (use case Enqueue rồi SaveChanges → lot + audit log + outbox atomic).
+        services.AddScoped<ILotOperationsRepository, LotOperationsRepository>();
+        services.AddScoped<ILotEventPublisher, OutboxLotEventPublisher>();
+
+        // US-067/069: tra cứu booking của bãi từ BookingService qua HTTP nội bộ (mặc định :5104).
+        services.AddHttpClient<ILotBookingLookup, BookingServiceLotBookingLookup>((_, client) =>
+        {
+            client.BaseAddress = new Uri(configuration["BookingService:BaseUrl"] ?? "http://localhost:5104/");
+            client.Timeout = TimeSpan.FromSeconds(5); // đủ nhanh để emergency stop không bị treo khi BookingService chết
+        });
+
+        // US-067/068: dashboard dùng StalenessOptions (threshold phút không heartbeat) — worker stale đã đăng ký 1 lần ở trên.
+        services.Configure<StalenessOptions>(configuration.GetSection(StalenessOptions.SectionName));
+        services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<StalenessOptions>>().Value);
+
+        // US-069/068: publisher-only bus (không consumer) + OutboxDispatcher đẩy LotEmergencyStopped,
+        // LotDataMarkedStale/LotDataRecovered... sang NotificationService (at-least-once, EventId chống trùng).
+        services.AddRabbitMqEventBus(configuration);
+        services.AddHostedService<OutboxDispatcher<ParkingDbContext>>();
+
         return services;
     }
 }

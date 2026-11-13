@@ -25,6 +25,22 @@ export const adminOperationsApi = {
   getOwnerParkingLots: (ownerProfileId: number) =>
     adminRequest<OwnerParkingLotItemDto[]>({ method: 'GET', url: `/api/v1/parking-lots/owner/${ownerProfileId}` }),
 
+  /** ParkingService US-069 – đóng bãi khẩn cấp (reason ≥ 5 ký tự, confirm bắt buộc). */
+  emergencyStopLot: (id: number, reason: string) =>
+    adminRequest<{ status: string; affectedBookings: number; auditLogId?: string | null }>({
+      method: 'POST',
+      url: `/api/v1/parking-lots/${id}/emergency-stop`,
+      data: { reason, confirm: true },
+    }),
+
+  /** ParkingService US-069 – gỡ đóng bãi khẩn cấp. */
+  emergencyResumeLot: (id: number, reason: string) =>
+    adminRequest<{ status: string; auditLogId?: string | null }>({
+      method: 'POST',
+      url: `/api/v1/parking-lots/${id}/emergency-resume`,
+      data: { reason },
+    }),
+
   /** BookingService – chi tiết booking theo mã. */
   getBooking: (code: string) =>
     adminRequest<AdminBookingDetailDto>({ method: 'GET', url: `/api/v1/bookings/${encodeURIComponent(code)}` }),

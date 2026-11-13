@@ -1,6 +1,7 @@
 using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using BookingService.Domain.Rules;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 
@@ -82,6 +83,14 @@ public class CancellationPolicyTests
     {
         public override DateTimeOffset GetUtcNow() => new(utc, TimeSpan.Zero);
     }
+}
+
+/// <summary>US-083: fake publisher — capture event để test assert nội dung outbox (dùng chung cho namespace).</summary>
+internal sealed class FakeEventPublisher : IBookingEventPublisher
+{
+    public List<IntegrationEvent> Events { get; } = [];
+
+    public void Enqueue(IntegrationEvent integrationEvent) => Events.Add(integrationEvent);
 }
 
 /// <summary>
@@ -500,7 +509,7 @@ public class BookingFeaturesTests
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
         var qr = new QrTokenService();
-        var useCase = new ModifyBookingUseCase(repo, queries, qr, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeEventPublisher(), qr, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 5,
@@ -560,7 +569,7 @@ public class BookingFeaturesTests
         var qr = new QrTokenService();
         var clock = new FixedClock(FixedNow);
         var abuseGuard = new BookingAbuseGuard(new NoAbuseQueries(cancelled: 3), clock, new BookingAbuseOptions { MaxBookingActionsPerHour = 3 });
-        var useCase = new CreateBookingUseCase(repo, qr, abuseGuard, new NoPmsLotIntegration(), clock);
+        var useCase = new CreateBookingUseCase(repo, qr, new FakeEventPublisher(), abuseGuard, new NoPmsLotIntegration(), clock);
 
         var cmd = new CreateBookingCommand(
             UserId: 5, VehicleId: 1, PlateNumber: "51F-123.45", VehicleType: VehicleType.Sedan,
@@ -588,14 +597,17 @@ public class BookingFeaturesTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = NewCancelBookingUseCase(repo, clock);
+        var events = new FakeEventPublisher();
+        var useCase = new CancelBookingUseCase(repo, events, new BookingAbuseGuard(new NoAbuseQueries(), clock), clock);
 
         var result = await useCase.ExecuteAsync(booking.Code, new CancelBookingCommand(5, "Đổi lịch"));
 
         Assert.Equal(50000, result.RefundAmount);
-        Assert.Single(repo.OutboxMessages);
-        Assert.Equal("BookingCancelled", repo.OutboxMessages[0].EventType);
-        Assert.Contains("50000", repo.OutboxMessages[0].PayloadJson);
+        // Merge US-083 + US-038: duy nhất 1 event BookingCancelled qua outbox (RefundAmount phục vụ hoàn tiền,
+        // các trường bãi phục vụ thông báo cho chủ bãi — tránh ghi 2 outbox messages gây hoàn tiền kép).
+        var cancelledEvent = Assert.Single(events.Events);
+        Assert.Equal("BookingCancelled", cancelledEvent.GetType().Name);
+        Assert.Contains("50000", System.Text.Json.JsonSerializer.Serialize(cancelledEvent, cancelledEvent.GetType()));
     }
 
     [Fact]
@@ -647,10 +659,10 @@ public class BookingFeaturesTests
 
     /// <summary>CreateBookingUseCase với guard chống lạm dụng luôn cho phép (US-103) và PMS không cấu hình (US-052).</summary>
     private static CreateBookingUseCase NewCreateBookingUseCase(IBookingRepository repo, IQrTokenService qr, TimeProvider clock)
-        => new(repo, qr, new BookingAbuseGuard(new NoAbuseQueries(), clock), new NoPmsLotIntegration(), clock);
+        => new(repo, qr, new FakeEventPublisher(), new BookingAbuseGuard(new NoAbuseQueries(), clock), new NoPmsLotIntegration(), clock);
 
     private static CancelBookingUseCase NewCancelBookingUseCase(IBookingRepository repo, TimeProvider clock)
-        => new(repo, new BookingAbuseGuard(new NoAbuseQueries(), clock), clock);
+        => new(repo, new FakeEventPublisher(), new BookingAbuseGuard(new NoAbuseQueries(), clock), clock);
 
     private sealed class NoAbuseQueries(int created = 0, int cancelled = 0) : IBookingAbuseQueries
     {

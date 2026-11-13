@@ -24,12 +24,40 @@ public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNu
 public sealed record ParkingLotApproved(int ParkingLotId, int OwnerProfileId, string Name) : IntegrationEvent;
 public sealed record SlotStateChanged(int ParkingLotId, int SlotId, string SlotCode, string OldState, string NewState) : IntegrationEvent;
 public sealed record LayoutPublished(int ParkingLotId, int FloorId, int VersionNo) : IntegrationEvent;
+// ===== ParkingService – US-068 (heartbeat/stale data) + US-069 (emergency stop) =====
+/// <summary>1 booking bị ảnh hưởng khi đóng bãi khẩn cấp — payload US-069 → US-086 fan-out thông báo.</summary>
+public sealed record EmergencyAffectedBooking(int BookingId, string Code, int UserId, string Status, DateTime StartAtUtc, DateTime EndAtUtc);
+/// <summary>US-069: chủ bãi/Staff đóng bãi khẩn cấp → US-086 gửi thông báo đa kênh cho khách bị ảnh hưởng.</summary>
+public sealed record LotEmergencyStopped(int ParkingLotId, string LotName, int OwnerProfileId, int StoppedByUserId,
+    string Reason, DateTime StoppedAtUtc, IReadOnlyList<EmergencyAffectedBooking> AffectedBookings) : IntegrationEvent;
+/// <summary>US-069: gỡ đóng bãi khẩn cấp — bãi nhận booking/check-in trở lại.</summary>
+public sealed record LotEmergencyLifted(int ParkingLotId, string LotName, int OwnerProfileId, int LiftedByUserId,
+    string Reason, DateTime LiftedAtUtc) : IntegrationEvent;
+/// <summary>US-068: bãi quá hạn ngưỡng không nhận heartbeat → cảnh báo chủ bãi + dashboard hiện "dữ liệu cũ".</summary>
+public sealed record LotDataMarkedStale(int ParkingLotId, string LotName, int OwnerProfileId,
+    DateTime? LastHeartbeatAtUtc, DateTime DetectedAtUtc) : IntegrationEvent;
+/// <summary>US-068: heartbeat resume → tự khỏi trạng thái stale.</summary>
+public sealed record LotDataRecovered(int ParkingLotId, string LotName, int OwnerProfileId, DateTime HeartbeatAtUtc) : IntegrationEvent;
 
 // ===== BookingService =====
-public sealed record BookingCreated(int BookingId, string Code, int UserId, int ParkingLotId, int? SlotId, decimal TotalAmount, DateTime HoldExpiresAtUtc) : IntegrationEvent;
-public sealed record BookingConfirmed(int BookingId, string Code, int UserId, int ParkingLotId, int? SlotId) : IntegrationEvent;
-public sealed record BookingCancelled(int BookingId, string Code, int UserId, decimal RefundAmount, string Reason) : IntegrationEvent;
+// US-083/084/085: bổ sung trường theo kiểu additive (OwnerProfileId, ParkingLotName, thời gian, biển số)
+// để NotificationService render mẫu thông báo i18n mà không phải gọi ngược API của service khác.
+public sealed record BookingCreated(int BookingId, string Code, int UserId, int ParkingLotId, int OwnerProfileId, string ParkingLotName,
+    int? SlotId, string? SlotCode, string PlateNumber, DateTime StartAtUtc, DateTime EndAtUtc, decimal TotalAmount, DateTime HoldExpiresAtUtc) : IntegrationEvent;
+public sealed record BookingConfirmed(int BookingId, string Code, int UserId, int ParkingLotId, int OwnerProfileId, string ParkingLotName,
+    int? SlotId, string? SlotCode, string PlateNumber, DateTime StartAtUtc, DateTime EndAtUtc, decimal TotalAmount) : IntegrationEvent;
+public sealed record BookingCancelled(int BookingId, string Code, int UserId, int ParkingLotId, int OwnerProfileId, string ParkingLotName,
+    DateTime StartAtUtc, decimal RefundAmount, string Reason) : IntegrationEvent;
 public sealed record BookingCompleted(int BookingId, string Code, int ParkingLotId, int OwnerProfileId, decimal TotalAmount) : IntegrationEvent;
+/// <summary>US-084/US-085: khách đổi giờ/đổi xe/gia hạn → nhắc lịch được reschedule + chủ bãi được báo.</summary>
+public sealed record BookingModified(int BookingId, string Code, int UserId, int ParkingLotId, int OwnerProfileId, string ParkingLotName,
+    DateTime StartAtUtc, DateTime EndAtUtc, string ChangedNote) : IntegrationEvent;
+/// <summary>
+/// US-083: kết quả thanh toán CHO BOOKING (BookingService phát sau khi consume PaymentSucceeded/Failed —
+/// event gốc của PaymentService không có UserId/BookingCode, NotificationService cần đủ để render thông báo).
+/// </summary>
+public sealed record BookingPaymentCompleted(int PaymentId, int BookingId, string Code, int UserId,
+    decimal Amount, string Method, bool Succeeded, string? FailureReason) : IntegrationEvent;
 
 // ===== GateService =====
 public sealed record VehicleCheckedIn(int ParkingSessionId, int ParkingLotId, int? BookingId, int? SlotId, string PlateNumber) : IntegrationEvent;

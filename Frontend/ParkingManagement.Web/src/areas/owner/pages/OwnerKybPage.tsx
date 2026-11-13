@@ -89,8 +89,13 @@ export const OwnerKybPage: React.FC = () => {
         setSelectedLotId(null);
       }
     } catch {
+      // Lỗi tải danh sách bãi → hiển thị thông báo lỗi (KHÔNG fallback dữ liệu giả).
       setLots([]);
       setSelectedLotId(null);
+      setActionMessage({
+        type: 'error',
+        text: 'Không tải được danh sách bãi đỗ từ hệ thống — vui lòng kiểm tra backend (Gateway :5000) đã chạy rồi bấm tải lại trang.',
+      });
     } finally {
       setLoadingLots(false);
     }
