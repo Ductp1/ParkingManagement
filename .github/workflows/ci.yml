@@ -1,9 +1,9 @@
 name: CI
 
-# CI cho toÃ n há»‡ thá»‘ng microservice:
-#   build           â†’ solution compile Ä‘Æ°á»£c (gá»“m cáº£ project API khÃ´ng cÃ³ test riÃªng)
-#   unit-tests      â†’ 9 job song song, má»—i service 1 job (má»—i ngÆ°á»i theo dÃµi service cá»§a mÃ¬nh)
-#   integration     â†’ WebApplicationFactory + SQL Server 2022 (service container), DB riÃªng cho tá»«ng service host
+# CI cho toan bo he thong microservice:
+#   build           -> solution compile duoc (gom ca project API khong co test rieng)
+#   unit-tests      -> 9 job song song, moi service 1 job (moi nguoi theo doi service cua minh)
+#   integration     -> WebApplicationFactory + SQL Server 2022 (service container), DB rieng cho tung service host
 on:
   pull_request:
     branches: [main, develop]
@@ -17,7 +17,7 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-  # CI khong co RabbitMQ → tat EventBus cho moi host service (WebApplicationFactory van start duoc).
+  # CI khong co RabbitMQ -> tat EventBus cho moi host service (WebApplicationFactory van start duoc).
   EventBus__Enabled: "false"
 
 jobs:
@@ -37,15 +37,15 @@ jobs:
       - name: Build
         run: dotnet build ParkingManagement.slnx -c Release --no-restore --nologo
 
-  # XÃ¡c Ä‘á»‹nh service nÃ o cÃ³ code thay Ä‘á»•i Ä‘á»ƒ chá»‰ cháº¡y unit test cá»§a cÃ¡c service Ä‘Ã³.
-  # - pull_request: dorny/paths-filter so sÃ¡nh PR vá»›i base branch (dÃ¹ng GitHub API láº¥y danh sÃ¡ch file thay Ä‘á»•i)
-  # - push tháº³ng vÃ o main/develop, hoáº·c thay Ä‘á»•i code dÃ¹ng chung (BuildingBlocks, Directory.Build.props,
-  #   solution, CI workflow) â†’ cháº¡y unit test cá»§a Táº¤T Cáº¢ service (giá»¯ hÃ nh vi an toÃ n nhÆ° cÅ©)
+  # Xac dinh service nao co code thay doi de chi chay unit test cua cac service do.
+  # - pull_request: dorny/paths-filter so sanh PR voi base branch (dung GitHub API lay danh sach file thay doi)
+  # - push thang vao main/develop, hoac thay doi code dung chung (BuildingBlocks, Directory.Build.props,
+  #   solution, CI workflow) -> chay unit test cua TAT CA service (giu hanh vi an toan nhu cu)
   changes:
     name: Detect changed services
     runs-on: ubuntu-latest
     outputs:
-      # JSON dÃ¹ng lÃ m dynamic matrix cho job unit-tests, vÃ­ dá»¥: {"service":["UserService"]}
+      # JSON dung lam dynamic matrix cho job unit-tests, vi du: {"service":["UserService"]}
       services: ${{ steps.matrix.outputs.services }}
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
               - 'Services/AdminService/**'
             SupportService:
               - 'Services/SupportService/**'
-            # Code/áº£nh hÆ°á»Ÿng dÃ¹ng chung cho má»i service
+            # Code/anh huong dung chung cho moi service
             shared:
               - 'BuildingBlocks/**'
               - 'Directory.Build.props'
@@ -85,26 +85,25 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           CHANGED_SERVICES: ${{ steps.filter.outputs.changes }}   # JSON array, vd: ["UserService"]
-          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" náº¿u code dÃ¹ng chung thay Ä‘á»•i
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" neu code dung chung thay doi
         run: |
           ALL='["UserService","VehicleService","ParkingService","BookingService","PaymentService","NotificationService","GateService","AdminService","SupportService"]'
           if [ "$EVENT_NAME" = "pull_request" ] && [ "$SHARED_CHANGED" != "true" ]; then
-            # PR chá»‰ Ä‘á»¥ng service cá»¥ thá»ƒ â†’ chá»‰ test cÃ¡c service Ä‘Ã³
+            # PR chi dung service cu the -> chi test cac service do
             services="{\"service\":${CHANGED_SERVICES:-[]}}"
           else
             services="{\"service\":$ALL}"
           fi
           echo "services=$services" >> "$GITHUB_OUTPUT"
-
   unit-tests:
-    name: Unit tests â€“ ${{ matrix.service }}
+    name: Unit tests - ${{ matrix.service }}
     needs: [build, changes]
     runs-on: ubuntu-latest
     environment: environment
 
-    # US-066: GateService.Test cÃ³ 3 test cháº¡y trÃªn PostgreSQL tháº­t (LotAdmissionGateDbTests â€“
-    # kiá»ƒm chá»©ng row-lock chá»‘ng race condition, khÃ´ng thá»ƒ giáº£ láº­p trÃªn InMemory). Job matrix
-    # dÃ¹ng chung nÃªn cÃ¡c service khÃ¡c cÅ©ng cÃ³ sáºµn postgres (vÃ´ háº¡i â€“ khÃ´ng dÃ¹ng tá»›i).
+    # US-066: GateService.Test co 3 test chay tren PostgreSQL that (LotAdmissionGateDbTests -
+    # kiem chung row-lock chong race condition, khong the gia lap tren InMemory). Job matrix
+    # dung chung nen cac service khac cung co san postgres (vo hai - khong dung toi).
     services:
       postgres:
         image: postgres:17-alpine
@@ -118,15 +117,14 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-
     env:
       Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
-      # T-704: secret HMAC xÃ¡c thá»±c QR token check-in (BookingService â†” GateService). CÃ¹ng tÃªn vá»›i biáº¿n mÃ´i trÆ°á»ng local.
+      # T-704: secret HMAC xac thuc QR token check-in (BookingService <-> GateService). Cung ten voi bien moi truong local.
       QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
     strategy:
-      fail-fast: false                       # 1 service Ä‘á» khÃ´ng há»§y service khÃ¡c
-      # Matrix Ä‘á»™ng tá»« job "changes": PR chá»‰ Ä‘á»•i service nÃ o thÃ¬ chá»‰ cháº¡y unit test service Ä‘Ã³.
-      # Matrix rá»—ng (PR khÃ´ng Ä‘á»¥ng service nÃ o) â†’ job nÃ y tá»± skip. Push tháº³ng/code dÃ¹ng chung â†’ cháº¡y táº¥t cáº£.
+      fail-fast: false                       # 1 service do khong huy service khac
+      # Matrix dong tu job "changes": PR chi doi service nao thi chi chay unit test service do.
+      # Matrix rong (PR khong dung service nao) -> job nay tu skip. Push thang/code dung chung -> chay tat ca.
       matrix: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
@@ -135,8 +133,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Unit test â€“ Ä‘a sá»‘ khÃ´ng cáº§n database; riÃªng GateService cÃ³ 3 test US-066 cháº¡y trÃªn
-      # PostgreSQL tháº­t tá»« service container postgres khai bÃ¡o á»Ÿ trÃªn (localhost:5432).
+      # Unit test - da so khong can database; rieng GateService co 3 test US-066 chay tren
+      # PostgreSQL that tu service container postgres khai bao o tren (localhost:5432).
       - name: Test
         run: >
           dotnet test Services/${{ matrix.service }}/${{ matrix.service }}.Test/${{ matrix.service }}.Test.csproj
@@ -158,12 +156,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     env:
-      # T-704: GateService Ä‘á»c secret QR token tá»« biáº¿n mÃ´i trÆ°á»ng â€“ sáºµn sÃ ng khi GateService Ä‘Æ°á»£c
-      # thÃªm vÃ o integration test. LÆ°u Ã½: secret pháº£i lÃ  repository/organization secret
-      # (job nÃ y khÃ´ng khai bÃ¡o `environment:` nÃªn khÃ´ng tháº¥y environment-scoped secrets).
+      # T-704: GateService doc secret QR token tu bien moi truong - san sang khi GateService duoc
+      # them vao integration test. Luu y: secret phai la repository/organization secret
+      # (job nay khong khai bao environment: nen khong thay environment-scoped secrets).
       QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
 
-    # PostgreSQL tháº­t cho integration test (WebApplicationFactory â†’ PostgreSQL qua localhost:5432)
+    # PostgreSQL that cho integration test (WebApplicationFactory -> PostgreSQL qua localhost:5432)
     services:
       postgres:
         image: postgres:17-alpine
@@ -177,7 +175,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-
     steps:
       - uses: actions/checkout@v4
 
@@ -185,8 +182,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Táº¡o sáºµn DB riÃªng cho tá»«ng service host (má»—i DbContext cÃ³ báº£ng __EFMigrationsHistory riÃªng,
-      # dÃ¹ng chung 1 DB sáº½ xung Ä‘á»™t migration). Provider Npgsql khÃ´ng tá»± táº¡o database khi Migrate.
+      # Tao san DB rieng cho tung service host (moi DbContext co bang __EFMigrationsHistory rieng,
+      # dung chung 1 DB se xung dot migration). Provider Npgsql khong tu tao database khi Migrate.
       - name: Prepare databases
         run: |
           cid=$(docker ps -q --filter "ancestor=postgres:17-alpine" | head -n1)
@@ -194,8 +191,8 @@ jobs:
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_booking_ci;"
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_user_ci;"
 
-      # Ghi Ä‘Ã¨ ConnectionStrings:ServiceDb báº±ng biáº¿n mÃ´i trÆ°á»ng (Æ°u tiÃªn cao hÆ¡n appsettings.json)
-      - name: Test â€“ UserService (pm_user_ci)
+      # Ghi de ConnectionStrings:ServiceDb bang bien moi truong (uu tien cao hon appsettings.json)
+      - name: Test - UserService (pm_user_ci)
         env:
           TV1_TEST_DB: "Host=localhost;Port=5432;Database=pm_user_ci;Username=postgres;Password=postgres"
         run: >
@@ -205,7 +202,7 @@ jobs:
           --logger "trx;LogFileName=Integration_User.trx"
           --results-directory ./test-results
 
-      - name: Test â€“ ParkingService (pm_parking_ci)
+      - name: Test - ParkingService (pm_parking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_parking_ci;Username=postgres;Password=postgres"
         run: >
@@ -215,7 +212,7 @@ jobs:
           --logger "trx;LogFileName=Integration_Parking.trx"
           --results-directory ./test-results
 
-      - name: Test â€“ BookingService (pm_booking_ci)
+      - name: Test - BookingService (pm_booking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
         run: >
@@ -225,10 +222,10 @@ jobs:
           --logger "trx;LogFileName=Integration_Booking.trx"
           --results-directory ./test-results
 
-      # Test â€“ 6 suite per-service cÃ²n láº¡i (Vehicle, Payment, Notification, Gate, Admin, Support).
-      # Má»—i suite tá»± táº¡o database pm_it_* riÃªng rá»“i tá»± xÃ³a khi cháº¡y xong, nÃªn khÃ´ng cáº§n táº¡o sáºµn DB á»Ÿ "Prepare databases"
-      # (connection string dÆ°á»›i Ä‘Ã¢y chá»‰ dÃ¹ng host/port/user/password; tÃªn database bá»‹ fixture ghi Ä‘Ã¨).
-      - name: Test â€“ Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
+      # Test - 6 suite per-service con lai (Vehicle, Payment, Notification, Gate, Admin, Support).
+      # Moi suite tu tao database pm_it_* rieng roi tu xoa khi chay xong, nen khong can tao san DB o "Prepare databases"
+      # (connection string duoi day chi dung host/port/user/password; ten database bi fixture ghi de).
+      - name: Test - Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
         run: >
