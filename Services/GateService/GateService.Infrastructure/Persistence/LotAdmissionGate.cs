@@ -10,11 +10,20 @@ namespace GateService.Infrastructure.Persistence;
 /// lý do từ chối thân thiện; authority là UPDATE/INSERT ... WHERE có điều kiện — rowsAffected = 0
 /// nghĩa là request khác chiếm chỗ trước → từ chối. Không dùng mô hình "đọc rồi kiểm tra rồi ghi".
 /// </summary>
-public sealed class LotAdmissionGate(GateDbContext db) : ILotAdmissionGate
+public sealed class LotAdmissionGate(GateDbContext db, ILotOperationalStatusProvider? statusProvider = null) : ILotAdmissionGate
 {
     public async Task<(bool Admitted, string? RejectReason)> TryAdmitAsync(
         int parkingLotId, AdmissionType type, CancellationToken cancellationToken = default)
     {
+        // US-069: bãi đang TẠM ĐÓNG KHẨN CẤP → chặn MỌI xe vào (kể cả thuê bao/booking đã đặt)
+        // cho tới khi gỡ. Pull real-time từ ParkingService; lỗi hạ tầng → null → FAIL-OPEN
+        // (không chặn oan xe vào khi ParkingService chết — spec assumption 3).
+        var lotStatus = statusProvider is null
+            ? null
+            : await statusProvider.GetAsync(parkingLotId, cancellationToken);
+        if (lotStatus is { EmergencyStopped: true })
+            return (false, AdmissionRejectReasons.LotEmergencyStopped);
+
         var policy = await db.LotCapacityConfigs.AsNoTracking()
             .SingleOrDefaultAsync(c => c.ParkingLotId == parkingLotId, cancellationToken);
         if (policy is null)

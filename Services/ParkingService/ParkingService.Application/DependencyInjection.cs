@@ -8,6 +8,7 @@ using ParkingService.Application.Features.Kyb;
 using ParkingService.Application.Features.Layouts;
 using ParkingService.Application.Features.KybMisdeclaration;
 using ParkingService.Application.Features.KybReview;
+using ParkingService.Application.Features.LotOperations;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Application.Features.LotDetails;
 using ParkingService.Application.Features.SanctionStates;
@@ -127,6 +128,14 @@ public static class DependencyInjection
         services.AddScoped<IUpdateLotOperatingHoursUseCase, UpdateLotOperatingHoursUseCase>();
         services.AddScoped<IDeleteLotOperatingHoursOverrideUseCase, DeleteLotOperatingHoursOverrideUseCase>();
 
+        // Lot Operations – Dashboard / Heartbeat / Emergency Stop (US-067, US-068, US-069)
+        services.AddScoped<IRecordHeartbeatUseCase, RecordHeartbeatUseCase>();
+        services.AddScoped<IGetOperationsOverviewUseCase, GetOperationsOverviewUseCase>();
+        services.AddScoped<IEmergencyStopUseCase, EmergencyStopUseCase>();
+        services.AddScoped<ILiftEmergencyStopUseCase, LiftEmergencyStopUseCase>();
+        services.AddScoped<IGetEmergencyLogsUseCase, GetEmergencyLogsUseCase>();
+        services.AddScoped<IGetOperationalStatusUseCase, GetOperationalStatusUseCase>();
+
         // Physical Changes (SLA 48h Protection) (US-061, EP09)
         services.AddScoped<IDeclarePhysicalChangeUseCase, DeclarePhysicalChangeUseCase>();
         services.AddScoped<IGetLotPhysicalChangesUseCase, GetLotPhysicalChangesUseCase>();
@@ -137,6 +146,7 @@ public static class DependencyInjection
         services.AddScoped<IRecordPhysicalChangeBookingErrorUseCase, RecordPhysicalChangeBookingErrorUseCase>();
         services.AddScoped<ICancelPhysicalChangeUseCase, CancelPhysicalChangeUseCase>();
         services.AddScoped<IGetPhysicalChangeSlaSummaryUseCase, GetPhysicalChangeSlaSummaryUseCase>();
+
         // Owner Platform Exit (US-057, EP08)
         services.AddScoped<IGetOwnerExitImpactUseCase, GetOwnerExitImpactUseCase>();
         services.AddScoped<ISuspendOwnerLotsUseCase, SuspendOwnerLotsUseCase>();

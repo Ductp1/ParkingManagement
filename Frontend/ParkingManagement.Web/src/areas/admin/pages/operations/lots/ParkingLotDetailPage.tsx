@@ -132,6 +132,7 @@ export const ParkingLotDetailPage: React.FC = () => {
   const valid = Number.isInteger(lotId) && lotId > 0;
   const query = useAdminQuery(valid ? () => adminOperationsApi.getParkingLot(lotId) : null, [lotId]);
   const lot = query.data;
+  const [emergencyBusy, setEmergencyBusy] = React.useState(false);
   useAdminBreadcrumb(lot ? lot.name : valid ? `Lot #${lotId}` : null);
   // US-097: chế tài của bãi + dialog áp chế tài (bãi và chủ bãi chọn sẵn).
   const sanctions = useLotSanctions(valid ? lotId : null);
@@ -156,6 +157,40 @@ export const ParkingLotDetailPage: React.FC = () => {
   }
 
   const base = `/admin/operations/parking-lots/${lot.id}`;
+
+  /** US-069: đóng/mở bãi khẩn cấp qua ParkingService (khách bị ảnh hưởng nhận thông báo đa kênh US-086). */
+  const runEmergencyAction = async (mode: 'stop' | 'resume'): Promise<void> => {
+    const actionLabel = mode === 'stop' ? 'đóng bãi khẩn cấp' : 'mở lại bãi';
+    const reason = window.prompt(
+      mode === 'stop'
+        ? `Nhập lý do đóng bãi khẩn cấp "${lot.name}" (tối thiểu 5 ký tự):`
+        : `Nhập lý do mở lại bãi "${lot.name}" (tối thiểu 5 ký tự):`,
+    );
+    if (reason === null) return;
+    if (reason.trim().length < 5) {
+      window.alert('Lý do phải có ít nhất 5 ký tự.');
+      return;
+    }
+    setEmergencyBusy(true);
+    try {
+      if (mode === 'stop') {
+        const result = await adminOperationsApi.emergencyStopLot(lot.id, reason.trim());
+        window.alert(
+          `Đã ${actionLabel}. Số booking bị ảnh hưởng: ${result.affectedBookings} — khách nhận thông báo đa kênh (InApp/Push/Email).`,
+        );
+      } else {
+        await adminOperationsApi.emergencyResumeLot(lot.id, reason.trim());
+        window.alert(`Đã ${actionLabel}. Bãi nhận đặt chỗ và check-in bình thường trở lại.`);
+      }
+      query.refetch();
+    } catch (err) {
+      const problem = (err as { problem?: { detail?: string; title?: string } | null }).problem;
+      window.alert(problem?.detail ?? problem?.title ?? `Không thể ${actionLabel}.`);
+    } finally {
+      setEmergencyBusy(false);
+    }
+  };
+
   return (
     <>
       <AdminTitleBar
@@ -163,9 +198,25 @@ export const ParkingLotDetailPage: React.FC = () => {
         subtitle={`Lot #${lot.id} · ${lot.address}`}
         actions={
           <>
-            <AdminButton variant="onNavy" disabled title={NO_ENDPOINT}>
-              Emergency stop
-            </AdminButton>
+            {lot.status === 'Suspended' ? (
+              <AdminButton
+                variant="onNavy"
+                loading={emergencyBusy}
+                loadingLabel="Đang mở lại…"
+                onClick={() => { void runEmergencyAction('resume'); }}
+              >
+                Resume operations
+              </AdminButton>
+            ) : (
+              <AdminButton
+                variant="onNavy"
+                loading={emergencyBusy}
+                loadingLabel="Đang xử lý…"
+                onClick={() => { void runEmergencyAction('stop'); }}
+              >
+                Emergency stop
+              </AdminButton>
+            )}
             <AdminButton disabled title={NO_ENDPOINT}>
               Create closure
             </AdminButton>

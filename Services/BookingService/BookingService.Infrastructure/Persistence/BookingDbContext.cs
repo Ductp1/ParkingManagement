@@ -1,5 +1,6 @@
 using BookingService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace BookingService.Infrastructure.Persistence;
@@ -12,4 +13,11 @@ public sealed class BookingDbContext(DbContextOptions<BookingDbContext> options)
     public DbSet<BookingStatusLog> BookingStatusLogs => Set<BookingStatusLog>();
     public DbSet<BookingModification> BookingModifications => Set<BookingModification>();
     public DbSet<MonthlyPass> MonthlyPasses => Set<MonthlyPass>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        // US-083: consumer PaymentSucceeded/Failed cần bảng InboxReceipts (idempotency theo EventId).
+        modelBuilder.ConfigureInbox();
+    }
 }

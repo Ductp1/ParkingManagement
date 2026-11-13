@@ -17,6 +17,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ParkingService.Application\ParkingService.Application.csproj" />
+    <!-- US-068: test StalenessMonitorWorker (worker nằm ở Infrastructure, fakes qua IServiceScopeFactory). -->
+    <ProjectReference Include="..\ParkingService.Infrastructure\ParkingService.Infrastructure.csproj" />
     <!-- US-055: kiểm tra cấu hình JWT của API (Program.cs, Keys/public.key) và controller công khai không bị khóa. -->
     <ProjectReference Include="..\ParkingService.API\ParkingService.API.csproj" />
   </ItemGroup>

@@ -18,12 +18,24 @@ public sealed class UsersController(
     IAvatarStorage avatarStorage,
     ILockOwnerProfileUseCase lockOwnerProfile,
     IUnlockOwnerProfileUseCase unlockOwnerProfile,
+    IOwnerProfileRepository ownerProfiles,
     ICurrentUser currentUser,
     IRequestOwnerExitUseCase requestOwnerExit,
     ICancelOwnerExitUseCase cancelOwnerExit,
     ITerminateOwnerExitUseCase terminateOwnerExit,
     IGetOwnerExitStatusUseCase getOwnerExitStatus) : ControllerBase
 {
+    /// <summary>GET /api/v1/users/owner-profiles/{ownerProfileId} – nội bộ (US-085): ánh xạ OwnerProfileId → UserId để NotificationService gửi thông báo cho chủ bãi. Anonymous vì consumer là service-to-service.</summary>
+    [HttpGet("owner-profiles/{ownerProfileId:int}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetOwnerProfile(int ownerProfileId, CancellationToken cancellationToken)
+    {
+        var profile = await ownerProfiles.FindByIdWithUserAsync(ownerProfileId, cancellationToken);
+        return profile is null
+            ? NotFound()
+            : Ok(new { ownerProfileId, userId = profile.UserId, businessName = profile.BusinessName });
+    }
+
     /// <summary>GET /api/users/{id} – Hồ sơ người dùng kèm vai trò và hồ sơ chủ bãi (nếu có).</summary>
     [HttpGet("{id:int}")]
     public async Task<ActionResult<UserDto>> GetById(int id, CancellationToken cancellationToken)

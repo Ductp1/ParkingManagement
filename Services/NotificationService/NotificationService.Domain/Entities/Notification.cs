@@ -23,6 +23,17 @@ public class Notification : BaseEntity
     public DateTime? SentAtUtc { get; set; }
     public bool IsRead { get; set; }
     public DateTime? ReadAtUtc { get; set; }
+    /// <summary>
+    /// US-083: chặn gửi trùng khi webhook replay/outbox redelivery — key dạng "evt:{EventId}:{Channel}".
+    /// Unique filtered index (NOT NULL) ở database; trùng → bỏ qua im lặng (idempotent).
+    /// </summary>
+    public string? DedupeKey { get; set; }
+
+    /// <summary>
+    /// US-086: nhóm các thông báo thuộc cùng 1 đợt khẩn cấp — key dạng "evt:{EventId}".
+    /// API tổng hợp trạng thái gửi (delivery-status) query theo key này; null cho thông báo thường.
+    /// </summary>
+    public string? BatchKey { get; set; }
 
     public NotificationTemplate? Template { get; set; }
 }

@@ -89,24 +89,13 @@ export const OwnerKybPage: React.FC = () => {
         setSelectedLotId(null);
       }
     } catch {
-      // Mock data fallback nếu backend chưa chạy
-      const mockLots: OwnerParkingLotItemDto[] = [
-        {
-          id: 1,
-          name: 'Landmark 81 Parking',
-          address: '720A Điện Biên Phủ, P. 22',
-          city: 'TP. Hồ Chí Minh',
-          district: 'Bình Thạnh',
-          totalSlots: 65,
-          availableSlots: 42,
-          maxHeightCm: 220,
-          status: 'PendingApproval',
-          openingHours: '06:00 - 23:00',
-          createdAtUtc: new Date().toISOString(),
-        },
-      ];
-      setLots(mockLots);
-      setSelectedLotId(1);
+      // Lỗi tải danh sách bãi → hiển thị thông báo lỗi (KHÔNG fallback dữ liệu giả).
+      setLots([]);
+      setSelectedLotId(null);
+      setActionMessage({
+        type: 'error',
+        text: 'Không tải được danh sách bãi đỗ từ hệ thống — vui lòng kiểm tra backend (Gateway :5000) đã chạy rồi bấm tải lại trang.',
+      });
     } finally {
       setLoadingLots(false);
     }

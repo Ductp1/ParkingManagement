@@ -8,6 +8,7 @@ import {
   RefreshCw,
   FolderTree,
   Sliders,
+  Activity,
   Clock,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
@@ -50,6 +51,7 @@ import { RegisterLotModal } from '../components/RegisterLotModal';
 import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
 import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
 import { CapacityConfigSection } from '../components/capacity/CapacityConfigSection';
+import { OperationsPanel } from '../components/operations/OperationsPanel';
 import { WeeklyScheduleEditor } from '../components/operating/WeeklyScheduleEditor';
 import { AmenitiesSelector } from '../components/operating/AmenitiesSelector';
 import { LotAttributesEditor } from '../components/operating/LotAttributesEditor';
@@ -65,10 +67,11 @@ export const OwnerLotsPage: React.FC = () => {
   const [loadingLots, setLoadingLots] = useState(true);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operating' (US-062) | 'amenities' (US-064)
-  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operating' | 'amenities'>(() => {
+  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operations' (US-067/068/069) | 'operating' (US-062) | 'amenities' (US-064)
+  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operations' | 'operating' | 'amenities'>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'capacity') return 'capacity';
+    if (tabParam === 'operations') return 'operations';
     if (tabParam === 'operating' || tabParam === 'schedule') return 'operating';
     if (tabParam === 'amenities') return 'amenities';
     return 'structure';
@@ -148,24 +151,13 @@ export const OwnerLotsPage: React.FC = () => {
         setSelectedLotId(null);
       }
     } catch {
-      // Mock data fallback nếu backend chưa chạy
-      const mockLots: OwnerParkingLotItemDto[] = [
-        {
-          id: 4,
-          name: 'Bãi xe Chợ Bến Thành (đêm)',
-          address: 'Lê Lợi, Q.1, TP.HCM',
-          city: 'TP.HCM',
-          district: 'Quận 1',
-          totalSlots: 20,
-          availableSlots: 11,
-          maxHeightCm: 300,
-          status: 'Active',
-          openingHours: '18:00 - 07:00',
-          createdAtUtc: new Date().toISOString(),
-        },
-      ];
-      setLots(mockLots);
-      setSelectedLotId(4);
+      // Lỗi tải danh sách bãi → hiển thị thông báo lỗi (KHÔNG fallback dữ liệu giả).
+      setLots([]);
+      setSelectedLotId(null);
+      setActionMessage({
+        type: 'error',
+        text: 'Không tải được danh sách bãi đỗ từ hệ thống — vui lòng kiểm tra backend (Gateway :5000) đã chạy rồi bấm tải lại trang.',
+      });
     } finally {
       setLoadingLots(false);
     }
@@ -335,7 +327,7 @@ export const OwnerLotsPage: React.FC = () => {
     setSearchParams,
   ]);
 
-  const handleTabChange = (tab: 'structure' | 'capacity' | 'operating' | 'amenities') => {
+  const handleTabChange = (tab: 'structure' | 'capacity' | 'operations' | 'operating' | 'amenities') => {
     setActiveTab(tab);
     if (selectedLotId) {
       setSearchParams((prev) => {
@@ -804,6 +796,11 @@ export const OwnerLotsPage: React.FC = () => {
                 <Clock size={13} />
                 Lịch Hoạt Động & Giờ Mở Cửa (US-062)
               </>
+            ) : activeTab === 'operations' ? (
+              <>
+                <Activity size={13} />
+                Vận hành Real-time & Khẩn cấp (US-067/068/069)
+              </>
             ) : (
               <>
                 <Sparkles size={13} />
@@ -818,6 +815,8 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Cấu hình Sức chứa & Vùng đệm Vãng lai'
               : activeTab === 'operating'
               ? 'Lịch Hoạt Động & Khung Giờ Mở Cửa'
+              : activeTab === 'operations'
+              ? 'Vận hành Real-time & Emergency Stop'
               : 'Tiện Ích & Thông Tin Vận Hành Bãi Xe'}
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1">
@@ -827,6 +826,8 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Quản lý tỷ lệ giữ chỗ cho khách vãng lai, phân bổ hạn ngạch đặt chỗ Online và thiết lập ngưỡng khóa an toàn.'
               : activeTab === 'operating'
               ? 'Cấu hình thời gian đón khách 7 ngày trong tuần, chế độ 24/7, hoạt động qua đêm và tùy biến riêng theo từng tuần cụ thể.'
+              : activeTab === 'operations'
+              ? 'Giám sát vận hành real-time của bãi: số chỗ theo thời gian thực, nhịp heartbeat thiết bị (stale data) và đóng/mở bãi khẩn cấp.'
               : 'Thiết lập danh mục dịch vụ tiện ích (trạm sạc EV, mái che, CCTV...), hotline hỗ trợ khách hàng và chiều cao xe tối đa.'}
           </p>
         </div>
@@ -959,6 +960,19 @@ export const OwnerLotsPage: React.FC = () => {
           >
             <Sparkles size={16} />
             Tiện ích bãi xe (US-064)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('operations')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'operations'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Activity size={16} />
+            Vận hành Real-time (US-067)
           </button>
         </div>
       )}
@@ -1129,7 +1143,19 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          4. TAB 3 CONTENT: LỊCH HOẠT ĐỘNG (US-062)
+          3. TAB 3 CONTENT: VẬN HÀNH REAL-TIME (US-067 dashboard / US-068 heartbeat / US-069 emergency)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'operations' && (
+        <OperationsPanel
+          key={selectedLot.id}
+          lotId={selectedLot.id}
+          lotName={selectedLot.name}
+          onLotChanged={() => { void loadOwnerLots(selectedLot.id); }}
+        />
+      )}
+
+      {/* =====================================================================
+          4. TAB 4 CONTENT: LỊCH HOẠT ĐỘNG (US-062)
       ====================================================================== */}
       {selectedLot && activeTab === 'operating' && (
         <div className="mt-6 space-y-8">
@@ -1200,7 +1226,7 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          3. CÁC MODALS THAO TÁC
+          6. CÁC MODALS THAO TÁC
       ====================================================================== */}
       {/* Modal Thêm / Sửa Zone */}
       <ZoneModal

@@ -8,11 +8,15 @@ using GateService.Application.Features.PlateRecognition;
 using GateService.Application.Features.PmsIntegration;
 using GateService.Application.Features.StaffCancellations;
 using GateService.Infrastructure.HttpClients;
+using ParkingManagement.ServiceDefaults.Messaging;
+using ParkingManagement.ServiceDefaults.Persistence;
 using GateService.Infrastructure.Integrations;
 using GateService.Infrastructure.Persistence;
 using GateService.Infrastructure.Persistence.Queries;
 using GateService.Infrastructure.Persistence.Repositories;
 using GateService.Infrastructure.Persistence.Seeding;
+using ParkingManagement.ServiceDefaults.Messaging;
+using ParkingManagement.ServiceDefaults.Persistence;
 using GateService.Infrastructure.Recognition;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,6 +88,13 @@ public static class DependencyInjection
         services.AddScoped<ILotAdmissionGate, LotAdmissionGate>();
         services.AddScoped<ILotCapacityRealtimePublisher, NotificationCapacityPublisher>();
         services.AddScoped<IActiveSubscriberCounter, BookingSubscriberCounter>();
+        // US-069: pull trạng thái vận hành bãi từ ParkingService khi xe vào —
+        // chặn nếu bãi đang TẠM ĐÓNG KHẨN CẤP (fail-open khi ParkingService chết).
+        services.AddHttpClient<ILotOperationalStatusProvider, ParkingServiceOperationalStatusClient>((_, client) =>
+        {
+            client.BaseAddress = new Uri(configuration["Services:ParkingService:BaseUrl"] ?? "http://localhost:5103");
+            client.Timeout = TimeSpan.FromSeconds(3);
+        });
         services.AddHttpClient<NotificationCapacityPublisher>((_, client) =>
             client.BaseAddress = new Uri(configuration["NotificationService:BaseUrl"] ?? "http://localhost:5106"));
         services.AddHttpClient<BookingSubscriberCounter>((_, client) =>
@@ -118,5 +129,3 @@ public static class DependencyInjection
     private static int ParsePositiveInt(string? raw, int fallback)
         => int.TryParse(raw, out var value) && value > 0 ? value : fallback;
 }
-
-
