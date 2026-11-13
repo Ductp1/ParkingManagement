@@ -29,10 +29,12 @@ public static class DependencyInjection
         services.AddScoped<IGetOwnerParkingLotsUseCase, GetOwnerParkingLotsUseCase>();
         services.AddScoped<IGetParkingLotHierarchyUseCase, GetParkingLotHierarchyUseCase>();
 
-        // KYB Application (US-054)
+        // KYB Application & Document Upload (US-054)
         services.AddScoped<IGetKybApplicationUseCase, GetKybApplicationUseCase>();
         services.AddScoped<ISaveKybDraftUseCase, SaveKybDraftUseCase>();
         services.AddScoped<ISubmitKybApplicationUseCase, SubmitKybApplicationUseCase>();
+        services.AddScoped<IUploadKybDocumentUseCase, UploadKybDocumentUseCase>();
+        services.AddScoped<IGetKybDocumentFileUseCase, GetKybDocumentFileUseCase>();
 
         // KYB Review – Admin (US-055)
         services.AddScoped<IListAdminKybApplicationsUseCase, ListAdminKybApplicationsUseCase>();

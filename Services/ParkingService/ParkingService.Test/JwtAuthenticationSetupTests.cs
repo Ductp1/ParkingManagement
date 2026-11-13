@@ -53,11 +53,11 @@ public class JwtAuthenticationSetupTests
             .Where(t => typeof(ControllerBase).IsAssignableFrom(t)
                      && !t.IsAbstract
                      && !t.Name.StartsWith("Admin", StringComparison.Ordinal)
-                     && t != typeof(FloorLayoutsController))
+                     && t != typeof(FloorLayoutsController)
+                     && t != typeof(KybApplicationsController))
             .ToList();
 
         Assert.Contains(typeof(ParkingLotsController), controllers);
-        Assert.Contains(typeof(KybApplicationsController), controllers);
         Assert.Contains(typeof(ParkingLotStructureController), controllers);
         foreach (var controller in controllers)
         {
@@ -67,6 +67,13 @@ public class JwtAuthenticationSetupTests
                 .Select(m => m.Name);
             Assert.Empty(protectedActions);
         }
+    }
+
+    [Fact]
+    public void KybApplicationsController_RequiresAuthorization()
+    {
+        var controller = typeof(KybApplicationsController);
+        Assert.NotNull(controller.GetCustomAttribute<AuthorizeAttribute>(inherit: true));
     }
 
     [Fact]
