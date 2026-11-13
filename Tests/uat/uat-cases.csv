@@ -1,0 +1,42 @@
+﻿Mã,Vai trò,Ưu tiên,User story,Test case,Tiền điều kiện,Các bước,Kết quả mong đợi,Kênh kiểm thử,Sẵn sàng,Kết quả,Người kiểm thử,Ngày,Mã bug
+UAT-DRV-01,Tài xế,P0,US-003,,Tài khoản driver1 đã seed,"1. Mở /login
+2. Nhập email, mật khẩu demo
+3. Vượt CAPTCHA, bấm Đăng nhập","Vào khu vực tài xế /driver. Sai mật khẩu thì báo lỗi, không vào được",Giao diện,Chưa kiểm tra,,,,
+UAT-DRV-02,Tài xế,P0,US-014,TC-SEARCH-01,"Trình duyệt cho phép lấy vị trí; đứng gần Q.1, TP.HCM","1. Mở trang chủ tài xế
+2. Cho phép định vị
+3. Xem danh sách bãi","Có bãi Vincom Đồng Khởi trong bán kính 5 km, kèm khoảng cách và số chỗ trống, gần nhất lên trước",Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-DRV-03,Tài xế,P1,US-018,,Có bãi Vincom,Mở chi tiết bãi Vincom,"Thấy tên, địa chỉ, giờ mở cửa, số chỗ trống, điểm đánh giá khớp dữ liệu thật",Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-DRV-04,Tài xế,P1,US-015,TC-SEARCH-02,Xe cao 2.2m trong Garage; có bãi trần thấp hơn 2.1m,Tìm bãi với xe này,Bãi trần thấp hơn không xuất hiện hoặc không đặt được,API,Chưa kiểm tra,,,,
+UAT-DRV-05,Tài xế,P0,US-022,TC-BOOK-01,Đăng nhập driver1; bãi còn chỗ,Đặt chỗ tại Vincom bắt đầu sau 20 phút trở lên,"Booking PendingPayment, đếm ngược giữ chỗ 15 phút, có mã BK-…",API,API đạt; giao diện bị chặn: UI-001,,,,
+UAT-DRV-06,Tài xế,P1,US-026,,Đăng nhập driver1,Đặt chỗ bắt đầu sau 10 phút,Từ chối: phải đặt trước giờ bắt đầu ít nhất 15 phút,API,API đạt,,,,
+UAT-DRV-07,Tài xế,P0,US-023,TC-BOOK-02,Có booking PendingPayment,Không thanh toán trong 15 phút rồi xem lại booking,"Booking chuyển Expired, chỗ được trả lại",API,Chưa kiểm tra,,,,
+UAT-DRV-08,Tài xế,P0,US-024,TC-BOOK-03,Slot còn đúng 1 chỗ; 2 tài khoản tài xế,2 người cùng đặt đúng slot đó gần như đồng thời,"1 người thành công, người kia nhận thông báo chỗ đã được giữ",API,Bị chặn: BUG-BOOK-001,,,,BUG-BOOK-001
+UAT-DRV-09,Tài xế,P0,US-032,,Có booking PendingPayment; VNPAY sandbox + RabbitMQ đang chạy,"1. Thanh toán bằng VNPAY sandbox
+2. Quay lại xem booking","Booking tự chuyển Confirmed, có QR check-in",Giao diện + VNPAY sandbox,Bị chặn: GAP-E2E-02,,,,GAP-E2E-02
+UAT-DRV-10,Tài xế,P0,US-038,TC-BOOK-07,Booking Confirmed bắt đầu sau 61 phút,Xem trước hủy rồi hủy,Hoàn 100%,API,API đạt,,,,
+UAT-DRV-11,Tài xế,P0,US-038,TC-BOOK-08,Booking Confirmed bắt đầu sau 59 phút,Xem trước hủy rồi hủy,"Hủy được, thông báo hoàn 0%",API,API đạt,,,,
+UAT-DRV-12,Tài xế,P1,US-028,,Có booking đã tạo,Mở Lịch sử đặt chỗ,"Thấy đúng booking thật, đúng trạng thái",Giao diện,Bị chặn: UI-002,,,,UI-002
+UAT-DRV-13,Tài xế,P1,US-093,,Booking đã Completed,Đánh giá 1–5 sao kèm nhận xét,"Đánh giá lưu thành công, điểm bãi cập nhật; đánh giá lần 2 bị từ chối",API,Integration test đạt,,,,
+UAT-DRV-14,Tài xế,P0,US-088,,Booking của driver1 đã diễn ra,Gửi khiếu nại kèm mô tả và bằng chứng,"Có mã CP-…, theo dõi được trạng thái",API,Integration test đạt; giao diện bị chặn: UI-003,,,,
+UAT-DRV-15,Tài xế,P2,US-092,,,Mở Trung tâm trợ giúp,FAQ theo chủ đề và kênh liên hệ,API,API đạt; giao diện bị chặn: UI-003,,,,
+UAT-DRV-16,Tài xế,P1,US-025,,Đăng nhập driver1; đã có booking ở một khung giờ,Đặt booking thứ 2 đúng khung giờ đó,Bị từ chối: mỗi tài khoản chỉ có 1 booking đang chờ / đang hiệu lực trong cùng khung giờ,API,Bị chặn: BUG-BOOK-002,,,,BUG-BOOK-002
+UAT-GAT-01,Nhân viên cổng,P0,US-043,,"Đăng nhập staff.vincom; booking Confirmed, có QR",Quét / nhập QR hợp lệ tại Gate console,"Hiện đúng booking, biển số; tạo lượt gửi xe; booking chuyển CheckedIn",Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-GAT-02,Nhân viên cổng,P0,T-704,,QR đã dùng; QR giả; QR của bãi khác,Quét lần lượt từng QR,Cả 3 bị từ chối và không mở cổng,Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-GAT-03,Nhân viên cổng,P1,US-044,TC-PARK-06,Booking Confirmed; khách đến trễ 12 phút,Check-in,Vẫn check-in bình thường; tính phí từ giờ đã đặt,API,Chưa kiểm tra,,,,
+UAT-GAT-04,Nhân viên cổng,P0,US-046,TC-PARK-07,Xe vào bãi chưa quá 14 phút,Xem báo phí rồi check-out,"Phí phát sinh 0đ, xe được ra",Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-GAT-05,Nhân viên cổng,P0,US-045,,Xe đang trong bãi,Check-out và xác nhận phí,"Lượt gửi Completed, booking chuyển Completed, mở barie",Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-GAT-06,Nhân viên cổng,P1,T-702,,Khách vãng lai không có booking,Nhập biển số tay để vào rồi ra,Có lượt gửi vãng lai; nhập trùng biển số khi xe chưa ra thì bị từ chối,Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-OWN-01,Chủ bãi,P1,US-031,,"Đăng nhập owner.vincom; booking ""Chờ chủ bãi xác nhận""",Duyệt booking trong 10 phút,Booking chuyển Confirmed; khách được báo,API,API đạt; chưa kiểm tra thông báo cho khách,,,,
+UAT-OWN-02,Chủ bãi,P1,US-089,,Có tranh chấp đang chờ chủ bãi trong 48 giờ,Phản hồi kèm link bằng chứng,Trạng thái OwnerResponded; phản hồi lần 2 bị từ chối,Giao diện,Integration test đạt; giao diện chưa kiểm tra,,,,
+UAT-OWN-03,Chủ bãi,P0,US-090,,Khiếu nại SlotOccupied; bãi đã đặt mức phạt,Chuyển tài xế sang chỗ trống và nhập biển số xe chiếm chỗ,"Ticket Resolved, giải phóng khoản giữ, có biên bản phạt đúng mức đã đặt, ghi audit log",API,Integration test đạt; giao diện bị chặn: UI-005,,,,
+UAT-OWN-04,Chủ bãi,P0,US-090,,Khiếu nại SlotOccupied còn mở; booking đã trả tiền,"1. Ép hoàn vượt số đã trả
+2. Ép hoàn đúng số tiền","Bước 1 bị từ chối; bước 2 Resolved, có audit DisputeRefundOverride; phán quyết lần 2 bị từ chối",API,Integration test đạt; giao diện bị chặn: UI-005,,,,
+UAT-OWN-05,Chủ bãi,P1,US-094,,Có đánh giá về bãi của mình,Phản hồi công khai rồi khiếu nại đánh giá,Phản hồi hiện công khai; khiếu nại chuyển Admin xem xét,Giao diện,Integration test đạt; giao diện chưa kiểm tra,,,,
+UAT-ADM-01,Admin,P0,US-100,,Đăng nhập admin; đã có thao tác đổi tham số,Mở Audit Log và lọc theo người / thời gian,Thấy đúng thao tác với giá trị trước / sau; không có nút sửa / xóa,Giao diện,API đạt; giao diện chưa kiểm tra,,,,
+UAT-ADM-02,Admin,P1,US-098,,Đăng nhập admin,Đổi một tham số hệ thống kèm lý do,Có lịch sử thay đổi; thiếu lý do bị từ chối,Giao diện,Integration test đạt; giao diện chưa kiểm tra,,,,
+UAT-ADM-03,Admin,P1,US-099,TC-SYS-01,Nhánh US-099 đã merge,"1. Bật rồi tắt một feature flag kèm lý do
+2. Xem Audit Log","Flag đổi ngay, có audit. Chức năng thật bật theo flag chưa có",Giao diện,Chờ merge US-099,,,,
+UAT-SEC-01,Bảo mật,P0,T-104,,Không đăng nhập,"Gọi không token: tạo booking, duyệt booking, check-in cổng",Tất cả trả 401,API,Bị chặn: SEC-001,,,,SEC-001
+UAT-SEC-02,Bảo mật,P0,T-104,,Đăng nhập driver1,Gọi API của Admin và API của chủ bãi,Trả 403,API,API đạt,,,,
+UAT-SEC-03,Bảo mật,P1,T-104,,Đăng nhập driver2,Xem booking và khiếu nại của driver1,Trả 403 hoặc 404,API,Bị chặn: SEC-003,,,,SEC-003
+UAT-SEC-04,Bảo mật,P0,US-027,,Đăng nhập driver1,Tạo booking với totalAmount = 1,Server tự tính giá; không nhận giá do client gửi,API,Bị chặn: SEC-002,,,,SEC-002
