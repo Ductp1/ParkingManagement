@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ILotOperatingHourRepository, LotOperatingHourRepository>();
         services.AddScoped<ILotPhysicalChangeRepository, LotPhysicalChangeRepository>(); // US-061
         services.AddScoped<IKybApplicationRepository, KybApplicationRepository>();
+        services.AddScoped<IKybDocumentStorage, ParkingService.Infrastructure.Storage.LocalKybDocumentStorage>();
         services.AddScoped<IKybReviewRepository, KybReviewRepository>();       // US-055 (ghi)
         services.AddScoped<IAdminKybQueries, AdminKybQueries>();               // US-055 (đọc)
         services.AddScoped<IAdminLotSummaryQueries, AdminLotSummaryQueries>(); // US-081 (đọc)
