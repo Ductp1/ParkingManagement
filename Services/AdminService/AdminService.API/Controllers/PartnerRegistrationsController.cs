@@ -22,7 +22,8 @@ public sealed class PartnerRegistrationsController(ISubmitPartnerApplicationUseC
 
     /// <summary>
     /// POST /api/v1/admin/partner-registrations – multipart/form-data: thông tin người đăng ký, pháp nhân, bãi dự kiến
-    /// + businessLicenseFiles, representativeIdFiles (bắt buộc), lotLegalProofFiles, otherFiles (PDF / JPG / PNG, mỗi file ≤ 10 MB).
+    /// + businessLicenseFiles, lotLegalProofFiles (bắt buộc, PDF / JPG / PNG), idCardFrontFiles, idCardBackFiles (bắt buộc, đúng 1 ảnh
+    /// JPG / PNG mỗi mặt), otherFiles (tùy chọn). Mỗi file ≤ 10 MB.
     /// Trả mã hồ sơ; hồ sơ ở trạng thái Submitted chờ Admin thẩm định.
     /// </summary>
     [HttpPost]
@@ -39,8 +40,9 @@ public sealed class PartnerRegistrationsController(ISubmitPartnerApplicationUseC
     {
         var documents = new List<PartnerDocumentUpload>();
         await AddAsync(documents, PartnerDocumentType.BusinessLicense, form.BusinessLicenseFiles, cancellationToken);
-        await AddAsync(documents, PartnerDocumentType.RepresentativeId, form.RepresentativeIdFiles, cancellationToken);
         await AddAsync(documents, PartnerDocumentType.LotLegalProof, form.LotLegalProofFiles, cancellationToken);
+        await AddAsync(documents, PartnerDocumentType.IdCardFront, form.IdCardFrontFiles, cancellationToken);
+        await AddAsync(documents, PartnerDocumentType.IdCardBack, form.IdCardBackFiles, cancellationToken);
         await AddAsync(documents, PartnerDocumentType.Other, form.OtherFiles, cancellationToken);
 
         var request = new SubmitPartnerApplicationRequest(form.FullName, form.Email, form.Phone, form.Position, form.BusinessType,
@@ -89,7 +91,8 @@ public sealed class PartnerRegistrationForm
     public string? OperatingHours { get; init; }
     public bool ConsentAccepted { get; init; }
     public List<IFormFile>? BusinessLicenseFiles { get; init; }
-    public List<IFormFile>? RepresentativeIdFiles { get; init; }
     public List<IFormFile>? LotLegalProofFiles { get; init; }
+    public List<IFormFile>? IdCardFrontFiles { get; init; }
+    public List<IFormFile>? IdCardBackFiles { get; init; }
     public List<IFormFile>? OtherFiles { get; init; }
 }

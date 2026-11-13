@@ -57,34 +57,48 @@ public interface IPartnerDocumentQueries
 // ===== QUY TẮC GIẤY TỜ =====
 
 /// <summary>
-/// Giấy tờ pháp lý: PDF / JPG / PNG nhận diện theo nội dung file, mỗi file ≤ 10 MB, tối đa 6 file và 25 MB mỗi hồ sơ
-/// (Gateway giới hạn body ~30 MB). Bắt buộc có giấy đăng ký kinh doanh và giấy tờ tùy thân của người đại diện.
+/// Giấy tờ pháp lý: nhận diện theo nội dung file, mỗi file ≤ 10 MB, tối đa 8 file và 25 MB mỗi hồ sơ (Gateway giới hạn body ~30 MB).
+/// Bắt buộc: giấy đăng ký kinh doanh + giấy tờ pháp lý mặt bằng (PDF / JPG / PNG) và CCCD mặt trước + mặt sau
+/// (mỗi mặt đúng 1 ảnh JPG / PNG).
 /// </summary>
 public static class PartnerDocumentRules
 {
     public const int MaxFileBytes = 10 * 1024 * 1024;
     public const int MaxTotalBytes = 25 * 1024 * 1024;
-    public const int MaxFiles = 6;
+    public const int MaxFiles = 8;
 
-    public static readonly PartnerDocumentType[] Required = [PartnerDocumentType.BusinessLicense, PartnerDocumentType.RepresentativeId];
+    public static readonly PartnerDocumentType[] Required =
+    [
+        PartnerDocumentType.BusinessLicense, PartnerDocumentType.LotLegalProof,
+        PartnerDocumentType.IdCardFront, PartnerDocumentType.IdCardBack,
+    ];
+
+    /// <summary>Loại giấy tờ chỉ nhận ảnh và đúng 1 file.</summary>
+    private static bool IsIdCardSide(PartnerDocumentType type) => type is PartnerDocumentType.IdCardFront or PartnerDocumentType.IdCardBack;
 
     public static string Label(PartnerDocumentType type) => type switch
     {
         PartnerDocumentType.BusinessLicense => "Giấy đăng ký kinh doanh",
-        PartnerDocumentType.RepresentativeId => "Giấy tờ tùy thân của người đại diện",
-        PartnerDocumentType.LotLegalProof => "Giấy tờ quyền sử dụng mặt bằng",
+        PartnerDocumentType.LotLegalProof => "Giấy tờ pháp lý mặt bằng bãi",
+        PartnerDocumentType.IdCardFront => "Ảnh CCCD mặt trước",
+        PartnerDocumentType.IdCardBack => "Ảnh CCCD mặt sau",
         _ => "Giấy tờ khác",
     };
 
     public static void EnsureSet(IReadOnlyList<PartnerDocumentUpload> documents)
     {
         if (documents.Count > MaxFiles) throw new ValidationException($"Tối đa {MaxFiles} file giấy tờ cho mỗi hồ sơ.");
+        if (documents.Any(d => !Enum.IsDefined(d.Type))) throw new ValidationException("Loại giấy tờ không hợp lệ.");
         foreach (var type in Required)
         {
             if (!documents.Any(d => d.Type == type))
                 throw new ValidationException($"Vui lòng tải lên {Label(type).ToLowerInvariant()}.");
         }
-        if (documents.Any(d => !Enum.IsDefined(d.Type))) throw new ValidationException("Loại giấy tờ không hợp lệ.");
+        foreach (var side in new[] { PartnerDocumentType.IdCardFront, PartnerDocumentType.IdCardBack })
+        {
+            if (documents.Count(d => d.Type == side) > 1)
+                throw new ValidationException($"{Label(side)}: chỉ tải lên 1 ảnh.");
+        }
         if (documents.Sum(d => d.File.Length) > MaxTotalBytes) throw new ValidationException("Tổng dung lượng giấy tờ tối đa 25 MB.");
     }
 
@@ -97,9 +111,10 @@ public static class PartnerDocumentRules
         if (file.Length > MaxFileBytes || file.Content.Length > MaxFileBytes) throw new ValidationException($"{label}: mỗi file tối đa 10 MB.");
         if (file.Length == 0 || file.Content.Length == 0) throw new ValidationException($"{label}: file rỗng.");
         var bytes = file.Content.AsSpan();
-        if (bytes.StartsWith("%PDF-"u8)) return ("application/pdf", ".pdf");
         if (bytes.StartsWith((ReadOnlySpan<byte>)[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) return ("image/png", ".png");
         if (bytes.StartsWith((ReadOnlySpan<byte>)[0xFF, 0xD8, 0xFF])) return ("image/jpeg", ".jpg");
+        if (IsIdCardSide(document.Type)) throw new ValidationException($"{label}: chỉ nhận ảnh JPG hoặc PNG.");
+        if (bytes.StartsWith("%PDF-"u8)) return ("application/pdf", ".pdf");
         throw new ValidationException($"{label}: chỉ nhận file PDF, JPG hoặc PNG.");
     }
 
@@ -115,8 +130,9 @@ public static class PartnerDocumentRules
     public static string Slug(PartnerDocumentType type) => type switch
     {
         PartnerDocumentType.BusinessLicense => "business-license",
-        PartnerDocumentType.RepresentativeId => "representative-id",
         PartnerDocumentType.LotLegalProof => "lot-legal-proof",
+        PartnerDocumentType.IdCardFront => "id-card-front",
+        PartnerDocumentType.IdCardBack => "id-card-back",
         _ => "other",
     };
 }

@@ -42,7 +42,9 @@ public class PartnerRegistrationApiTests(AdminApiFixture fixture)
         Text("estimatedCarSlots", "30");
         Text("consentAccepted", "true");
         File("businessLicenseFiles", license, "dang-ky-kinh-doanh.pdf", "application/pdf");
-        File("representativeIdFiles", Png, "cccd.png", "image/png");
+        File("lotLegalProofFiles", Pdf, "hop-dong-thue-mat-bang.pdf", "application/pdf");
+        File("idCardFrontFiles", Png, "cccd-mat-truoc.png", "image/png");
+        File("idCardBackFiles", Png, "cccd-mat-sau.png", "image/png");
         return form;
     }
 
@@ -78,7 +80,9 @@ public class PartnerRegistrationApiTests(AdminApiFixture fixture)
         Assert.Equal(HttpStatusCode.Forbidden, (await driver.GetAsync(documentsUrl)).StatusCode);
 
         var documents = await fixture.AdminClient.GetFromJsonAsync<JsonElement>(documentsUrl);
-        Assert.Equal(2, documents.GetArrayLength());
+        Assert.Equal(4, documents.GetArrayLength());
+        Assert.Equal(["BusinessLicense", "IdCardBack", "IdCardFront", "LotLegalProof"],
+            documents.EnumerateArray().Select(d => d.GetProperty("documentType").GetString()!).Order().ToArray());
         var license = documents.EnumerateArray().Single(d => d.GetProperty("documentType").GetString() == "BusinessLicense");
         Assert.Equal("dang-ky-kinh-doanh.pdf", license.GetProperty("originalFileName").GetString());
         var fileUrl = $"{documentsUrl}/{license.GetProperty("id").GetInt32()}/file";

@@ -23,7 +23,9 @@ public class PartnerRegistrationTests
     private static List<PartnerDocumentUpload> ValidDocs() =>
     [
         Doc(PartnerDocumentType.BusinessLicense, Pdf, @"C:\Users\an\Desktop\dkkd.pdf"),
-        Doc(PartnerDocumentType.RepresentativeId, Png, "cccd.png"),
+        Doc(PartnerDocumentType.LotLegalProof, Pdf, "hop-dong-thue.pdf"),
+        Doc(PartnerDocumentType.IdCardFront, Png, "cccd-truoc.png"),
+        Doc(PartnerDocumentType.IdCardBack, Png, "cccd-sau.png"),
     ];
 
     private sealed class FakeStorage : IFileStorage
@@ -79,20 +81,24 @@ public class PartnerRegistrationTests
         Assert.Equal(Now, app.ConsentAcceptedAtUtc);
         Assert.Null(app.BusinessLicenseUrl);                         // không lưu URL do client gửi
 
-        Assert.Equal(2, repository.SavedDocuments.Count);
+        Assert.Equal(4, repository.SavedDocuments.Count);
         var license = repository.SavedDocuments[0];
         Assert.Equal(PartnerDocumentType.BusinessLicense, license.DocumentType);
         Assert.Equal("application/pdf", license.ContentType);
         Assert.Equal("dkkd.pdf", license.OriginalFileName);         // bỏ đường dẫn máy người nộp
         Assert.Matches(@"^partner-applications/[0-9a-f]{32}/business-license-1\.pdf$", license.FileKey);
-        Assert.Equal("image/png", repository.SavedDocuments[1].ContentType);
+        Assert.Equal(PartnerDocumentType.IdCardFront, repository.SavedDocuments[2].DocumentType);
+        Assert.Equal("image/png", repository.SavedDocuments[2].ContentType);
+        Assert.Matches(@"/id-card-back-4\.png$", repository.SavedDocuments[3].FileKey);
         Assert.Equal(64, license.Sha256.Length);
         Assert.Equal(Pdf, storage.Files[license.FileKey]);
     }
 
     [Theory] // Thiếu giấy tờ bắt buộc → 400, không ghi file nào.
     [InlineData(PartnerDocumentType.BusinessLicense, "giấy đăng ký kinh doanh")]
-    [InlineData(PartnerDocumentType.RepresentativeId, "giấy tờ tùy thân")]
+    [InlineData(PartnerDocumentType.LotLegalProof, "giấy tờ pháp lý mặt bằng")]
+    [InlineData(PartnerDocumentType.IdCardFront, "ảnh cccd mặt trước")]
+    [InlineData(PartnerDocumentType.IdCardBack, "ảnh cccd mặt sau")]
     public async Task Submit_without_required_document_is_rejected(PartnerDocumentType missing, string message)
     {
         var storage = new FakeStorage();
@@ -121,21 +127,43 @@ public class PartnerRegistrationTests
     public async Task Submit_with_oversized_document_is_rejected()
     {
         var docs = ValidDocs();
-        docs[1] = new PartnerDocumentUpload(PartnerDocumentType.RepresentativeId,
-            new UploadedFile("cccd.png", PartnerDocumentRules.MaxFileBytes + 1, []));
+        docs[2] = new PartnerDocumentUpload(PartnerDocumentType.IdCardFront,
+            new UploadedFile("cccd-truoc.png", PartnerDocumentRules.MaxFileBytes + 1, []));
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
         Assert.Contains("10 MB", ex.Message);
     }
 
-    [Fact] // Quá 6 file → 400.
+    [Fact] // Quá 8 file → 400.
     public async Task Submit_with_too_many_documents_is_rejected()
     {
         var docs = ValidDocs();
         for (var i = 0; i < 5; i++) docs.Add(Doc(PartnerDocumentType.Other, Pdf));
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
-        Assert.Contains("Tối đa 6 file", ex.Message);
+        Assert.Contains("Tối đa 8 file", ex.Message);
+    }
+
+    [Theory] // CCCD phải là ảnh: nộp PDF cho mặt trước / mặt sau → 400.
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task Submit_with_pdf_as_id_card_side_is_rejected(int index)
+    {
+        var docs = ValidDocs();
+        docs[index] = Doc(docs[index].Type, Pdf, "cccd.pdf");
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
+        Assert.Contains("chỉ nhận ảnh JPG hoặc PNG", ex.Message);
+    }
+
+    [Fact] // Mỗi mặt CCCD đúng 1 ảnh.
+    public async Task Submit_with_two_front_id_card_images_is_rejected()
+    {
+        var docs = ValidDocs();
+        docs.Add(Doc(PartnerDocumentType.IdCardFront, Png, "cccd-truoc-2.png"));
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
+        Assert.Contains("chỉ tải lên 1 ảnh", ex.Message);
     }
 
     [Fact] // Không đồng ý điều khoản → 400.

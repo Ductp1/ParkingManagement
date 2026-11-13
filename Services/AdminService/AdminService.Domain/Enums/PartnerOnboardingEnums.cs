@@ -31,12 +31,14 @@ public enum PartnerDocumentType
 {
     /// <summary>Giấy chứng nhận đăng ký doanh nghiệp / hộ kinh doanh (bắt buộc).</summary>
     BusinessLicense = 1,
-    /// <summary>CCCD / hộ chiếu của người đại diện pháp luật (bắt buộc).</summary>
-    RepresentativeId = 2,
-    /// <summary>Giấy tờ quyền sử dụng mặt bằng bãi: sổ đỏ, hợp đồng thuê… (tùy chọn).</summary>
+    /// <summary>Ảnh CCCD mặt trước của người đại diện pháp luật (bắt buộc, đúng 1 ảnh).</summary>
+    IdCardFront = 2,
+    /// <summary>Giấy tờ pháp lý mặt bằng bãi: sổ đỏ, hợp đồng thuê… (bắt buộc).</summary>
     LotLegalProof = 3,
     /// <summary>Giấy tờ khác: PCCC, giấy phép con… (tùy chọn).</summary>
     Other = 4,
+    /// <summary>Ảnh CCCD mặt sau của người đại diện pháp luật (bắt buộc, đúng 1 ảnh).</summary>
+    IdCardBack = 5,
 }
 
 /// <summary>[AdminService] Trạng thái hợp đồng của một bãi đỗ (US-116, mục 14.4).</summary>
