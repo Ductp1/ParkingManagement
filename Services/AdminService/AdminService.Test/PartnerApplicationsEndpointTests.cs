@@ -1,0 +1,219 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Reflection;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using AdminService.API.Controllers;
+using AdminService.API.Security;
+using AdminService.Application.Features.PartnerOnboarding;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.JsonWebTokens;
+using Microsoft.IdentityModel.Tokens;
+using ParkingManagement.ServiceDefaults;
+using static AdminService.Test.PartnerApplicationSubmitTests;
+
+namespace AdminService.Test;
+
+// US-116 T1: API hồ sơ đối tác mới trên TestServer với pipeline thật (AddServiceDefaults + AddJwtAuth + rate limit + UseServiceDefaults).
+public class PartnerApplicationsEndpointTests
+{
+    private const string PublicUrl = "api/v1/partner-applications";
+    private const string AdminUrl = "api/v1/admin/partner-applications";
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+
+    [Fact]
+    public async Task Anonymous_submit_returns_201_with_code_only()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        var response = await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
+        Assert.Equal("PA-2026-0001", body.GetProperty("code").GetString());
+        Assert.Equal("Submitted", body.GetProperty("status").GetString());
+        Assert.False(body.TryGetProperty("email", out _));
+        Assert.Single(host.Store.Applications);
+    }
+
+    [Fact]
+    public async Task Invalid_submit_returns_400_problem_details()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        var response = await host.Client.PostAsJsonAsync(PublicUrl, Valid() with { ConsentAccepted = false }, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json);
+        Assert.Contains("Nghị định 13/2023", problem!.Detail);
+        Assert.Empty(host.Store.Applications);
+    }
+
+    [Fact]
+    public async Task Duplicate_submit_returns_409()
+    {
+        await using var host = await ApiHost.StartAsync();
+        await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+
+        var response = await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Too_many_submits_from_one_ip_returns_429()
+    {
+        await using var host = await ApiHost.StartAsync(perHour: 2);
+
+        var statuses = new List<HttpStatusCode>();
+        for (var i = 0; i < 3; i++)
+        {
+            var body = Valid() with { Email = $"p{i}@example.vn", Phone = $"090000000{i}", TaxCode = $"031234567{i}" };
+            statuses.Add((await host.Client.PostAsJsonAsync(PublicUrl, body, Json)).StatusCode);
+        }
+
+        Assert.Equal([HttpStatusCode.Created, HttpStatusCode.Created, HttpStatusCode.TooManyRequests], statuses);
+        Assert.Equal(2, host.Store.Applications.Count);
+    }
+
+    [Fact]
+    public async Task Admin_intake_requires_admin_token()
+    {
+        await using var host = await ApiHost.StartAsync();
+        var body = new { fullName = "Trần Minh" };
+
+        var anonymous = await host.Client.PostAsJsonAsync(AdminUrl, body, Json);
+        var owner = await host.SendAsync(HttpMethod.Post, AdminUrl, "LotOwner", body);
+
+        Assert.Equal((HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden), (anonymous.StatusCode, owner.StatusCode));
+        Assert.Empty(host.Store.Applications);
+    }
+
+    [Fact]
+    public async Task Admin_intake_returns_201_with_detail_and_location()
+    {
+        await using var host = await ApiHost.StartAsync();
+        var r = Valid();
+
+        var response = await host.SendAsync(HttpMethod.Post, AdminUrl, "Admin", new
+        {
+            r.FullName, r.Email, r.Phone, r.Position, r.BusinessType, r.BusinessName, r.TaxCode, r.BusinessAddress,
+            r.LegalRepresentativeName, r.LegalRepresentativePosition, r.LotCount, r.PrimaryLotAddress, r.EstimatedCarSlots,
+            r.EstimatedMotorbikeSlots, r.OperatingHours, r.ConsentAccepted, intakeNote = "Gọi hotline",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var dto = await response.Content.ReadFromJsonAsync<PartnerApplicationDetailDto>(Json);
+        Assert.Equal(("PA-2026-0001", "Submitted", "minh@example.vn"), (dto!.Code, dto.Status, dto.Email));
+        Assert.EndsWith($"/{AdminUrl}/{dto.Id}", response.Headers.Location!.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(7, Assert.Single(host.Store.Audits).UserId);
+    }
+
+    /// <summary>Phụ thuộc của controller admin không dùng trong test: tạo được (constructor), gọi tới thì ném lỗi.</summary>
+    public class UnusedProxy : DispatchProxy
+    {
+        public static object For(Type type)
+            => typeof(DispatchProxy).GetMethod(nameof(DispatchProxy.Create), 2, Type.EmptyTypes)!
+                .MakeGenericMethod(type, typeof(UnusedProxy)).Invoke(null, null)!;
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+            => throw new NotSupportedException($"{targetMethod?.DeclaringType?.Name}.{targetMethod?.Name} không dùng trong test này.");
+    }
+
+    private sealed class FixedTime(DateTime now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(now);
+    }
+
+    private sealed class ApiHost : IAsyncDisposable
+    {
+        private const int AdminUserId = 7;
+        private readonly RSA signingKey = RSA.Create(2048);
+        private readonly string publicKeyPath = Path.Combine(Path.GetTempPath(), $"admin-partner-apply-{Guid.NewGuid():N}.pem");
+        private WebApplication app = null!;
+
+        public HttpClient Client { get; private set; } = null!;
+        public InMemoryIntake Store { get; } = new();
+
+        public static async Task<ApiHost> StartAsync(int perHour = 5)
+        {
+            var host = new ApiHost();
+            await File.WriteAllTextAsync(host.publicKeyPath, host.signingKey.ExportSubjectPublicKeyInfoPem());
+
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            {
+                EnvironmentName = "Testing",
+                ApplicationName = typeof(PartnerApplicationsController).Assembly.GetName().Name,
+            });
+            builder.WebHost.UseTestServer();
+            builder.Logging.ClearProviders();
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [PartnerApplicationRateLimit.PerHourKey] = perHour.ToString(),
+            });
+            builder.AddServiceDefaults("AdminService");
+            builder.Services.AddJwtAuth(host.publicKeyPath);
+            builder.Services.AddPartnerApplicationRateLimit(builder.Configuration);
+            // Chỉ dùng 2 endpoint tạo hồ sơ – các controller khác của assembly không được gọi nên không cần đăng ký phụ thuộc.
+            builder.Services.AddSingleton<TimeProvider>(new FixedTime(new DateTime(2026, 11, 13, 2, 0, 0, DateTimeKind.Utc)));
+            builder.Services.AddSingleton<IPartnerApplicationIntakeRepository>(host.Store);
+            builder.Services.AddSingleton<IPartnerApplicationQueries>(host.Store);
+            builder.Services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
+            builder.Services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
+            foreach (var type in new[]
+                     {
+                         typeof(IListPartnerApplicationsUseCase), typeof(IGetPartnerApplicationUseCase), typeof(IStartPartnerReviewUseCase),
+                         typeof(IRequestPartnerInfoUseCase), typeof(IRejectPartnerApplicationUseCase), typeof(ICancelPartnerApplicationUseCase),
+                         typeof(IIssueOwnerAccountUseCase), typeof(IResendOwnerActivationUseCase),
+                     })
+                builder.Services.AddSingleton(type, _ => UnusedProxy.For(type));
+
+            host.app = builder.Build();
+            host.app.UsePartnerApplicationRateLimit();
+            host.app.UseServiceDefaults();
+            await host.app.StartAsync();
+            host.Client = host.app.GetTestClient();
+            return host;
+        }
+
+        public Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string role, object? body = null)
+        {
+            var request = new HttpRequestMessage(method, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", MintToken(role));
+            if (body is not null) request.Content = JsonContent.Create(body, options: Json);
+            return Client.SendAsync(request);
+        }
+
+        private string MintToken(string role)
+        {
+            var now = DateTime.UtcNow;
+            return new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+            {
+                Subject = new ClaimsIdentity([new Claim("sub", AdminUserId.ToString()), new Claim("role", role)]),
+                IssuedAt = now,
+                NotBefore = now,
+                Expires = now.AddMinutes(30),
+                Issuer = "ParkingManagement",
+                Audience = "ParkingManagement.Clients",
+                SigningCredentials = new SigningCredentials(new RsaSecurityKey(signingKey), SecurityAlgorithms.RsaSha256),
+            });
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            Client.Dispose();
+            await app.DisposeAsync();
+            signingKey.Dispose();
+            File.Delete(publicKeyPath);
+        }
+    }
+}

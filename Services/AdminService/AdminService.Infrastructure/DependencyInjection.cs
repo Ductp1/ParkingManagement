@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddSingleton(SanctionSettingsFrom(configuration));
         services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
+        services.AddScoped<IPartnerApplicationIntakeRepository, PartnerApplicationIntakeRepository>();   // US-116 T1
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
         services.AddScoped<ICommissionRateQueries, CommissionRateQueries>();                 // US-079: tỷ lệ hoa hồng theo hợp đồng
         services.AddScoped<ILotContractRepository, LotContractRepository>();

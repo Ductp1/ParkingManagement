@@ -17,6 +17,7 @@ namespace AdminService.API.Controllers;
 public sealed class AdminPartnerApplicationsController(
     IListPartnerApplicationsUseCase listApplications,
     IGetPartnerApplicationUseCase getApplication,
+    ICreatePartnerApplicationUseCase createApplication,
     IStartPartnerReviewUseCase startReview,
     IRequestPartnerInfoUseCase requestInfo,
     IRejectPartnerApplicationUseCase reject,
@@ -40,6 +41,22 @@ public sealed class AdminPartnerApplicationsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<PartnerApplicationDetailDto>> GetById(int id, CancellationToken cancellationToken)
         => Ok(await getApplication.ExecuteAsync(id, cancellationToken));
+
+    /// <summary>
+    /// POST /api/v1/admin/partner-applications – Admin nhập hồ sơ thay đối tác (nhận qua điện thoại), body như form public
+    /// + intakeNote. 201 + chi tiết hồ sơ (Submitted); trùng email / SĐT / MST với hồ sơ đang xử lý → 409 kèm mã hồ sơ đó.
+    /// </summary>
+    [HttpPost]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<PartnerApplicationDetailDto>> Create([FromBody] AdminCreatePartnerApplicationRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (currentUser.UserId is not { } adminUserId) return Unauthorized();
+        var created = await createApplication.ExecuteAsync(request, adminUserId, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+    }
 
     /// <summary>POST /api/v1/admin/partner-applications/12/start-review (A3, T2).</summary>
     [HttpPost("{id:int}/start-review")]
