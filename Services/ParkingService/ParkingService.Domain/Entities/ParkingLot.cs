@@ -55,13 +55,6 @@ public class ParkingLot : BaseEntity, ISoftDelete
     public decimal RatingAverage { get; private set; }
     public int RatingCount { get; private set; }
 
-    // ===== US-068: Heartbeat & Stale Data =====
-    /// <summary>Thời điểm thiết bị/controller gửi heartbeat gần nhất (null = chưa từng báo còn sống).</summary>
-    public DateTime? LastHeartbeatAtUtc { get; private set; }
-
-    /// <summary>Cờ do StalenessMonitorWorker đặt khi bãi Active quá <see cref="StalenessEvaluator"/> hạn heartbeat; heartbeat mới tự xóa.</summary>
-    public bool IsDataStale { get; private set; }
-
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
 
@@ -298,20 +291,6 @@ public class ParkingLot : BaseEntity, ISoftDelete
         {
             MaxHeightCm = maxHeightCm.Value;
         }
-    }
-
-    // ===== US-068: Heartbeat & Stale Data =====
-
-    /// <summary>
-    /// Thiết bị/controller/chủ bãi báo dữ liệu còn sống: refresh <see cref="LastHeartbeatAtUtc"/> và
-    /// tự phục hồi cờ stale. Trả <c>true</c> nếu bãi vừa chuyển Stale → Fresh (phát sự kiện phục hồi).
-    /// </summary>
-    public bool RecordHeartbeat(DateTime nowUtc)
-    {
-        LastHeartbeatAtUtc = nowUtc;
-        var recovered = IsDataStale;
-        IsDataStale = false;
-        return recovered;
     }
 
     /// <summary>
