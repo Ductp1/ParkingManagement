@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { avatarSource, logoutSession } from '@/api/authApi';
@@ -62,8 +62,8 @@ const ROLE_PORTALS: RolePortalItem[] = [
     subtitle: 'Cổng Đối Tác Chủ Bãi',
     path: '/owner',
     icon: 'domain',
-    badgeClass: 'bg-indigo-100 text-indigo-700',
-    subActiveClass: 'bg-indigo-50 text-indigo-700 font-bold',
+    badgeClass: 'bg-blue-100 text-blue-700',
+    subActiveClass: 'bg-blue-50 text-blue-700 font-bold',
   },
   {
     id: 'Staff',
@@ -89,6 +89,8 @@ interface SubNavItem {
   label: string;
   path: string;
   icon: string;
+  description?: string;
+  children?: SubNavItem[];
 }
 
 const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
@@ -99,21 +101,49 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     { label: 'Lịch sử đặt', path: '/driver/history', icon: 'receipt_long' },
     { label: 'Hỗ trợ CSKH', path: '/driver/support', icon: 'support_agent' },
   ],
+
   Owner: [
-    { label: 'Tổng quan & Doanh thu', path: '/owner', icon: 'analytics' },
-    { label: 'Bãi đỗ & Sơ đồ ô', path: '/owner/lots', icon: 'view_quilt' },
-    { label: 'Bảng giá & Thu phí', path: '/owner/pricing', icon: 'payments' },
-    { label: 'Quản lý Đặt chỗ', path: '/owner/bookings', icon: 'receipt_long' },
-    { label: 'Khiếu nại & Đánh giá', path: '/owner/feedback', icon: 'rate_review' },
-    { label: 'Hồ sơ pháp lý KYB', path: '/owner/kyb', icon: 'verified' },
+    { label: 'Tổng quan', path: '/owner', icon: 'analytics' },
+    { label: 'Bãi đỗ & Sơ đồ', path: '/owner/lots', icon: 'view_quilt' },
+    { label: 'Đặt chỗ & Duyệt', path: '/owner/bookings', icon: 'event_available' },
+    { label: 'Doanh thu & Đối soát', path: '/owner/revenue', icon: 'account_balance_wallet' },
+    { label: 'Bảng giá', path: '/owner/pricing', icon: 'payments' },
+    {
+      label: 'Tiện ích & Cấu hình',
+      path: '/owner/more',
+      icon: 'tune',
+      children: [
+        {
+          label: 'Nhân viên trực cổng',
+          path: '/owner/staff',
+          icon: 'badge',
+          description: 'Cấp tài khoản & phân quyền ca trực',
+        },
+        {
+          label: 'Khiếu nại & Đánh giá',
+          path: '/owner/feedback',
+          icon: 'rate_review',
+          description: 'Giải quyết khiếu nại & bồi thường',
+        },
+        {
+          label: 'Hồ sơ pháp lý KYB',
+          path: '/owner/kyb',
+          icon: 'verified',
+          description: 'Quản lý hồ sơ pháp lý chủ bãi',
+        },
+        {
+          label: 'Tích hợp PMS / API',
+          path: '/owner/integrations',
+          icon: 'integration_instructions',
+          description: 'Khóa API & cấu hình Webhook',
+        },
+      ],
+    },
   ],
-  Staff: [
-    { label: 'Bàn điều khiển Barie', path: '/gate', icon: 'tune' },
-    { label: 'Làn vào (ANPR Inbound)', path: '/gate/inbound', icon: 'login' },
-    { label: 'Làn ra (ANPR Outbound)', path: '/gate/outbound', icon: 'logout' },
-    { label: 'Soát vé thủ công', path: '/gate/manual', icon: 'edit_square' },
-    { label: 'Nhật ký trạm', path: '/gate/events', icon: 'history' },
-  ],
+
+  // Gate Console gói gọn trong 1 trang duy nhất (/gate) – không cần thanh menu con.
+  Staff: [],
+
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
     { label: 'Quản lý tài khoản', path: '/admin/users', icon: 'manage_accounts' },
@@ -126,7 +156,7 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
 
 const ROLE_BADGE_META: Record<UserRole, { label: string; color: string }> = {
   Driver: { label: 'Tài xế', color: 'text-blue-600' },
-  Owner: { label: 'Chủ bãi', color: 'text-indigo-600' },
+  Owner: { label: 'Chủ bãi', color: 'text-blue-600' },
   Staff: { label: 'Nhân viên cổng', color: 'text-amber-600' },
   Admin: { label: 'Quản trị viên', color: 'text-purple-600' },
 };
@@ -141,6 +171,23 @@ export const MainNavbar: React.FC = () => {
   const [loggingOut, setLoggingOut] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Đóng dropdown Tiện ích khi click ra ngoài hoặc đổi route
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    setIsMoreMenuOpen(false);
+  }, [location.pathname]);
 
   // Xác định phân hệ đang active từ URL
   const getActiveRole = (pathname: string): UserRole => {
@@ -154,9 +201,9 @@ export const MainNavbar: React.FC = () => {
   const activePortal = ROLE_PORTALS.find((p) => p.id === activeRole) || ROLE_PORTALS[0];
   const currentSubNavs = PORTAL_SUB_NAVS[activeRole] || PORTAL_SUB_NAVS.Driver;
 
-  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : []);
+  const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : ['Driver', 'Owner']);
   const authorizedPortals = ROLE_PORTALS.filter(
-    (portal) => userRoles.includes('Admin') || userRoles.includes(portal.id)
+    (portal) => !user || userRoles.includes('Admin') || userRoles.includes(portal.id)
   );
 
   // ===== Hộp thông báo (NotificationService) =====
@@ -192,9 +239,9 @@ export const MainNavbar: React.FC = () => {
 
   return (
     <header className="pm-navbar bg-white border-b border-slate-200 sticky top-0 z-50 w-full shadow-2xs">
-      {/* ===== BRAND LOGO + MENU ĐIỀU HƯỚNG TINH GỌN + USER DROPDOWN ===== */}
+      {/* ===== BRAND LOGO + TRUY CẬP NHANH CÁC ROLE QUA URL + USER DROPDOWN ===== */}
       <div className="pm-navbar-shell pm-navbar-top flex items-center justify-between">
-        {/* Brand Logo */}
+        {/* Brand Logo & Desktop Portal Switcher */}
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <NavLink to={activePortal.path} className="pm-navbar-brand flex items-center gap-2.5 group">
             <div className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl bg-blue-600 text-white flex items-center justify-center text-lg font-black shadow-xs group-hover:scale-105 transition-transform">
@@ -209,12 +256,107 @@ export const MainNavbar: React.FC = () => {
               </span>
             </div>
           </NavLink>
+
+          {/* Desktop Portal Switcher: Chuyển nhanh giữa Tài xế & Chủ bãi (chỉ hiển thị icon) */}
+          {authorizedPortals.length > 1 && (
+            <div className="hidden lg:flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200/80 shadow-2xs ml-2">
+              {authorizedPortals.map((portal) => {
+                const isCurrent = portal.id === activeRole;
+                return (
+                  <NavLink
+                    key={portal.id}
+                    to={portal.path}
+                    title={portal.label}
+                    aria-label={portal.label}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+                      isCurrent
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{portal.icon}</span>
+                  </NavLink>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        {/* Menu Điều hướng Desktop: 4 mục cốt lõi, không thanh cuộn xám */}
+        {/* Menu Điều hướng Desktop: Gọn gàng, chuẩn responsive */}
         <div className="pm-navbar-desktop-menu">
           <nav aria-label={`Chức năng ${activePortal.label}`} className="pm-navbar-menu">
             {currentSubNavs.map((sub) => {
+              if (sub.children && sub.children.length > 0) {
+                const isDropdownActive = sub.children.some(
+                  (child) =>
+                    location.pathname === child.path ||
+                    (child.path !== activePortal.path && location.pathname.startsWith(child.path))
+                );
+
+                return (
+                  <div key={sub.label} className="relative" ref={moreMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsMoreMenuOpen((prev) => !prev)}
+                      className={`pm-navbar-menu-link flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all cursor-pointer ${
+                        isDropdownActive || isMoreMenuOpen
+                          ? activePortal.subActiveClass
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[17px]">{sub.icon}</span>
+                      <span>{sub.label}</span>
+                      <span
+                        className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
+                          isMoreMenuOpen ? 'rotate-180' : ''
+                        }`}
+                      >
+                        keyboard_arrow_down
+                      </span>
+                    </button>
+
+                    {isMoreMenuOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/90 p-1.5 z-50 animate-fade-in flex flex-col gap-1">
+                        {sub.children.map((child) => {
+                          const isChildActive =
+                            location.pathname === child.path ||
+                            (child.path !== activePortal.path && location.pathname.startsWith(child.path));
+
+                          return (
+                            <NavLink
+                              key={child.path}
+                              to={child.path}
+                              onClick={() => setIsMoreMenuOpen(false)}
+                              className={`flex items-start gap-2.5 p-2 rounded-xl text-xs transition-all ${
+                                isChildActive
+                                  ? 'bg-blue-50 text-blue-700 font-bold'
+                                  : 'text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                                  isChildActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="block truncate font-semibold">{child.label}</span>
+                                {child.description && (
+                                  <span className="block text-[11px] text-slate-400 font-normal leading-tight mt-0.5">
+                                    {child.description}
+                                  </span>
+                                )}
+                              </div>
+                            </NavLink>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               const isSubActive =
                 location.pathname === sub.path ||
                 (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
@@ -224,7 +366,7 @@ export const MainNavbar: React.FC = () => {
                   key={sub.path}
                   to={sub.path}
                   end={sub.path === activePortal.path}
-                  className={`pm-navbar-menu-link flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all ${
+                  className={`pm-navbar-menu-link flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs transition-all ${
                     isSubActive
                       ? activePortal.subActiveClass
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 font-medium'
@@ -397,10 +539,10 @@ export const MainNavbar: React.FC = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-slate-900 truncate">
-                      {user?.fullName || 'Tài xế ParkMaster'}
+                      {user?.fullName || (activeRole === 'Owner' ? 'Chủ bãi ParkMaster' : 'Tài xế ParkMaster')}
                     </p>
                     <p className="text-[11px] text-slate-500 truncate">
-                      {user?.phone || user?.email || 'Tài xế'}
+                      {user?.phone || user?.email || (activeRole === 'Owner' ? 'Chủ bãi' : 'Tài xế')}
                     </p>
                   </div>
                 </div>
@@ -415,19 +557,39 @@ export const MainNavbar: React.FC = () => {
                     <span>Hồ sơ cá nhân</span>
                   </NavLink>
 
-                  <NavLink
-                    to="/driver/kyc"
-                    onClick={() => setIsUserMenuOpen(false)}
-                    className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="material-symbols-outlined text-[18px] text-blue-600">verified_user</span>
-                      <span>Xác minh KYC</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
-                      Hồ sơ
-                    </span>
-                  </NavLink>
+                  {/* Xác minh KYC: Hiển thị khi đang ở giao diện Tài xế */}
+                  {activeRole === 'Driver' && (
+                    <NavLink
+                      to="/driver/kyc"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600">verified_user</span>
+                        <span>Xác minh KYC</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Hồ sơ
+                      </span>
+                    </NavLink>
+                  )}
+
+                  {/* Hồ sơ pháp lý KYB: Chỉ hiển thị nếu người dùng đang ở giao diện Chủ bãi */}
+                  {activeRole === 'Owner' && (
+                    <NavLink
+                      to="/owner/kyb"
+                      onClick={() => setIsUserMenuOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-[18px] text-blue-600">verified</span>
+                        <span>Hồ sơ pháp lý KYB</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                        Hồ sơ
+                      </span>
+                    </NavLink>
+                  )}
                 </div>
 
                 <div className="p-1.5 border-t border-slate-100">
@@ -464,7 +626,7 @@ export const MainNavbar: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className={`${authorizedPortals.length > 1 ? '' : 'lg:hidden '}p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer`}
+            className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 cursor-pointer"
             aria-label="Mở menu"
             aria-expanded={isMobileMenuOpen}
             aria-controls="navbar-mobile-menu"
@@ -478,7 +640,7 @@ export const MainNavbar: React.FC = () => {
 
       {/* ===== MENU MOBILE ===== */}
       {isMobileMenuOpen && (
-        <div id="navbar-mobile-menu" className="pm-navbar-shell bg-white border-t border-slate-200 py-4 space-y-4 shadow-xl">
+        <div id="navbar-mobile-menu" className="lg:hidden pm-navbar-shell bg-white border-t border-slate-200 py-4 space-y-4 shadow-xl">
           {authorizedPortals.length > 1 && (
             <>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
@@ -509,6 +671,37 @@ export const MainNavbar: React.FC = () => {
 
           <div className="space-y-1 pt-2 border-t border-slate-100">
             {currentSubNavs.map((sub) => {
+              if (sub.children && sub.children.length > 0) {
+                return (
+                  <div key={sub.label} className="pt-2 pb-1">
+                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-1 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">{sub.icon}</span>
+                      <span>{sub.label}</span>
+                    </div>
+                    <div className="space-y-1 pl-2">
+                      {sub.children.map((child) => {
+                        const isChildActive =
+                          location.pathname === child.path ||
+                          (child.path !== activePortal.path && location.pathname.startsWith(child.path));
+                        return (
+                          <NavLink
+                            key={child.path}
+                            to={child.path}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+                              isChildActive ? activePortal.subActiveClass : 'text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[18px]">{child.icon}</span>
+                            <span>{child.label}</span>
+                          </NavLink>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
               const isSubActive =
                 location.pathname === sub.path ||
                 (sub.path !== activePortal.path && location.pathname.startsWith(sub.path));
@@ -518,9 +711,7 @@ export const MainNavbar: React.FC = () => {
                   to={sub.path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-                    isSubActive
-                      ? activePortal.subActiveClass
-                      : 'text-slate-700 hover:bg-slate-100'
+                    isSubActive ? activePortal.subActiveClass : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <span className="material-symbols-outlined text-[18px]">{sub.icon}</span>

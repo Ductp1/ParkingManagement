@@ -94,9 +94,9 @@ export const AmenitiesSelector: React.FC<AmenitiesSelectorProps> = ({
           name: cat.name,
           description: cat.description,
           iconName: 'Sparkles',
-          badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-          iconBgClass: 'bg-indigo-100',
-          iconColorClass: 'text-indigo-600',
+          badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+          iconBgClass: 'bg-blue-100',
+          iconColorClass: 'text-blue-600',
         });
       }
     });

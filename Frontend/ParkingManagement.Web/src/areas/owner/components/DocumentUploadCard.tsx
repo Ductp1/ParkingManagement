@@ -147,7 +147,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
           {/* Chi tiết file thật: Tên file, dung lượng, hành động */}
           <div className="flex-1 min-w-0 w-full">
             <div className="flex items-center gap-2">
-              <FileCheck2 size={16} className="text-indigo-600 shrink-0" />
+              <FileCheck2 size={16} className="text-blue-600 shrink-0" />
               <div
                 className="text-xs font-bold text-slate-900 truncate"
                 title={displayFileName}
@@ -172,7 +172,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
                   href={value}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:border-indigo-300 flex items-center gap-1.5 shadow-2xs transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:border-blue-300 flex items-center gap-1.5 shadow-2xs transition-colors"
                 >
                   <ExternalLink size={13} />
                   Xem tệp gốc
@@ -181,7 +181,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
 
               {/* Nút chọn lại / thay thế tệp khác */}
               {!disabled && (
-                <label className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-indigo-600 hover:border-indigo-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer">
+                <label className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-blue-600 hover:border-blue-300 flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer">
                   <RefreshCw size={13} />
                   Thay tệp khác
                   <input
@@ -223,27 +223,27 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
           onDrop={onDrop}
           className={`rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
             dragActive
-              ? 'border-indigo-600 bg-indigo-50/60 scale-[1.01]'
-              : 'border-slate-300 hover:border-indigo-400 bg-slate-50/40 hover:bg-slate-50/80'
+              ? 'border-blue-600 bg-blue-50/60 scale-[1.01]'
+              : 'border-slate-300 hover:border-blue-400 bg-slate-50/40 hover:bg-slate-50/80'
           } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
         >
           {uploading ? (
             <div className="py-4 flex flex-col items-center justify-center gap-2">
-              <Loader2 size={28} className="text-indigo-600 animate-spin" />
+              <Loader2 size={28} className="text-blue-600 animate-spin" />
               <span className="text-xs font-bold text-slate-700">
                 Đang xử lý tải tệp lên…
               </span>
             </div>
           ) : (
             <>
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3 shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3 shadow-2xs">
                 <Upload size={20} />
               </div>
 
               <div className="text-xs font-bold text-slate-900">
                 Kéo thả tệp vào đây, hoặc{' '}
                 <label
-                  className={`text-indigo-600 hover:text-indigo-700 underline font-extrabold ${
+                  className={`text-blue-600 hover:text-blue-700 underline font-extrabold ${
                     disabled ? '' : 'cursor-pointer'
                   }`}
                 >

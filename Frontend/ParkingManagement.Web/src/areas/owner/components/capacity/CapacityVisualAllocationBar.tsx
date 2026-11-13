@@ -68,7 +68,7 @@ export const CapacityVisualAllocationBar: React.FC<CapacityVisualAllocationBarPr
           {quotaPercent > 0 && (
             <div
               style={{ width: `${quotaPercent}%` }}
-              className="h-full rounded-lg bg-linear-to-r from-indigo-500 to-indigo-600 transition-all duration-300 flex items-center justify-center text-[10px] sm:text-xs font-bold text-white shadow-2xs relative group cursor-pointer"
+              className="h-full rounded-lg bg-linear-to-r from-blue-500 to-blue-600 transition-all duration-300 flex items-center justify-center text-[10px] sm:text-xs font-bold text-white shadow-2xs relative group cursor-pointer"
               title={`Hạn ngạch Online: ${onlineQuota} chỗ (${Math.round((onlineQuota / totalSlots) * 100)}%)`}
             >
               {quotaPercent >= 12 && (
@@ -107,7 +107,7 @@ export const CapacityVisualAllocationBar: React.FC<CapacityVisualAllocationBarPr
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="w-3.5 h-3.5 rounded-md bg-indigo-600 shrink-0"></span>
+              <span className="w-3.5 h-3.5 rounded-md bg-blue-600 shrink-0"></span>
               <span className="text-slate-700 font-medium">
                 Mở bán trên App: <strong>{onlineQuota} chỗ</strong> ({Math.round((onlineQuota / totalSlots) * 100)}%)
               </span>

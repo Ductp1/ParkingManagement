@@ -14,80 +14,93 @@ interface CapacitySummaryCardsProps {
 
 export const CapacitySummaryCards: React.FC<CapacitySummaryCardsProps> = ({ config }) => {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 sm:gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
       {/* 1. Tổng sức chứa vật lý */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs">
+      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
             Sức chứa vật lý
           </span>
-          <div className="p-1.5 rounded-lg bg-slate-100 text-slate-600">
-            <Building2 size={16} />
+          <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+            <Building2 size={18} />
           </div>
         </div>
-        <div className="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2">
-          {config.totalSlots}{' '}
-          <span className="text-xs font-semibold text-slate-500">ô đỗ</span>
+        <div>
+          <div className="text-3xl font-extrabold text-slate-900 tracking-tight">
+            {config.totalSlots}{' '}
+            <span className="text-sm font-normal text-slate-500">ô đỗ</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>100% quy mô bãi xe</span>
+          </div>
         </div>
-        <p className="text-[11px] text-slate-500 mt-1">100% quy mô bãi xe</p>
       </div>
 
       {/* 2. Vùng đệm khách vãng lai */}
-      <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 shadow-2xs">
+      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider">
+          <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
             Vùng đệm vãng lai
           </span>
-          <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
-            <Users size={16} />
+          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+            <Users size={18} />
           </div>
         </div>
-        <div className="text-xl sm:text-2xl font-extrabold text-amber-900 mt-2">
-          {config.calculatedWalkInBufferSlots}{' '}
-          <span className="text-xs font-semibold text-amber-700">chỗ</span>
+        <div>
+          <div className="text-3xl font-extrabold text-amber-600 tracking-tight">
+            {config.calculatedWalkInBufferSlots}{' '}
+            <span className="text-sm font-normal text-slate-500">chỗ</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-amber-700">
+            <ShieldCheck size={14} className="shrink-0" />
+            <span>Giữ lại {config.walkInBufferPercent}% tại cổng</span>
+          </div>
         </div>
-        <p className="text-[11px] text-amber-800/80 mt-1 flex items-center gap-1 font-medium">
-          <ShieldCheck size={13} className="text-amber-600 shrink-0" />
-          <span>Giữ lại {config.walkInBufferPercent}% tại cổng</span>
-        </p>
       </div>
 
       {/* 3. Hạn ngạch mở bán trên App */}
-      <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-200/80 shadow-2xs">
+      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">
+          <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
             Hạn ngạch bán Online
           </span>
-          <div className="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
-            <Smartphone size={16} />
+          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+            <Smartphone size={18} />
           </div>
         </div>
-        <div className="text-xl sm:text-2xl font-extrabold text-indigo-900 mt-2">
-          {config.onlineQuota}{' '}
-          <span className="text-xs font-semibold text-indigo-600">/ {config.maxAllowedOnlineQuota}</span>
+        <div>
+          <div className="text-3xl font-extrabold text-blue-600 tracking-tight">
+            {config.onlineQuota}{' '}
+            <span className="text-sm font-normal text-slate-500">/ {config.maxAllowedOnlineQuota}</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span>Tối đa cho phép: {config.maxAllowedOnlineQuota} chỗ</span>
+          </div>
         </div>
-        <p className="text-[11px] text-indigo-800/80 mt-1 font-medium">
-          Tối đa cho phép: {config.maxAllowedOnlineQuota} chỗ
-        </p>
       </div>
 
       {/* 4. Ngưỡng khóa an toàn */}
-      <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80 shadow-2xs">
+      <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider">
+          <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
             Ngưỡng khóa an toàn
           </span>
-          <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700">
-            <Lock size={16} />
+          <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center">
+            <Lock size={18} />
           </div>
         </div>
-        <div className="text-xl sm:text-2xl font-extrabold text-rose-900 mt-2">
-          ≤ {config.onlineLockThreshold}{' '}
-          <span className="text-xs font-semibold text-rose-700">chỗ</span>
+        <div>
+          <div className="text-3xl font-extrabold text-rose-600 tracking-tight">
+            ≤ {config.onlineLockThreshold}{' '}
+            <span className="text-sm font-normal text-slate-500">chỗ</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1 text-xs text-rose-600">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+            <span>Tự động đóng kênh online khi chạm</span>
+          </div>
         </div>
-        <p className="text-[11px] text-rose-800/80 mt-1 font-medium">
-          Tự động đóng kênh online khi chạm
-        </p>
       </div>
     </div>
   );

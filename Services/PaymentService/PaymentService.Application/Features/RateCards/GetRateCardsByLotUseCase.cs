@@ -30,7 +30,7 @@ public sealed class GetRateCardsByLotUseCase(IRateCardManagementRepository repo)
             throw new ValidationException("ParkingLotId phải là số nguyên dương.");
 
         var cards = await repo.GetByParkingLotIdAsync(parkingLotId, cancellationToken);
-        return cards.Select(CreateRateCardUseCase.MapToDto).ToList();
+        return cards.Select(c => CreateRateCardUseCase.MapToDto(c)).ToList();
     }
 
     public async Task<RateCardDetailDto> GetByIdAsync(int id, CancellationToken cancellationToken = default)

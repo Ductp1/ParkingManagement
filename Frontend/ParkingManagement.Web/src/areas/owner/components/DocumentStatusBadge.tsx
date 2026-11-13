@@ -71,9 +71,9 @@ export const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({
   // Mặc định (Bản nháp Draft - vừa chọn file)
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 ${className}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 ${className}`}
     >
-      <FileCheck size={13} className="text-indigo-600" />
+      <FileCheck size={13} className="text-blue-600" />
       <span>Bản nháp · Sẵn sàng gửi</span>
     </span>
   );

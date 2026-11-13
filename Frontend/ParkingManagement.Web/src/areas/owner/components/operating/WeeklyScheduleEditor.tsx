@@ -372,7 +372,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+            <span className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
               <CalendarDays size={18} />
             </span>
             <h3 className="text-base font-bold text-slate-900">
@@ -392,7 +392,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
             onClick={() => handleSwitchMode('base')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               viewMode === 'base'
-                ? 'bg-white text-indigo-700 shadow-2xs'
+                ? 'bg-white text-blue-700 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -404,7 +404,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
             onClick={() => handleSwitchMode('week')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               viewMode === 'week'
-                ? 'bg-white text-indigo-700 shadow-2xs'
+                ? 'bg-white text-blue-700 shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -416,7 +416,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
 
       {/* 2. Thanh Điều Hướng Tuần (Khi ở chế độ 'week') */}
       {viewMode === 'week' ? (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-50/60 via-purple-50/40 to-slate-50 border border-indigo-100 space-y-3">
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/60 via-purple-50/40 to-slate-50 border border-blue-100 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             {/* Bộ chọn tuần qua lại */}
             <div className="flex items-center gap-2">
@@ -434,7 +434,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
                 <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 justify-center">
                   <span>Tuần {selectedWeek} / {selectedYear}</span>
                   {isCurrentWeekSelected && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
                       Hiện tại
                     </span>
                   )}
@@ -458,7 +458,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
                 <button
                   type="button"
                   onClick={handleCurrentWeek}
-                  className="px-3 py-2 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 text-xs font-semibold text-slate-700 hover:text-indigo-700 transition-all cursor-pointer shadow-2xs"
+                  className="px-3 py-2 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 text-xs font-semibold text-slate-700 hover:text-blue-700 transition-all cursor-pointer shadow-2xs"
                 >
                   Về Tuần này
                 </button>
@@ -496,7 +496,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
           </div>
 
           {/* Ô nhập lý do ngoại lệ tuần */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-indigo-100/60">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2 border-t border-blue-100/60">
             <span className="text-xs font-semibold text-slate-600 shrink-0">
               Lý do ngoại lệ (tùy chọn):
             </span>
@@ -505,7 +505,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
               placeholder="VD: Nghỉ lễ Tết Nguyên Đán, Bảo trì sơn sàn tầng 1, Mở đêm đón sự kiện..."
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
-              className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-hidden focus:border-indigo-600 shadow-2xs"
+              className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs text-slate-800 focus:outline-hidden focus:border-blue-600 shadow-2xs"
             />
           </div>
         </div>
@@ -522,14 +522,14 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
       {/* 3. Thanh bộ mẫu áp dụng nhanh (Quick Presets) */}
       <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
         <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <Sparkles size={13} className="text-indigo-600" />
+          <Sparkles size={13} className="text-blue-600" />
           <span>Mẫu áp dụng nhanh:</span>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={handlePreset24_7All}
-            className="px-3 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Sun size={13} className="text-amber-500" />
             <span>Mở cửa 24/7 cả tuần</span>
@@ -538,7 +538,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
           <button
             type="button"
             onClick={handlePresetOfficeHours}
-            className="px-3 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Clock size={13} className="text-blue-500" />
             <span>Giờ hành chính (07:00 - 18:00)</span>
@@ -547,7 +547,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
           <button
             type="button"
             onClick={handlePresetNightParking}
-            className="px-3 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <Moon size={13} className="text-purple-500" />
             <span>Bãi đỗ xe đêm (18:00 - 07:00)</span>
@@ -556,7 +556,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
           <button
             type="button"
             onClick={handleCopyMondayToAll}
-            className="px-3 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 text-slate-700 hover:text-indigo-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer ml-auto"
+            className="px-3 py-1.5 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-200 text-slate-700 hover:text-blue-700 text-xs font-semibold shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer ml-auto"
           >
             <Copy size={13} className="text-slate-500" />
             <span>Sao chép Thứ Hai cho cả tuần</span>
@@ -595,7 +595,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
                       ? 'bg-purple-50/40 border-purple-200/70'
                       : is24Hours
                         ? 'bg-emerald-50/40 border-emerald-200/70'
-                        : 'bg-white border-slate-200 hover:border-indigo-200'
+                        : 'bg-white border-slate-200 hover:border-blue-200'
                 }`}
               >
                 {/* Tên thứ & Badge trạng thái */}
@@ -606,7 +606,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
                         ? 'bg-slate-200 text-slate-600'
                         : isWeekend
                           ? 'bg-amber-100 text-amber-800'
-                          : 'bg-indigo-100 text-indigo-800'
+                          : 'bg-blue-100 text-blue-800'
                     }`}
                   >
                     {day === 0 ? 'CN' : `T${day + 1}`}
@@ -653,7 +653,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
                       onChange={(e) =>
                         handleUpdateDay(day, { openTime: e.target.value })
                       }
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-hidden focus:border-indigo-600 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xs"
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-hidden focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xs"
                     />
                   </div>
 
@@ -671,7 +671,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
                       onChange={(e) =>
                         handleUpdateDay(day, { closeTime: e.target.value })
                       }
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-hidden focus:border-indigo-600 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xs"
+                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-hidden focus:border-blue-600 disabled:bg-slate-100 disabled:text-slate-400 shadow-2xs"
                     />
                   </div>
 
@@ -736,7 +736,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
           <button
             type="submit"
             disabled={!isDirty || saving}
-            className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
           >
             <Save size={15} />
             <span>

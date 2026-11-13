@@ -522,33 +522,34 @@ export const OwnerKybPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-8">
       {/* =====================================================================
-          1. HEADER TRANG & BỘ CHỌN BÃI ĐỖ XE
+          1. HEADER TRANG & BỘ CHỌN BÃI ĐỖ XE CHUẨN DRIVER
       ====================================================================== */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-100 text-indigo-800 text-xs font-semibold uppercase tracking-wider mb-2">
-            <Building2 size={13} />
-            Hồ sơ Pháp lý & Thẩm định (KYB Portal)
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-slate-200">
+        <div className="flex flex-col gap-2 max-w-3xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+            HỒ SƠ PHÁP LÝ & THẨM ĐỊNH • KYB VERIFICATION (US-034)
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Thẩm định Cơ sở Bãi đỗ xe
           </h1>
-          <p className="text-slate-500 text-xs sm:text-sm mt-1">
-            Quy trình thẩm định 4 bước chuẩn hóa để kích hoạt bãi xe mở bán công khai trên sàn thương mại điện tử.
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Quy trình thẩm định 4 bước chuẩn hóa để kích hoạt bãi xe mở bán công khai trên sàn thương mại điện tử ParkMaster.
           </p>
         </div>
 
         {/* Hành động: Chọn bãi đỗ & Thêm bãi mới */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3">
           {lots.length > 0 && (
-            <div className="relative">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+              <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
               <select
                 disabled={loadingLots || busyAction}
                 value={selectedLotId || ''}
                 onChange={(e) => setSelectedLotId(parseInt(e.target.value, 10))}
-                className="px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 shadow-2xs focus:outline-hidden focus:border-indigo-600 pr-8"
+                className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer"
               >
                 {lots.map((lot) => (
                   <option key={lot.id} value={lot.id}>
@@ -562,10 +563,10 @@ export const OwnerKybPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 cursor-pointer"
           >
-            <Plus size={15} />
-            Thêm Bãi Xe Mới
+            <Plus size={18} />
+            <span>Thêm bãi xe mới</span>
           </button>
         </div>
       </div>
@@ -573,19 +574,24 @@ export const OwnerKybPage: React.FC = () => {
       {/* Thông báo kết quả thao tác */}
       {actionMessage && (
         <div
-          className={`mt-4 p-4 rounded-2xl border text-xs font-semibold flex items-center justify-between ${
+          className={`p-4 rounded-xl border text-sm flex items-center justify-between animate-in fade-in ${
             actionMessage.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
               : 'bg-rose-50 text-rose-800 border-rose-200'
           }`}
         >
-          <span>{actionMessage.text}</span>
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">
+              {actionMessage.type === 'success' ? 'check_circle' : 'error'}
+            </span>
+            <span className="font-semibold">{actionMessage.text}</span>
+          </div>
           <button
             type="button"
             onClick={() => setActionMessage(null)}
             className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer ml-3"
           >
-            Đóng
+            <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
       )}
@@ -593,7 +599,7 @@ export const OwnerKybPage: React.FC = () => {
       {/* Trường hợp Chủ bãi chưa có bất kỳ bãi xe nào */}
       {lots.length === 0 && !loadingLots && (
         <div className="mt-8 rounded-3xl bg-white/90 border border-slate-200/90 p-10 text-center shadow-xs">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-4">
             <Building2 size={32} />
           </div>
           <h2 className="text-xl font-bold text-slate-900">
@@ -605,7 +611,7 @@ export const OwnerKybPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
-            className="mt-6 px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/25 transition-all inline-flex items-center gap-2 cursor-pointer"
+            className="mt-6 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition-all inline-flex items-center gap-2 cursor-pointer"
           >
             <Plus size={16} />
             Khai báo Bãi đỗ xe đầu tiên
@@ -662,7 +668,7 @@ export const OwnerKybPage: React.FC = () => {
               <div className="space-y-5">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+                    <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
                       Bước 1 trên 4
                     </span>
                     <h2 className="text-lg font-bold text-slate-900 mt-0.5">
@@ -695,7 +701,7 @@ export const OwnerKybPage: React.FC = () => {
                 />
 
                 <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 text-xs text-slate-600 flex items-start gap-3">
-                  <FileCheck2 size={18} className="text-indigo-600 shrink-0 mt-0.5" />
+                  <FileCheck2 size={18} className="text-blue-600 shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-slate-800 block mb-0.5">Tiêu chuẩn kiểm duyệt Bước 1:</strong>
                     Tên doanh nghiệp / Hộ kinh doanh phải trùng khớp với thông tin chủ bãi. Bản scan không bị mờ nhòe, mất góc hoặc hết hạn sử dụng.
@@ -711,7 +717,7 @@ export const OwnerKybPage: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+                    <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
                       Bước 2 trên 4
                     </span>
                     <h2 className="text-lg font-bold text-slate-900 mt-0.5">
@@ -834,7 +840,7 @@ export const OwnerKybPage: React.FC = () => {
               <div className="space-y-5">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+                    <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
                       Bước 3 trên 4
                     </span>
                     <h2 className="text-lg font-bold text-slate-900 mt-0.5">
@@ -883,7 +889,7 @@ export const OwnerKybPage: React.FC = () => {
               <div className="space-y-6">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <div>
-                    <span className="text-[11px] font-extrabold uppercase text-indigo-700 tracking-wider">
+                    <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
                       Bước 4 trên 4
                     </span>
                     <h2 className="text-lg font-bold text-slate-900 mt-0.5">
@@ -916,7 +922,7 @@ export const OwnerKybPage: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-slate-500">Hình thức thẩm định:</div>
-                    <div className="text-xs font-bold text-indigo-700 mt-0.5">
+                    <div className="text-xs font-bold text-blue-700 mt-0.5">
                       {(selectedLot?.totalSlots || 0) > 50
                         ? 'Đoàn kiểm tra đến thực địa'
                         : 'Xét duyệt hồ sơ trực tuyến'}
@@ -928,7 +934,7 @@ export const OwnerKybPage: React.FC = () => {
                 <div className="rounded-2xl border border-slate-200 p-5 bg-white space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                      <Calendar size={15} className="text-indigo-600" />
+                      <Calendar size={15} className="text-blue-600" />
                       Lịch hẹn mong muốn đón đoàn khảo sát{' '}
                       {(selectedLot?.totalSlots || 0) > 50 && (
                         <span className="text-rose-600">*</span>
@@ -939,7 +945,7 @@ export const OwnerKybPage: React.FC = () => {
                       disabled={isLocked}
                       value={fieldSurveyAtUtc}
                       onChange={(e) => setFieldSurveyAtUtc(e.target.value)}
-                      className="w-full sm:w-80 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                      className="w-full sm:w-80 px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-hidden focus:border-blue-600"
                     />
                     <p className="text-[11px] text-slate-400 mt-1">
                       Vui lòng chọn thời gian làm việc hành chính trong tương lai.
@@ -956,7 +962,7 @@ export const OwnerKybPage: React.FC = () => {
                       value={fieldSurveyNote}
                       onChange={(e) => setFieldSurveyNote(e.target.value)}
                       placeholder="VD: Liên hệ anh Hùng (Trưởng ban quản lý tòa nhà) theo SĐT 0901xxxxxx khi đoàn đến nơi..."
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-indigo-600"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 placeholder-slate-400 focus:outline-hidden focus:border-blue-600"
                     />
                   </div>
                 </div>
@@ -1001,7 +1007,7 @@ export const OwnerKybPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
                   >
                     Tiếp tục Bước {currentStep + 1}
                     <ArrowRight size={14} />
@@ -1013,7 +1019,7 @@ export const OwnerKybPage: React.FC = () => {
                       type="button"
                       disabled={busyAction}
                       onClick={handleSubmitKyb}
-                      className="px-7 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white text-xs font-bold shadow-lg shadow-indigo-600/25 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                      className="px-7 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white text-xs font-bold shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
                     >
                       {isResubmitMode || isEditMode ? (
                         <>
@@ -1038,7 +1044,7 @@ export const OwnerKybPage: React.FC = () => {
                           text: 'Đã mở khóa! Bạn có thể chỉnh sửa và tự thêm tệp từ Bước 1.',
                         });
                       }}
-                      className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
+                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       <RotateCcw size={14} />
                       Chỉnh sửa / Cập nhật tài liệu mới

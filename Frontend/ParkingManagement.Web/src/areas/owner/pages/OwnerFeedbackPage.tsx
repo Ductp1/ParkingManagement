@@ -3,11 +3,12 @@ import {
   MessageSquareWarning,
   Star,
   RefreshCw,
-  Building2,
   CheckCircle2,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerFeedbackApi } from '@/api/ownerFeedbackApi';
+import { ownerLotsApi } from '@/api/ownerLotsApi';
+import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
 import type {
   ComplaintItem,
   ComplaintDetail,
@@ -38,7 +39,26 @@ export const OwnerFeedbackPage: React.FC = () => {
   // Trạng thái Đánh giá
   const [reviewsData, setReviewsData] = useState<LotReviewsResponse | null>(null);
   const [loadingReviews, setLoadingReviews] = useState(false);
-  const [selectedLotId, setSelectedLotId] = useState<number>(1);
+  const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
+  const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
+
+  useEffect(() => {
+    ownerLotsApi
+      .getMyLots(ownerProfileId)
+      .then((data) => {
+        setLots(data || []);
+        if (data && data.length > 0) {
+          setSelectedLotId(data[0].id);
+        } else {
+          setSelectedLotId(null);
+        }
+      })
+      .catch(() => {
+        setLots([]);
+        setSelectedLotId(null);
+      });
+  }, [ownerProfileId]);
+
   const [selectedStarFilter, setSelectedStarFilter] = useState<number | 'ALL'>('ALL');
   const [reportingReviewId, setReportingReviewId] = useState<number | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -70,12 +90,18 @@ export const OwnerFeedbackPage: React.FC = () => {
 
   // 2. Tải đánh giá bãi xe
   const fetchReviewsData = useCallback(async () => {
+    if (!selectedLotId) {
+      setReviewsData(null);
+      return;
+    }
+
     setLoadingReviews(true);
     try {
       const data = await ownerFeedbackApi.getLotReviews(selectedLotId, 30);
       setReviewsData(data);
     } catch (err) {
       console.error('Error fetching reviews data:', err);
+      setReviewsData(null);
     } finally {
       setLoadingReviews(false);
     }
@@ -157,7 +183,7 @@ export const OwnerFeedbackPage: React.FC = () => {
   }, [reviewsData, selectedStarFilter]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 flex flex-col gap-8">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-4 duration-300">
@@ -166,25 +192,30 @@ export const OwnerFeedbackPage: React.FC = () => {
         </div>
       )}
 
-      {/* Page Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-neutral-900 tracking-tight">
-            Phản hồi khiếu nại & Đánh giá
+      {/* Page Header chuẩn Driver */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 pb-6 border-b border-slate-200">
+        <div className="flex flex-col gap-2 max-w-3xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+            CHĂM SÓC KHÁCH HÀNG • GIẢI TRÌNH TRANH CHẤP & ĐÁNH GIÁ (US-089)
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+            Phản hồi Khiếu nại & Đánh giá
           </h1>
-          <p className="text-xs text-neutral-500 mt-1">
-            Giải trình tranh chấp trong 48 giờ (US-089) và tương tác chăm sóc khách hàng qua đánh giá bãi xe (US-094)
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Giải trình tranh chấp trong 48 giờ (US-089) và tương tác chăm sóc khách hàng qua đánh giá bãi xe (US-094) trên hệ thống ParkMaster.
           </p>
         </div>
 
-        {/* Main Tabs Navigation */}
-        <div className="flex items-center gap-1.5 p-1 bg-neutral-200/70 rounded-xl">
+        {/* Main Tabs Navigation (Segmented Pill Switcher) */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/80 shadow-2xs">
           <button
+            type="button"
             onClick={() => setMainTab('disputes')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               mainTab === 'disputes'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-neutral-600 hover:text-neutral-900'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             <MessageSquareWarning className="w-4 h-4" />
@@ -195,11 +226,12 @@ export const OwnerFeedbackPage: React.FC = () => {
           </button>
 
           <button
+            type="button"
             onClick={() => setMainTab('reviews')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               mainTab === 'reviews'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-neutral-600 hover:text-neutral-900'
+                ? 'bg-white text-blue-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
             }`}
           >
             <Star className="w-4 h-4" />
@@ -210,7 +242,7 @@ export const OwnerFeedbackPage: React.FC = () => {
 
       {/* Main Content Area */}
       {mainTab === 'disputes' ? (
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           {/* Banner các khoản tiền đang bị phong tỏa quyết toán (US-089 AC3) */}
           <PayoutHoldsBanner holds={payoutHolds} />
 
@@ -224,26 +256,38 @@ export const OwnerFeedbackPage: React.FC = () => {
         </div>
       ) : (
         /* Tab 2: Quản lý đánh giá (US-094) */
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           {/* Bãi xe selector & Rating summary */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-neutral-50/80 p-4 rounded-xl border border-neutral-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
             <div className="flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-neutral-500" />
-              <span className="text-xs font-semibold text-neutral-700">Xem đánh giá bãi xe:</span>
+              <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
+              <span className="text-xs font-bold text-slate-700">Xem đánh giá bãi xe:</span>
+
+              {/* Resolved conflict: sử dụng danh sách bãi xe thực tế */}
               <select
-                value={selectedLotId}
-                onChange={(e) => setSelectedLotId(Number(e.target.value))}
-                className="text-xs bg-white border border-neutral-300 rounded-lg px-3 py-1.5 font-semibold text-neutral-800 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                value={selectedLotId || ''}
+                onChange={(e) =>
+                  setSelectedLotId(e.target.value ? Number(e.target.value) : null)
+                }
+                disabled={lots.length === 0}
+                className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-hidden cursor-pointer"
               >
-                <option value={1}>Bãi xe trung tâm #1 (Landmark)</option>
-                <option value={2}>Bãi đỗ xe thông minh #2</option>
+                {lots.length === 0 ? (
+                  <option value="">Chưa có bãi đỗ xe</option>
+                ) : (
+                  lots.map((lot) => (
+                    <option key={lot.id} value={lot.id}>
+                      {lot.name} (#{lot.id})
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
             <button
               onClick={fetchReviewsData}
               disabled={loadingReviews}
-              className="p-1.5 text-neutral-600 hover:text-indigo-600 hover:bg-white rounded-lg border border-neutral-200 transition flex items-center gap-1 text-xs"
+              className="px-3 py-1.5 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-xl border border-slate-200 transition-colors flex items-center gap-1.5 text-xs font-semibold shadow-xs cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loadingReviews ? 'animate-spin' : ''}`} />
               <span>Cập nhật</span>
@@ -260,20 +304,22 @@ export const OwnerFeedbackPage: React.FC = () => {
 
           {/* Filter by star rating */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-bold text-neutral-900 text-sm">
+            <h3 className="font-extrabold text-slate-900 text-sm tracking-tight">
               Danh sách nhận xét ({filteredReviews.length})
             </h3>
 
             <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
-              <span className="text-2xs text-neutral-500 font-medium mr-1">Lọc sao:</span>
+              <span className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mr-1">
+                Lọc sao:
+              </span>
               {(['ALL', 5, 4, 3, 2, 1] as const).map((starVal) => (
                 <button
                   key={starVal}
                   onClick={() => setSelectedStarFilter(starVal)}
-                  className={`px-3 py-1 rounded-full text-2xs font-bold transition flex items-center gap-1 ${
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                     selectedStarFilter === starVal
-                      ? 'bg-indigo-600 text-white shadow-2xs'
-                      : 'bg-white text-neutral-600 border border-neutral-200 hover:bg-neutral-50'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                   }`}
                 >
                   {starVal === 'ALL' ? (
@@ -281,7 +327,7 @@ export const OwnerFeedbackPage: React.FC = () => {
                   ) : (
                     <>
                       <span>{starVal}</span>
-                      <Star className="w-2.5 h-2.5 fill-current" />
+                      <Star className="w-3 h-3 fill-current text-amber-400" />
                     </>
                   )}
                 </button>
@@ -291,15 +337,15 @@ export const OwnerFeedbackPage: React.FC = () => {
 
           {/* Reviews list */}
           {loadingReviews && !reviewsData ? (
-            <div className="py-16 text-center text-neutral-400">
-              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
-              <span>Đang tải danh sách đánh giá...</span>
+            <div className="py-16 text-center text-slate-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
+              <span className="text-sm font-semibold">Đang tải danh sách đánh giá...</span>
             </div>
           ) : filteredReviews.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-neutral-200 p-12 text-center text-neutral-400">
-              <Star className="w-8 h-8 mx-auto mb-2 text-neutral-300" />
-              <p className="font-semibold text-neutral-700">Chưa có đánh giá nào</p>
-              <p className="text-2xs text-neutral-400 mt-0.5">
+            <div className="bg-white rounded-3xl border border-dashed border-slate-300 p-12 text-center text-slate-400">
+              <Star className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+              <p className="font-bold text-slate-700">Chưa có đánh giá nào</p>
+              <p className="text-xs text-slate-400 mt-0.5">
                 Chưa có đánh giá nào tương ứng với bộ lọc đã chọn
               </p>
             </div>

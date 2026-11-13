@@ -14,6 +14,16 @@ namespace BookingService.Test;
 public class BookingModificationAndExtensionTests
 {
     private static readonly DateTime FixedNow = new(2026, 11, 3, 10, 0, 0, DateTimeKind.Utc);
+    private static readonly IQrTokenService QrService;
+
+    static BookingModificationAndExtensionTests()
+    {
+        Environment.SetEnvironmentVariable("QRTOKEN_SECRET", "test-secret-key-for-unit-tests-12345");
+        QrService = new QrTokenService();
+    }
+
+    private static void SetEntityId(ParkingManagement.SharedKernel.Domain.BaseEntity entity, int id)
+        => typeof(ParkingManagement.SharedKernel.Domain.BaseEntity).GetProperty("Id")!.SetValue(entity, id);
 
     // ==========================================
     // US-029: SỬA BOOKING TRƯỚC CHECK-IN
@@ -38,7 +48,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -85,7 +95,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -116,7 +126,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -147,7 +157,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -181,7 +191,7 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher());
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
 
@@ -216,7 +226,7 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher());
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(2)); // Bằng giờ cũ
 
@@ -241,13 +251,133 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher());
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(booking.Code, cmd));
         Assert.Contains("Chỉ có thể gia hạn khi đang đỗ hoặc đã xác nhận", ex.Message);
+    }
+
+    [Fact]
+    public async Task ModifyBooking_change_vehicle_regenerates_qr_token_with_new_plate()
+    {
+        // Fix bug mục 4: Đổi xe phải đổi chữ ký số QR Token
+        var booking = new Booking
+        {
+            Code = "BK-20261103-0001",
+            UserId = 10,
+            VehicleId = 1,
+            PlateNumber = "51F-123.45",
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddHours(2),
+            EndAtUtc = FixedNow.AddHours(4),
+            ParkingLotId = 1,
+            QrToken = QrService.GenerateToken("BK-20261103-0001", "51F-123.45", 1, FixedNow.AddHours(6))
+        };
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking);
+        var queries = new FakeQueries(booking);
+        var clock = new FixedClock(FixedNow);
+        var qr = new QrTokenService(clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), qr, clock);
+
+        var cmd = new ModifyBookingCommand(
+            UserId: 10,
+            NewVehicleId: 2,
+            NewPlateNumber: "51H-999.99",
+            NewStartAtUtc: null,
+            NewEndAtUtc: null);
+
+        var result = await useCase.ExecuteAsync(booking.Code, cmd);
+
+        Assert.NotNull(result);
+        Assert.Equal("51H-999.99", booking.PlateNumber);
+
+        // Kiểm tra mã QR Token mới giải mã ra đúng biển số mới
+        var valid = qr.ValidateToken(booking.QrToken!, out var code, out var plate, out var lotId);
+        Assert.True(valid);
+        Assert.Equal("51H-999.99", plate);
+    }
+
+    [Fact]
+    public async Task ExtendBooking_when_next_slot_time_occupied_throws_conflict_exception()
+    {
+        // Fix bug mục 6: Gia hạn phải check trùng chỗ
+        var booking1 = new Booking
+        {
+            Code = "BK-0001",
+            UserId = 10,
+            SlotId = 5,
+            SlotCode = "A-05",
+            Status = BookingStatus.CheckedIn,
+            StartAtUtc = FixedNow,
+            EndAtUtc = FixedNow.AddHours(2),
+            TotalAmount = 50000
+        };
+        SetEntityId(booking1, 1);
+
+        // Có người khác đã đặt slot 5 từ giờ thứ 2 đến giờ thứ 4
+        var booking2 = new Booking
+        {
+            Code = "BK-0002",
+            UserId = 20,
+            SlotId = 5,
+            SlotCode = "A-05",
+            Status = BookingStatus.Confirmed,
+            StartAtUtc = FixedNow.AddHours(2),
+            EndAtUtc = FixedNow.AddHours(4),
+            TotalAmount = 50000
+        };
+        SetEntityId(booking2, 2);
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking1);
+        repo.SavedBookings.Add(booking2);
+        var queries = new FakeQueries(booking1);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
+
+        var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(booking1.Code, cmd));
+        Assert.Contains("đã có khách khác đặt trước", ex.Message);
+    }
+
+    [Fact]
+    public async Task ExtendBooking_calculates_additional_fee_and_updates_qr_token()
+    {
+        // Fix bug mục 6: Gia hạn phải tính tiền thêm và cập nhật QR
+        var booking = new Booking
+        {
+            Code = "BK-0001",
+            UserId = 10,
+            PlateNumber = "51F-123.45",
+            ParkingLotId = 1,
+            SlotId = 5,
+            SlotCode = "A-05",
+            Status = BookingStatus.CheckedIn,
+            StartAtUtc = FixedNow,
+            EndAtUtc = FixedNow.AddHours(2), // 2 tiếng = 40.000 (20.000/tiếng)
+            TotalAmount = 40000,
+            QrToken = QrService.GenerateToken("BK-0001", "51F-123.45", 1, FixedNow.AddHours(4))
+        };
+        SetEntityId(booking, 1);
+
+        var repo = new FakeBookingRepo();
+        repo.SavedBookings.Add(booking);
+        var queries = new FakeQueries(booking);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
+
+        // Gia hạn thêm 1 tiếng (tới FixedNow + 3h) -> phụ phí 20.000 -> TotalAmount = 60.000
+        var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
+
+        var result = await useCase.ExecuteAsync(booking.Code, cmd);
+
+        Assert.Equal(FixedNow.AddHours(3), booking.EndAtUtc);
+        Assert.Equal(60000, booking.TotalAmount); // 40k + 20k
+        Assert.NotNull(booking.QrToken);
     }
 
     // ==========================================
@@ -282,11 +412,44 @@ public class BookingModificationAndExtensionTests
     {
         public List<Booking> SavedBookings { get; } = [];
 
+        public Task<bool> IsSlotAssignedToActiveMonthlyPassAsync(int slotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<int> CountCancellationsTodayAsync(int userId, DateTime todayUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+
+        public Task AddOutboxMessageAsync(string eventType, string payloadJson, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
         public Task<Booking?> GetEntityByCodeAsync(string code, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Code == code));
 
         public Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult(SavedBookings.FirstOrDefault(b => b.Id == id));
+
+
+        public Task<bool> HasOverlappingBookingForSlotAsync(int slotId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+        {
+            var res = SavedBookings.Any(b =>
+                b.SlotId == slotId &&
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
+                b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
+                b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+            return Task.FromResult(res);
+        }
+
+        public Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+        {
+            var res = SavedBookings.Any(b =>
+                b.UserId == userId &&
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
+                b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
+                b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+            return Task.FromResult(res);
+        }
+
+
+
 
         public Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
         {

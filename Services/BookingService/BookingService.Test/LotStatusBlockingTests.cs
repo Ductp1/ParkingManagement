@@ -121,6 +121,23 @@ public class LotStatusBlockingTests
         }
 
         public Task SaveChangesAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        // ===== US-024 (develop): các method mới của IBookingRepository — fake không chặn gì để
+        // các test US-069 trong file này chỉ tập trung vào kịch bản emergency stop. =====
+        public Task<bool> IsSlotAssignedToActiveMonthlyPassAsync(int slotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<int> CountCancellationsTodayAsync(int userId, DateTime todayUtc, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+
+        public Task AddOutboxMessageAsync(string eventType, string payloadJson, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<bool> HasOverlappingBookingForSlotAsync(int slotId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
     }
 
     private sealed class FakeEventPublisher : IBookingEventPublisher

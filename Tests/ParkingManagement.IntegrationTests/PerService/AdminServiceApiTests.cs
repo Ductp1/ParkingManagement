@@ -148,6 +148,8 @@ public sealed class AdminApiFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
+        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
         UserFactory?.Dispose();
         AdminFactory?.Dispose();
         // Khôi phục env gốc TRƯỚC khi xóa thư mục khóa — fixture khác chạy sau không đọc nhầm path đã mất.

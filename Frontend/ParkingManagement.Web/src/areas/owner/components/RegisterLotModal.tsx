@@ -104,7 +104,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
         {/* Header Modal */}
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
               <Building2 size={18} />
             </div>
             <div>
@@ -145,7 +145,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="VD: Bãi Đỗ Xe Tòa Nhà Landmark 81"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/20"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
@@ -161,7 +161,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="VD: 720A Điện Biên Phủ, Phường 22"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-blue-600"
               />
             </div>
             <div>
@@ -173,7 +173,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
                 value={district}
                 onChange={(e) => setDistrict(e.target.value)}
                 placeholder="VD: Bình Thạnh"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-blue-600"
               />
             </div>
             <div>
@@ -185,7 +185,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="TP. Hồ Chí Minh"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-indigo-600"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-hidden focus:border-blue-600"
               />
             </div>
           </div>
@@ -194,13 +194,13 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
           <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <MapPin size={14} className="text-indigo-600" />
+                <MapPin size={14} className="text-blue-600" />
                 Tọa độ GPS bãi đỗ xe <span className="text-rose-600">*</span>
               </span>
               <button
                 type="button"
                 onClick={handleGetLocation}
-                className="text-[11px] font-semibold text-indigo-600 hover:underline cursor-pointer"
+                className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
               >
                 Lấy GPS thiết bị
               </button>
@@ -346,7 +346,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
             <button
               type="submit"
               disabled={busy}
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
             >
               <Plus size={16} />
               {busy ? 'Đang tạo bãi xe…' : 'Đăng ký Bãi Đỗ Xe'}

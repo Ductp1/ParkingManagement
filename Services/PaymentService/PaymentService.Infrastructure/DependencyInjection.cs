@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddServiceDbContext<PaymentDbContext>(configuration);
         services.AddScoped<IRateCardRepository, RateCardRepository>();
         services.AddScoped<IRateCardManagementRepository, RateCardManagementRepository>();
+        services.AddScoped<IRateCardAuditLogRepository, RateCardAuditLogRepository>();
         services.AddScoped<IHolidayRepository, HolidayRepository>();
         services.AddScoped<IHolidayManagementRepository, HolidayManagementRepository>();
         services.AddScoped<IPaymentQueries, PaymentQueries>();
@@ -31,7 +32,9 @@ public static class DependencyInjection
         services.AddScoped<IOwnerRevenueQueries, OwnerRevenueQueries>();
         services.AddScoped<IDataSeeder<PaymentDbContext>, PaymentDataSeeder>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IPromotionRepository, PromotionRepository>();
         services.AddScoped<IRefundRepository, RefundRepository>();
+        services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IVnpayGateway, VnpayGateway>();
         // US-083: PaymentSucceeded/PaymentFailed đã ghi OutboxMessages từ IPN use case —
         // chỉ cần bật event bus + dispatcher để event chảy tới BookingService/NotificationService.
