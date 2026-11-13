@@ -218,17 +218,6 @@ export const UNAVAILABLE_SCREENS = {
     service: 'AdminService',
     missingEndpoint: 'GET /api/v1/admin/risk-flags',
   },
-  reviews: {
-    title: 'Reviews',
-    subtitle: 'Reviews (IsFlagged, IsHidden) · one per booking',
-    filterGroups: [
-      { param: 'moderation', title: 'Moderation', values: ['Flagged', 'Hidden'] },
-      { param: 'rating', title: 'Rating', allLabel: 'Any', values: ['5 ★', '4 ★', '3 ★', '2 ★', '1 ★'] },
-    ],
-    columns: ['Reviewer / booking', 'Lot', 'Rating', 'Comment', 'Owner reply', 'Flag', 'Visibility', ''],
-    service: 'SupportService',
-    missingEndpoint: 'GET /api/v1/reviews (admin moderation list; today only ?parkingLotId=)',
-  },
   vouchers: {
     title: 'Vouchers',
     subtitle: 'CompensationVouchers',
