@@ -9,7 +9,6 @@ import {
   RefreshCw,
   FolderTree,
   Sliders,
-  Activity,
   Clock,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
