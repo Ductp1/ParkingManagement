@@ -64,6 +64,16 @@ export const auditLogListLink = (filter: AuditFilterLink) => {
   return query ? `${AUDIT_LOG_BASE}?${query}` : AUDIT_LOG_BASE;
 };
 
+/**
+ * Bộ lọc đến từ link ở màn khác (vd. ?service=UserService&entity=DataSubjectRequest – T-803) có thể chưa có bản ghi nào,
+ * nên chưa có trong facet của /audit-logs/filters → thêm vào với count 0 để ô lọc hiện đúng giá trị đang lọc thay vì "All".
+ */
+export const withSelectedFacet = (facets: ReadonlyArray<{ value: string; count: number }> | undefined, selected: string | null | undefined) => {
+  const list = [...(facets ?? [])];
+  if (selected && !list.some((f) => f.value === selected)) list.push({ value: selected, count: 0 });
+  return list;
+};
+
 export type AuditChangeTone = 'added' | 'removed' | 'modified';
 
 export const auditChangeTone = (kind: string): AuditChangeTone =>

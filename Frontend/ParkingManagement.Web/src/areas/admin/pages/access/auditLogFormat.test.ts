@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DSR_AUDIT_ENTITY, KYC_AUDIT_ENTITY, auditEntityLink, auditLogListLink } from './auditLogFormat';
+import { DSR_AUDIT_ENTITY, KYC_AUDIT_ENTITY, auditEntityLink, auditLogListLink, withSelectedFacet } from './auditLogFormat';
 
 describe('auditLogListLink', () => {
   it('returns the plain list without filters', () => {
@@ -29,5 +29,19 @@ describe('auditEntityLink', () => {
     expect(auditEntityLink('KybApplication', '2')).toBe('/admin/operations/kyb-review/2');
     expect(auditEntityLink('Review', '2')).toBeNull();
     expect(auditEntityLink(DSR_AUDIT_ENTITY, null)).toBeNull();
+  });
+});
+
+describe('withSelectedFacet', () => {
+  const facets = [{ value: 'ParkingService', count: 4 }];
+
+  it('adds a linked filter value that has no entries yet with count 0', () => {
+    expect(withSelectedFacet(facets, 'UserService')).toEqual([...facets, { value: 'UserService', count: 0 }]);
+  });
+
+  it('leaves the list unchanged when nothing is selected or the value exists', () => {
+    expect(withSelectedFacet(facets, null)).toEqual(facets);
+    expect(withSelectedFacet(facets, 'ParkingService')).toEqual(facets);
+    expect(withSelectedFacet(undefined, '')).toEqual([]);
   });
 });
