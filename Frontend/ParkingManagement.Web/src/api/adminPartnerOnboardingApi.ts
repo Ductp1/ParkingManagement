@@ -1,6 +1,7 @@
 import { adminRequest, cleanParams } from './adminClientApi';
 import type { PagedResult } from '@/types/adminCommon';
 import type {
+  AdminCreatePartnerApplicationRequest,
   IssueOwnerAccountRequest,
   PartnerApplicationDetailDto,
   PartnerApplicationListQuery,
@@ -20,6 +21,10 @@ export const adminPartnerOnboardingApi = {
       url: BASE,
       params: cleanParams({ status: query.status, search: query.search, page: query.page, pageSize: query.pageSize }),
     }),
+
+  /** T1 – Admin nhập hồ sơ thay đối tác (nhận qua điện thoại); trả chi tiết hồ sơ mới (Submitted). */
+  create: (data: AdminCreatePartnerApplicationRequest) =>
+    adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: BASE, data }),
 
   /** A2 – chi tiết hồ sơ. */
   getById: (id: number) => adminRequest<PartnerApplicationDetailDto>({ method: 'GET', url: `${BASE}/${id}` }),

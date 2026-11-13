@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminPartnerOnboardingApi } from '@/api/adminPartnerOnboardingApi';
 import { PartnerApplicationStatus } from '@/types/adminEnums';
@@ -8,11 +8,14 @@ import { FilterColumn, FilterPanel } from '../../../components/FilterColumn';
 import { SearchBox, ToolbarRow } from '../../../components/Toolbar';
 import { CellMono, CellMuted, CellStatus, CellText, CellTwoLine, CellView, DataTable, type DataTableColumn } from '../../../components/DataTable';
 import { Pagination } from '../../../components/Pagination';
+import { AdminButton } from '../../../components/AdminButton';
+import { useAdminToast } from '../../../hooks/useAdminToast';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { DEFAULT_PAGE_SIZE, useListParams } from '../../../hooks/useListParams';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTime, formatNumber } from '../../../utils/format';
 import { PARTNER_BASE as BASE } from './partnerFormat';
+import { NewPartnerApplicationDialog } from './NewPartnerApplicationDialog';
 
 const STATUSES = Object.values(PartnerApplicationStatus);
 const isStatus = (v: string): v is PartnerApplicationStatus => (STATUSES as string[]).includes(v);
@@ -36,6 +39,8 @@ const columns: DataTableColumn<PartnerApplicationSummaryDto>[] = [
 /** Operations / Partner Onboarding / List (US-116, A1) – lọc trạng thái, tìm kiếm, phân trang qua AdminService. */
 export const PartnerListPage: React.FC = () => {
   const navigate = useNavigate();
+  const toast = useAdminToast();
+  const [creating, setCreating] = useState(false);
   const params = useListParams();
   const statusParam = params.get('status');
   const status = isStatus(statusParam) ? statusParam : undefined;
@@ -53,6 +58,11 @@ export const PartnerListPage: React.FC = () => {
     <ListScreen
       title="Partner Onboarding"
       subtitle={total === null ? '—' : `${formatNumber(total)} applications`}
+      actions={
+        <AdminButton variant="onNavy" icon="plus" onClick={() => setCreating(true)}>
+          New application
+        </AdminButton>
+      }
       filters={
         <FilterColumn>
           <FilterPanel
@@ -84,7 +94,7 @@ export const PartnerListPage: React.FC = () => {
             onRetry={query.refetch}
             copy={{
               emptyTitle: 'No partner applications',
-              emptyMessage: 'New applications from the public “Become a partner” form appear here.',
+              emptyMessage: 'Applications sent from the public “Become a partner” form, or entered here with New application, appear here.',
               errorTitle: 'Could not load applications',
               service: 'AdminService',
             }}
@@ -94,6 +104,14 @@ export const PartnerListPage: React.FC = () => {
           query.status === 'ready' &&
           query.data && <Pagination page={page} pageSize={query.data.pageSize} totalCount={query.data.totalCount} onPageChange={params.setPage} />
         }
+      />
+      <NewPartnerApplicationDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(app) => {
+          toast.show({ type: 'success', title: 'Application created', message: `${app.code} · ${app.businessName} is waiting for review.` });
+          navigate(`${BASE}/${app.id}`);
+        }}
       />
     </ListScreen>
   );

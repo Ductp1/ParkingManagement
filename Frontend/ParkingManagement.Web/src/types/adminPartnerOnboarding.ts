@@ -64,6 +64,34 @@ export interface PartnerApplicationDetailDto {
   nextStatuses: Array<PartnerApplicationStatus | string>;
 }
 
+/** AdminService PartnerBusinessType. */
+export type PartnerBusinessType = 'Company' | 'HouseholdBusiness';
+
+/**
+ * POST /api/v1/admin/partner-applications – Admin nhập hồ sơ thay đối tác (US-116 T1, nhận qua điện thoại).
+ * Cùng trường với form public; consentAccepted = Admin xác nhận đối tác đã đồng ý xử lý dữ liệu; intakeNote ghi vào audit log.
+ * Server: 201 + PartnerApplicationDetailDto; 400 dữ liệu sai; 409 trùng email / SĐT / MST với hồ sơ đang xử lý (kèm mã hồ sơ đó).
+ */
+export interface AdminCreatePartnerApplicationRequest {
+  fullName: string;
+  email: string;
+  phone: string;
+  position: string | null;
+  businessType: PartnerBusinessType;
+  businessName: string;
+  taxCode: string;
+  businessAddress: string;
+  legalRepresentativeName: string;
+  legalRepresentativePosition: string | null;
+  lotCount: number;
+  primaryLotAddress: string;
+  estimatedCarSlots: number | null;
+  estimatedMotorbikeSlots: number | null;
+  operatingHours: string | null;
+  consentAccepted: boolean;
+  intakeNote: string | null;
+}
+
 /** A1: GET /api/v1/admin/partner-applications?status=&search=&page=&pageSize= (search: mã, tên DN, MST, email, SĐT). */
 export interface PartnerApplicationListQuery {
   status?: PartnerApplicationStatus;
