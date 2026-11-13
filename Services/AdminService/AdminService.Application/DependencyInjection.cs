@@ -63,6 +63,10 @@ public static class DependencyInjection
         // US-116: cấp tài khoản chủ bãi qua UserService (kèm tài khoản nhận tiền), gửi lại link kích hoạt
         services.AddScoped<IIssueOwnerAccountUseCase, IssueOwnerAccountUseCase>();
         services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();
+        // US-053: form public đăng ký đối tác + giấy tờ pháp lý (chỉ Admin xem)
+        services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
+        services.AddScoped<IListPartnerDocumentsUseCase, ListPartnerDocumentsUseCase>();
+        services.AddScoped<IGetPartnerDocumentFileUseCase, GetPartnerDocumentFileUseCase>();
         // US-116: hợp đồng theo từng bãi (sau KYB) – lập, xem trước, sửa, tải file, ký (kích hoạt bãi), hủy
         services.AddScoped<IListLotContractsUseCase, ListLotContractsUseCase>();
         services.AddScoped<IGetLotContractUseCase, GetLotContractUseCase>();

@@ -726,6 +726,61 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.ToTable("PartnerApplications", (string)null);
                 });
 
+            modelBuilder.Entity("AdminService.Domain.Entities.PartnerApplicationDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("FileKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("PartnerApplicationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileKey")
+                        .IsUnique();
+
+                    b.HasIndex("PartnerApplicationId");
+
+                    b.ToTable("PartnerApplicationDocuments", (string)null);
+                });
+
             modelBuilder.Entity("AdminService.Domain.Entities.RiskFlag", b =>
                 {
                     b.Property<int>("Id")
@@ -1362,6 +1417,17 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("LotContract");
+                });
+
+            modelBuilder.Entity("AdminService.Domain.Entities.PartnerApplicationDocument", b =>
+                {
+                    b.HasOne("AdminService.Domain.Entities.PartnerApplication", "PartnerApplication")
+                        .WithMany()
+                        .HasForeignKey("PartnerApplicationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PartnerApplication");
                 });
 
             modelBuilder.Entity("AdminService.Domain.Entities.RiskFlag", b =>

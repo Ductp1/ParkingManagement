@@ -96,6 +96,16 @@ export interface IssueOwnerAccountRequest {
   bank: PartnerBankAccountRequest;
 }
 
+/** US-053: giấy tờ pháp lý đối tác nộp kèm hồ sơ (GET …/partner-applications/{id}/documents, chỉ Admin). */
+export interface PartnerDocumentDto {
+  id: number;
+  documentType: 'BusinessLicense' | 'RepresentativeId' | 'LotLegalProof' | 'Other' | string;
+  originalFileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAtUtc: string;
+}
+
 /** File trả về từ API (HTML hợp đồng). */
 export interface AdminFile {
   blob: Blob;
