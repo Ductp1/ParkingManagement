@@ -394,6 +394,29 @@ public class ParkingLotManagementTests
         Assert.Equal("EvCharging", result.SlotType);
     }
 
+    [Fact]
+    public async Task GetOwnerParkingLots_ReturnsRegisteredCoordinatesOfEachLot()
+    {
+        // US-054: Owner Portal kiểm tra GPS ảnh KYB theo tọa độ thật của bãi, không theo tọa độ gắn cứng ở Q.1.
+        var repo = new FakeLotManagementRepo();
+        await repo.AddAsync(new ParkingLot(5, "Bãi Gửi Xe tư nhân Hoàng Hà", "Quận 9", 10.851325, 106.797915, 38, 0, 210,
+            new TimeOnly(6, 0), new TimeOnly(22, 0), ParkingLotStatus.PendingApproval, ownerProfileId: 5));
+        await repo.AddAsync(new ParkingLot(6, "Bãi xe Q.1", "Q.1", 10.776889, 106.700806, 20, 20, 210,
+            new TimeOnly(6, 0), new TimeOnly(22, 0), ParkingLotStatus.Active, ownerProfileId: 5));
+        await repo.AddAsync(new ParkingLot(7, "Bãi của chủ khác", "Q.3", 10.78, 106.69, 10, 10, 210,
+            new TimeOnly(6, 0), new TimeOnly(22, 0), ParkingLotStatus.Active, ownerProfileId: 9));
+
+        var result = await new GetOwnerParkingLotsUseCase(repo).ExecuteAsync(5);
+
+        Assert.Equal(2, result.Count);
+        var farLot = Assert.Single(result, l => l.Id == 5);
+        Assert.Equal(10.851325, farLot.Latitude);
+        Assert.Equal(106.797915, farLot.Longitude);
+        var centralLot = Assert.Single(result, l => l.Id == 6);
+        Assert.Equal(10.776889, centralLot.Latitude);
+        Assert.Equal(106.700806, centralLot.Longitude);
+    }
+
     // ==================== FAKE REPOSITORIES FOR TESTING ====================
 
     private sealed class FakeLotManagementRepo : IParkingLotManagementRepository
