@@ -194,7 +194,7 @@ export const AuditLogListPage: React.FC = () => {
       subtitle={
         total === null
           ? 'AuditLogs · append-only'
-          : `${formatNumber(total)} entries · AdminService + events from other services · append-only · newest first`
+          : `${formatNumber(total)} entries · newest first · cannot be edited`
       }
       actions={
         <AdminButton variant="onNavy" icon="download" onClick={exportCsv} disabled={exporting || query.status !== 'ready'}>

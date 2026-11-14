@@ -100,7 +100,7 @@ const ChangeValueDialog: React.FC<{ open: boolean; config: SystemConfigDetailDto
     <AdminDialog
       open={open}
       title="Change value"
-      description="US-098 · appends a SystemConfigChanges row; the default value is never overwritten."
+      description="The change is added to the history; the default value is never overwritten."
       onClose={close}
       onConfirm={confirm}
       confirmLabel="Schedule change"
@@ -159,7 +159,7 @@ export const SystemSettingDetailPage: React.FC = () => {
   if (!config) {
     return (
       <>
-        <AdminTitleBar title={key || 'System Settings'} subtitle="—" />
+        <AdminTitleBar title={key || 'System Settings'} />
         <QueryState
           status={query.status}
           error={query.error}
@@ -192,7 +192,7 @@ export const SystemSettingDetailPage: React.FC = () => {
       />
       <DetailColumns
         main={
-          <Panel title="Change history" description="SystemConfigChanges · Scheduled / Effective / Superseded / Cancelled" padded={false}>
+          <Panel title="Change history" description="Scheduled, in effect, superseded and cancelled changes" padded={false}>
             <DataTable
               bare
               rows={history.status === 'ready' ? history.data?.items ?? [] : []}
@@ -235,7 +235,7 @@ export const SystemSettingDetailPage: React.FC = () => {
         }
         side={
           <>
-            <Panel title="Parameter" description="SystemConfigs">
+            <Panel title="Parameter">
               <DetailList>
                 <DetailRow label="Key">{config.key}</DetailRow>
                 <DetailRow label="Value in effect">{config.value}</DetailRow>
@@ -244,9 +244,6 @@ export const SystemSettingDetailPage: React.FC = () => {
                 <DetailRow label="Allowed (code rule)">{allowedText(config)}</DetailRow>
                 <DetailRow label="Description">{config.description ?? '—'}</DetailRow>
                 <DetailRow label="Effective since">{formatDateTimeIct(config.effectiveFromUtc)}</DetailRow>
-                <DetailRow label="Group" future>
-                  —
-                </DetailRow>
               </DetailList>
             </Panel>
             <Banner tone="info">

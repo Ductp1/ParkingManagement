@@ -17,6 +17,8 @@ export interface AdminTab {
   key: string;
   label: string;
   path: string;
+  /** false = chưa có nguồn dữ liệu: ẩn khỏi menu, route hiện màn "This page isn't available yet". */
+  available: boolean;
 }
 
 export interface AdminSection {
@@ -27,11 +29,15 @@ export interface AdminSection {
   tabs: AdminTab[];
 }
 
-const tab = (sectionPath: string, key: string, label: string): AdminTab => ({
+const tab = (sectionPath: string, key: string, label: string, available = true): AdminTab => ({
   key,
   label,
   path: `${sectionPath}/${key}`,
+  available,
 });
+
+/** Tab chưa có nguồn dữ liệu (P0-10): ẩn khỏi menu thay vì hiện bảng/bộ lọc giả. */
+const NOT_YET = false;
 
 /**
  * IA Admin Portal theo Figma "Admin Portal v1" (page 65:2): 7 mục sidebar → tab trên header.
@@ -59,7 +65,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       tab('/admin/operations', 'lot-contracts', 'Lot Contracts'),
       tab('/admin/operations', 'contract-templates', 'Contract Templates'),
       tab('/admin/operations', 'users', 'Users'),
-      tab('/admin/operations', 'bookings', 'Bookings'),
+      tab('/admin/operations', 'bookings', 'Bookings', NOT_YET),
       tab('/admin/operations', 'gate-activity', 'Gate Activity'),
     ],
   },
@@ -73,8 +79,8 @@ export const ADMIN_SECTIONS: AdminSection[] = [
       tab('/admin/finance', 'payouts', 'Payouts'),
       tab('/admin/finance', 'commission', 'Commission'),
       tab('/admin/finance', 'adjustments', 'Adjustments'),
-      tab('/admin/finance', 'transactions', 'Transactions'),
-      tab('/admin/finance', 'refunds', 'Refunds'),
+      tab('/admin/finance', 'transactions', 'Transactions', NOT_YET),
+      tab('/admin/finance', 'refunds', 'Refunds', NOT_YET),
     ],
   },
   {
@@ -83,12 +89,12 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     path: '/admin/support',
     icon: { src: navSupport, width: 21.5, height: 14.25 },
     tabs: [
-      tab('/admin/support', 'disputes', 'Disputes'),
-      tab('/admin/support', 'tickets', 'Tickets'),
+      tab('/admin/support', 'disputes', 'Disputes', NOT_YET),
+      tab('/admin/support', 'tickets', 'Tickets', NOT_YET),
       tab('/admin/support', 'sanctions', 'Sanctions'),
-      tab('/admin/support', 'risk-flags', 'Risk Flags'),
+      tab('/admin/support', 'risk-flags', 'Risk Flags', NOT_YET),
       tab('/admin/support', 'reviews', 'Reviews'),
-      tab('/admin/support', 'vouchers', 'Vouchers'),
+      tab('/admin/support', 'vouchers', 'Vouchers', NOT_YET),
     ],
   },
   {
@@ -98,10 +104,10 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     icon: { src: navCommunications, width: 23, height: 15 },
     tabs: [
       tab('/admin/communications', 'send-notification', 'Send notification'),
-      tab('/admin/communications', 'templates', 'Templates'),
-      tab('/admin/communications', 'send-history', 'Send history'),
+      tab('/admin/communications', 'templates', 'Templates', NOT_YET),
+      tab('/admin/communications', 'send-history', 'Send history', NOT_YET),
       tab('/admin/communications', 'faq', 'FAQ'),
-      tab('/admin/communications', 'promotions', 'Promotions'),
+      tab('/admin/communications', 'promotions', 'Promotions', NOT_YET),
     ],
   },
   {
@@ -111,10 +117,10 @@ export const ADMIN_SECTIONS: AdminSection[] = [
     icon: { src: navReports, width: 21.5, height: 13.5 },
     tabs: [
       tab('/admin/reports', 'revenue', 'Revenue'),
-      tab('/admin/reports', 'occupancy', 'Occupancy'),
-      tab('/admin/reports', 'bookings', 'Bookings'),
-      tab('/admin/reports', 'owner-performance', 'Owner performance'),
-      tab('/admin/reports', 'exports', 'Exports'),
+      tab('/admin/reports', 'occupancy', 'Occupancy', NOT_YET),
+      tab('/admin/reports', 'bookings', 'Bookings', NOT_YET),
+      tab('/admin/reports', 'owner-performance', 'Owner performance', NOT_YET),
+      tab('/admin/reports', 'exports', 'Exports', NOT_YET),
     ],
   },
   {
@@ -133,7 +139,47 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   },
 ];
 
-export const ADMIN_HOME_PATH = ADMIN_SECTIONS[0].tabs[0].path;
+/**
+ * Màn con (không phải tab) chưa có nguồn dữ liệu – route vẫn tồn tại nhưng hiện màn "not available yet".
+ */
+export const UNAVAILABLE_SUB_PATHS: readonly string[] = [
+  '/admin/operations/bookings/monthly-passes',
+  '/admin/operations/gate-activity/shifts',
+  '/admin/access/security-privacy/security-events',
+];
+
+/** Cờ dev: localStorage "admin.showUnavailable" = "1" → vẫn hiện tab chưa có nguồn trong menu (chỉ khi chạy dev). */
+export const SHOW_UNAVAILABLE_KEY = 'admin.showUnavailable';
+
+export const showUnavailableTabs = (): boolean => {
+  if (!import.meta.env.DEV) return false;
+  try {
+    return window.localStorage.getItem(SHOW_UNAVAILABLE_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+/** Tab hiện trên menu của một nhóm. */
+export const visibleTabs = (section: AdminSection): AdminTab[] =>
+  showUnavailableTabs() ? section.tabs : section.tabs.filter((t) => t.available);
+
+/** Tab đầu tiên dùng được của nhóm (đích của mục sidebar và nút "Back to <Group>"). */
+export const firstTabPath = (section: AdminSection): string => (section.tabs.find((t) => t.available) ?? section.tabs[0]).path;
+
+/** false khi đường dẫn trỏ vào tab hoặc màn con chưa có nguồn dữ liệu – dùng để không tạo link tới đó. */
+export const isAdminPathAvailable = (path: string): boolean => {
+  const pathname = path.split(/[?#]/)[0];
+  if (UNAVAILABLE_SUB_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return false;
+  const [, , sectionKey, tabKey, ...rest] = pathname.split('/');
+  const section = ADMIN_SECTIONS.find((s) => s.key === sectionKey);
+  const t = section?.tabs.find((x) => x.key === tabKey);
+  // Trang chi tiết (vd. /operations/bookings/:code) có nguồn riêng, chỉ danh sách là chưa có.
+  if (!t || rest.length > 0) return true;
+  return t.available;
+};
+
+export const ADMIN_HOME_PATH = firstTabPath(ADMIN_SECTIONS[0]);
 
 export interface AdminLocation {
   section: AdminSection;

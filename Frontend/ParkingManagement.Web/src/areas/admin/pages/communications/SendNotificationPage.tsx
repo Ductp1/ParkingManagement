@@ -73,7 +73,7 @@ export const SendNotificationPage: React.FC = () => {
   return (
     <>
       <AdminTitleBar title="Send notification" subtitle="Template-based message to one user" />
-      <Banner tone="info">Notifications are stored per user in Notifications and delivered on the chosen channel (In-app is pushed in real time).</Banner>
+      <Banner tone="info">The message goes to the user's notification inbox and the chosen channel. In-app messages arrive in real time.</Banner>
       <DetailColumns
         main={
           <Panel title="Compose">
@@ -118,7 +118,7 @@ export const SendNotificationPage: React.FC = () => {
             <Panel title="Channel rules">
               <DetailList>
                 <DetailRow label="Channel">{humanizeEnum(form.channel)}</DetailRow>
-                <DetailRow label="User preference">NotificationPreferences (checked by NotificationService)</DetailRow>
+                <DetailRow label="User preference">Checked when sending – muted channels are skipped</DetailRow>
               </DetailList>
             </Panel>
           </>
@@ -127,7 +127,7 @@ export const SendNotificationPage: React.FC = () => {
       <AdminDialog
         open={confirmOpen}
         title="Send notification?"
-        description="Creates one Notifications row (Status Pending → Sent)."
+        description="The user receives it in their notification inbox."
         onClose={() => setConfirmOpen(false)}
         onConfirm={send}
         confirmLabel="Send now"

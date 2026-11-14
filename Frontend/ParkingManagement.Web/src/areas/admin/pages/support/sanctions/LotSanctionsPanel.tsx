@@ -17,7 +17,7 @@ export const LotSanctionsPanel: React.FC<{ lotId: number; sanctions: LotSanction
   const { state, active } = sanctions;
   const s = state.data;
   return (
-    <Panel title="Lot-level sanctions" description="ParkingService enforcement · AdminService sanctions" action={{ label: 'All sanctions →', to: `${SANCTIONS_BASE}?parkingLotId=${lotId}` }}>
+    <Panel title="Lot-level sanctions" action={{ label: 'All sanctions →', to: `${SANCTIONS_BASE}?parkingLotId=${lotId}` }}>
       {!s ? (
         <QueryState
           status={state.status}

@@ -20,7 +20,8 @@ import { IssueSanctionDialog, type IssueSanctionPreset } from '../../support/san
 import { LotSanctionsPanel } from '../../support/sanctions/LotSanctionsPanel';
 import { useLotSanctions } from '../../support/sanctions/useLotSanctions';
 import { AmenitiesTab, CapacityTab, HoursTab, LayoutTab, PricingTab } from './LotDetailTabs';
-import { LOT_DETAIL_MISSING, LOT_DETAIL_TABS, hiddenLotNotice } from './lotDetailFormat';
+import { hiddenLotNotice, isLotTabUnavailable, lotDetailSubTabs } from './lotDetailFormat';
+import { ComingSoonState } from '../../../components/ComingSoonScreen';
 
 const LIST = '/admin/operations/parking-lots';
 
@@ -106,7 +107,7 @@ export const NonPublicLotDetail: React.FC<{ lotId: number; tab: string }> = ({ l
         ]}
       />
       <Banner tone="warning">{hiddenLotNotice(String(lot.status))}</Banner>
-      <SubTabs tabs={LOT_DETAIL_TABS.map((t) => ({ label: t.label, to: t.key ? `${base}/${t.key}` : base }))} />
+      <SubTabs tabs={lotDetailSubTabs(base)} />
       {tab === '' && (
         <InformationTab lot={lot} sanctionsPanel={<LotSanctionsPanel lotId={lot.parkingLotId} sanctions={sanctions} onIssue={openIssue} />} />
       )}
@@ -115,12 +116,7 @@ export const NonPublicLotDetail: React.FC<{ lotId: number; tab: string }> = ({ l
       {tab === 'hours' && <HoursTab lotId={lot.parkingLotId} />}
       {tab === 'amenities' && <AmenitiesTab lotId={lot.parkingLotId} />}
       {tab === 'pricing' && <PricingTab lotId={lot.parkingLotId} />}
-      {LOT_DETAIL_MISSING[tab] && (
-        <StateBlock
-          type="unavailable"
-          message={`ParkingService has no endpoint for ${LOT_DETAIL_TABS.find((t) => t.key === tab)?.label ?? tab} yet (${LOT_DETAIL_MISSING[tab]}).`}
-        />
-      )}
+      {isLotTabUnavailable(tab) && <ComingSoonState backTo={base} backLabel="Back to Information" />}
       {issuePreset && <IssueSanctionDialog preset={issuePreset} onClose={() => setIssuePreset(null)} onIssued={sanctions.reload} />}
     </>
   );

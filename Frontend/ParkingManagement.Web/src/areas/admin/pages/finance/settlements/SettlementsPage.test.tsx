@@ -71,7 +71,7 @@ describe('SettlementsPage (US-080)', () => {
     renderPage(PATH, `${PATH}?settlement=6`, <SettlementsPage />);
 
     const reasons = await screen.findByTestId('blocked-reasons');
-    expect(within(reasons).getByText(/Dispute holds not loaded/)).toBeTruthy();
+    expect(within(reasons).getByText(/Dispute holds are not loaded yet/)).toBeTruthy();
     expect((screen.getByRole('button', { name: 'Submit for review' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('button', { name: 'Regenerate' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();

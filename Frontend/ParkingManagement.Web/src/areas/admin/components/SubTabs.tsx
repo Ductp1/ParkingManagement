@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { isAdminPathAvailable, showUnavailableTabs } from '../navigation';
 
 export interface SubTab {
   label: string;
@@ -10,7 +11,10 @@ export interface SubTab {
 }
 
 /** Sub-tabs trong màn (Figma "Sub-tabs"): cao 40, viền dưới, gap 16; active = Bold 13 navy-900 + gạch chân 2px. */
-export const SubTabs: React.FC<{ tabs: SubTab[] }> = ({ tabs }) => {
+export const SubTabs: React.FC<{ tabs: SubTab[] }> = ({ tabs: allTabs }) => {
+  // Màn con chưa có nguồn dữ liệu không hiện; còn một tab thì bỏ luôn thanh sub-tab.
+  const tabs = showUnavailableTabs() ? allTabs : allTabs.filter((t) => isAdminPathAvailable(t.to));
+  if (tabs.length < 2) return null;
   // NavLink tự gắn aria-current="page" cho tab khớp URL → .adm-tab vẽ gạch chân của chính tab đó.
   return (
     <nav className="flex h-10 items-start gap-4 overflow-x-auto border-b border-(--admin-border-default)">

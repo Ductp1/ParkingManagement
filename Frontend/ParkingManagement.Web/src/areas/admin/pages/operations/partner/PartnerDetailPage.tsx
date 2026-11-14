@@ -109,7 +109,7 @@ export const PartnerDetailPage: React.FC = () => {
   if (!app) {
     return (
       <>
-        <AdminTitleBar title="Partner Onboarding" subtitle="—" />
+        <AdminTitleBar title="Partner Onboarding" />
         <QueryState
           status={valid ? query.status : 'empty'}
           error={query.error}
@@ -237,10 +237,10 @@ export const PartnerDetailPage: React.FC = () => {
         }
         side={
           <>
-            <Panel title="Status timeline" description="AuditLogs · Action = PartnerApplication.<Transition>">
+            <Panel title="Status timeline" description="Every status change on this application">
               <Timeline entries={timeline(app)} />
             </Panel>
-            <Panel title="Allowed next steps" description="From the AdminService transition table">
+            <Panel title="Allowed next steps">
               <p className="adm-type-body-default m-0 text-(--admin-text-primary)">
                 {app.nextStatuses.length > 0 ? app.nextStatuses.map((s) => humanizeEnum(s)).join(' · ') : 'None — terminal'}
               </p>
@@ -249,7 +249,7 @@ export const PartnerDetailPage: React.FC = () => {
               <p className="adm-type-body-default m-0 text-(--admin-text-primary)">{app.payoutBank ? bankText(app.payoutBank) : 'Set when the owner account is issued.'}</p>
             </Panel>
             {app.createdOwnerProfileId !== null && (
-              <Panel title="Owner account" description="Created in UserService at T6">
+              <Panel title="Owner account" description="Created when the account is issued">
                 <DetailList>
                   <DetailRow label="User">#{app.createdUserId}</DetailRow>
                   <DetailRow label="OwnerProfile">#{app.createdOwnerProfileId}</DetailRow>
@@ -324,7 +324,7 @@ export const PartnerDetailPage: React.FC = () => {
       <ActionDialog
         open={dialog === 'resend'}
         title="Resend activation link"
-        description={`UserService revokes the current link and emails a new one to ${app.email}.`}
+        description={`The current link stops working and a new one is emailed to ${app.email}.`}
         confirmLabel="Resend link"
         onClose={close}
         onSubmit={async () => {

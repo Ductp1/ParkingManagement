@@ -242,7 +242,7 @@ export const DataRequestsPage: React.FC<{ subTabs: SubTab[] }> = ({ subTabs }) =
       top={
         <>
           <SubTabs tabs={subTabs} />
-          <Banner tone="info">Personal-data requests under Decree 13/2023 (US-007). Due is the legal deadline; oldest deadlines are listed first.</Banner>
+          <Banner tone="info">Personal-data requests under Decree 13/2023. Due is the legal deadline; oldest deadlines are listed first.</Banner>
         </>
       }
       filters={

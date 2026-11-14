@@ -75,7 +75,7 @@ export const GateSessionsPage: React.FC = () => {
   return (
     <ListScreen
       title="Gate Activity"
-      subtitle="Read-only · ParkingSessions, GateEvents, GateDevices, Shifts"
+      subtitle="Read-only"
       top={<SubTabs tabs={GATE_SUB_TABS} />}
       filters={
         <FilterColumn>
@@ -174,7 +174,7 @@ export const GateDevicesPage: React.FC = () => {
   return (
     <ListScreen
       title="Gate Activity"
-      subtitle="GateDevices"
+     
       top={<SubTabs tabs={GATE_SUB_TABS} />}
       filters={
         <FilterColumn>
@@ -202,7 +202,7 @@ export const GateDevicesPage: React.FC = () => {
             status={viewStatus}
             error={query.error}
             onRetry={query.refetch}
-            copy={{ emptyTitle: 'No devices', emptyMessage: 'Gate devices registered by owners appear here.', errorTitle: 'Could not load devices', service: 'GateService (route /api/v1/gate-devices missing in Gateway)' }}
+            copy={{ emptyTitle: 'No devices', emptyMessage: 'Gate devices registered by owners appear here.', errorTitle: 'Could not load devices', service: 'GateService' }}
           />
         }
         footer={

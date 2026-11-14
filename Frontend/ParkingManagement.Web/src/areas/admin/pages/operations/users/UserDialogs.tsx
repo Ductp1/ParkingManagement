@@ -6,7 +6,7 @@ import { AdminDialog, DialogSummary } from '../../../components/AdminDialog';
 import { Banner } from '../../../components/Banner';
 import { DateTimeField, TextAreaField } from '../../../components/FormFields';
 import { humanizeEnum } from '../../../utils/enumLabels';
-import { formatDate, formatDateTimeIct, localInputToUtcIso } from '../../../utils/format';
+import { formatDate, localInputToUtcIso } from '../../../utils/format';
 
 const Summary: React.FC<{ user: AdminUserDto }> = ({ user }) => (
   <DialogSummary
@@ -64,7 +64,7 @@ export const LockOwnerDialog: React.FC<DialogProps & { onDone: () => void }> = (
     <AdminDialog
       open={open}
       title="Lock owner"
-      description="US-096 · saves a Sanction + AuditLog, then asks UserService to lock (IsLocked, sessions revoked, owner notified)."
+      description="Records a sanction, locks the account, signs the user out everywhere and notifies the owner."
       onClose={close}
       onConfirm={confirm}
       confirmLabel="Lock owner"
@@ -110,7 +110,7 @@ export const UnlockOwnerDialog: React.FC<DialogProps & { activeLock: SanctionDto
   <ActionDialog
     open={open}
     title="Unlock owner"
-    description="Revokes the latest owner-level lock sanction, then asks UserService to unlock. Lot-level sanctions are not touched."
+    description="Revokes the latest owner-level lock and unlocks the account. Lot-level sanctions are not touched."
     confirmLabel="Unlock owner"
     field={{
       label: 'Reason',
@@ -134,25 +134,4 @@ export const UnlockOwnerDialog: React.FC<DialogProps & { activeLock: SanctionDto
       </Banner>
     )}
   </ActionDialog>
-);
-
-/** Dialog – Retry sync: AdminService chưa có endpoint gửi lại sanction sang UserService → nút gửi bị khóa. */
-export const RetrySyncDialog: React.FC<DialogProps & { sanction: SanctionDto | null }> = ({ open, user, sanction, onClose }) => (
-  <AdminDialog
-    open={open}
-    title="Retry UserService sync"
-    description={`Re-sends the stored Sanction #${sanction?.id ?? '—'} to UserService. The original reason and end date are used; nothing new is saved.`}
-    onClose={onClose}
-    onConfirm={() => undefined}
-    confirmLabel="Retry"
-    confirmDisabled
-    footerNote="No retry-sync endpoint in AdminService yet."
-  >
-    <Summary user={user} />
-    {sanction && (
-      <Banner tone="danger">
-        Last attempt {formatDateTimeIct(sanction.updatedAtUtc ?? sanction.createdAtUtc)} · UserService did not apply the change.
-      </Banner>
-    )}
-  </AdminDialog>
 );

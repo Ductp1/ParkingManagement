@@ -5,7 +5,7 @@ import { setToken } from '@/store/slices/authSlice';
 import { adminUsersApi } from '@/api/adminUsersApi';
 import { adminCommunicationsApi } from '@/api/adminCommunicationsApi';
 import type { NotificationDto } from '@/types/notification';
-import { ADMIN_HOME_PATH, resolveAdminLocation } from '../navigation';
+import { ADMIN_HOME_PATH, firstTabPath, resolveAdminLocation } from '../navigation';
 import type { AdminOutletContext } from '../hooks/useAdminBreadcrumb';
 import { useAdminQuery } from '../hooks/useAdminQuery';
 import { usePageEnter } from '../hooks/usePageEnter';
@@ -41,7 +41,7 @@ export const AdminLayout: React.FC = () => {
 
   const location = resolveAdminLocation(pathname);
   if (!location) return <Navigate to={ADMIN_HOME_PATH} replace />;
-  if (!location.tab) return <Navigate to={location.section.tabs[0].path} replace />;
+  if (!location.tab) return <Navigate to={firstTabPath(location.section)} replace />;
 
   const outletContext: AdminOutletContext = { setDetailLabel };
   const name = me.data?.fullName ?? storeUser?.fullName ?? '';

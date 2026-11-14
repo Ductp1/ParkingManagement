@@ -77,7 +77,7 @@ export const LayoutTab: React.FC<{ lotId: number }> = ({ lotId }) => {
   }
   const floors = tree.zones.flatMap((z) => z.floors.map((f) => ({ zone: z, floor: f })));
   return (
-    <Panel title="Zones & floors" description="Zones · Floors · Slots (ParkingService hierarchy)" padded={false}>
+    <Panel title="Zones & floors" description="Zones, floors and slots" padded={false}>
       <DataTable
         bare
         rows={floors}

@@ -177,7 +177,7 @@ export const IdentityReviewPage: React.FC = () => {
       }
       top={
         <Banner tone="info">
-          Citizen ID verifications submitted through the VNeID link simulation (US-005). Numbers are stored encrypted and shown masked.
+          Citizen ID verifications submitted through the VNeID link. Numbers are stored encrypted and shown masked.
         </Banner>
       }
     >

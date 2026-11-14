@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useSlidingIndicator } from '../hooks/useSlidingIndicator';
-import { ADMIN_SECTIONS, type AdminSection } from '../navigation';
+import { ADMIN_SECTIONS, firstTabPath, type AdminSection } from '../navigation';
 import { AdminIcon } from '../components/AdminIcon';
 import avatarUser from '../assets/icons/avatar-user.svg';
 
@@ -31,7 +31,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({ activeSection, userN
           return (
             <Link
               key={section.key}
-              to={section.tabs[0].path}
+              to={firstTabPath(section)}
               aria-current={isActive ? 'page' : undefined}
               className={`adm-type-nav-item adm-tr-colors relative flex items-center rounded-[2px] px-2 py-1.5 whitespace-nowrap ${
                 isActive ? 'text-(--admin-text-on-navy)' : 'text-(--admin-text-nav) hover:bg-(--admin-surface-selected)'

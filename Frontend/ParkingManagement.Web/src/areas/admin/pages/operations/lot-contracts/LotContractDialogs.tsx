@@ -276,7 +276,7 @@ export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, blocke
       open
       size={640}
       title="Upload signed contract & approve KYB"
-      description="Contract Pending → Signed, KYB Under review → Approved, lot Pending approval → Active (bookable)."
+      description="The contract becomes signed, the KYB review is approved and the lot goes live (bookable)."
       confirmLabel="Sign & approve"
       onClose={onClose}
       onConfirm={confirm}

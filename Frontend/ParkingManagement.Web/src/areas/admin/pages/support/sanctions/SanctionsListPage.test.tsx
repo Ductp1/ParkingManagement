@@ -119,14 +119,14 @@ describe('SanctionsListPage (US-097)', () => {
     const user = userEvent.setup();
     renderPage('/admin/support/sanctions?sanction=7');
 
-    const parkingRow = await screen.findByTestId('sync-Parking');
+    const parkingRow = await screen.findByTestId('sync-parkingSyncStatus');
     expect(within(parkingRow).getByText('Failed')).toBeTruthy();
     expect(screen.getByText('BK-1, BK-2')).toBeTruthy();
     expect(screen.getByText('Sanction issued')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Retry sync' }));
     await waitFor(() => expect(h.retrySync).toHaveBeenCalledWith(7));
-    await waitFor(() => expect(within(screen.getByTestId('sync-Parking')).getByText('Synced')).toBeTruthy());
+    await waitFor(() => expect(within(screen.getByTestId('sync-parkingSyncStatus')).getByText('Synced')).toBeTruthy());
     expect(await screen.findByText('Sanction synced')).toBeTruthy();
   });
 

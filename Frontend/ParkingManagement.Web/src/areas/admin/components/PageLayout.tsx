@@ -79,8 +79,8 @@ export interface QueryCopy {
   emptyTitle: string;
   emptyMessage: string;
   errorTitle: string;
-  /** Tên service để mô tả khi endpoint chưa có. */
-  service: string;
+  /** Không hiển thị cho người dùng (giữ để màn cũ không phải sửa); sẽ bỏ khi gom PageHeader (P1-9). */
+  service?: string;
 }
 
 interface QueryStateProps {
@@ -105,17 +105,7 @@ export const QueryState: React.FC<QueryStateProps> = ({ status, error, copy, onR
     case 'forbidden':
       return <StateBlock type="noPermission" message={error?.message} bare={bare} />;
     case 'unavailable':
-      return (
-        <StateBlock
-          type="unavailable"
-          message={
-            error?.status === 0
-              ? `${copy.service} is not reachable through the API Gateway (${error.message}).`
-              : `${copy.service} has no endpoint for this screen yet (HTTP ${error?.status ?? 404}). Nothing is shown instead of sample data.`
-          }
-          bare={bare}
-        />
-      );
+      return <StateBlock type="unavailable" bare={bare} />;
     case 'notFound':
     case 'offline':
     case 'sessionExpired':
@@ -128,7 +118,7 @@ export const QueryState: React.FC<QueryStateProps> = ({ status, error, copy, onR
           message={
             error?.problem
               ? error.message
-              : `${copy.service} did not respond${error ? ` (HTTP ${error.status})` : ''}. Try again.`
+              : 'The server did not respond. Try again.'
           }
           onRetry={onRetry}
           bare={bare}

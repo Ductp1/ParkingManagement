@@ -242,7 +242,7 @@ export const ReviewsModerationPage: React.FC = () => {
       }
       top={
         <>
-          <Banner tone="info">Reviews that lot owners reported (US-094). Hide the review or dismiss the report; each decision needs a reason.</Banner>
+          <Banner tone="info">Reviews that lot owners reported. Hide the review or dismiss the report; each decision needs a reason.</Banner>
           {full && (
             <Banner tone="warning">
               {`Showing the ${formatNumber(REPORTED_QUEUE_SIZE)} oldest reports. Newer ones appear as these are handled.`}

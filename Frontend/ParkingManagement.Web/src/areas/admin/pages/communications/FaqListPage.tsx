@@ -1,16 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { adminCommunicationsApi } from '@/api/adminCommunicationsApi';
 import type { FaqAudience, FaqItemDto } from '@/types/adminSupport';
 import { ListScreen, QueryState } from '../../components/PageLayout';
 import { FilterColumn, FilterPanel } from '../../components/FilterColumn';
-import { AdminButton } from '../../components/AdminButton';
 import { CellAmount, CellStatus, CellText, DataTable } from '../../components/DataTable';
-import { FormDialog } from '../../components/FormDialog';
 import { useAdminQuery } from '../../hooks/useAdminQuery';
 import { useListParams } from '../../hooks/useListParams';
 import { humanizeEnum } from '../../utils/enumLabels';
 import { formatNumber } from '../../utils/format';
-import { createFaqDialog } from '../unavailableScreens';
 
 const AUDIENCES: Array<{ value: FaqAudience; label: string }> = [
   { value: 'Driver', label: 'Driver' },
@@ -19,13 +16,12 @@ const AUDIENCES: Array<{ value: FaqAudience; label: string }> = [
 
 /**
  * Communications / FAQ – GET /api/v1/faqs?audience= (SupportService, chỉ bài đã công khai).
- * Audience "All" = gộp Driver + LotOwner (mỗi bài chỉ hiện một lần). Tạo/sửa bài chưa có endpoint.
+ * Audience "All" = gộp Driver + LotOwner (mỗi bài chỉ hiện một lần). Chưa có API tạo/sửa bài nên không có nút tạo.
  */
 export const FaqListPage: React.FC = () => {
   const params = useListParams();
   const audienceParam = params.get('audience');
   const audience = AUDIENCES.some((a) => a.value === audienceParam) ? (audienceParam as FaqAudience) : null;
-  const [createOpen, setCreateOpen] = useState(false);
 
   const query = useAdminQuery(
     async () => {
@@ -43,8 +39,7 @@ export const FaqListPage: React.FC = () => {
   return (
     <ListScreen
       title="FAQ"
-      subtitle={query.data ? `FaqArticles · ${formatNumber(items.length)} published · US-092` : 'FaqArticles · US-092'}
-      actions={<AdminButton onClick={() => setCreateOpen(true)}>Create article</AdminButton>}
+      subtitle={query.data ? `${formatNumber(items.length)} published ${items.length === 1 ? 'article' : 'articles'}` : undefined}
       filters={
         <FilterColumn>
           <FilterPanel
@@ -72,11 +67,10 @@ export const FaqListPage: React.FC = () => {
             status={query.status}
             error={query.error}
             onRetry={query.refetch}
-            copy={{ emptyTitle: 'No FAQ articles', emptyMessage: 'Create the first article for drivers or owners.', errorTitle: 'Could not load FAQ articles', service: 'SupportService' }}
+            copy={{ emptyTitle: 'No FAQ articles', emptyMessage: 'Published articles for drivers and owners appear here.', errorTitle: 'Could not load FAQ articles', service: 'SupportService' }}
           />
         }
       />
-      {createOpen && <FormDialog spec={createFaqDialog} open onClose={() => setCreateOpen(false)} unavailableNote="No create endpoint in SupportService yet (only GET /api/v1/faqs)." />}
     </ListScreen>
   );
 };

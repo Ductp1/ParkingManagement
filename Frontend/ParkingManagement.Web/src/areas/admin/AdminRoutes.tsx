@@ -2,8 +2,7 @@ import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminLayout } from './layout/AdminLayout';
 import { SignedOutPage } from './layout/SignedOutPage';
-import { UnavailableListScreen, type UnavailableListSpec } from './components/UnavailableListScreen';
-import { UNAVAILABLE_SCREENS as U } from './pages/unavailableScreens';
+import { ComingSoonScreen } from './components/ComingSoonScreen';
 import { DashboardPage } from './pages/overview/DashboardPage';
 import { PartnerListPage } from './pages/operations/partner/PartnerListPage';
 import { PartnerDetailPage } from './pages/operations/partner/PartnerDetailPage';
@@ -19,15 +18,13 @@ import { UsersListPage } from './pages/operations/users/UsersListPage';
 import { UserDetailPage } from './pages/operations/users/UserDetailPage';
 import { BookingDetailPage } from './pages/operations/bookings/BookingDetailPage';
 import { GateDevicesPage, GateSessionsPage } from './pages/operations/gate/GateActivityPages';
-import { GATE_SUB_TABS } from './pages/operations/gate/gateTabs';
+import { GATE_BASE } from './pages/operations/gate/gateTabs';
 import { FaqListPage } from './pages/communications/FaqListPage';
 import { SendNotificationPage } from './pages/communications/SendNotificationPage';
 import { CommissionPage } from './pages/finance/commission/CommissionPage';
 import { AdjustmentsPage } from './pages/finance/settlements/AdjustmentsPage';
 import { PayoutsPage } from './pages/finance/settlements/PayoutsPage';
 import { SettlementsPage } from './pages/finance/settlements/SettlementsPage';
-import { ExportsPage, ReportPage } from './pages/reports/ReportPages';
-import { REPORTS } from './pages/reports/reportSpecs';
 import { RevenueReportPage } from './pages/reports/RevenueReportPage';
 import { SystemSettingsListPage } from './pages/access/SystemSettingsListPage';
 import { SystemSettingDetailPage } from './pages/access/SystemSettingDetailPage';
@@ -45,11 +42,6 @@ const SECURITY_TABS = [
   { label: 'Data subject requests', to: '/admin/access/security-privacy', end: true },
   { label: 'Security events', to: '/admin/access/security-privacy/security-events' },
 ];
-
-/** key = remount khi đổi màn để state lọc/dialog không lẫn giữa các tab dùng chung component. */
-const unavailable = (key: keyof typeof U, extra?: Partial<UnavailableListSpec>) => (
-  <UnavailableListScreen key={key} spec={{ ...U[key], ...extra }} />
-);
 
 /** Đường dẫn admin cũ (menu MainNavbar) → tab mới. */
 const LEGACY_PATHS: Array<[string, string]> = [
@@ -92,14 +84,14 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/contract-templates/:id" element={<ContractTemplateEditorPage />} />
         <Route path="operations/users" element={<UsersListPage />} />
         <Route path="operations/users/:id" element={<UserDetailPage />} />
-        <Route path="operations/bookings" element={unavailable('bookings')} />
-        <Route path="operations/bookings/monthly-passes" element={unavailable('monthlyPasses')} />
+        <Route path="operations/bookings" element={<ComingSoonScreen />} />
+        <Route path="operations/bookings/monthly-passes" element={<ComingSoonScreen title="Monthly passes" />} />
         <Route path="operations/bookings/:code" element={<BookingDetailPage />} />
         {/* US-066: cấu hình sức chứa & vùng đệm vãng lai (mặc định bãi #1). */}
         <Route path="operations/capacity-config" element={<CapacityConfigPage />} />
         <Route path="operations/gate-activity" element={<GateSessionsPage />} />
         <Route path="operations/gate-activity/devices" element={<GateDevicesPage />} />
-        <Route path="operations/gate-activity/shifts" element={unavailable('gateShifts', { subTabs: GATE_SUB_TABS })} />
+        <Route path="operations/gate-activity/shifts" element={<ComingSoonScreen title="Gate shifts" backTo={GATE_BASE} backLabel="Back to Gate Activity" />} />
 
         {/* Finance */}
         {/* US-080: quyết toán định kỳ – kỳ (chi tiết ?settlement=), chi trả, bút toán điều chỉnh. */}
@@ -110,30 +102,30 @@ export const AdminRoutes: React.FC = () => {
         <Route path="finance/commission/owners" element={<CommissionPage tab="owners" />} />
         <Route path="finance/commission/sources" element={<CommissionPage tab="sources" />} />
         <Route path="finance/adjustments" element={<AdjustmentsPage />} />
-        <Route path="finance/transactions" element={unavailable('transactions')} />
-        <Route path="finance/refunds" element={unavailable('refunds')} />
+        <Route path="finance/transactions" element={<ComingSoonScreen />} />
+        <Route path="finance/refunds" element={<ComingSoonScreen />} />
 
         {/* Support & Sanctions */}
-        <Route path="support/disputes" element={unavailable('disputes')} />
-        <Route path="support/tickets" element={unavailable('tickets')} />
+        <Route path="support/disputes" element={<ComingSoonScreen />} />
+        <Route path="support/tickets" element={<ComingSoonScreen />} />
         <Route path="support/sanctions" element={<SanctionsListPage />} />
-        <Route path="support/risk-flags" element={unavailable('riskFlags')} />
+        <Route path="support/risk-flags" element={<ComingSoonScreen />} />
         <Route path="support/reviews" element={<ReviewsModerationPage />} />
-        <Route path="support/vouchers" element={unavailable('vouchers')} />
+        <Route path="support/vouchers" element={<ComingSoonScreen />} />
 
         {/* Communications */}
         <Route path="communications/send-notification" element={<SendNotificationPage />} />
-        <Route path="communications/templates" element={unavailable('templates')} />
-        <Route path="communications/send-history" element={unavailable('sendHistory')} />
+        <Route path="communications/templates" element={<ComingSoonScreen />} />
+        <Route path="communications/send-history" element={<ComingSoonScreen />} />
         <Route path="communications/faq" element={<FaqListPage />} />
-        <Route path="communications/promotions" element={unavailable('promotions')} />
+        <Route path="communications/promotions" element={<ComingSoonScreen />} />
 
         {/* Reports */}
         <Route path="reports/revenue" element={<RevenueReportPage />} />
-        <Route path="reports/occupancy" element={<ReportPage key="occupancy" spec={REPORTS.occupancy} />} />
-        <Route path="reports/bookings" element={<ReportPage key="bookings" spec={REPORTS.bookings} />} />
-        <Route path="reports/owner-performance" element={<ReportPage key="owner" spec={REPORTS.ownerPerformance} />} />
-        <Route path="reports/exports" element={<ExportsPage />} />
+        <Route path="reports/occupancy" element={<ComingSoonScreen />} />
+        <Route path="reports/bookings" element={<ComingSoonScreen />} />
+        <Route path="reports/owner-performance" element={<ComingSoonScreen />} />
+        <Route path="reports/exports" element={<ComingSoonScreen />} />
 
         {/* Access & Configuration */}
         <Route path="access/system-settings" element={<SystemSettingsListPage />} />
@@ -145,7 +137,7 @@ export const AdminRoutes: React.FC = () => {
         <Route path="access/audit-log/:id" element={<AuditLogDetailPage />} />
         {/* US-007: yêu cầu xem/xuất/sửa/xóa dữ liệu cá nhân (UserService). */}
         <Route path="access/security-privacy" element={<DataRequestsPage subTabs={SECURITY_TABS} />} />
-        <Route path="access/security-privacy/security-events" element={unavailable('securityEvents', { subTabs: SECURITY_TABS })} />
+        <Route path="access/security-privacy/security-events" element={<ComingSoonScreen title="Security events" backTo="/admin/access/security-privacy" backLabel="Back to Security & Privacy" />} />
 
         <Route path="*" element={null} />
       </Route>

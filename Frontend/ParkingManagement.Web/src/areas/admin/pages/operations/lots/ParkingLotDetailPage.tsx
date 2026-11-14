@@ -9,26 +9,23 @@ import { DetailColumns, QueryState, SummaryRow } from '../../../components/PageL
 import { Panel } from '../../../components/Panel';
 import { DetailList, DetailRow } from '../../../components/DetailRow';
 import { StatusIndicator } from '../../../components/StatusIndicator';
-import { StateBlock } from '../../../components/StateBlock';
 import { SubTabs } from '../../../components/SubTabs';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
-import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatNumber, orEmpty } from '../../../utils/format';
 import { IssueSanctionDialog, type IssueSanctionPreset } from '../../support/sanctions/IssueSanctionDialog';
 import { LotSanctionsPanel } from '../../support/sanctions/LotSanctionsPanel';
 import { useLotSanctions } from '../../support/sanctions/useLotSanctions';
 import { AmenitiesTab, CapacityTab, HoursTab, LayoutTab, PricingTab } from './LotDetailTabs';
-import { LOT_DETAIL_MISSING as MISSING, LOT_DETAIL_TABS as TABS } from './lotDetailFormat';
+import { isLotTabUnavailable, lotDetailSubTabs } from './lotDetailFormat';
+import { ComingSoonState } from '../../../components/ComingSoonScreen';
 import { NonPublicLotDetail } from './NonPublicLotDetail';
-
-const NO_ENDPOINT = 'No admin endpoint for this action yet';
 
 const InformationTab: React.FC<{ lot: AdminParkingLotDto; sanctionsPanel: React.ReactNode }> = ({ lot, sanctionsPanel }) => (
   <DetailColumns
     main={
       <>
-        <Panel title="Lot information" description="ParkingLots · edited by the owner; admin is read-only">
+        <Panel title="Lot information" description="Edited by the owner; read-only here">
           <DetailList>
             <DetailRow label="Name">{lot.name}</DetailRow>
             <DetailRow label="Address">{lot.address}</DetailRow>
@@ -52,25 +49,11 @@ const InformationTab: React.FC<{ lot: AdminParkingLotDto; sanctionsPanel: React.
         </Panel>
       </>
     }
-    side={
-      <>
-        <Panel title="Owner & commission">
-          <DetailList>
-            <DetailRow label="Contract" future>
-              —
-            </DetailRow>
-          </DetailList>
-          <p className="adm-type-body-regular-12 m-0 mt-6 text-(--admin-text-secondary)">
-            ParkingLotDto does not include the owner; open the owner from Users › Lot owner.
-          </p>
-        </Panel>
-        {sanctionsPanel}
-      </>
-    }
+    side={sanctionsPanel}
   />
 );
 
-/** Operations / Parking Lots / Detail – Information, Layout (API thật); các tab còn lại chờ endpoint. */
+/** Operations / Parking Lots / Detail – các sub-tab có nguồn dữ liệu; tab chưa có hiện màn "not available yet". */
 export const ParkingLotDetailPage: React.FC = () => {
   const { id, tab = '' } = useParams();
   const lotId = Number(id);
@@ -90,7 +73,7 @@ export const ParkingLotDetailPage: React.FC = () => {
     if (valid && query.error?.status === 404) return <NonPublicLotDetail lotId={lotId} tab={tab} />;
     return (
       <>
-        <AdminTitleBar title="Parking Lots" subtitle="—" />
+        <AdminTitleBar title="Parking Lots" />
         <QueryState
           status={valid ? query.status : 'empty'}
           error={query.error}
@@ -108,16 +91,6 @@ export const ParkingLotDetailPage: React.FC = () => {
       <AdminTitleBar
         title={lot.name}
         subtitle={`Lot #${lot.id} · ${lot.address}`}
-        actions={
-          <>
-            <AdminButton variant="onNavy" disabled title={NO_ENDPOINT}>
-              Emergency stop
-            </AdminButton>
-            <AdminButton disabled title={NO_ENDPOINT}>
-              Create closure
-            </AdminButton>
-          </>
-        }
       />
       <SummaryRow
         items={[
@@ -135,12 +108,7 @@ export const ParkingLotDetailPage: React.FC = () => {
           </AdminButton>
         }
       />
-      <SubTabs
-        tabs={[
-          ...TABS.map((t) => ({ label: t.label, to: t.key ? `${base}/${t.key}` : base })),
-          { label: '3D view · Phase 2', to: base, disabled: true },
-        ]}
-      />
+      <SubTabs tabs={lotDetailSubTabs(base)} />
       {tab === '' && (
         <InformationTab lot={lot} sanctionsPanel={<LotSanctionsPanel lotId={lot.id} sanctions={sanctions} onIssue={() => openIssue()} />} />
       )}
@@ -149,12 +117,7 @@ export const ParkingLotDetailPage: React.FC = () => {
       {tab === 'hours' && <HoursTab lotId={lot.id} />}
       {tab === 'amenities' && <AmenitiesTab lotId={lot.id} />}
       {tab === 'pricing' && <PricingTab lotId={lot.id} />}
-      {MISSING[tab] && (
-        <StateBlock
-          type="unavailable"
-          message={`ParkingService has no endpoint for ${humanizeEnum(TABS.find((t) => t.key === tab)?.label ?? tab)} yet (${MISSING[tab]}).`}
-        />
-      )}
+      {isLotTabUnavailable(tab) && <ComingSoonState backTo={base} backLabel="Back to Information" />}
       {issuePreset && <IssueSanctionDialog preset={issuePreset} onClose={() => setIssuePreset(null)} onIssued={sanctions.reload} />}
     </>
   );

@@ -40,19 +40,22 @@ export const sortClosures = (items: LotClosureDto[]) =>
 
 /** Các sub-tab của Lot detail (dùng chung cho trang bãi công khai và bãi chưa công khai). */
 export const LOT_DETAIL_TABS = [
-  { key: '', label: 'Information' },
-  { key: 'layout', label: 'Layout' },
-  { key: 'capacity', label: 'Capacity' },
-  { key: 'hours', label: 'Hours & Closures' },
-  { key: 'amenities', label: 'Amenities & Photos' },
-  { key: 'integration', label: 'Integration & Devices' },
-  { key: 'pricing', label: 'Pricing' },
+  { key: '', label: 'Information', available: true },
+  { key: 'layout', label: 'Layout', available: true },
+  { key: 'capacity', label: 'Capacity', available: true },
+  { key: 'hours', label: 'Hours & Closures', available: true },
+  { key: 'amenities', label: 'Amenities & Photos', available: true },
+  // Chưa có nguồn dữ liệu cho tích hợp/thiết bị theo bãi → ẩn khỏi sub-tab, URL cũ hiện màn "not available yet".
+  { key: 'integration', label: 'Integration & Devices', available: false },
+  { key: 'pricing', label: 'Pricing', available: true },
 ];
 
-/** Tab chưa có nguồn dữ liệu (Nhánh 5 sẽ ẩn theo cờ available). */
-export const LOT_DETAIL_MISSING: Record<string, string> = {
-  integration: 'GET /api/v1/parking-lots/{id}/integration',
-};
+/** Sub-tab hiện trên trang chi tiết bãi. */
+export const lotDetailSubTabs = (base: string) =>
+  LOT_DETAIL_TABS.filter((t) => t.available).map((t) => ({ label: t.label, to: t.key ? `${base}/${t.key}` : base }));
+
+/** Tab có trong URL nhưng chưa có nguồn dữ liệu. */
+export const isLotTabUnavailable = (tab: string): boolean => LOT_DETAIL_TABS.some((t) => t.key === tab && !t.available);
 
 /** Vì sao tài xế không thấy bãi (GET /parking-lots/{id} trả 404 cho bãi chưa công khai). */
 export const hiddenLotNotice = (status: string): string =>
