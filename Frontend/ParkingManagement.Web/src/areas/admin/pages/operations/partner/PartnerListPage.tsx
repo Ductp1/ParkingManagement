@@ -57,7 +57,7 @@ export const PartnerListPage: React.FC = () => {
   return (
     <ListScreen
       title="Partner Onboarding"
-      subtitle={total === null ? '—' : `${formatNumber(total)} applications`}
+      subtitle={total === null ? undefined : `${formatNumber(total)} applications`}
       actions={
         <AdminButton variant="onNavy" icon="plus" onClick={() => setCreating(true)}>
           New application

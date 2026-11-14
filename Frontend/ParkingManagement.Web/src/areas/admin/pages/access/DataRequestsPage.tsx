@@ -129,7 +129,7 @@ const DataRequestDrawer: React.FC<{ request: AdminDataRequestDto; onClose: () =>
       <ActionDialog
         open={dialog === 'complete'}
         title="Mark as corrected"
-        description="Status → Completed. The user sees your note on their request."
+        description="The request is marked completed. The user sees your note on their request."
         confirmLabel="Mark corrected"
         field={{
           label: 'What was changed',
@@ -150,7 +150,7 @@ const DataRequestDrawer: React.FC<{ request: AdminDataRequestDto; onClose: () =>
       <ActionDialog
         open={dialog === 'reject'}
         title="Reject request"
-        description="Status → Rejected. The user sees the reason on their request."
+        description="The request is rejected. The user sees the reason on their request."
         confirmLabel="Reject"
         destructive
         field={{

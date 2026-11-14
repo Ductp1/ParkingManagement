@@ -263,7 +263,7 @@ export const PartnerDetailPage: React.FC = () => {
       <ActionDialog
         open={dialog === 'startReview'}
         title="Start review"
-        description="Status changes Submitted → Under review. You become the reviewer."
+        description="The application moves to Under review and you become the reviewer."
         confirmLabel="Start review"
         onClose={close}
         onSubmit={async () => {

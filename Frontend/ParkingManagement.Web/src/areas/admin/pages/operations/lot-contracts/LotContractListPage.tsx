@@ -61,7 +61,7 @@ export const LotContractListPage: React.FC = () => {
   return (
     <ListScreen
       title="Lot Contracts"
-      subtitle={total === null ? '—' : `${formatNumber(total)} contracts`}
+      subtitle={total === null ? undefined : `${formatNumber(total)} contracts`}
       filters={
         <FilterColumn>
           <FilterPanel

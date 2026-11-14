@@ -91,7 +91,7 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
       <ActionDialog
         open={dialog === 'approve'}
         title="Approve identity"
-        description="KycStatus Pending → Verified. The user sees the account as verified."
+        description="The identity is marked verified. The user sees the account as verified."
         confirmLabel="Approve"
         onClose={() => setDialog(null)}
         onSubmit={async () => {
@@ -105,7 +105,7 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
       <ActionDialog
         open={dialog === 'reject'}
         title="Reject identity"
-        description="KycStatus → Rejected. The document number is deleted; the user can submit again."
+        description="The identity check is rejected. The document number is deleted; the user can submit again."
         confirmLabel="Reject"
         destructive
         field={{
