@@ -4,6 +4,7 @@ namespace NotificationService.Application.Features.Dispatcher;
 
 /// <summary>
 /// Request để gửi thông báo thủ công (internal API). Module: TV6 (S1-T602).
+/// US-083: DedupeKey (tùy chọn) — key trùng → bỏ qua không tạo bản sao (webhook replay).
 /// </summary>
 public sealed record SendNotificationRequest(
     int UserId,
@@ -12,7 +13,8 @@ public sealed record SendNotificationRequest(
     string Title,
     string Body,
     string? DataJson = null,
-    int? TemplateId = null
+    int? TemplateId = null,
+    string? DedupeKey = null
 );
 
 /// <summary>

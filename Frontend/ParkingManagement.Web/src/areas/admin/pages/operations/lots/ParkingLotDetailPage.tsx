@@ -60,6 +60,7 @@ export const ParkingLotDetailPage: React.FC = () => {
   const valid = Number.isInteger(lotId) && lotId > 0;
   const query = useAdminQuery(valid ? () => adminOperationsApi.getParkingLot(lotId) : null, [lotId]);
   const lot = query.data;
+  const [emergencyBusy, setEmergencyBusy] = useState(false);
   useAdminBreadcrumb(lot ? lot.name : valid ? `Lot #${lotId}` : null);
   // US-097: chế tài của bãi + dialog áp chế tài (bãi và chủ bãi chọn sẵn).
   const sanctions = useLotSanctions(valid ? lotId : null);
@@ -86,11 +87,66 @@ export const ParkingLotDetailPage: React.FC = () => {
   }
 
   const base = `/admin/operations/parking-lots/${lot.id}`;
+
+  /** US-069: đóng/mở bãi khẩn cấp qua ParkingService (khách bị ảnh hưởng nhận thông báo đa kênh US-086). */
+  const runEmergencyAction = async (mode: 'stop' | 'resume'): Promise<void> => {
+    const actionLabel = mode === 'stop' ? 'stop the lot' : 'resume the lot';
+    const reason = window.prompt(
+      mode === 'stop'
+        ? `Reason for the emergency stop of "${lot.name}" (at least 5 characters):`
+        : `Reason for resuming "${lot.name}" (at least 5 characters):`,
+    );
+    if (reason === null) return;
+    if (reason.trim().length < 5) {
+      window.alert('The reason must be at least 5 characters.');
+      return;
+    }
+    setEmergencyBusy(true);
+    try {
+      if (mode === 'stop') {
+        const result = await adminOperationsApi.emergencyStopLot(lot.id, reason.trim());
+        window.alert(
+          `Lot stopped. ${result.affectedBookings} affected bookings – drivers are notified in the app, by push and by email.`,
+        );
+      } else {
+        await adminOperationsApi.emergencyResumeLot(lot.id, reason.trim());
+        window.alert('Lot resumed. Bookings and check-ins work normally again.');
+      }
+      query.refetch();
+    } catch (err) {
+      const problem = (err as { problem?: { detail?: string; title?: string } | null }).problem;
+      window.alert(problem?.detail ?? problem?.title ?? `Could not ${actionLabel}.`);
+    } finally {
+      setEmergencyBusy(false);
+    }
+  };
+
   return (
     <>
       <AdminTitleBar
         title={lot.name}
         subtitle={`Lot #${lot.id} · ${lot.address}`}
+        actions={
+          lot.status === 'Suspended' ? (
+            <AdminButton
+              variant="onNavy"
+              loading={emergencyBusy}
+              loadingLabel="Resuming…"
+              onClick={() => { void runEmergencyAction('resume'); }}
+            >
+              Resume operations
+            </AdminButton>
+          ) : (
+            <AdminButton
+              variant="onNavy"
+              loading={emergencyBusy}
+              loadingLabel="Stopping…"
+              onClick={() => { void runEmergencyAction('stop'); }}
+            >
+              Emergency stop
+            </AdminButton>
+          )
+        }
       />
       <SummaryRow
         items={[

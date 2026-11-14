@@ -120,9 +120,14 @@ public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrT
         var admissionType = bookingCode is null ? AdmissionType.Transient : AdmissionType.Subscriber;
         var admission = await admissionGate.TryAdmitAsync(command.ParkingLotId, admissionType, cancellationToken);
         if (!admission.Admitted)
-            throw new ConflictException(admission.RejectReason == AdmissionRejectReasons.TransientBufferFull
-                ? "Hết vùng đệm vãng lai (V >= B): bãi hiện chỉ nhận xe đặt trước/thuê bao."
-                : "Bãi đã đầy (T >= C): vui lòng chờ có xe ra hoặc liên hệ nhân viên.");
+            throw new ConflictException(admission.RejectReason switch
+            {
+                AdmissionRejectReasons.TransientBufferFull =>
+                    "Hết vùng đệm vãng lai (V >= B): bãi hiện chỉ nhận xe đặt trước/thuê bao.",
+                AdmissionRejectReasons.LotEmergencyStopped =>
+                    "Bãi đang TẠM ĐÓNG KHẨN CẤP – tạm ngừng nhận xe vào. Vui lòng liên hệ nhân viên để được hỗ trợ.",
+                _ => "Bãi đã đầy (T >= C): vui lòng chờ có xe ra hoặc liên hệ nhân viên.",
+            });
 
         ParkingSession session;
         try

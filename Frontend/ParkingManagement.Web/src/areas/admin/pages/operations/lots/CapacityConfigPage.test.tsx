@@ -8,7 +8,8 @@ import type { LotCapacityConfigDto } from '@/api/capacityApi';
 const h = vi.hoisted(() => ({
   get: vi.fn(),
   put: vi.fn(),
-  capacityChanged: vi.fn(),
+  // Kiểu function thuần (không Mock) để mock hook gán callback thực — fix lỗi TS2322 có sẵn.
+  capacityChanged: undefined as unknown as (e: unknown) => void,
 }));
 
 vi.mock('@/api/capacityApi', () => ({
@@ -17,7 +18,8 @@ vi.mock('@/api/capacityApi', () => ({
 
 vi.mock('@/realtime/useParkingHub', () => ({
   useParkingHub: (_lotId: number, onCapacityChanged?: (e: unknown) => void) => {
-    h.capacityChanged = onCapacityChanged as any;
+    // Chỉ ghi đè khi có callback — giữ Mock để test vẫn trigger được (fix lỗi TS2322 có sẵn).
+    if (onCapacityChanged) h.capacityChanged = onCapacityChanged;
   },
 }));
 

@@ -24,6 +24,14 @@ public static class RabbitMqExtensions
     public static IServiceCollection AddRabbitMqInboxConsumer<TContext, THandler>(this IServiceCollection services, IConfiguration config)
         where TContext : ServiceDbContext where THandler : class, IIntegrationEventHandler
     {
+        // EventBus tắt (CI không có broker / máy dev chưa cấu hình) → không dựng bus, không Validate:
+        // host khởi động bình thường, IRabbitMqPublisher là DisabledPublisher, OutboxDispatcher tự no-op.
+        if (config.GetValue<bool?>("EventBus:Enabled") is false)
+        {
+            services.TryAddSingleton<IRabbitMqPublisher, DisabledPublisher>();
+            return AddTransport(services);
+        }
+
         services.AddOptions<RabbitMqSubscription>().Bind(config.GetSection("EventBus:Subscription"))
             .Validate(o => !string.IsNullOrWhiteSpace(o.Queue) && !o.Queue.StartsWith("amq.", StringComparison.Ordinal)
                 && o.RoutingKeys.Length > 0 && o.RoutingKeys.All(k => !string.IsNullOrWhiteSpace(k)), "Consumer cần queue và routing keys.")
