@@ -166,7 +166,7 @@ export const PartnerDetailPage: React.FC = () => {
       {app.status === S.Rejected && <Banner tone="danger">Rejected: {orEmpty(app.rejectReason)}</Banner>}
       {app.status === S.Cancelled && <Banner tone="danger">Cancelled: {orEmpty(app.cancelReason)}</Banner>}
       {app.status === S.AccountIssued && (
-        <Banner tone="info">Owner account issued (OwnerProfile #{orEmpty(app.createdOwnerProfileId)}) · waiting for the owner to activate.</Banner>
+        <Banner tone="info">Owner account issued (Owner #{orEmpty(app.createdOwnerProfileId)}) · waiting for the owner to activate.</Banner>
       )}
       <SummaryRow
         items={[

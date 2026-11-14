@@ -44,7 +44,7 @@ describe('SettlementsPage (US-080)', () => {
     renderPage(PATH, PATH, <SettlementsPage />);
 
     expect(await screen.findByText('Công ty Bãi Xanh')).toBeTruthy();
-    expect(screen.getByText('OwnerProfile #2')).toBeTruthy();                                    // chưa có hồ sơ đối tác → không bịa tên
+    expect(screen.getByText('Owner #2')).toBeTruthy();                                    // chưa có hồ sơ đối tác → không bịa tên
     const row = screen.getByText('STL-20261102-0001').closest('tr') as HTMLElement;
     expect(within(row).getByText('₫150.000')).toBeTruthy();
     expect(within(row).getByText('₫85.000')).toBeTruthy();

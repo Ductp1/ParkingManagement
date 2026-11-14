@@ -95,7 +95,7 @@ export const NewPartnerApplicationDialog: React.FC<NewPartnerApplicationDialogPr
     >
       <Section title="Contact">
         <Row>
-          {text('fullName', 'Contact name', { required: true, maxLength: 200, placeholder: 'Trần Văn Minh' })}
+          {text('fullName', 'Contact name', { required: true, maxLength: 200 })}
           {text('position', 'Position', { maxLength: 100, placeholder: 'Director' })}
         </Row>
         <Row>
@@ -116,7 +116,7 @@ export const NewPartnerApplicationDialog: React.FC<NewPartnerApplicationDialogPr
           />
           {text('taxCode', 'Tax code', { required: true, maxLength: 20, placeholder: '0312345678', helper: '10 digits, 10-3 for a branch, or 12 for an individual.' })}
         </Row>
-        {text('businessName', 'Business name', { required: true, maxLength: 300, placeholder: 'Công ty TNHH Bãi xe Thủ Đức' })}
+        {text('businessName', 'Business name', { required: true, maxLength: 300 })}
         {text('businessAddress', 'Business address', { required: true, maxLength: 300 })}
         <Row>
           {text('legalRepresentativeName', 'Legal representative', { required: true, maxLength: 200 })}

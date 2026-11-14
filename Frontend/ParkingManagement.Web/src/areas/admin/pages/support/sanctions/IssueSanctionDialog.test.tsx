@@ -46,7 +46,7 @@ const chooseOwner = async () => {
   const user = userEvent.setup();
   await waitFor(() => expect(screen.getByRole('option', { name: 'Bãi xe TSN · U#3' })).toBeTruthy());
   await user.selectOptions(screen.getByLabelText('Owner'), '3');
-  await waitFor(() => expect(screen.getByText('OwnerProfile #2')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Owner #2')).toBeTruthy());
   return user;
 };
 
@@ -98,7 +98,7 @@ describe('IssueSanctionDialog (US-097)', () => {
     h.issue.mockRejectedValue(new AdminApiError(409, 'Bãi 5 đang có chế tài Tạm ngừng còn hiệu lực (bãi 5 – chế tài #7).'));
     const { onClose } = renderDialog({ ownerProfileId: 2, level: 'TemporarySuspension', lotIds: [5] });
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('OwnerProfile #2')).toBeTruthy());     // chủ bãi được chọn sẵn theo OwnerProfileId
+    await waitFor(() => expect(screen.getByText('Owner #2')).toBeTruthy());     // chủ bãi được chọn sẵn theo OwnerProfileId
 
     await user.type(screen.getByLabelText('Reason'), 'Từ chối booking');
     await user.click(screen.getByRole('button', { name: 'Issue sanction' }));

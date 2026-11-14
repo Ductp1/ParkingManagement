@@ -10,7 +10,7 @@ import { formatDate, localInputToUtcIso } from '../../../utils/format';
 
 const Summary: React.FC<{ user: AdminUserDto }> = ({ user }) => (
   <DialogSummary
-    title={`${user.fullName}${user.ownerProfile ? ` · OwnerProfile #${user.ownerProfile.id}` : ''}`}
+    title={`${user.fullName}${user.ownerProfile ? ` · Owner #${user.ownerProfile.id}` : ''}`}
     subtitle={user.ownerProfile?.businessName}
   />
 );

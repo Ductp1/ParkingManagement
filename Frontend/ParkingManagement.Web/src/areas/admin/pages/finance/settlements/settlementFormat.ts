@@ -84,7 +84,7 @@ export const commissionLink = (s: Pick<SettlementSummaryDto, 'periodStart' | 'pe
   `/admin/finance/commission?period=custom&from=${s.periodStart}&to=${s.periodEnd}`;
 
 export const ownerLabel = (ownerProfileId: number, account: OwnerPayoutAccountDto | undefined) =>
-  account?.ownerName ?? `OwnerProfile #${ownerProfileId}`;
+  account?.ownerName ?? `Owner #${ownerProfileId}`;
 
 export const bankLabel = (account: OwnerPayoutAccountDto | undefined) =>
   account ? `${account.bankName} · ${account.accountNumberMasked}` : null;

@@ -17,6 +17,6 @@ export const AdminToastContext = createContext<AdminToastContextValue | null>(nu
 /** Bật toast góc phải sau một thao tác (Figma Shell/Toast Success / Error). */
 export const useAdminToast = (): AdminToastContextValue => {
   const ctx = useContext(AdminToastContext);
-  if (!ctx) throw new Error('useAdminToast phải dùng bên trong AdminToastProvider');
+  if (!ctx) throw new Error('useAdminToast must be used inside AdminToastProvider');
   return ctx;
 };

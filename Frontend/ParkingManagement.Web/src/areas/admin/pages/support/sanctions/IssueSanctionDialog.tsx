@@ -268,7 +268,7 @@ export const IssueSanctionDialog: React.FC<IssueSanctionDialogProps> = ({ preset
         onChange={(v) => void chooseOwner(v)}
         options={ownerOptions}
         placeholder={owners ? 'Select an owner…' : 'Loading owners…'}
-        helper={form.ownerProfileId !== null ? `OwnerProfile #${form.ownerProfileId}` : resolving ? 'Resolving owner profile…' : undefined}
+        helper={form.ownerProfileId !== null ? `Owner #${form.ownerProfileId}` : resolving ? 'Resolving owner profile…' : undefined}
         error={visible('owner')}
       />
 

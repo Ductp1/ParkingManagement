@@ -194,7 +194,7 @@ export const AdjustmentsPage: React.FC = () => {
         return (
           <CellTwoLine
             primary={link ? <CellLink to={link}>{ownerLabel(r.ownerProfileId, account)}</CellLink> : ownerLabel(r.ownerProfileId, account)}
-            secondary={`OwnerProfile #${r.ownerProfileId}`}
+            secondary={`Owner #${r.ownerProfileId}`}
           />
         );
       },

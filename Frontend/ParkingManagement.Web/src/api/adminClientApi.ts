@@ -77,7 +77,7 @@ export const adminFileRequest = async (config: AxiosRequestConfig): Promise<{ bl
   try {
     response = await apiClient.request<Blob>({ ...config, responseType: 'blob', validateStatus: () => true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Không thể kết nối đến API Gateway.';
+    const message = err instanceof Error ? err.message : 'Could not reach the server.';
     throw new AdminApiError(0, message);
   }
   if (response.status >= 200 && response.status < 300) {

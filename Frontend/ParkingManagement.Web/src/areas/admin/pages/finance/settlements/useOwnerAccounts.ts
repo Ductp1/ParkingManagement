@@ -5,7 +5,7 @@ import { useAdminQuery } from '../../../hooks/useAdminQuery';
 
 /**
  * Tên chủ bãi + tài khoản nhận tiền (đã che) cho các chủ bãi đang hiển thị – một lần gọi AdminService.
- * AdminService lỗi → map rỗng, màn hình hiện "OwnerProfile #id" (không chặn danh sách quyết toán).
+ * AdminService lỗi → map rỗng, màn hình hiện "Owner #id" (không chặn danh sách quyết toán).
  */
 export const useOwnerAccounts = (ownerProfileIds: number[]) => {
   const ids = useMemo(() => [...new Set(ownerProfileIds.filter((id) => id > 0))].sort((a, b) => a - b), [ownerProfileIds]);
