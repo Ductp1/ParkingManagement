@@ -5,8 +5,9 @@ import { calculateHaversineDistanceMeters } from '@/utils/haversine';
 interface GpsCoordinateCheckerProps {
   photoLat: number | null;
   photoLng: number | null;
-  lotLat: number;
-  lotLng: number;
+  /** Tọa độ đã đăng ký của bãi (US-054). null = chưa có → không đối chiếu ở FE, BE kiểm tra khi nộp. */
+  lotLat: number | null;
+  lotLng: number | null;
   onChange: (lat: number | null, lng: number | null) => void;
   disabled?: boolean;
 }
@@ -27,7 +28,9 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
     photoLat !== 0 &&
     photoLng !== 0;
 
-  const distanceMeters = hasCoordinates
+  const hasLotCoordinates = lotLat !== null && lotLng !== null;
+
+  const distanceMeters = hasCoordinates && hasLotCoordinates
     ? calculateHaversineDistanceMeters(lotLat, lotLng, photoLat, photoLng)
     : null;
 
@@ -52,7 +55,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
 
   // Đồng bộ theo tọa độ bãi đỗ
   const handleSyncLotCoordinates = () => {
-    if (disabled) return;
+    if (disabled || !hasLotCoordinates) return;
     onChange(lotLat, lotLng);
   };
 
@@ -85,14 +88,16 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
               <Navigation size={12} />
               GPS Hiện tại
             </button>
-            <button
-              type="button"
-              onClick={handleSyncLotCoordinates}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-            >
-              <Copy size={12} />
-              Dùng tọa độ bãi
-            </button>
+            {hasLotCoordinates && (
+              <button
+                type="button"
+                onClick={handleSyncLotCoordinates}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <Copy size={12} />
+                Dùng tọa độ bãi
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -111,7 +116,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
               const val = e.target.value === '' ? null : parseFloat(e.target.value);
               onChange(val, photoLng);
             }}
-            placeholder={`VD: ${lotLat.toFixed(6)}`}
+            placeholder={hasLotCoordinates ? `VD: ${lotLat.toFixed(6)}` : 'VD: 10.776889'}
             className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-blue-600 disabled:opacity-60"
           />
         </div>
@@ -129,7 +134,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
               const val = e.target.value === '' ? null : parseFloat(e.target.value);
               onChange(photoLat, val);
             }}
-            placeholder={`VD: ${lotLng.toFixed(6)}`}
+            placeholder={hasLotCoordinates ? `VD: ${lotLng.toFixed(6)}` : 'VD: 106.700806'}
             className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:bg-white focus:outline-hidden focus:border-blue-600 disabled:opacity-60"
           />
         </div>
@@ -137,9 +142,13 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
 
       {/* Tọa độ bãi xe tham chiếu & Kết quả kiểm tra Haversine */}
       <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-        <div className="text-slate-500 font-mono text-[11px]">
-          Tọa độ bãi tham chiếu: <span className="font-bold text-slate-700">{lotLat.toFixed(5)}, {lotLng.toFixed(5)}</span>
-        </div>
+        {hasLotCoordinates ? (
+          <div className="text-slate-500 font-mono text-[11px]">
+            Tọa độ bãi tham chiếu: <span className="font-bold text-slate-700">{lotLat.toFixed(5)}, {lotLng.toFixed(5)}</span>
+          </div>
+        ) : (
+          <div className="text-slate-500 text-[11px]">Chưa có tọa độ bãi – hệ thống sẽ đối chiếu khi bạn nộp hồ sơ.</div>
+        )}
 
         <div>
           {hasCoordinates && distanceMeters !== null ? (
@@ -156,7 +165,7 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
             )
           ) : (
             <span className="text-slate-400 italic">
-              Chưa nhập tọa độ ảnh để đối chiếu
+              {hasCoordinates ? 'Sẽ đối chiếu khi nộp hồ sơ' : 'Chưa nhập tọa độ ảnh để đối chiếu'}
             </span>
           )}
         </div>

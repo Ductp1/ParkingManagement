@@ -23,6 +23,7 @@ import type {
   SubmitKybApplicationRequest,
 } from '@/types/ownerKyb';
 import { calculateHaversineDistanceMeters } from '@/utils/haversine';
+import { lotReferenceCoordinates } from '../utils/kybGps';
 import { KybStepIndicator } from '../components/KybStepIndicator';
 import { KybStatusBanner } from '../components/KybStatusBanner';
 import { DocumentUploadCard } from '../components/DocumentUploadCard';
@@ -275,15 +276,17 @@ export const OwnerKybPage: React.FC = () => {
   // Danh sách các bước đã hoàn thành do người dùng bấm nút Next chuyển qua
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
+  // Tọa độ thật của bãi đang chọn (US-054) – cùng mốc BE dùng khi nộp hồ sơ. Chưa có bãi / chưa có tọa độ → null.
+  const lotCoordinates = useMemo(() => lotReferenceCoordinates(selectedLot), [selectedLot]);
+
   // Kiểm tra tính hợp lệ của khoảng cách GPS ảnh hiện trường
   const gpsDistanceCheck = useMemo(() => {
     if (photoLatitude === null || photoLongitude === null) return { valid: true };
-    // Tọa độ mẫu của bãi (nếu chưa có trong DTO thì dùng tọa độ trung tâm HCM)
-    const lotLat = 10.776889;
-    const lotLng = 106.700806;
+    // Chưa biết tọa độ bãi: không chặn ở FE, để BE kiểm tra khi nộp.
+    if (!lotCoordinates) return { valid: true };
     const dist = calculateHaversineDistanceMeters(
-      lotLat,
-      lotLng,
+      lotCoordinates.latitude,
+      lotCoordinates.longitude,
       photoLatitude,
       photoLongitude
     );
@@ -291,7 +294,7 @@ export const OwnerKybPage: React.FC = () => {
       valid: dist <= 500,
       distanceMeters: dist,
     };
-  }, [photoLatitude, photoLongitude]);
+  }, [photoLatitude, photoLongitude, lotCoordinates]);
 
   // Xử lý Lưu Nháp (PUT /draft)
   const handleSaveDraft = async () => {
@@ -804,8 +807,8 @@ export const OwnerKybPage: React.FC = () => {
                 <GpsCoordinateChecker
                   photoLat={photoLatitude}
                   photoLng={photoLongitude}
-                  lotLat={10.776889} // Tọa độ mẫu của bãi
-                  lotLng={106.700806}
+                  lotLat={lotCoordinates?.latitude ?? null}
+                  lotLng={lotCoordinates?.longitude ?? null}
                   onChange={(lat, lng) => {
                     setPhotoLatitude(lat);
                     setPhotoLongitude(lng);

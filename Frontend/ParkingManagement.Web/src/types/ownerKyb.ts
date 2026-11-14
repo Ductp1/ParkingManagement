@@ -85,6 +85,9 @@ export interface OwnerParkingLotItemDto {
   lastHeartbeatAtUtc?: string | null;
   /** US-068: quá hạn heartbeat → dữ liệu số chỗ trống có thể không chính xác. */
   isDataStale?: boolean;
+  /** US-054: tọa độ đã đăng ký của bãi – mốc kiểm tra GPS ảnh hiện trường KYB (≤ 500 m), giống BE khi nộp hồ sơ. */
+  latitude: number;
+  longitude: number;
 }
 
 /**
