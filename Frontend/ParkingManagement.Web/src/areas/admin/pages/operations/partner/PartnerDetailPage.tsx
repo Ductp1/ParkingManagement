@@ -24,6 +24,7 @@ import { formatDate, formatDateTimeIct, formatNumber, orEmpty } from '../../../u
 import { KYB_BASE } from '../kyb/kybFormat';
 import { bankText, percentText } from '../lot-contracts/lotContractFormat';
 import { IssueAccountDialog } from './PartnerAccountDialog';
+import { PartnerDocumentsPanel } from './PartnerDocumentsPanel';
 import { AuditTrailLink } from '../../../components/AuditTrailLink';
 import { auditLogListLink } from '../../access/auditLogFormat';
 
@@ -215,6 +216,7 @@ export const PartnerDetailPage: React.FC = () => {
                 </DetailRow>
               </DetailList>
             </Panel>
+            <PartnerDocumentsPanel applicationId={app.id} />
             <Panel title="Lots declared">
               <DetailList>
                 <DetailRow label="Lot count">{app.lotCount}</DetailRow>

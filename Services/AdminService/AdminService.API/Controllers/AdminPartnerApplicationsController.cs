@@ -23,8 +23,33 @@ public sealed class AdminPartnerApplicationsController(
     ICancelPartnerApplicationUseCase cancel,
     IIssueOwnerAccountUseCase issueAccount,
     IResendOwnerActivationUseCase resendActivation,
+    IListPartnerDocumentsUseCase listDocuments,
+    IGetPartnerDocumentFileUseCase getDocumentFile,
     ICurrentUser currentUser) : ControllerBase
 {
+    /// <summary>GET /api/v1/admin/partner-applications/12/documents – giấy tờ pháp lý đối tác nộp (US-053, chỉ Admin).</summary>
+    [HttpGet("{id:int}/documents")]
+    [ProducesResponseType<IReadOnlyList<PartnerDocumentDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IReadOnlyList<PartnerDocumentDto>>> ListDocuments(int id, CancellationToken cancellationToken)
+        => Ok(await listDocuments.ExecuteAsync(id, cancellationToken));
+
+    /// <summary>
+    /// GET /api/v1/admin/partner-applications/12/documents/3/file – nội dung một giấy tờ (US-053, chỉ Admin).
+    /// Không cache, không cho trình duyệt đoán kiểu, CSP chặn script nếu file bị mở trực tiếp.
+    /// </summary>
+    [HttpGet("{id:int}/documents/{documentId:int}/file")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDocumentFile(int id, int documentId, CancellationToken cancellationToken)
+    {
+        var file = await getDocumentFile.ExecuteAsync(id, documentId, cancellationToken);
+        Response.Headers.CacheControl = "private, no-store";
+        Response.Headers.XContentTypeOptions = "nosniff";
+        Response.Headers.ContentSecurityPolicy = "default-src 'none'; img-src 'self'; object-src 'self'";
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
     /// <summary>GET /api/v1/admin/partner-applications?status=Submitted&amp;search=thu%20duc&amp;page=1&amp;pageSize=20 (A1).</summary>
     [HttpGet]
     [ProducesResponseType<PagedResult<PartnerApplicationSummaryDto>>(StatusCodes.Status200OK)]
