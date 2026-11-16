@@ -14,6 +14,9 @@ export interface BookingItem {
   paymentMethod: string;
   status: 'upcoming' | 'completed' | 'cancelled';
   statusText: string;
+  backendStatus?: string;
+  startAtUtc?: string;
+  endAtUtc?: string;
   rating?: number;
   reviewed?: boolean;
   notes?: string;
