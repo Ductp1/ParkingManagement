@@ -42,6 +42,18 @@ public class CheckInAdmissionTests
     }
 
     [Fact]
+    public async Task Emergency_stopped_lot_denied_with_clear_message()
+    {
+        var gate = new FakeAdmissionGate(admitted: false, AdmissionRejectReasons.LotEmergencyStopped);
+        var useCase = CheckInAdmissionFakes.CreateCheckIn(gate);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => useCase.ExecuteAsync(new CheckInCommand(3, GateMethod.Manual, "51F-123.45")));
+
+        Assert.Contains("TẠM ĐÓNG KHẨN CẤP", ex.Message);
+    }
+
+    [Fact]
     public async Task Walk_in_check_in_records_transient_and_publishes()
     {
         var gate = new FakeAdmissionGate(admitted: true);

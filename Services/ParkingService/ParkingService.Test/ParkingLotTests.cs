@@ -9,6 +9,16 @@ namespace ParkingService.Test;
 
 public class ParkingLotTests
 {
+    /// <summary>
+    /// Clock cố định 03:00 UTC = 10:00 giờ Việt Nam — luôn nằm trong khung mở cửa 06:00–23:00
+    /// của lot mẫu, giúp mọi assertion phụ thuộc giờ (IsOpenNow) chạy deterministic trên CI.
+    /// </summary>
+    private sealed class FixedVnOpenClock : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow()
+            => new(new DateTime(2026, 1, 15, 3, 0, 0, DateTimeKind.Utc), TimeSpan.Zero);
+    }
+
     private static ParkingLot Lot(int id, ParkingLotStatus status, double lat, double lng, int height = 210, int available = 10) =>
         new(id, $"Bãi {id}", "TP.HCM", lat, lng, 100, available, height, new TimeOnly(6, 0), new TimeOnly(23, 0), status, 1);
 
@@ -119,7 +129,9 @@ public class ParkingLotTests
         lot.Amenities.Add(new LotAmenity { ParkingLotId = 1, Code = "EV", Name = "Tru sac xe dien" });
 
         var repo = new FakeRepo([lot]);
-        var result = await new SearchParkingLotsUseCase(repo, TimeProvider.System)
+        // Clock cố định (03:00 UTC = 10:00 giờ VN — trong khung mở cửa 06:00–23:00) để IsOpenNow
+        // deterministic: không flake khi CI chạy trong khung 23:00–06:00 giờ VN.
+        var result = await new SearchParkingLotsUseCase(repo, new FixedVnOpenClock())
             .ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5));
 
         Assert.Single(result);

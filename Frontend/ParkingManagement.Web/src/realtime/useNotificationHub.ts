@@ -48,7 +48,8 @@ export const useNotificationHub = (): void => {
         await connection.start();
       } catch {
         // Service chưa chạy / mất mạng → thử lại sau 5s cho tới khi dừng (unmount).
-        if (!stopped) window.setTimeout(() => { void start(); }, 5000);
+        // Kiểm tra stopped cả KHI TIMER NỔ (fix leak: timer hẹn trước unmount không được start connection mới).
+        if (!stopped) window.setTimeout(() => { if (!stopped) void start(); }, 5000);
       }
     };
     void start();

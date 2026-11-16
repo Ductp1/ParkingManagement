@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using NotificationService.Domain.Entities;
+using ParkingManagement.ServiceDefaults.Messaging;
 using ParkingManagement.ServiceDefaults.Persistence;
 
 namespace NotificationService.Infrastructure.Persistence;
@@ -11,4 +12,14 @@ public sealed class NotificationDbContext(DbContextOptions<NotificationDbContext
     public DbSet<NotificationTemplate> NotificationTemplates => Set<NotificationTemplate>();
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
     public DbSet<DeviceToken> DeviceTokens => Set<DeviceToken>();
+    public DbSet<UserNotificationSettings> UserNotificationSettings => Set<UserNotificationSettings>();
+    public DbSet<ReminderJob> ReminderJobs => Set<ReminderJob>();
+    public DbSet<EmergencyAlert> EmergencyAlerts => Set<EmergencyAlert>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        // Bảng InboxReceipts: chặn xử lý trùng integration event (US-083 idempotency lớp 1).
+        modelBuilder.ConfigureInbox();
+    }
 }
