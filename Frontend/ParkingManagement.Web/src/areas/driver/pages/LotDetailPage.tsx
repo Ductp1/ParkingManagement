@@ -5,9 +5,11 @@ import { sendBookingConfirmedNotification } from '@/store/slices/notificationSli
 import { parkingApi } from '@/api/parkingApi';
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
+import { supportApi } from '@/api/supportApi';
 import type { ParkingLotDto, LotOperationalStatusDto } from '@/types/parking';
 import type { BookingDetailDto } from '@/types/booking';
 import type { AppliedPromotionDto, VietQrPaymentDto } from '@/types/payment';
+import type { LotReviewsDto } from '@/types/support';
 
 interface SpotInfo {
   code: string;
@@ -93,6 +95,7 @@ export const LotDetailPage: React.FC = () => {
   const [promoError, setPromoError] = useState<string | null>(null);
   const [vietQrData, setVietQrData] = useState<VietQrPaymentDto | null>(null);
   const [paymentInitError, setPaymentInitError] = useState<string | null>(null);
+  const [lotReviews, setLotReviews] = useState<LotReviewsDto | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [notifySent, setNotifySent] = useState<boolean>(false);
   const [showStickyStepper, setShowStickyStepper] = useState<boolean>(false);
@@ -117,6 +120,10 @@ export const LotDetailPage: React.FC = () => {
       .catch(() => {
         // Fallback default
       });
+    supportApi
+      .getLotReviews(lotId, 5)
+      .then((rev) => setLotReviews(rev))
+      .catch(() => setLotReviews(null));
   }, [lotId]);
 
   // US-068: độ tươi dữ liệu bãi (heartbeat & stale) – tự làm mới mỗi 30 giây để cảnh báo kịp thời
@@ -994,6 +1001,41 @@ export const LotDetailPage: React.FC = () => {
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl bg-slate-50 text-slate-900 placeholder:text-slate-400 border border-slate-200 focus:outline-hidden focus:border-blue-600 focus:bg-white transition-colors text-sm resize-none"
                 />
+              </div>
+
+              {/* 7d. Đánh giá từ tài xế (GET /api/v1/reviews?parkingLotId=...) */}
+              <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-500 text-[20px]">star</span>
+                    Đánh giá từ tài xế
+                  </h3>
+                  {lotReviews && lotReviews.reviewCount > 0 && (
+                    <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-bold border border-amber-200">
+                      {lotReviews.averageRating.toFixed(1)} ★ ({lotReviews.reviewCount} lượt)
+                    </span>
+                  )}
+                </div>
+                {!lotReviews || lotReviews.latest.length === 0 ? (
+                  <p className="text-xs text-slate-500">Chưa có đánh giá nào cho bãi đỗ này.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {lotReviews.latest.map((rev) => (
+                      <div key={rev.id} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-800">{rev.reviewerName}</span>
+                          <span className="text-amber-500 font-bold">{'★'.repeat(rev.rating)}</span>
+                        </div>
+                        {rev.comment && <p className="text-slate-600">{rev.comment}</p>}
+                        {rev.ownerReply && (
+                          <div className="mt-1.5 pl-3 border-l-2 border-blue-400 text-[11px] text-slate-600">
+                            <strong className="text-blue-700">Phản hồi từ bãi:</strong> {rev.ownerReply}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { useAppSelector } from '@/store';
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
+import { supportApi } from '@/api/supportApi';
 import type { BookingDetailDto, BookingSummaryDto, CancellationPreviewDto } from '@/types/booking';
 import type { InvoiceDto } from '@/types/payment';
 import { BookingTableRow, type BookingItem } from '../components/BookingTableRow';
@@ -139,6 +140,9 @@ export const BookingHistoryPage: React.FC = () => {
   const [ratingValue, setRatingValue] = useState<number>(5);
   const [selectedTags, setSelectedTags] = useState<string[]>(['🎯 Vị trí dễ tìm']);
   const [commentText, setCommentText] = useState<string>('');
+  const [feedbackBusy, setFeedbackBusy] = useState<boolean>(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackIneligibleReason, setFeedbackIneligibleReason] = useState<string | null>(null);
   const [showToast, setShowToast] = useState<{ title: string; message: string } | null>(null);
 
   // QR Modal (chi tiết booking + qrToken thật từ GET /api/v1/bookings/{code})
@@ -188,11 +192,21 @@ export const BookingHistoryPage: React.FC = () => {
     '🔒 An ninh đảm bảo',
   ];
 
-  const handleOpenFeedback = (booking: BookingItem) => {
+  const handleOpenFeedback = async (booking: BookingItem) => {
     setActiveFeedbackBooking(booking);
     setRatingValue(booking.rating || 5);
     setCommentText('');
     setSelectedTags(['🎯 Vị trí dễ tìm']);
+    setFeedbackError(null);
+    setFeedbackIneligibleReason(null);
+    try {
+      const eligibility = await supportApi.checkReviewEligibility(booking.code);
+      if (!eligibility.canReview) {
+        setFeedbackIneligibleReason(eligibility.reason || 'Chuyến đỗ xe này chưa đủ điều kiện hoặc đã được đánh giá.');
+      }
+    } catch {
+      // Nếu endpoint eligibility lỗi mạng, vẫn cho submit để BE validate
+    }
   };
 
   const handleToggleTag = (tag: string) => {
@@ -203,25 +217,34 @@ export const BookingHistoryPage: React.FC = () => {
     }
   };
 
-  const handleSubmitFeedback = () => {
+  const handleSubmitFeedback = async () => {
     if (!activeFeedbackBooking) return;
-    const updated = bookings.map((b) =>
-      b.id === activeFeedbackBooking.id
-        ? { ...b, reviewed: true, rating: ratingValue }
-        : b
-    );
-    setBookings(updated);
+    setFeedbackBusy(true);
+    setFeedbackError(null);
+    const combinedComment = [...selectedTags, commentText.trim()].filter(Boolean).join(' · ');
     try {
-      localStorage.setItem('parkmaster_driver_bookings', JSON.stringify(updated));
-    } catch (e) {
-      console.error('Failed to save feedback', e);
+      await supportApi.createReview({
+        bookingCode: activeFeedbackBooking.code,
+        rating: ratingValue,
+        comment: combinedComment || null,
+        reviewerName: user?.fullName || null,
+      });
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === activeFeedbackBooking.id ? { ...b, reviewed: true, rating: ratingValue } : b
+        )
+      );
+      setActiveFeedbackBooking(null);
+      setShowToast({
+        title: 'Đã ghi nhận đánh giá!',
+        message: 'Cảm ơn bạn đã đóng góp phản hồi giúp ParkMaster nâng cao chất lượng phục vụ.',
+      });
+      setTimeout(() => setShowToast(null), 3500);
+    } catch (err) {
+      setFeedbackError(extractApiError(err, 'Không thể gửi đánh giá lúc này.'));
+    } finally {
+      setFeedbackBusy(false);
     }
-    setActiveFeedbackBooking(null);
-    setShowToast({
-      title: 'Đã ghi nhận đánh giá!',
-      message: 'Cảm ơn bạn đã đóng góp phản hồi giúp ParkMaster nâng cao chất lượng phục vụ.',
-    });
-    setTimeout(() => setShowToast(null), 3500);
   };
 
   const handleOpenInvoiceModal = async (b: BookingItem) => {
@@ -1216,6 +1239,17 @@ export const BookingHistoryPage: React.FC = () => {
               />
             </div>
 
+            {feedbackIneligibleReason && (
+              <div className="mb-3 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium">
+                {feedbackIneligibleReason}
+              </div>
+            )}
+            {feedbackError && (
+              <div className="mb-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                {feedbackError}
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
               <button
                 type="button"
@@ -1226,11 +1260,12 @@ export const BookingHistoryPage: React.FC = () => {
               </button>
               <button
                 type="button"
+                disabled={feedbackBusy || Boolean(feedbackIneligibleReason)}
                 onClick={handleSubmitFeedback}
-                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs hover:shadow transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px]">send</span>
-                <span>Gửi đánh giá</span>
+                <span>{feedbackBusy ? 'Đang gửi…' : 'Gửi đánh giá'}</span>
               </button>
             </div>
           </div>
