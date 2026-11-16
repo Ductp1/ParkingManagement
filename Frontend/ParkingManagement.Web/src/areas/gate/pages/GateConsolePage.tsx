@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { gateApi, type ExitFeeQuoteDto, type ShiftBookingItemDto } from '@/api/gateApi';
-import { CameraScannerModal } from '@/areas/gate/components/CameraScannerModal';
+import { LaneCameraIdle, LaneCameraScanner } from '@/areas/gate/components/LaneCameraScanner';
 
 interface GateEvent {
   id: string;
@@ -186,15 +186,6 @@ export const GateConsolePage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {scanner && (
-        <CameraScannerModal
-          mode={scanner.mode}
-          title={scanner.mode === 'qr' ? 'Quét mã QR vé đặt chỗ' : 'Quét biển số xe (OCR)'}
-          onDetected={handleScanResult}
-          onClose={() => setScanner(null)}
-        />
-      )}
-
       {/* Toast Notice */}
       {alertNotice && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-xl text-sm font-semibold animate-bounce">
@@ -359,15 +350,48 @@ export const GateConsolePage: React.FC = () => {
             </span>
           </div>
 
-          <div className="h-48 bg-slate-900 rounded-xl flex flex-col items-center justify-center text-slate-400 relative overflow-hidden border border-slate-800">
-            <span className="material-symbols-outlined text-[48px] mb-2 text-slate-500">videocam</span>
-            <span className="text-xs font-medium">Khung hình Camera nhận diện ANPR (Optical Video Feed)</span>
-            <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600 text-[10px] text-white font-bold tracking-wider">
-              LIVE REC
-            </div>
-            <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 font-mono">
-              FPS: 30 • 1080p
-            </div>
+          {scanner?.target === 'inbound' ? (
+            <LaneCameraScanner
+              key={scanner.mode}
+              mode={scanner.mode}
+              onDetected={handleScanResult}
+              onClose={() => setScanner(null)}
+            />
+          ) : (
+            <LaneCameraIdle hint="Bấm QUÉT QR VÉ hoặc QUÉT BIỂN SỐ bên dưới để bật camera." />
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            {inboundQrToken ? (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
+                <span className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
+                  Đã quét QR vé
+                </span>
+                <button onClick={() => setInboundQrToken('')} className="text-emerald-600 hover:text-emerald-900 cursor-pointer" title="Bỏ QR đã quét">
+                  <span className="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setScanner({ mode: 'qr', target: 'inbound' })}
+                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+                  scanner?.target === 'inbound' && scanner.mode === 'qr' ? 'bg-slate-900 text-white ring-2 ring-emerald-400' : 'bg-slate-800 text-white hover:bg-slate-900'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
+                QUÉT QR VÉ ĐẶT CHỖ
+              </button>
+            )}
+            <button
+              onClick={() => setScanner({ mode: 'plate', target: 'inbound' })}
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+                scanner?.target === 'inbound' && scanner.mode === 'plate' ? 'bg-blue-700 text-white ring-2 ring-blue-300' : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">directions_car</span>
+              QUÉT BIỂN SỐ
+            </button>
           </div>
 
           <div className="flex gap-2">
@@ -375,16 +399,9 @@ export const GateConsolePage: React.FC = () => {
               type="text"
               value={inboundPlate}
               onChange={(e) => setInboundPlate(e.target.value)}
-              placeholder="Nhập biển số hoặc quét QR (VD: 51F-123.45)..."
+              placeholder="Nhập biển số (VD: 51F-123.45)..."
               className="flex-1 px-4 py-2.5 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-mono uppercase"
             />
-            <button
-              onClick={() => setScanner({ mode: 'plate', target: 'inbound' })}
-              className="px-3 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 shrink-0 flex items-center gap-1.5 cursor-pointer"
-              title="Quét biển số bằng camera/ảnh"
-            >
-              <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-            </button>
             <button
               onClick={() => void handleInboundCheckIn()}
               disabled={busy}
@@ -403,25 +420,6 @@ export const GateConsolePage: React.FC = () => {
               className="flex-1 px-4 py-2 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:border-blue-500 font-mono uppercase"
             />
           </div>
-          {inboundQrToken ? (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700">
-              <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
-                Đã quét QR vé đặt chỗ – check-in sẽ dùng method Qr
-              </span>
-              <button onClick={() => setInboundQrToken('')} className="text-emerald-600 hover:text-emerald-900 cursor-pointer">
-                <span className="material-symbols-outlined text-[16px]">close</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setScanner({ mode: 'qr', target: 'inbound' })}
-              className="w-full px-3 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">qr_code_scanner</span>
-              QUÉT QR VÉ ĐẶT CHỖ
-            </button>
-          )}
         </div>
 
         {/* Right: Check-out */}
@@ -436,32 +434,35 @@ export const GateConsolePage: React.FC = () => {
             </span>
           </div>
 
-          <div className="h-48 bg-slate-900 rounded-xl flex flex-col items-center justify-center text-slate-400 relative overflow-hidden border border-slate-800">
-            <span className="material-symbols-outlined text-[48px] mb-2 text-slate-500">videocam</span>
-            <span className="text-xs font-medium">Khung hình Camera nhận diện ANPR (Optical Video Feed)</span>
-            <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-red-600 text-[10px] text-white font-bold tracking-wider">
-              LIVE REC
-            </div>
-            <div className="absolute bottom-2 right-2 text-[10px] text-slate-400 font-mono">
-              FPS: 30 • 1080p
-            </div>
-          </div>
+          {scanner?.target === 'outbound' ? (
+            <LaneCameraScanner
+              key={scanner.mode}
+              mode={scanner.mode}
+              onDetected={handleScanResult}
+              onClose={() => setScanner(null)}
+            />
+          ) : (
+            <LaneCameraIdle hint="Bấm QUÉT BIỂN SỐ bên dưới để bật camera." />
+          )}
+
+          <button
+            onClick={() => setScanner({ mode: 'plate', target: 'outbound' })}
+            className={`w-full px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer ${
+              scanner?.target === 'outbound' ? 'bg-amber-700 text-white ring-2 ring-amber-300' : 'bg-amber-600 text-white hover:bg-amber-700'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[18px]">directions_car</span>
+            QUÉT BIỂN SỐ
+          </button>
 
           <div className="flex gap-2">
             <input
               type="text"
               value={outboundPlate}
               onChange={(e) => { setOutboundPlate(e.target.value); setQuote(null); }}
-              placeholder="Nhập biển số hoặc quét mã vé xuất..."
+              placeholder="Nhập biển số xe ra (VD: 51F-123.45)..."
               className="flex-1 px-4 py-2.5 text-xs border border-slate-300 rounded-xl focus:outline-hidden focus:border-amber-500 font-mono uppercase"
             />
-            <button
-              onClick={() => setScanner({ mode: 'plate', target: 'outbound' })}
-              className="px-3 py-2.5 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 shrink-0 flex items-center gap-1.5 cursor-pointer"
-              title="Quét biển số bằng camera/ảnh"
-            >
-              <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-            </button>
             <button
               onClick={() => void handleExitQuote()}
               disabled={busy}
