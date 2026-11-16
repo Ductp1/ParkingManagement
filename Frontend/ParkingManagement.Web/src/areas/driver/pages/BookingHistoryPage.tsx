@@ -3,7 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAppSelector } from '@/store';
 import { bookingApi } from '@/api/bookingApi';
+import { paymentApi } from '@/api/paymentApi';
 import type { BookingDetailDto, BookingSummaryDto, CancellationPreviewDto } from '@/types/booking';
+import type { InvoiceDto } from '@/types/payment';
 import { BookingTableRow, type BookingItem } from '../components/BookingTableRow';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -172,8 +174,11 @@ export const BookingHistoryPage: React.FC = () => {
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  // UI-13: Hóa đơn điện tử VAT (E-Invoice)
+  // UI-13: Hóa đơn điện tử VAT (E-Invoice) — lấy từ GET /api/v1/invoices/by-booking/{id}
   const [activeInvoiceBooking, setActiveInvoiceBooking] = useState<BookingItem | null>(null);
+  const [invoiceData, setInvoiceData] = useState<InvoiceDto | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState<boolean>(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   const availableTags = [
     '🎯 Vị trí dễ tìm',
@@ -217,6 +222,21 @@ export const BookingHistoryPage: React.FC = () => {
       message: 'Cảm ơn bạn đã đóng góp phản hồi giúp ParkMaster nâng cao chất lượng phục vụ.',
     });
     setTimeout(() => setShowToast(null), 3500);
+  };
+
+  const handleOpenInvoiceModal = async (b: BookingItem) => {
+    setActiveInvoiceBooking(b);
+    setInvoiceData(null);
+    setInvoiceError(null);
+    setInvoiceLoading(true);
+    try {
+      const inv = await paymentApi.getInvoiceByBooking(Number(b.id));
+      setInvoiceData(inv);
+    } catch (err) {
+      setInvoiceError(extractApiError(err, 'Đơn đặt chỗ này chưa được xuất hóa đơn điện tử.'));
+    } finally {
+      setInvoiceLoading(false);
+    }
   };
 
   // QR Modal: lấy chi tiết & qrToken thật từ BookingService
@@ -615,7 +635,7 @@ export const BookingHistoryPage: React.FC = () => {
                         onExtend={handleOpenExtendModal}
                         onEdit={handleOpenEditModal}
                         onCancel={handleOpenCancelModal}
-                        onInvoice={setActiveInvoiceBooking}
+                        onInvoice={handleOpenInvoiceModal}
                         onFeedback={handleOpenFeedback}
                         onRefundDetail={setActiveRefundDetailBooking}
                       />
@@ -850,8 +870,10 @@ export const BookingHistoryPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-blue-600 text-[24px]">receipt_long</span>
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-900">Hóa đơn giá trị gia tăng điện tử (UI-13)</h3>
-                  <p className="text-[11px] text-slate-500">Ký hiệu: 1C26TPM · Số HĐ: #HD-2026-{activeInvoiceBooking.code.replace(/[^0-9]/g, '') || '99214'}</p>
+                  <h3 className="text-base font-extrabold text-slate-900">Hóa đơn giá trị gia tăng điện tử</h3>
+                  <p className="text-[11px] text-slate-500">
+                    Số HĐ: {invoiceData?.invoiceNumber || 'Chưa phát hành'} · Vé: {activeInvoiceBooking.code}
+                  </p>
                 </div>
               </div>
               <button
@@ -863,82 +885,81 @@ export const BookingHistoryPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Bố cục hóa đơn VAT chuẩn */}
-            <div className="my-5 p-5 rounded-2xl bg-slate-50/80 border border-slate-200 text-xs text-slate-700 space-y-4">
-              <div className="flex flex-col sm:flex-row justify-between pb-3 border-b border-slate-200 gap-3">
-                <div>
-                  <p className="font-extrabold text-slate-900 text-sm">CÔNG TY CỔ PHẦN CÔNG NGHỆ PARKMASTER</p>
-                  <p className="text-slate-500 mt-0.5">MST: 0318999888 · Hotline: 1900 8899</p>
-                  <p className="text-slate-500">Tầng 12, Tòa nhà Innovation, TP. Hồ Chí Minh</p>
-                </div>
-                <div className="sm:text-right shrink-0">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    <span className="material-symbols-outlined text-[12px]">verified</span>
-                    Đã ký số điện tử
-                  </span>
-                  <p className="text-[11px] text-slate-500 mt-1">Ngày lập: {activeInvoiceBooking.dateLabel}</p>
-                </div>
+            {invoiceLoading ? (
+              <div className="py-10 text-center text-xs text-slate-500">Đang tải hóa đơn điện tử…</div>
+            ) : invoiceError ? (
+              <div className="my-5 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                {invoiceError}
               </div>
+            ) : invoiceData ? (
+              <div className="my-5 p-5 rounded-2xl bg-slate-50/80 border border-slate-200 text-xs text-slate-700 space-y-4">
+                <div className="flex flex-col sm:flex-row justify-between pb-3 border-b border-slate-200 gap-3">
+                  <div>
+                    <p className="font-extrabold text-slate-900 text-sm">CÔNG TY CỔ PHẦN CÔNG NGHỆ PARKMASTER</p>
+                    <p className="text-slate-500 mt-0.5">Mã hóa đơn: {invoiceData.invoiceNumber}</p>
+                  </div>
+                  <div className="sm:text-right shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                      <span className="material-symbols-outlined text-[12px]">verified</span>
+                      {invoiceData.status}
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      Ngày lập: {new Date(invoiceData.issuedAtUtc).toLocaleDateString('vi-VN')}
+                    </p>
+                  </div>
+                </div>
 
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Khách hàng / Người mua:</span>
-                  <span className="font-bold text-slate-800">{user?.fullName || 'Bùi Phạm Chí Nhân'}</span>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Khách hàng / Người mua:</span>
+                    <span className="font-bold text-slate-800">{invoiceData.buyerName}</span>
+                  </div>
+                  {invoiceData.buyerTaxCode && (
+                    <div>
+                      <span className="text-slate-400 block text-[11px]">Mã số thuế:</span>
+                      <span className="font-mono text-slate-800">{invoiceData.buyerTaxCode}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Phương tiện đỗ:</span>
+                    <span className="font-bold text-slate-800">{activeInvoiceBooking.plate}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Bãi đỗ xe:</span>
+                    <span className="font-semibold text-slate-800">{activeInvoiceBooking.location}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Mã định danh / CCCD:</span>
-                  <span className="font-mono text-slate-800">079201004812</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Phương tiện đỗ:</span>
-                  <span className="font-bold text-slate-800">{activeInvoiceBooking.plate} ({activeInvoiceBooking.carModel})</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[11px]">Bãi đỗ xe:</span>
-                  <span className="font-semibold text-slate-800">{activeInvoiceBooking.location}</span>
-                </div>
-              </div>
 
-              {/* Bảng kê chi phí */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 font-bold text-slate-600 text-[11px]">
-                    <tr>
-                      <th className="p-2.5">Nội dung dịch vụ</th>
-                      <th className="p-2.5 text-center">ĐVT</th>
-                      <th className="p-2.5 text-right">Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="p-2.5">Dịch vụ trông giữ xe thông minh theo lượt</td>
-                      <td className="p-2.5 text-center text-slate-500">Lượt</td>
-                      <td className="p-2.5 text-right font-medium">{Math.round(activeInvoiceBooking.totalPrice * 0.92).toLocaleString('vi-VN')} đ</td>
-                    </tr>
-                    {activeInvoiceBooking.services.length > 0 && (
+                <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 font-bold text-slate-600 text-[11px]">
                       <tr>
-                        <td className="p-2.5 text-slate-600">Dịch vụ cộng thêm ({activeInvoiceBooking.services.join(', ')})</td>
-                        <td className="p-2.5 text-center text-slate-500">Gói</td>
-                        <td className="p-2.5 text-right font-medium">Bao gồm</td>
+                        <th className="p-2.5">Nội dung dịch vụ</th>
+                        <th className="p-2.5 text-right">Thành tiền</th>
                       </tr>
-                    )}
-                    <tr className="bg-slate-50/50">
-                      <td colSpan={2} className="p-2 text-slate-500 text-right">Thuế suất GTGT (8%):</td>
-                      <td className="p-2 text-right font-medium text-slate-700">{Math.round(activeInvoiceBooking.totalPrice * 0.08).toLocaleString('vi-VN')} đ</td>
-                    </tr>
-                    <tr className="bg-slate-100/70 font-bold text-slate-900">
-                      <td colSpan={2} className="p-2.5 text-right">Tổng thanh toán:</td>
-                      <td className="p-2.5 text-right text-blue-600 font-extrabold">{activeInvoiceBooking.totalPrice.toLocaleString('vi-VN')} đ</td>
-                    </tr>
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="p-2.5">Dịch vụ trông giữ xe ({activeInvoiceBooking.code})</td>
+                        <td className="p-2.5 text-right font-medium">{invoiceData.subTotal.toLocaleString('vi-VN')} đ</td>
+                      </tr>
+                      <tr className="bg-slate-50/50">
+                        <td className="p-2 text-slate-500 text-right">Thuế GTGT (VAT):</td>
+                        <td className="p-2 text-right font-medium text-slate-700">{invoiceData.vatAmount.toLocaleString('vi-VN')} đ</td>
+                      </tr>
+                      <tr className="bg-slate-100/70 font-bold text-slate-900">
+                        <td className="p-2.5 text-right">Tổng thanh toán:</td>
+                        <td className="p-2.5 text-right text-blue-600 font-extrabold">{invoiceData.total.toLocaleString('vi-VN')} đ</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
+                  <span>Trạng thái: {invoiceData.status}</span>
+                  <span className="font-mono text-slate-400">Mã HĐ: {invoiceData.invoiceNumber}</span>
+                </div>
               </div>
-
-              <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1">
-                <span>Hình thức thanh toán: {activeInvoiceBooking.paymentMethod}</span>
-                <span className="font-mono text-slate-400">Tra cứu tại: https://tracuu.parkmaster.vn</span>
-              </div>
-            </div>
+            ) : null}
 
             <div className="flex gap-2.5 pt-2">
               <button
@@ -951,20 +972,26 @@ export const BookingHistoryPage: React.FC = () => {
               </button>
               <button
                 type="button"
+                disabled={!invoiceData}
                 onClick={() => {
-                  const invoiceContent = `HOA DON DIEN TU PARKMASTER\nSo HD: #HD-2026-${activeInvoiceBooking.code}\nKhach hang: ${user?.fullName || 'Bui Pham Chi Nhan'}\nBien so: ${activeInvoiceBooking.plate}\nBai do: ${activeInvoiceBooking.location}\nTong tien: ${activeInvoiceBooking.totalPrice.toLocaleString('vi-VN')} VND\nTrang thai: Da thanh toan & Ky so hop le.`;
-                  const blob = new Blob([invoiceContent], { type: 'text/plain' });
+                  if (!invoiceData) return;
+                  if (invoiceData.pdfUrl) {
+                    window.open(invoiceData.pdfUrl, '_blank');
+                    return;
+                  }
+                  const invoiceContent = `HOA DON DIEN TU PARKMASTER\nSo HD: ${invoiceData.invoiceNumber}\nKhach hang: ${invoiceData.buyerName}\nBien so: ${activeInvoiceBooking.plate}\nBai do: ${activeInvoiceBooking.location}\nTam tinh: ${invoiceData.subTotal.toLocaleString('vi-VN')} VND\nVAT: ${invoiceData.vatAmount.toLocaleString('vi-VN')} VND\nTong tien: ${invoiceData.total.toLocaleString('vi-VN')} VND\nTrang thai: ${invoiceData.status}`;
+                  const blob = new Blob([invoiceContent], { type: 'text/plain;charset=utf-8' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `HoaDon_ParkMaster_${activeInvoiceBooking.code}.txt`;
+                  a.download = `HoaDon_ParkMaster_${invoiceData.invoiceNumber}.txt`;
                   a.click();
                   URL.revokeObjectURL(url);
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[16px]">download</span>
-                <span>Tải hóa đơn (PDF/TXT)</span>
+                <span>{invoiceData?.pdfUrl ? 'Tải hóa đơn PDF' : 'Tải hóa đơn'}</span>
               </button>
             </div>
           </div>

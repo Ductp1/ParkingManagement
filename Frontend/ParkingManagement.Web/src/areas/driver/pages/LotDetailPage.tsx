@@ -4,8 +4,10 @@ import { useAppSelector, useAppDispatch } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { parkingApi } from '@/api/parkingApi';
 import { bookingApi } from '@/api/bookingApi';
+import { paymentApi } from '@/api/paymentApi';
 import type { ParkingLotDto, LotOperationalStatusDto } from '@/types/parking';
 import type { BookingDetailDto } from '@/types/booking';
+import type { AppliedPromotionDto, VietQrPaymentDto } from '@/types/payment';
 
 interface SpotInfo {
   code: string;
@@ -84,7 +86,13 @@ export const LotDetailPage: React.FC = () => {
   const [hasWashService, setHasWashService] = useState<boolean>(false);
   const [hasInsurance] = useState<boolean>(true);
   const [bookingNote, setBookingNote] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'momo' | 'card' | 'etc'>('wallet');
+  const [paymentMethod, setPaymentMethod] = useState<'gate' | 'vnpay' | 'vietqr'>('gate');
+  const [promoCodeInput, setPromoCodeInput] = useState<string>('');
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromotionDto | null>(null);
+  const [promoBusy, setPromoBusy] = useState<boolean>(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  const [vietQrData, setVietQrData] = useState<VietQrPaymentDto | null>(null);
+  const [paymentInitError, setPaymentInitError] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState<boolean>(false);
   const [notifySent, setNotifySent] = useState<boolean>(false);
   const [showStickyStepper, setShowStickyStepper] = useState<boolean>(false);
@@ -195,7 +203,43 @@ export const LotDetailPage: React.FC = () => {
   const vipDiscount = 24000; // -20%
   const evFee = hasEvService ? 50000 : 0;
   const washFee = hasWashService ? 80000 : 0;
-  const totalAmount = parkingFee + techFee - vipDiscount + evFee + washFee;
+  const subTotalAmount = Math.max(0, parkingFee + techFee - vipDiscount + evFee + washFee);
+  const promoDiscount = appliedPromo?.discountAmount ?? 0;
+  const totalAmount = Math.max(0, subTotalAmount - promoDiscount);
+
+  const handleApplyPromo = async () => {
+    const code = promoCodeInput.trim();
+    if (!code) {
+      setPromoError('Vui lòng nhập mã khuyến mãi.');
+      return;
+    }
+    setPromoBusy(true);
+    setPromoError(null);
+    try {
+      const applied = await paymentApi.applyPromotion({
+        code,
+        parkingLotId: lotId,
+        originalAmount: subTotalAmount,
+      });
+      setAppliedPromo(applied);
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { detail?: string; title?: string } } };
+      setAppliedPromo(null);
+      setPromoError(
+        axiosErr?.response?.data?.detail ||
+          axiosErr?.response?.data?.title ||
+          'Mã khuyến mãi không hợp lệ hoặc đã hết hạn.'
+      );
+    } finally {
+      setPromoBusy(false);
+    }
+  };
+
+  const handleClearPromo = () => {
+    setAppliedPromo(null);
+    setPromoCodeInput('');
+    setPromoError(null);
+  };
 
   const handleSpotSelect = (spotCode: string) => {
     setSelectedSpotCode(spotCode);
@@ -205,10 +249,11 @@ export const LotDetailPage: React.FC = () => {
     }
   };
 
-  // US-022: xác nhận đặt chỗ → POST /api/v1/bookings (BookingService) → hiện modal vé THẬT
-  // (mã vé + QrToken từ backend) → gửi thông báo InApp "Đặt chỗ thành công" qua NotificationService.
+  // US-022 + US-032/034: xác nhận đặt chỗ → POST /api/v1/bookings → khởi tạo thanh toán nếu chọn VNPAY/VietQR
   const handleConfirmBooking = async () => {
     setBookingError(null);
+    setPaymentInitError(null);
+    setVietQrData(null);
     if (!defaultVehicle) {
       setBookingError('Vui lòng thêm xe của bạn trong mục "Xe của tôi" trước khi đặt chỗ.');
       return;
@@ -233,10 +278,11 @@ export const LotDetailPage: React.FC = () => {
         startAtUtc: new Date(startAtLocal).toISOString(),
         endAtUtc: new Date(endAtLocal).toISOString(),
         totalAmount,
+        promotionCode: appliedPromo?.code ?? null,
         requiresOwnerApproval: false,
+        payAtGate: paymentMethod === 'gate',
       });
       setBookingResult(result);
-      setShowSuccessModal(true);
 
       try {
         await dispatch(
@@ -252,6 +298,52 @@ export const LotDetailPage: React.FC = () => {
       } catch {
         setNotifySent(false);
       }
+
+      if (paymentMethod === 'vnpay') {
+        try {
+          const vnpay = await paymentApi.createVnpayPayment({
+            bookingId: result.id,
+            bookingCode: result.code,
+            parkingLotId: lotId,
+            ownerProfileId: lot?.ownerProfileId ?? 0,
+            userId,
+            amount: totalAmount,
+          });
+          window.location.href = vnpay.paymentUrl;
+          return;
+        } catch (payErr) {
+          const axiosErr = payErr as { response?: { data?: { detail?: string; title?: string } } };
+          setPaymentInitError(
+            axiosErr?.response?.data?.detail ||
+              axiosErr?.response?.data?.title ||
+              'Đã tạo booking nhưng chưa khởi tạo được cổng VNPAY — bạn có thể thanh toán lại từ Lịch sử đặt chỗ.'
+          );
+        }
+      } else if (paymentMethod === 'vietqr') {
+        try {
+          const qr = await paymentApi.createVietQrPayment({
+            bookingId: result.id,
+            bookingCode: result.code,
+            parkingLotId: lotId,
+            ownerProfileId: lot?.ownerProfileId ?? 0,
+            userId,
+            amount: totalAmount,
+            bankBin: '970436',
+            bankAccountNumber: '1012345678',
+            bankAccountName: 'PARKMASTER VIETNAM',
+          });
+          setVietQrData(qr);
+        } catch (payErr) {
+          const axiosErr = payErr as { response?: { data?: { detail?: string; title?: string } } };
+          setPaymentInitError(
+            axiosErr?.response?.data?.detail ||
+              axiosErr?.response?.data?.title ||
+              'Đã tạo booking nhưng chưa tạo được mã VietQR.'
+          );
+        }
+      }
+
+      setShowSuccessModal(true);
     } catch (err) {
       const axiosErr = err as { response?: { data?: { detail?: string; title?: string } } };
       setBookingError(
@@ -970,6 +1062,48 @@ export const LotDetailPage: React.FC = () => {
 
                 <div className="h-px w-full bg-slate-200 my-1"></div>
 
+                {/* Promotion Code */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] uppercase font-bold text-slate-400">Mã khuyến mãi</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCodeInput}
+                      onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                      disabled={Boolean(appliedPromo)}
+                      placeholder="Nhập mã giảm giá..."
+                      className="flex-1 px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-slate-50 focus:outline-hidden focus:ring-2 focus:ring-blue-600/20"
+                    />
+                    {appliedPromo ? (
+                      <button
+                        type="button"
+                        onClick={handleClearPromo}
+                        className="px-3 py-2 rounded-xl bg-slate-200 text-slate-700 text-xs font-bold hover:bg-slate-300 cursor-pointer"
+                      >
+                        Gỡ
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={promoBusy}
+                        onClick={handleApplyPromo}
+                        className="px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50 cursor-pointer"
+                      >
+                        {promoBusy ? '…' : 'Áp dụng'}
+                      </button>
+                    )}
+                  </div>
+                  {appliedPromo && (
+                    <div className="flex items-center justify-between text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 font-semibold">
+                      <span>{appliedPromo.name} ({appliedPromo.code})</span>
+                      <span>-{appliedPromo.discountAmount.toLocaleString('vi-VN')} đ</span>
+                    </div>
+                  )}
+                  {promoError && (
+                    <span className="text-[11px] text-rose-600 font-medium">{promoError}</span>
+                  )}
+                </div>
+
                 {/* Total */}
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm font-bold text-slate-900">TỔNG THANH TOÁN:</span>
@@ -981,81 +1115,62 @@ export const LotDetailPage: React.FC = () => {
                 {/* Payment Methods */}
                 <div className="flex flex-col gap-2 pt-1">
                   <span className="text-[11px] uppercase font-bold text-slate-400">Phương thức thanh toán</span>
-                  
+
                   <label
-                    onClick={() => setPaymentMethod('wallet')}
+                    onClick={() => setPaymentMethod('gate')}
                     className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors border ${
-                      paymentMethod === 'wallet' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
+                      paymentMethod === 'gate' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <input
                         type="radio"
                         name="paymethod"
-                        checked={paymentMethod === 'wallet'}
-                        onChange={() => setPaymentMethod('wallet')}
+                        checked={paymentMethod === 'gate'}
+                        onChange={() => setPaymentMethod('gate')}
                         className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-xs font-bold text-slate-900">Ví ParkMaster Pay</span>
+                      <span className="text-xs font-bold text-slate-900">Trả tại cổng khi ra bãi (Pay at Gate)</span>
                     </div>
-                    <span className="text-[11px] text-emerald-700 font-bold">Số dư: 2.450.000đ</span>
+                    <span className="material-symbols-outlined text-emerald-600 text-[18px]">local_atm</span>
                   </label>
 
                   <label
-                    onClick={() => setPaymentMethod('momo')}
+                    onClick={() => setPaymentMethod('vnpay')}
                     className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors border ${
-                      paymentMethod === 'momo' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
+                      paymentMethod === 'vnpay' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <input
                         type="radio"
                         name="paymethod"
-                        checked={paymentMethod === 'momo'}
-                        onChange={() => setPaymentMethod('momo')}
+                        checked={paymentMethod === 'vnpay'}
+                        onChange={() => setPaymentMethod('vnpay')}
                         className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-xs font-medium text-slate-900">MoMo / VNPay QR</span>
+                      <span className="text-xs font-medium text-slate-900">Cổng thanh toán VNPAY-QR</span>
+                    </div>
+                    <span className="material-symbols-outlined text-blue-600 text-[18px]">payments</span>
+                  </label>
+
+                  <label
+                    onClick={() => setPaymentMethod('vietqr')}
+                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors border ${
+                      paymentMethod === 'vietqr' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="paymethod"
+                        checked={paymentMethod === 'vietqr'}
+                        onChange={() => setPaymentMethod('vietqr')}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-xs font-medium text-slate-900">Chuyển khoản nhanh VietQR</span>
                     </div>
                     <span className="material-symbols-outlined text-slate-500 text-[18px]">qr_code_2</span>
-                  </label>
-
-                  <label
-                    onClick={() => setPaymentMethod('card')}
-                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors border ${
-                      paymentMethod === 'card' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="paymethod"
-                        checked={paymentMethod === 'card'}
-                        onChange={() => setPaymentMethod('card')}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-xs font-medium text-slate-900">Thẻ Visa / MasterCard</span>
-                    </div>
-                    <span className="material-symbols-outlined text-slate-500 text-[18px]">credit_card</span>
-                  </label>
-
-                  <label
-                    onClick={() => setPaymentMethod('etc')}
-                    className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors border ${
-                      paymentMethod === 'etc' ? 'bg-blue-50 border-blue-600 ring-1 ring-blue-600' : 'bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="paymethod"
-                        checked={paymentMethod === 'etc'}
-                        onChange={() => setPaymentMethod('etc')}
-                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <span className="text-xs font-medium text-slate-900">Ví VETC / ePass ETC</span>
-                    </div>
-                    <span className="material-symbols-outlined text-slate-500 text-[18px]">toll</span>
                   </label>
                 </div>
 
@@ -1148,6 +1263,24 @@ export const LotDetailPage: React.FC = () => {
               </div>
             )}
 
+            {vietQrData && (
+              <div className="w-full p-3.5 rounded-xl bg-blue-50 border border-blue-200 mb-4 flex flex-col items-center gap-2 text-xs">
+                <span className="font-bold text-blue-900">Quét mã VietQR để hoàn tất thanh toán</span>
+                <img src={vietQrData.qrImageUrl} alt="VietQR" className="w-40 h-40 rounded-lg border border-white shadow-xs bg-white" />
+                <div className="w-full text-left space-y-0.5 text-[11px] text-slate-700">
+                  <div>Ngân hàng: <strong>{vietQrData.bankAccountName}</strong> ({vietQrData.bankAccountNumber})</div>
+                  <div>Nội dung CK: <strong className="font-mono text-blue-700">{vietQrData.transferContent}</strong></div>
+                  <div>Số tiền: <strong className="text-blue-700">{vietQrData.amount.toLocaleString('vi-VN')} đ</strong></div>
+                </div>
+              </div>
+            )}
+
+            {paymentInitError && (
+              <div className="w-full px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold mb-4 text-left">
+                {paymentInitError}
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row gap-2.5 w-full">
               <button
                 type="button"
@@ -1155,13 +1288,13 @@ export const LotDetailPage: React.FC = () => {
                   navigate(
                     `/driver/payment-result?code=${encodeURIComponent(
                       bookingResult?.code || ''
-                    )}&method=${paymentMethod}&amount=${totalAmount}&status=success`
+                    )}`
                   )
                 }
                 className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-colors shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[18px]">receipt_long</span>
-                <span>Xem Biên nhận & Vé QR (UI-12)</span>
+                <span>Xem Biên nhận & Hóa đơn</span>
               </button>
               <button
                 type="button"
