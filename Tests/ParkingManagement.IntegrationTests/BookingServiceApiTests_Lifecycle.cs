@@ -50,6 +50,7 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
     public WebApplicationFactory<BookingsController> BookingFactory { get; private set; } = null!;
     public HttpClient ParkingClient { get; private set; } = null!;
     public HttpClient BookingClient { get; private set; } = null!;
+    public RsaTestKeys Keys { get; } = RsaTestKeys.Create();
 
     /// <summary>Root DI của ParkingService (resolve DbContext để arrange dữ liệu test).</summary>
     public IServiceProvider ParkingServices => ParkingFactory.Services;
@@ -108,12 +109,21 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
                     MaxBookingActionsPerHour = 10_000,
                     NoShowMinFinishedBookings = 10_000,
                 });
+                services.PostConfigure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(
+                    Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme, options =>
+                {
+                    using var rsa = System.Security.Cryptography.RSA.Create();
+                    rsa.ImportFromPem(File.ReadAllText(Keys.PublicKeyPath));
+                    options.TokenValidationParameters.IssuerSigningKey = new Microsoft.IdentityModel.Tokens.RsaSecurityKey(rsa.ExportParameters(false));
+                });
             });
 
         // Dựng host sớm ngay tại đây: migration + seed demo chạy xong trước test đầu tiên,
         // lỗi hạ tầng (PostgreSQL không chạy, thiếu secret...) báo ngay tại Initialize thay vì test đầu tiên.
         ParkingClient = ParkingFactory.CreateClient();
         BookingClient = BookingFactory.CreateClient();
+        BookingClient.DefaultRequestHeaders.Authorization = new("Bearer",
+            Keys.MintToken(DemoIds.AdminUser, "admin@smartparking.vn", null, "Admin"));
 
         using var parkingHealth = await ParkingClient.GetAsync("/health");
         Assert.True(parkingHealth.IsSuccessStatusCode, $"ParkingService không start được trên database {ParkingDbName}.");
@@ -165,7 +175,7 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         bool requiresOwnerApproval = false)
     {
         var call = Interlocked.Increment(ref _bookingCallIndex);
-        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2 + call * 3));
+        var start = startAtUtc ?? RoundToMinute(DateTime.UtcNow.AddHours(2 + call * 4));
         var command = new
         {
             userId,
@@ -219,6 +229,7 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
     {
         ParkingFactory?.Dispose();
         BookingFactory?.Dispose();
+        Keys.Dispose();
         try
         {
             await TestDatabaseProvisioner.DropDatabaseAsync(_baseConnectionString, ParkingDbName);
@@ -688,8 +699,9 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
         Assert.Contains(mine!, b => b.Code == "BK-0002");
 
         // ----- 2 booking mới cho user ảo 9 → lọc status + thứ tự StartAtUtc giảm dần -----
-        var newer = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(5), plateNumber: "60X99999", slotId: null, slotCode: null);
-        var older = await fixture.CreateBookingAsync(userId: 9, startAtUtc: DateTime.UtcNow.AddHours(3), plateNumber: "60X88888", slotId: null, slotCode: null);
+        var baseTime = DateTime.UtcNow;
+        var newer = await fixture.CreateBookingAsync(userId: 9, vehicleId: 91, startAtUtc: baseTime.AddHours(5), plateNumber: "60X99999", slotId: null, slotCode: null);
+        var older = await fixture.CreateBookingAsync(userId: 9, vehicleId: 92, startAtUtc: baseTime.AddHours(3), plateNumber: "60X88888", slotId: null, slotCode: null);
 
         var listUser9 = await fixture.BookingClient.GetFromJsonAsync<List<BookingSummaryJson>>("/api/v1/bookings?userId=9");
         Assert.Equal(2, listUser9!.Count);
