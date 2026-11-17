@@ -32,17 +32,30 @@ export interface LotStatusChangedEvent {
   timestampUtc: string;
 }
 
+export interface SlotStateChangedEvent {
+  slotId: number;
+  parkingLotId: number;
+  newState: string;
+  previousState?: string | null;
+  reason?: string | null;
+  changedAtUtc: string;
+}
+
 export const useParkingHub = (
   lotId: number,
   onCapacityChanged?: (event: CapacityChangedEvent) => void,
   onLotStatusChanged?: (event: LotStatusChangedEvent) => void,
+  onSlotStateChanged?: (event: SlotStateChangedEvent) => void,
 ): void => {
   const callbackRef = useRef(onCapacityChanged);
   callbackRef.current = onCapacityChanged;
   const statusCallbackRef = useRef(onLotStatusChanged);
   statusCallbackRef.current = onLotStatusChanged;
+  const slotCallbackRef = useRef(onSlotStateChanged);
+  slotCallbackRef.current = onSlotStateChanged;
 
   useEffect(() => {
+    if (!lotId || lotId <= 0) return;
     let stopped = false;
 
     const connection = new SignalR.HubConnectionBuilder()
@@ -57,6 +70,10 @@ export const useParkingHub = (
 
     connection.on('LotStatusChanged', (msg: LotStatusChangedEvent) => {
       if (msg.lotId === lotId) statusCallbackRef.current?.(msg);
+    });
+
+    connection.on('SlotStateChanged', (msg: SlotStateChangedEvent) => {
+      if (msg.parkingLotId === lotId) slotCallbackRef.current?.(msg);
     });
 
     const subscribe = async (): Promise<void> => {

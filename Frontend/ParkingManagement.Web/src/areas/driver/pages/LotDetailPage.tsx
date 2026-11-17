@@ -3,68 +3,30 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { fetchVehicles } from '@/store/slices/vehicleSlice';
+import { useParkingHub, type SlotStateChangedEvent } from '@/realtime/useParkingHub';
 import { parkingApi } from '@/api/parkingApi';
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
 import { supportApi } from '@/api/supportApi';
-import type { ParkingLotDto, LotOperationalStatusDto } from '@/types/parking';
+import type {
+  ParkingLotDto,
+  LotOperationalStatusDto,
+  FloorLayoutDto,
+  LayoutCellDto,
+  SlotHierarchyDto,
+} from '@/types/parking';
 import type { BookingDetailDto } from '@/types/booking';
 import type { AppliedPromotionDto, VietQrPaymentDto } from '@/types/payment';
 import type { LotReviewsDto } from '@/types/support';
 
-interface SpotInfo {
-  code: string;
-  desc: string;
-  isEv: boolean;
-  status: 'available' | 'occupied' | 'selected';
-  x: string;
-  y: string;
-  badgeText: string;
-  typeText: string;
+interface FloorOption {
+  id: number;
+  name: string;
+  level: number;
+  zoneName: string;
+  isClosed: boolean;
+  slots: SlotHierarchyDto[];
 }
-
-const AVAILABLE_SPOTS: SpotInfo[] = [
-  {
-    code: 'B-02',
-    desc: 'Khu B • Vị trí VIP sát sảnh thang máy Landmark 81 • 25 mét',
-    isEv: false,
-    status: 'available',
-    x: '28%',
-    y: '38%',
-    badgeText: 'VIP Gần thang máy',
-    typeText: 'VIP Thang máy',
-  },
-  {
-    code: 'B-04',
-    desc: 'Khu B • Cạnh trụ B-12 • Sạc nhanh 120kW • Cách thang máy 45m',
-    isEv: true,
-    status: 'selected',
-    x: '38%',
-    y: '48%',
-    badgeText: 'Đã chọn (Sạc EV 120kW)',
-    typeText: 'Sạc EV 120kW',
-  },
-  {
-    code: 'B-05',
-    desc: 'Khu B • Trạm sạc EV siêu nhanh 120kW • Cạnh cổng kiểm soát • Cách thang máy 55m',
-    isEv: true,
-    status: 'available',
-    x: '52%',
-    y: '48%',
-    badgeText: 'Trống (Sạc EV)',
-    typeText: 'Sạc EV 120kW',
-  },
-  {
-    code: 'B-06',
-    desc: 'Khu B • Ô đậu tiêu chuẩn SUV/Sedan • Cạnh trụ B-14 • Cách thang máy 60m',
-    isEv: false,
-    status: 'available',
-    x: '66%',
-    y: '48%',
-    badgeText: 'Trống (SUV)',
-    typeText: 'SUV/Sedan',
-  },
-];
 
 /** Định dạng Date thành value cho input datetime-local (giờ máy). */
 const toLocalInput = (d: Date): string => {
@@ -89,9 +51,13 @@ export const LotDetailPage: React.FC = () => {
   }, [dispatch, userId, vehicles.length]);
 
   const [lot, setLot] = useState<ParkingLotDto | null>(null);
-  const [selectedFloor, setSelectedFloor] = useState<'B1' | 'B2' | 'B3' | 'F1'>('B2');
-  const [selectedSpotCode, setSelectedSpotCode] = useState<string>('B-04');
-  const [hasEvService, setHasEvService] = useState<boolean>(true);
+  const [availableFloors, setAvailableFloors] = useState<FloorOption[]>([]);
+  const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null);
+  const [floorLayout, setFloorLayout] = useState<FloorLayoutDto | null>(null);
+  const [isLoadingLayout, setIsLoadingLayout] = useState<boolean>(false);
+  const [selectedSpotCode, setSelectedSpotCode] = useState<string>('');
+  const [slotConflictNotice, setSlotConflictNotice] = useState<string | null>(null);
+  const [hasEvService, setHasEvService] = useState<boolean>(false);
   const [hasWashService, setHasWashService] = useState<boolean>(false);
   const [hasInsurance] = useState<boolean>(true);
   const [bookingNote, setBookingNote] = useState<string>('');
@@ -119,7 +85,7 @@ export const LotDetailPage: React.FC = () => {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingResult, setBookingResult] = useState<BookingDetailDto | null>(null);
 
-  // Fetch lot info from API
+  // Fetch lot info, hierarchy & reviews from API
   useEffect(() => {
     parkingApi
       .getById(lotId)
@@ -127,11 +93,96 @@ export const LotDetailPage: React.FC = () => {
       .catch(() => {
         // Fallback default
       });
+    parkingApi
+      .getLotHierarchy(lotId)
+      .then((hierarchy) => {
+        const floors: FloorOption[] = hierarchy.zones.flatMap((z) =>
+          z.floors.map((f) => ({
+            id: f.id,
+            name: f.name,
+            level: f.level,
+            zoneName: z.name,
+            isClosed: f.isClosed || z.isClosed,
+            slots: f.slots ?? [],
+          }))
+        );
+        setAvailableFloors(floors);
+        const firstOpen = floors.find((f) => !f.isClosed) || floors[0];
+        if (firstOpen) {
+          setSelectedFloorId(firstOpen.id);
+        }
+      })
+      .catch(() => setAvailableFloors([]));
     supportApi
       .getLotReviews(lotId, 5)
       .then((rev) => setLotReviews(rev))
       .catch(() => setLotReviews(null));
   }, [lotId]);
+
+  // Fetch published 2D floor layout (fallback to floor.slots if owner hasn't published layout yet)
+  useEffect(() => {
+    if (!selectedFloorId) return;
+    let cancelled = false;
+    const loadFloorLayout = async () => {
+      setIsLoadingLayout(true);
+      try {
+        const layout = await parkingApi.getFloorLayout(selectedFloorId);
+        if (!cancelled && layout && layout.cells?.length > 0) {
+          setFloorLayout(layout);
+          const firstAvail = layout.cells.find((c) => c.type === 'slot' && c.state === 'Available' && c.code);
+          if (firstAvail?.code) {
+            setSelectedSpotCode(firstAvail.code);
+            setHasEvService(firstAvail.slotType === 'EVCharging');
+          }
+          setIsLoadingLayout(false);
+          return;
+        }
+      } catch {
+        // Fallback to hierarchy slots below
+      }
+
+      if (!cancelled) {
+        const floor = availableFloors.find((f) => f.id === selectedFloorId);
+        if (floor && floor.slots.length > 0) {
+          const maxCol = Math.max(8, ...floor.slots.map((s) => s.gridX + (s.widthCells || 1)));
+          const maxRow = Math.max(5, ...floor.slots.map((s) => s.gridY + (s.heightCells || 1)));
+          const cells: LayoutCellDto[] = floor.slots.map((s) => ({
+            x: s.gridX,
+            y: s.gridY,
+            type: 'slot',
+            code: s.code,
+            slotType: s.slotType,
+            maxVehicleType: s.maxVehicleType,
+            state: s.state,
+            widthCells: s.widthCells || 1,
+            heightCells: s.heightCells || 1,
+          }));
+          setFloorLayout({
+            floorId: floor.id,
+            floorName: floor.name,
+            level: floor.level,
+            versionNo: 1,
+            isPublished: false,
+            columns: maxCol,
+            rows: maxRow,
+            cells,
+          });
+          const firstAvail = floor.slots.find((s) => s.state === 'Available');
+          if (firstAvail) {
+            setSelectedSpotCode(firstAvail.code);
+            setHasEvService(firstAvail.slotType === 'EVCharging');
+          }
+        } else {
+          setFloorLayout(null);
+        }
+        setIsLoadingLayout(false);
+      }
+    };
+    void loadFloorLayout();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedFloorId, availableFloors]);
 
   // US-068: độ tươi dữ liệu bãi (heartbeat & stale) – tự làm mới mỗi 30 giây để cảnh báo kịp thời
   const [opStatus, setOpStatus] = useState<LotOperationalStatusDto | null>(null);
@@ -180,7 +231,81 @@ export const LotDetailPage: React.FC = () => {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  const currentSpot = AVAILABLE_SPOTS.find((s) => s.code === selectedSpotCode) || AVAILABLE_SPOTS[1];
+  const activeFloor = availableFloors.find((f) => f.id === selectedFloorId) || null;
+  const selectedFloorLabel = activeFloor ? `${activeFloor.zoneName} · ${activeFloor.name}` : 'Tầng mặc định';
+
+  // Real-time SignalR: khi có khách khác đặt/hủy ô đỗ → cập nhật màu đỏ ngay & đẩy Khách A sang ô xanh gần nhất
+  const handleSlotStateChanged = (event: SlotStateChangedEvent) => {
+    let affectedCode: string | null = null;
+    setAvailableFloors((prev) =>
+      prev.map((fl) => ({
+        ...fl,
+        slots: fl.slots.map((s) => {
+          if (s.id === event.slotId) {
+            affectedCode = s.code;
+            return { ...s, state: event.newState };
+          }
+          return s;
+        }),
+      }))
+    );
+
+    if (!affectedCode && activeFloor) {
+      const found = activeFloor.slots.find((s) => s.id === event.slotId);
+      if (found) affectedCode = found.code;
+    }
+    if (!affectedCode) return;
+
+    setFloorLayout((prev) => {
+      if (!prev) return prev;
+      const nextCells = prev.cells.map((c) =>
+        c.type === 'slot' && c.code === affectedCode ? { ...c, state: event.newState } : c
+      );
+
+      if (event.newState !== 'Available' && selectedSpotCode === affectedCode) {
+        const takenCell = nextCells.find((c) => c.type === 'slot' && c.code === affectedCode);
+        const availCells = nextCells.filter((c) => c.type === 'slot' && c.state === 'Available' && c.code);
+        if (availCells.length > 0 && takenCell) {
+          availCells.sort((a, b) => {
+            const distA = (a.x - takenCell.x) ** 2 + (a.y - takenCell.y) ** 2;
+            const distB = (b.x - takenCell.x) ** 2 + (b.y - takenCell.y) ** 2;
+            return distA - distB;
+          });
+          const nearest = availCells[0];
+          setSelectedSpotCode(nearest.code!);
+          setHasEvService(nearest.slotType === 'EVCharging');
+          setSlotConflictNotice(
+            `Ô ${affectedCode} vừa được khách khác đặt — hệ thống đã tự động chuyển bạn sang ô trống gần nhất: ${nearest.code}.`
+          );
+        } else {
+          setSelectedSpotCode('');
+          setSlotConflictNotice(`Ô ${affectedCode} vừa được khách khác đặt và tầng này hiện không còn ô trống.`);
+        }
+      }
+      return { ...prev, cells: nextCells };
+    });
+  };
+
+  useParkingHub(lotId, undefined, undefined, handleSlotStateChanged);
+
+  const floorSlotCells = (floorLayout?.cells ?? []).filter(
+    (c): c is LayoutCellDto & { code: string } => c.type === 'slot' && Boolean(c.code)
+  );
+  const availableFloorSpots = floorSlotCells.filter((c) => c.state === 'Available');
+  const selectedCell = floorSlotCells.find((c) => c.code === selectedSpotCode) || availableFloorSpots[0] || null;
+  const currentSpot = {
+    code: selectedCell?.code || selectedSpotCode || 'Tự động',
+    isEv: selectedCell?.slotType === 'EVCharging',
+    typeText:
+      selectedCell?.slotType === 'EVCharging'
+        ? 'Sạc EV'
+        : selectedCell?.slotType === 'Oversized'
+        ? 'Xe lớn / SUV'
+        : selectedCell?.maxVehicleType || 'Tiêu chuẩn',
+    desc: selectedCell
+      ? `${selectedFloorLabel} • Loại ô: ${selectedCell.slotType || 'Standard'} • Phù hợp: ${selectedCell.maxVehicleType || 'Mọi xe'}`
+      : `${selectedFloorLabel} • Hệ thống tự động phân bổ ô trống phù hợp khi vào cổng`,
+  };
 
   // Default vehicle selection (from real user vehicles in Redux or fallback)
   const defaultVehicle = vehicles.find((v) => v.isDefault) || vehicles[0];
@@ -242,6 +367,7 @@ export const LotDetailPage: React.FC = () => {
       setPromoError(
         axiosErr?.response?.data?.detail ||
           axiosErr?.response?.data?.title ||
+          (err instanceof Error && err.message) ||
           'Mã khuyến mãi không hợp lệ hoặc đã hết hạn.'
       );
     } finally {
@@ -255,12 +381,9 @@ export const LotDetailPage: React.FC = () => {
     setPromoError(null);
   };
 
-  const handleSpotSelect = (spotCode: string) => {
+  const handleSpotSelect = (spotCode: string, slotType?: string | null) => {
     setSelectedSpotCode(spotCode);
-    const spot = AVAILABLE_SPOTS.find((s) => s.code === spotCode);
-    if (spot) {
-      setHasEvService(spot.isEv);
-    }
+    setHasEvService(slotType === 'EVCharging');
   };
 
   // US-022 + US-032/034: xác nhận đặt chỗ → POST /api/v1/bookings → khởi tạo thanh toán nếu chọn VNPAY/VietQR
@@ -278,6 +401,7 @@ export const LotDetailPage: React.FC = () => {
     }
 
     setBookingBusy(true);
+    const selectedSlotObj = activeFloor?.slots.find((s) => s.code === selectedSpotCode);
     try {
       const result = await bookingApi.createBooking({
         userId,
@@ -287,7 +411,8 @@ export const LotDetailPage: React.FC = () => {
         parkingLotId: lotId,
         ownerProfileId: lot?.ownerProfileId ?? 0,
         parkingLotName: lot?.name || 'Bãi đỗ xe',
-        slotCode: selectedSpotCode,
+        slotId: selectedSlotObj?.id ?? null,
+        slotCode: selectedSpotCode || undefined,
         allocationMode: 'Dynamic',
         startAtUtc: new Date(startAtLocal).toISOString(),
         endAtUtc: new Date(endAtLocal).toISOString(),
@@ -297,14 +422,26 @@ export const LotDetailPage: React.FC = () => {
         payAtGate: paymentMethod === 'gate',
       });
       setBookingResult(result);
+      if (selectedSlotObj) {
+        setFloorLayout((prev) =>
+          prev
+            ? {
+                ...prev,
+                cells: prev.cells.map((c) =>
+                  c.type === 'slot' && c.code === selectedSlotObj.code ? { ...c, state: 'Reserved' } : c
+                ),
+              }
+            : prev
+        );
+      }
 
       try {
         await dispatch(
           sendBookingConfirmedNotification({
             userId,
             parkingLotName: result.parkingLotName || (lot?.name || ''),
-            slotCode: result.slotCode || selectedSpotCode,
-            floor: `Hầm ${selectedFloor}`,
+            slotCode: result.slotCode || currentSpot.code,
+            floor: selectedFloorLabel,
             bookingCode: result.code,
           })
         ).unwrap();
@@ -363,6 +500,7 @@ export const LotDetailPage: React.FC = () => {
       setBookingError(
         axiosErr?.response?.data?.detail ||
           axiosErr?.response?.data?.title ||
+          (err instanceof Error && err.message) ||
           'Không tạo được booking — vui lòng thử lại sau.'
       );
     } finally {
@@ -423,7 +561,7 @@ export const LotDetailPage: React.FC = () => {
             <div className="flex flex-col min-w-0">
               <span className="text-xs font-bold text-blue-600 truncate">2. Chọn vị trí</span>
               <span className="text-[11px] text-blue-600 font-medium truncate">
-                Tầng Hầm {selectedFloor} • Ô {selectedSpotCode}
+                {selectedFloorLabel} • Ô {currentSpot.code}
               </span>
             </div>
           </div>
@@ -568,219 +706,291 @@ export const LotDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. Floor Selector Tabs */}
+        {/* 4. Floor Selector Tabs (Real Zones & Floors from ParkingService) */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-3 bg-white rounded-2xl shadow-xs border border-slate-200 mb-6">
           <div className="flex flex-wrap items-center gap-2 p-1 bg-slate-100 rounded-xl">
-            <button
-              onClick={() => setSelectedFloor('B1')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedFloor === 'B1' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tầng Hầm B1 (Kín 95%)
-            </button>
-            <button
-              onClick={() => setSelectedFloor('B2')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                selectedFloor === 'B2' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              Tầng Hầm B2 (Đang xem • 42 chỗ trống)
-            </button>
-            <button
-              onClick={() => setSelectedFloor('B3')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedFloor === 'B3' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tầng Hầm B3 (38 chỗ trống)
-            </button>
-            <button
-              onClick={() => setSelectedFloor('F1')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                selectedFloor === 'F1' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tầng 1 (Khu VIP)
-            </button>
+            {availableFloors.length === 0 ? (
+              <span className="px-3 py-1.5 text-xs text-slate-500 font-medium">
+                Đang tải danh sách tầng...
+              </span>
+            ) : (
+              availableFloors.map((fl) => {
+                const isActive = fl.id === selectedFloorId;
+                const availCount = fl.slots.filter((s) => s.state === 'Available').length;
+                return (
+                  <button
+                    key={fl.id}
+                    type="button"
+                    disabled={fl.isClosed}
+                    onClick={() => setSelectedFloorId(fl.id)}
+                    className={`px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isActive ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full ${
+                        fl.isClosed ? 'bg-rose-400' : availCount > 0 ? 'bg-emerald-400' : 'bg-amber-400'
+                      }`}
+                    />
+                    <span>
+                      {fl.zoneName} · {fl.name}
+                    </span>
+                    <span className={`text-[11px] ${isActive ? 'text-blue-100' : 'text-slate-400'}`}>
+                      ({fl.isClosed ? 'Đóng' : `${availCount} trống`})
+                    </span>
+                  </button>
+                );
+              })
+            )}
           </div>
 
-          <div className="flex items-center gap-4 px-3 py-1">
+          <div className="flex flex-wrap items-center gap-4 px-3 py-1">
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-3 h-3 rounded-full bg-slate-300"></span>
+              <span className="w-3 h-3 rounded bg-emerald-500"></span>
               Đang trống
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-3 h-3 rounded-full bg-blue-600"></span>
+              <span className="w-3 h-3 rounded bg-blue-600"></span>
               Đang chọn
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-3 h-3 rounded-full bg-emerald-600"></span>
+              <span className="w-3 h-3 rounded bg-amber-500"></span>
               Trạm sạc EV
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <span className="w-3 h-3 rounded-full bg-slate-400"></span>
-              Đã đỗ
+              <span className="w-3 h-3 rounded bg-rose-500"></span>
+              Đã đặt / Có xe
             </div>
           </div>
         </div>
 
-        {/* 5. Technical Blueprint / Parking Map Section */}
+        {/* 5. Technical Blueprint / Real 2D Floor Layout Matrix */}
         <section className="rounded-2xl bg-white p-6 shadow-md border border-slate-100 mb-10 scroll-mt-36" id="map-section">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 gap-2 border-b border-slate-100">
             <div>
               <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                 <span className="material-symbols-outlined text-blue-600">view_quilt</span>
-                Sơ đồ Kỹ thuật Tầng Hầm B2 - Phân khu B (EV Priority)
+                Sơ đồ 2D · {selectedFloorLabel}
+                {floorLayout?.isPublished && (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                    Bản vẽ v{floorLayout.versionNo}
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Nhấp trực tiếp vào bất kỳ vị trí ô đỗ hoặc danh sách bên dưới để tự động cuộn xuống đặt chỗ & thanh toán
+                Dữ liệu sơ đồ &amp; trạng thái ô đỗ đồng bộ trực tiếp từ cấu hình bãi của chủ bãi
               </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 font-bold flex items-center gap-1.5 border border-emerald-200">
-                <span className="material-symbols-outlined text-[16px]">sensors</span> Cảm biến đỗ xe: Hoạt động tốt
+                <span className="material-symbols-outlined text-[16px]">sensors</span>
+                Trống {availableFloorSpots.length}/{floorSlotCells.length} ô
               </span>
             </div>
           </div>
 
-          {/* Blueprint Visual Canvas */}
-          <div className="relative w-full rounded-2xl overflow-hidden shadow-sm bg-slate-900 min-h-[380px] flex items-center justify-center mt-5 select-none border border-slate-800">
-            {/* SVG Background Floor Grid Blueprint */}
-            <svg className="w-full h-80 opacity-60" viewBox="0 0 1000 400" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#334155" strokeWidth="0.8" />
-                </pattern>
-              </defs>
-              <rect width="1000" height="400" fill="url(#grid)" />
-              {/* Lane Markings */}
-              <rect x="50" y="40" width="900" height="320" rx="16" stroke="#475569" strokeWidth="2" strokeDasharray="8 8" />
-              <line x1="50" y1="200" x2="950" y2="200" stroke="#3b82f6" strokeWidth="3" strokeDasharray="12 12" />
-              {/* Parking slots visual boundaries */}
-              <rect x="180" y="80" width="120" height="90" rx="8" fill="#1e293b" stroke="#64748b" strokeWidth="1.5" />
-              <rect x="320" y="80" width="120" height="90" rx="8" fill="#1e293b" stroke="#3b82f6" strokeWidth="2" />
-              <rect x="460" y="80" width="120" height="90" rx="8" fill="#1e293b" stroke="#10b981" strokeWidth="2" />
-              <rect x="600" y="80" width="120" height="90" rx="8" fill="#1e293b" stroke="#64748b" strokeWidth="1.5" />
+          {slotConflictNotice && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-amber-600">swap_horiz</span>
+                <span>{slotConflictNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSlotConflictNotice(null)}
+                className="text-amber-600 hover:text-amber-900 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          )}
 
-              <rect x="180" y="230" width="120" height="90" rx="8" fill="#1e293b" stroke="#475569" strokeWidth="1" />
-              <rect x="320" y="230" width="120" height="90" rx="8" fill="#1e293b" stroke="#475569" strokeWidth="1" />
-              <rect x="460" y="230" width="120" height="90" rx="8" fill="#1e293b" stroke="#475569" strokeWidth="1" />
-              <rect x="600" y="230" width="120" height="90" rx="8" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+          {/* 2D Matrix Visual Canvas */}
+          <div className="w-full rounded-2xl overflow-auto bg-slate-900 min-h-[320px] p-5 flex items-center justify-center mt-5 select-none border border-slate-800">
+            {isLoadingLayout ? (
+              <div className="py-16 text-center text-xs text-slate-300 space-y-2">
+                <span className="material-symbols-outlined text-[32px] text-blue-400 animate-spin">progress_activity</span>
+                <p>Đang tải sơ đồ 2D của tầng từ hệ thống...</p>
+              </div>
+            ) : floorLayout && floorLayout.cells.length > 0 ? (
+              <div
+                className="grid gap-2 p-2"
+                style={{
+                  gridTemplateColumns: `repeat(${floorLayout.columns}, minmax(52px, 1fr))`,
+                  gridTemplateRows: `repeat(${floorLayout.rows}, minmax(52px, 1fr))`,
+                }}
+              >
+                {floorLayout.cells.map((cell, idx) => {
+                  const posStyle: React.CSSProperties = {
+                    gridColumn: `${cell.x + 1} / span ${cell.widthCells || 1}`,
+                    gridRow: `${cell.y + 1} / span ${cell.heightCells || 1}`,
+                  };
 
-              <text x="500" y="215" fill="#94a3b8" fontSize="12" fontFamily="sans-serif" textAnchor="middle" letterSpacing="4">
-                LÀN XE LƯU THÔNG KHU B (CHIỀU CAO TỐI ĐA 2.2M)
-              </text>
-            </svg>
-
-            {/* Interactive Pins */}
-            {AVAILABLE_SPOTS.map((spot) => {
-              const isSelected = selectedSpotCode === spot.code;
-              return (
-                <button
-                  key={spot.code}
-                  style={{ top: spot.y, left: spot.x }}
-                  onClick={() => handleSpotSelect(spot.code)}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer group focus:outline-hidden transition-transform duration-200 z-20 ${
-                    isSelected ? 'scale-110 z-30' : 'hover:scale-105'
-                  }`}
-                  title={`Nhấp để chọn ${spot.code}`}
-                  type="button"
-                >
-                  <div
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all ${
-                      isSelected
-                        ? 'bg-blue-600 text-white ring-4 ring-blue-400/40 shadow-blue-500/50'
-                        : spot.isEv
-                        ? 'bg-emerald-600 text-white ring-2 ring-emerald-300'
-                        : 'bg-white text-slate-800 ring-1 ring-slate-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[15px]">
-                      {isSelected ? 'local_parking' : spot.isEv ? 'electric_car' : 'check_circle'}
-                    </span>
-                    <span>{isSelected ? `Vị trí ${spot.code} (Đã chọn)` : `${spot.code} (${spot.typeText})`}</span>
-                    {isSelected && <span className="material-symbols-outlined text-[14px]">arrow_forward</span>}
-                  </div>
-                  <div
-                    className={`relative w-5 h-5 rounded-full flex items-center justify-center mt-1 ${
-                      isSelected ? 'bg-blue-400/40 animate-pulse' : 'bg-white/30'
-                    }`}
-                  >
-                    <div
-                      className={`w-2.5 h-2.5 rounded-full ${
-                        isSelected ? 'bg-blue-500' : spot.isEv ? 'bg-emerald-500' : 'bg-slate-300'
-                      }`}
-                    ></div>
-                  </div>
-                </button>
-              );
-            })}
+                  if (cell.type === 'road') {
+                    return (
+                      <div
+                        key={`${cell.x}-${cell.y}-${idx}`}
+                        style={posStyle}
+                        className="min-w-12 min-h-12 rounded bg-slate-800/80 border border-dashed border-slate-700 flex items-center justify-center text-[10px] font-mono text-slate-500"
+                      >
+                        ══
+                      </div>
+                    );
+                  }
+                  if (cell.type === 'entry') {
+                    return (
+                      <div
+                        key={`${cell.x}-${cell.y}-${idx}`}
+                        style={posStyle}
+                        className="min-w-12 min-h-12 rounded bg-blue-900/60 border border-blue-500/60 flex items-center justify-center text-[10px] font-bold text-blue-200 gap-0.5"
+                      >
+                        <span>VÀO</span>
+                        <span className="material-symbols-outlined text-[12px]">east</span>
+                      </div>
+                    );
+                  }
+                  if (cell.type === 'exit') {
+                    return (
+                      <div
+                        key={`${cell.x}-${cell.y}-${idx}`}
+                        style={posStyle}
+                        className="min-w-12 min-h-12 rounded bg-rose-900/60 border border-rose-500/60 flex items-center justify-center text-[10px] font-bold text-rose-200 gap-0.5"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">east</span>
+                        <span>RA</span>
+                      </div>
+                    );
+                  }
+                  if (cell.type === 'wall' || cell.type === 'pillar') {
+                    return (
+                      <div
+                        key={`${cell.x}-${cell.y}-${idx}`}
+                        style={posStyle}
+                        className="min-w-12 min-h-12 rounded bg-slate-700/80 border border-slate-600 flex items-center justify-center text-[9px] text-slate-400 font-bold"
+                      >
+                        {cell.type === 'pillar' ? 'CỘT' : ''}
+                      </div>
+                    );
+                  }
+                  if (cell.type === 'slot' && cell.code) {
+                    const isSelected = selectedSpotCode === cell.code;
+                    const isAvailable = cell.state === 'Available';
+                    const isEv = cell.slotType === 'EVCharging';
+                    return (
+                      <button
+                        key={`${cell.code}-${idx}`}
+                        type="button"
+                        style={posStyle}
+                        disabled={!isAvailable}
+                        onClick={() => handleSpotSelect(cell.code!, cell.slotType)}
+                        title={
+                          isAvailable
+                            ? `Chọn ô ${cell.code} (${cell.slotType || 'Standard'})`
+                            : `Ô ${cell.code} (${cell.state || 'Không trống'})`
+                        }
+                        className={`min-w-12 min-h-12 rounded-lg flex flex-col items-center justify-center text-center transition-all border font-bold text-[10.5px] relative ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-400 shadow-lg scale-105 ring-2 ring-blue-300 z-10 cursor-pointer'
+                            : isAvailable
+                            ? 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-200 border-emerald-500/60 cursor-pointer'
+                            : 'bg-rose-500/25 text-rose-200 border-rose-500/75 cursor-not-allowed'
+                        }`}
+                      >
+                        <span>{cell.code}</span>
+                        {isEv && (
+                          <span className="material-symbols-outlined text-[11px] text-amber-400 absolute top-0.5 right-0.5">
+                            bolt
+                          </span>
+                        )}
+                        {!isAvailable && (
+                          <span className="material-symbols-outlined text-[12px] opacity-70">directions_car</span>
+                        )}
+                      </button>
+                    );
+                  }
+                  return <div key={`${cell.x}-${cell.y}-${idx}`} style={posStyle} className="min-w-12 min-h-12" />;
+                })}
+              </div>
+            ) : (
+              <div className="py-12 text-center text-xs text-slate-400 space-y-1">
+                <span className="material-symbols-outlined text-[32px] text-slate-500">grid_off</span>
+                <p>Chủ bãi chưa xuất bản sơ đồ 2D cho tầng này.</p>
+                <p className="text-[11px] text-slate-500">Bạn vẫn có thể đặt chỗ ở bên dưới (hệ thống tự động phân bổ ô trống).</p>
+              </div>
+            )}
           </div>
 
-          {/* 6. Quick Selection Cards (Danh sách ô trống gợi ý) */}
+          {/* 6. Quick Selection Cards (Danh sách ô trống gợi ý từ API thật) */}
           <div className="mt-6 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Danh sách ô trống gợi ý (Nhấp để chọn & cuộn xuống thanh toán)
+                Ô trống gợi ý trên tầng ({availableFloorSpots.length} ô khả dụng)
               </span>
               <span className="text-xs text-blue-600 flex items-center gap-1 font-semibold">
                 <span className="material-symbols-outlined text-[15px]">touch_app</span> Chạm vào ô để chọn
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {AVAILABLE_SPOTS.map((spot) => {
-                const isSelected = selectedSpotCode === spot.code;
-                return (
-                  <div
-                    key={spot.code}
-                    onClick={() => handleSpotSelect(spot.code)}
-                    className={`p-4 rounded-xl cursor-pointer transition-all duration-200 group shadow-xs flex flex-col justify-between ${
-                      isSelected
-                        ? 'border-2 border-blue-600 bg-blue-50/60 ring-2 ring-blue-100'
-                        : 'border border-slate-200 bg-white hover:border-blue-400 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span
-                          className={`px-2.5 py-0.5 rounded font-bold text-sm ${
-                            isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'
-                          }`}
-                        >
-                          {spot.code}
-                        </span>
-                        {spot.isEv ? (
-                          <span className="text-emerald-700 font-semibold text-xs flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">bolt</span> Sạc EV 120kW
-                          </span>
-                        ) : (
-                          <span className="text-slate-500 font-semibold text-xs flex items-center gap-1">
-                            <span className="material-symbols-outlined text-[14px]">check_circle</span> Trống
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500">{spot.desc}</p>
-                    </div>
-
+            {availableFloorSpots.length === 0 ? (
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-500">
+                Hiện chưa có ô trống cụ thể hiển thị trên tầng này — hệ thống sẽ tự động phân bổ ô trống khi bạn xác nhận đặt chỗ.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {availableFloorSpots.slice(0, 8).map((spot) => {
+                  const isSelected = selectedSpotCode === spot.code;
+                  const isEv = spot.slotType === 'EVCharging';
+                  return (
                     <div
-                      className={`mt-3 pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
+                      key={spot.code}
+                      onClick={() => handleSpotSelect(spot.code, spot.slotType)}
+                      className={`p-4 rounded-xl cursor-pointer transition-all duration-200 group shadow-xs flex flex-col justify-between ${
                         isSelected
-                          ? 'border-blue-200 text-blue-600'
-                          : 'border-slate-100 text-slate-500 group-hover:text-blue-600'
+                          ? 'border-2 border-blue-600 bg-blue-50/60 ring-2 ring-blue-100'
+                          : 'border border-slate-200 bg-white hover:border-blue-400 hover:bg-slate-50'
                       }`}
                     >
-                      <span>{isSelected ? 'Vị trí đang chọn' : 'Chọn & Đặt chỗ'}</span>
-                      <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">
-                        south
-                      </span>
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span
+                            className={`px-2.5 py-0.5 rounded font-bold text-sm ${
+                              isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-800'
+                            }`}
+                          >
+                            {spot.code}
+                          </span>
+                          {isEv ? (
+                            <span className="text-emerald-700 font-semibold text-xs flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">bolt</span> Sạc EV
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 font-semibold text-xs flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[14px]">check_circle</span> Trống
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {selectedFloorLabel} • {spot.maxVehicleType || 'Tiêu chuẩn'}
+                        </p>
+                      </div>
+
+                      <div
+                        className={`mt-3 pt-2.5 border-t flex items-center justify-between text-xs font-bold ${
+                          isSelected
+                            ? 'border-blue-200 text-blue-600'
+                            : 'border-slate-100 text-slate-500 group-hover:text-blue-600'
+                        }`}
+                      >
+                        <span>{isSelected ? 'Vị trí đang chọn' : 'Chọn & Đặt chỗ'}</span>
+                        <span className="material-symbols-outlined text-[16px] group-hover:translate-x-1 transition-transform">
+                          south
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Selected Spot Summary Banner */}
@@ -824,7 +1034,7 @@ export const LotDetailPage: React.FC = () => {
                   Hoàn tất thông tin đặt chỗ & Thanh toán cho vị trí đã chọn
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Vị trí đang chọn: <strong className="text-blue-600 font-bold">{currentSpot.code} (Hầm {selectedFloor})</strong> • Hệ thống tự động mở barrier bằng biển số xe
+                  Vị trí đang chọn: <strong className="text-blue-600 font-bold">{currentSpot.code} ({selectedFloorLabel})</strong> • Hệ thống tự động mở barrier bằng biển số xe
                 </p>
               </div>
             </div>
@@ -1064,7 +1274,7 @@ export const LotDetailPage: React.FC = () => {
                     </div>
                     <div>
                       <span className="text-xs font-bold text-slate-900">
-                        Vị trí {currentSpot.code} • Hầm {selectedFloor}
+                        Vị trí {currentSpot.code} • {selectedFloorLabel}
                       </span>
                       <p className="text-[11px] text-slate-500">{lot?.name || 'Landmark 81 Garage'}</p>
                     </div>
@@ -1156,7 +1366,7 @@ export const LotDetailPage: React.FC = () => {
                 {/* Total */}
                 <div className="flex items-baseline justify-between">
                   <span className="text-sm font-bold text-slate-900">TỔNG THANH TOÁN:</span>
-                  <span className="text-2xl font-extrabold text-blue-600 tracking-tight">
+                  <span className="text-2xl font-extrabold text-rose-600 tracking-tight">
                     {totalAmount.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
@@ -1232,8 +1442,8 @@ export const LotDetailPage: React.FC = () => {
                     lot?.canBook === false
                       ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                       : bookingBusy
-                        ? 'bg-blue-400 text-white cursor-wait shadow-none'
-                        : 'bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20 cursor-pointer'
+                        ? 'bg-rose-400 text-white cursor-wait shadow-none'
+                        : 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-500/20 cursor-pointer'
                   }`}
                 >
                   <span className="material-symbols-outlined text-[20px]">{lot?.canBook === false ? 'block' : bookingBusy ? 'hourglass_top' : 'lock'}</span>
@@ -1281,7 +1491,7 @@ export const LotDetailPage: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Vị trí đỗ:</span>
-                <span className="font-bold text-emerald-600">Ô {bookingResult?.slotCode || currentSpot.code} (Hầm {selectedFloor})</span>
+                <span className="font-bold text-emerald-600">Ô {bookingResult?.slotCode || currentSpot.code} ({selectedFloorLabel})</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Thời gian:</span>

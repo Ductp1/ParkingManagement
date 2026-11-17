@@ -45,11 +45,24 @@ public static class DependencyInjection
         services.AddScoped<IBookingAbuseQueries, BookingAbuseQueries>();
         // US-052: đẩy booking mới về PMS của bãi qua ParkingService ("Services:ParkingService:BaseUrl").
         var parkingServiceUrl = configuration["Services:ParkingService:BaseUrl"];
+        var parkingBaseUri = new Uri((string.IsNullOrWhiteSpace(parkingServiceUrl) ? "http://localhost:5103" : parkingServiceUrl.TrimEnd('/')) + "/");
         services.AddHttpClient<ILotIntegrationClient, ParkingIntegrationClient>(client =>
         {
-            client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(parkingServiceUrl) ? "http://localhost:5103" : parkingServiceUrl.TrimEnd('/')) + "/");
+            client.BaseAddress = parkingBaseUri;
             client.Timeout = TimeSpan.FromSeconds(5);
         });
+        services.AddHttpClient(ParkingSlotSyncClient.ParkingClientName, client =>
+        {
+            client.BaseAddress = parkingBaseUri;
+            client.Timeout = TimeSpan.FromSeconds(2);
+        });
+        var notificationServiceUrl = configuration["Services:NotificationService:BaseUrl"];
+        services.AddHttpClient(ParkingSlotSyncClient.NotifyClientName, client =>
+        {
+            client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(notificationServiceUrl) ? "http://localhost:5106" : notificationServiceUrl.TrimEnd('/')) + "/");
+            client.Timeout = TimeSpan.FromSeconds(2);
+        });
+        services.AddScoped<IParkingSlotSyncClient, ParkingSlotSyncClient>();
         // US-066 (luat 4): dang ky thue bao nguyen tu theo han muc + doc Q tu GateService.
         services.AddScoped<IMonthlyPassRegistrationStore, MonthlyPassRegistrationStore>();
         services.AddScoped<ILotSubscriberQuotaProvider, GateCapacityQuotaProvider>();

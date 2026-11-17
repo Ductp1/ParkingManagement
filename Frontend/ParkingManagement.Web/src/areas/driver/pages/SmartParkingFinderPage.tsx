@@ -5,6 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { fetchVehicles } from '@/store/slices/vehicleSlice';
+import { useParkingHub, type SlotStateChangedEvent } from '@/realtime/useParkingHub';
 import { parkingApi } from '@/api/parkingApi';
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
@@ -128,6 +129,7 @@ export const SmartParkingFinderPage: React.FC = () => {
   const [selectedFloorId, setSelectedFloorId] = useState<number | null>(null);
   const [floorLayout, setFloorLayout] = useState<FloorLayoutDto | null>(null);
   const [selectedSlotCode, setSelectedSlotCode] = useState<string | null>(null);
+  const [slotConflictNotice, setSlotConflictNotice] = useState<string | null>(null);
   const [isLoadingLayout, setIsLoadingLayout] = useState<boolean>(false);
 
   // 7. Modal Checkout (Dịch vụ tiện ích & Phương thức thanh toán thật)
@@ -560,6 +562,66 @@ export const SmartParkingFinderPage: React.FC = () => {
     window.open(url, '_blank');
   };
 
+  const handleSlotStateChanged = useCallback(
+    (event: SlotStateChangedEvent) => {
+      let affectedCode: string | null = null;
+      setAvailableFloors((prev) =>
+        prev.map((fl) => ({
+          ...fl,
+          slots: fl.slots?.map((s) => {
+            if (s.id === event.slotId) {
+              affectedCode = s.code;
+              return { ...s, state: event.newState };
+            }
+            return s;
+          }),
+        }))
+      );
+
+      const currentFloor = availableFloors.find((f) => f.id === selectedFloorId);
+      if (!affectedCode && currentFloor?.slots) {
+        const found = currentFloor.slots.find((s) => s.id === event.slotId);
+        if (found) affectedCode = found.code;
+      }
+      if (!affectedCode) return;
+
+      setFloorLayout((prev) => {
+        if (!prev) return prev;
+        const nextCells = prev.cells.map((c) =>
+          c.type === 'slot' && c.code === affectedCode ? { ...c, state: event.newState } : c
+        );
+        if (selectedFloorId && layoutCacheRef.current[selectedFloorId]) {
+          layoutCacheRef.current[selectedFloorId] = { ...prev, cells: nextCells };
+        }
+
+        if (event.newState !== 'Available' && selectedSlotCode === affectedCode) {
+          const takenCell = nextCells.find((c) => c.type === 'slot' && c.code === affectedCode);
+          const availCells = nextCells.filter((c) => c.type === 'slot' && c.state === 'Available' && c.code);
+          if (availCells.length > 0 && takenCell) {
+            availCells.sort((a, b) => {
+              const distA = (a.x - takenCell.x) ** 2 + (a.y - takenCell.y) ** 2;
+              const distB = (b.x - takenCell.x) ** 2 + (b.y - takenCell.y) ** 2;
+              return distA - distB;
+            });
+            const nearest = availCells[0];
+            setSelectedSlotCode(nearest.code ?? null);
+            setHasEvService(nearest.slotType === 'EVCharging');
+            setSlotConflictNotice(
+              `Ô ${affectedCode} vừa được khách khác đặt — hệ thống đã tự động chuyển bạn sang ô trống gần nhất: ${nearest.code}.`
+            );
+          } else {
+            setSelectedSlotCode(null);
+            setSlotConflictNotice(`Ô ${affectedCode} vừa được khách khác đặt và tầng này hiện không còn ô trống.`);
+          }
+        }
+        return { ...prev, cells: nextCells };
+      });
+    },
+    [availableFloors, selectedFloorId, selectedSlotCode]
+  );
+
+  useParkingHub(selectedLotId ?? 0, undefined, undefined, handleSlotStateChanged);
+
   const handleSlotClick = (cell: LayoutCellDto) => {
     if (cell.type !== 'slot') return;
     if (cell.state === 'Occupied') {
@@ -647,6 +709,7 @@ export const SmartParkingFinderPage: React.FC = () => {
         text:
           axiosErr?.response?.data?.detail ||
           axiosErr?.response?.data?.title ||
+          (err instanceof Error && err.message) ||
           'Mã không tồn tại hoặc đã hết lượt áp dụng',
         isError: true,
       });
@@ -683,6 +746,7 @@ export const SmartParkingFinderPage: React.FC = () => {
 
     setIsBookingSubmitting(true);
     const activeFloor = availableFloors.find((f) => f.id === selectedFloorId);
+    const selectedSlotObj = activeFloor?.slots?.find((s) => s.code === selectedSlotCode);
 
     try {
       let ownerProfileId = 0;
@@ -701,6 +765,7 @@ export const SmartParkingFinderPage: React.FC = () => {
         parkingLotId: currentSelectedLot.id,
         ownerProfileId,
         parkingLotName: currentSelectedLot.name,
+        slotId: selectedSlotObj?.id ?? null,
         slotCode: selectedSlotCode,
         allocationMode: 'Dynamic',
         startAtUtc: new Date(startAtLocal).toISOString(),
@@ -711,6 +776,18 @@ export const SmartParkingFinderPage: React.FC = () => {
         payAtGate: paymentMethod === 'gate',
       });
       setBookingResult(result);
+      if (selectedSlotObj) {
+        setFloorLayout((prev) =>
+          prev
+            ? {
+                ...prev,
+                cells: prev.cells.map((c) =>
+                  c.type === 'slot' && c.code === selectedSlotObj.code ? { ...c, state: 'Reserved' } : c
+                ),
+              }
+            : prev
+        );
+      }
 
       // 1. Kích hoạt SignalR real-time qua NotificationService (port 5106 / Gateway 5000)
       try {
@@ -745,6 +822,7 @@ export const SmartParkingFinderPage: React.FC = () => {
           setPaymentInitError(
             axiosErr?.response?.data?.detail ||
               axiosErr?.response?.data?.title ||
+              (payErr instanceof Error && payErr.message) ||
               'Đã tạo booking nhưng chưa khởi tạo được cổng VNPAY — bạn có thể thanh toán lại từ Lịch sử đặt chỗ.'
           );
         }
@@ -767,6 +845,7 @@ export const SmartParkingFinderPage: React.FC = () => {
           setPaymentInitError(
             axiosErr?.response?.data?.detail ||
               axiosErr?.response?.data?.title ||
+              (payErr instanceof Error && payErr.message) ||
               'Đã tạo booking nhưng chưa tạo được mã VietQR.'
           );
         }
@@ -779,6 +858,7 @@ export const SmartParkingFinderPage: React.FC = () => {
       setBookingError(
         axiosErr?.response?.data?.detail ||
           axiosErr?.response?.data?.title ||
+          (err instanceof Error && err.message) ||
           'Không tạo được booking — vui lòng thử lại sau.'
       );
     } finally {
@@ -1459,13 +1539,29 @@ export const SmartParkingFinderPage: React.FC = () => {
                       <span className="w-3 h-3 rounded bg-blue-600"></span> Đang chọn
                     </span>
                     <span className="flex items-center gap-1">
-                      <span className="w-3 h-3 rounded bg-slate-400"></span> Đã đỗ (Occupied)
+                      <span className="w-3 h-3 rounded bg-rose-500"></span> Đã đặt / Có xe
                     </span>
                     <span className="flex items-center gap-1">
                       <span className="w-3.5 h-3.5 rounded bg-amber-500 flex items-center justify-center text-white"><span className="material-symbols-outlined text-[10px]">bolt</span></span> Sạc EV
                     </span>
                   </div>
                 </div>
+
+                {slotConflictNotice && (
+                  <div className="mb-2 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold flex items-center justify-between gap-2 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-amber-600">swap_horiz</span>
+                      <span>{slotConflictNotice}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSlotConflictNotice(null)}
+                      className="text-amber-600 hover:text-amber-900 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">close</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Khung Ma trận lưới (Matrix Board) */}
                 <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-4 overflow-auto flex items-center justify-center shadow-inner relative">
@@ -1537,7 +1633,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                                   ? 'bg-blue-600 text-white border-blue-700 shadow-md scale-105 ring-2 ring-blue-300'
                                   : isAvailable
                                   ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border-emerald-300'
-                                  : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed opacity-60'
+                                  : 'bg-rose-100 text-rose-700 border-rose-300 cursor-not-allowed'
                               }`}
                             >
                               <span>{cell.code}</span>
@@ -1899,9 +1995,9 @@ export const SmartParkingFinderPage: React.FC = () => {
                     <span>-{voucherDiscount.toLocaleString('vi-VN')} đ</span>
                   </div>
                 )}
-                <div className="flex justify-between items-baseline pt-1 border-t border-slate-200">
-                  <span className="font-extrabold text-slate-900 text-sm">Tổng cộng:</span>
-                  <span className="text-xl font-black text-blue-700">{totalAmount.toLocaleString('vi-VN')} đ</span>
+                <div className="flex justify-between items-baseline pt-1.5 border-t border-rose-100">
+                  <span className="font-extrabold text-slate-900 text-sm">Tổng thanh toán:</span>
+                  <span className="text-xl font-black text-rose-600">{totalAmount.toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
 
@@ -1924,7 +2020,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                   type="button"
                   disabled={isBookingSubmitting}
                   onClick={handleConfirmCheckout}
-                  className="py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-bold text-xs transition-all shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-bold text-xs transition-all shadow-sm shadow-rose-500/20 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {isBookingSubmitting ? (
                     <>

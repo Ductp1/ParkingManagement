@@ -312,7 +312,8 @@ public sealed class CreateBookingUseCase(
     ILotIntegrationClient lotIntegration,
     TimeProvider timeProvider,
     ILotOperationalStatusProvider? lotStatusProvider = null,
-    ILogger<CreateBookingUseCase>? logger = null) : ICreateBookingUseCase
+    ILogger<CreateBookingUseCase>? logger = null,
+    IParkingSlotSyncClient? slotSync = null) : ICreateBookingUseCase
 {
     public async Task<BookingDetailDto> ExecuteAsync(CreateBookingCommand command, CancellationToken cancellationToken = default)
     {
@@ -437,6 +438,13 @@ public sealed class CreateBookingUseCase(
             booking.StartAtUtc, booking.EndAtUtc, booking.TotalAmount, booking.HoldExpiresAtUtc!.Value));
         await repository.SaveChangesAsync(cancellationToken);
 
+        // Đồng bộ trạng thái slot sang Reserved ở ParkingService + broadcast SignalR SlotStateChanged cho các khách khác đang xem.
+        if (slotSync is not null && booking.SlotId is > 0)
+        {
+            await slotSync.SyncSlotStateAsync(
+                booking.ParkingLotId, booking.SlotId.Value, "Reserved", "Booked", booking.Id, cancellationToken);
+        }
+
         // US-052 (UC-51 bước 1): đẩy booking mới về PMS của bãi (nếu bãi cấu hình tích hợp Mức 1).
         // Lỗi đẩy webhook KHÔNG được làm hỏng booking – chỉ ghi log để đối soát/retry sau.
         try
@@ -475,7 +483,8 @@ public sealed class CancelBookingUseCase(
     IBookingRepository repository,
     IBookingEventPublisher events,
     BookingAbuseGuard abuseGuard,
-    TimeProvider timeProvider) : ICancelBookingUseCase
+    TimeProvider timeProvider,
+    IParkingSlotSyncClient? slotSync = null) : ICancelBookingUseCase
 {
     public async Task<CancellationResultDto> ExecuteAsync(string code, CancelBookingCommand command, CancellationToken cancellationToken = default)
     {
@@ -504,6 +513,12 @@ public sealed class CancelBookingUseCase(
             booking.ParkingLotName, booking.StartAtUtc, refund, command.Reason ?? decision.Reason));
 
         await repository.SaveChangesAsync(cancellationToken);
+
+        if (slotSync is not null && booking.SlotId is > 0)
+        {
+            await slotSync.SyncSlotStateAsync(
+                booking.ParkingLotId, booking.SlotId.Value, "Available", "Freed", booking.Id, cancellationToken);
+        }
 
         return new CancellationResultDto(booking.Code, booking.Status.ToString(), decision.RefundPercent, refund, decision.Reason);
     }
