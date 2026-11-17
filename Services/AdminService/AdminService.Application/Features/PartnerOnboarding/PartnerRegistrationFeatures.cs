@@ -183,7 +183,7 @@ public sealed partial class SubmitPartnerApplicationUseCase(
         var businessType = request.BusinessType is { } bt && Enum.IsDefined(bt)
             ? bt
             : throw new ValidationException("Vui lòng chọn loại hình doanh nghiệp.");
-        var businessName = Text(request.BusinessName, "Tên doanh nghiệp / hộ kinh doanh", 300);
+        var businessName = Text(request.BusinessName, "Tên doanh nghiệp / hộ kinh doanh", 200);
         var taxCode = TaxCode(request.TaxCode);
         var businessAddress = Text(request.BusinessAddress, "Địa chỉ trụ sở", 500);
         var representative = Text(request.LegalRepresentativeName, "Người đại diện pháp luật", 200);
