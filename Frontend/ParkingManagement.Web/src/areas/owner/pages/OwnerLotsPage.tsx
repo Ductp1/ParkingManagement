@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Building2,
   Plus,
@@ -9,6 +9,7 @@ import {
   FolderTree,
   Sliders,
   Clock,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
@@ -56,6 +57,7 @@ import { LotAttributesEditor } from '../components/operating/LotAttributesEditor
 
 export const OwnerLotsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { user } = useAppSelector((s) => s.auth);
   const ownerProfileId = user?.id || 2;
 
@@ -777,22 +779,22 @@ export const OwnerLotsPage: React.FC = () => {
             {activeTab === 'structure' ? (
               <>
                 <Building2 size={13} />
-                HẠ TẦNG & CẤU TRÚC PHÂN TẦNG (US-058)
+                HẠ TẦNG & CẤU TRÚC PHÂN TẦNG
               </>
             ) : activeTab === 'capacity' ? (
               <>
                 <Sliders size={13} />
-                SỨC CHỨA & PHÂN BỔ REAL-TIME (UI-26)
+                SỨC CHỨA & PHÂN BỔ REAL-TIME
               </>
             ) : activeTab === 'operating' ? (
               <>
                 <Clock size={13} />
-                LỊCH HOẠT ĐỘNG & GIỜ MỞ CỬA (US-062)
+                LỊCH HOẠT ĐỘNG & GIỜ MỞ CỬA
               </>
             ) : (
               <>
                 <Sparkles size={13} />
-                TIỆN ÍCH & DỊCH VỤ VẬN HÀNH (US-064)
+                TIỆN ÍCH & DỊCH VỤ VẬN HÀNH
               </>
             )}
           </div>
@@ -816,10 +818,10 @@ export const OwnerLotsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Hành động: Chọn bãi đỗ & Thêm bãi mới */}
-        <div className="flex flex-wrap items-center gap-3">
+        {/* Hành động: Chọn bãi đỗ & Thêm bãi mới (Ngang hàng) */}
+        <div className="flex items-center gap-3 shrink-0">
           {lots.length > 0 && (
-            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs h-11">
               <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
               <select
                 disabled={loadingLots}
@@ -839,7 +841,7 @@ export const OwnerLotsPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 cursor-pointer"
+            className="h-11 px-5 min-w-[210px] rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
             <Plus size={18} />
             <span>Đăng ký bãi mới</span>
@@ -896,60 +898,74 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          TAB NAVIGATION SWITCHER (4 TABS)
+          TAB NAVIGATION SWITCHER (4 TABS BÊN TRÁI & NÚT KYB RIÊNG BÊN PHẢI)
       ====================================================================== */}
       {selectedLot && (
-        <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-2xs flex-wrap">
-          <button
-            type="button"
-            onClick={() => handleTabChange('structure')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'structure'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
-          >
-            <FolderTree size={16} />
-            <span>Sơ đồ & Phân tầng (US-058)</span>
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Thanh 4 Tabs bên trái */}
+          <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/80 shadow-2xs flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleTabChange('structure')}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'structure'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <FolderTree size={16} />
+              <span>Sơ đồ & Phân tầng</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('capacity')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'capacity'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
-          >
-            <Sliders size={16} />
-            <span>Sức chứa & Vùng đệm (UI-26)</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('capacity')}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'capacity'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Sliders size={16} />
+              <span>Sức chứa & Vùng đệm</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => handleTabChange('operating')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'operating'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
-          >
-            <Clock size={16} />
-            <span>Lịch hoạt động (US-062)</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('operating')}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'operating'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Clock size={16} />
+              <span>Lịch hoạt động</span>
+            </button>
 
+            <button
+              type="button"
+              onClick={() => handleTabChange('amenities')}
+              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'amenities'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <Sparkles size={16} />
+              <span>Tiện ích bãi xe</span>
+            </button>
+          </div>
+
+          {/* Nút Thẩm định cơ sở (KYB) nằm riêng bên phải, thẳng cột với nút Đăng ký bãi */}
           <button
             type="button"
-            onClick={() => handleTabChange('amenities')}
-            className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'amenities'
-                ? 'bg-white text-blue-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
+            onClick={() => navigate(`/owner/kyb?lotId=${selectedLot.id}`)}
+            className="h-11 px-5 min-w-[210px] rounded-xl bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 hover:border-blue-300 transition-all shadow-xs font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shrink-0 self-start sm:self-auto"
+            title="Hồ sơ pháp lý & Thẩm định cơ sở hạ tầng bãi xe (KYB)"
           >
-            <Sparkles size={16} />
-            <span>Tiện ích bãi xe (US-064)</span>
+            <ShieldCheck size={18} className="text-blue-600" />
+            <span>Thẩm định cơ sở (KYB)</span>
           </button>
         </div>
       )}

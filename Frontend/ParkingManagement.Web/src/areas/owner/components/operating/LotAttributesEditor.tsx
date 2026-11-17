@@ -88,7 +88,7 @@ export const LotAttributesEditor: React.FC<LotAttributesEditorProps> = ({
               <SlidersHorizontal size={18} />
             </span>
             <h3 className="text-base font-bold text-slate-900">
-              Thông Tin Vận Hành & Hỗ Trợ Bãi Đỗ (US-064)
+              Thông Tin Vận Hành & Hỗ Trợ Bãi Đỗ
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-1">

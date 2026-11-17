@@ -165,7 +165,7 @@ export const RateCardModal: React.FC<RateCardModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Thiết lập Bảng giá lũy tiến mới</h3>
-              <p className="text-xs text-slate-500">Cấu hình các block giờ và hệ số phụ thu (UI-22 / US-070)</p>
+              <p className="text-xs text-slate-500">Cấu hình các block giờ và hệ số phụ thu</p>
             </div>
           </div>
           <button
@@ -325,7 +325,7 @@ export const RateCardModal: React.FC<RateCardModalProps> = ({
           <div className="space-y-3">
             <span className="font-bold text-slate-900 uppercase tracking-wider text-[11px] flex items-center gap-1.5 border-b border-slate-200 pb-2">
               <Sliders size={14} className="text-blue-600" />
-              Cấu hình hệ số phụ thu & Giới hạn trần ngày (US-071)
+              Cấu hình hệ số phụ thu & Giới hạn trần ngày
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

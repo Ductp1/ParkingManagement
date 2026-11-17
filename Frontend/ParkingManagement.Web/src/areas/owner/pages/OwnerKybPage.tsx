@@ -525,7 +525,7 @@ export const OwnerKybPage: React.FC = () => {
         <div className="flex flex-col gap-2 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            HỒ SƠ PHÁP LÝ & THẨM ĐỊNH • KYB VERIFICATION (US-034)
+            HỒ SƠ PHÁP LÝ & THẨM ĐỊNH • KYB VERIFICATION
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Thẩm định Cơ sở Bãi đỗ xe
@@ -538,7 +538,7 @@ export const OwnerKybPage: React.FC = () => {
         {/* Hành động: Chọn bãi đỗ & Thêm bãi mới */}
         <div className="flex flex-wrap items-center gap-3">
           {lots.length > 0 && (
-            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs h-11">
               <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
               <select
                 disabled={loadingLots || busyAction}
@@ -558,7 +558,7 @@ export const OwnerKybPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 cursor-pointer"
+            className="h-11 px-5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
             <Plus size={18} />
             <span>Thêm bãi xe mới</span>
@@ -974,26 +974,26 @@ export const OwnerKybPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setCurrentStep((s) => Math.max(1, s - 1))}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-1.5 cursor-pointer"
+                    className="min-w-[180px] h-11 px-5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                   >
                     <ArrowLeft size={14} />
-                    Quay lại Bước {currentStep - 1}
+                    <span>Quay lại Bước {currentStep - 1}</span>
                   </button>
                 )}
               </div>
 
               {/* Nhóm nút hành động chính */}
-              <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap justify-end">
+              <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap justify-end">
                 {/* Nút Lưu nháp (chỉ khi form chưa bị khóa) */}
                 {!isLocked && (
                   <button
                     type="button"
                     disabled={busyAction}
                     onClick={handleSaveDraft}
-                    className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                    className="min-w-[180px] h-11 px-5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
                   >
                     <Save size={14} />
-                    {busyAction ? 'Đang lưu…' : 'Lưu bản nháp'}
+                    <span>{busyAction ? 'Đang lưu…' : 'Lưu bản nháp'}</span>
                   </button>
                 )}
 
@@ -1002,9 +1002,9 @@ export const OwnerKybPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
+                    className="min-w-[180px] h-11 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    Tiếp tục Bước {currentStep + 1}
+                    <span>Tiếp tục Bước {currentStep + 1}</span>
                     <ArrowRight size={14} />
                   </button>
                 ) : (
@@ -1014,17 +1014,17 @@ export const OwnerKybPage: React.FC = () => {
                       type="button"
                       disabled={busyAction}
                       onClick={handleSubmitKyb}
-                      className="px-7 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white text-xs font-bold shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                      className="min-w-[210px] h-11 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white text-xs font-bold shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
                     >
                       {isResubmitMode || isEditMode ? (
                         <>
                           <RotateCcw size={15} />
-                          {busyAction ? 'Đang gửi lại…' : 'Cập nhật & Nộp Hồ sơ Thẩm định'}
+                          <span>{busyAction ? 'Đang gửi lại…' : 'Cập nhật & Nộp Hồ sơ'}</span>
                         </>
                       ) : (
                         <>
                           <Send size={15} />
-                          {busyAction ? 'Đang nộp…' : 'Nộp Hồ Sơ Thẩm Định'}
+                          <span>{busyAction ? 'Đang nộp…' : 'Nộp Hồ Sơ Thẩm Định'}</span>
                         </>
                       )}
                     </button>
@@ -1039,10 +1039,10 @@ export const OwnerKybPage: React.FC = () => {
                           text: 'Đã mở khóa! Bạn có thể chỉnh sửa và tự thêm tệp từ Bước 1.',
                         });
                       }}
-                      className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
+                      className="min-w-[210px] h-11 px-6 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <RotateCcw size={14} />
-                      Chỉnh sửa / Cập nhật tài liệu mới
+                      <span>Chỉnh sửa / Cập nhật</span>
                     </button>
                   )
                 )}

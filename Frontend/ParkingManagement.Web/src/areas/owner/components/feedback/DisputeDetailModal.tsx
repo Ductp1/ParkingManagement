@@ -302,7 +302,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
               <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-3.5 text-xs text-blue-900 leading-relaxed">
                 <p className="font-semibold flex items-center gap-1.5 mb-1 text-blue-950">
                   <ShieldAlert className="w-4 h-4 text-blue-600" />
-                  Quyền và trách nhiệm giải trình của chủ bãi (US-089 AC1)
+                  Quyền và trách nhiệm giải trình của chủ bãi
                 </p>
                 Quý chủ bãi có 48 giờ kể từ lúc khiếu nại được tạo để phản hồi giải trình kèm hình ảnh camera,
                 nhật ký barrier hoặc thỏa thuận trực tiếp. Sau 48 giờ, hệ thống sẽ tự động chuyển cấp cho Admin nền tảng xử lý.
@@ -385,7 +385,7 @@ export const DisputeDetailModal: React.FC<DisputeDetailModalProps> = ({
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition"
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span>{loadingRefundBooking ? 'Đang kiểm tra...' : 'Hoàn tiền bồi hoàn (UI-24)'}</span>
+                  <span>{loadingRefundBooking ? 'Đang kiểm tra...' : 'Hoàn tiền bồi hoàn'}</span>
                 </button>
 
                 <div className="flex items-center gap-3">

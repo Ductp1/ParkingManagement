@@ -63,7 +63,7 @@ export const RejectBookingModal: React.FC<RejectBookingModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Từ chối đơn đặt chỗ</h3>
-              <p className="text-xs text-rose-600 font-medium">Bãi Mức 0 (Thủ công - US-031)</p>
+              <p className="text-xs text-rose-600 font-medium">Bãi Mức 0 (Thủ công)</p>
             </div>
           </div>
           <button

@@ -255,7 +255,7 @@ export const OwnerHomePage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/owner/revenue')}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center gap-2 shadow-xs cursor-pointer"
+            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-blue-600">
               analytics
@@ -266,7 +266,7 @@ export const OwnerHomePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsExitModalOpen(true)}
-            className="px-3.5 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-sm font-semibold flex items-center gap-1.5 shadow-xs cursor-pointer"
+            className="h-11 px-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-sm font-semibold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-rose-600">
               logout
@@ -277,7 +277,7 @@ export const OwnerHomePage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/owner/kyb')}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 cursor-pointer"
+            className="h-11 px-5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer"
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
             <span>Đăng ký bãi mới</span>
@@ -302,11 +302,11 @@ export const OwnerHomePage: React.FC = () => {
 
       {/* ===== KHỐI 1: 4 THẺ CHỈ SỐ TELEMETRY RIBBON DỰA TRÊN DỮ LIỆU THỰC ===== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Doanh thu gộp */}
+        {/* Doanh thu */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
-              Doanh thu gộp (Gross)
+              Doanh thu
             </span>
 
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -332,11 +332,11 @@ export const OwnerHomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Doanh thu thuần */}
+        {/* Lợi nhuận (Thực nhận) */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
-              Doanh thu thuần (Net)
+              Lợi nhuận (Thực nhận)
             </span>
 
             <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -362,11 +362,11 @@ export const OwnerHomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Hoa hồng nền tảng */}
+        {/* Chi phí (Nền tảng, thuế & phát sinh) */}
         <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-3 hover:border-slate-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase text-slate-500 font-bold tracking-wider">
-              Hoa hồng nền tảng
+              Chi phí (Nền tảng, thuế & phát sinh)
             </span>
 
             <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">

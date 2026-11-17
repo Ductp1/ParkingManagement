@@ -100,7 +100,7 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
   Owner: [
     { label: 'Tổng quan', path: '/owner', icon: 'analytics' },
     { label: 'Bãi đỗ & Sơ đồ', path: '/owner/lots', icon: 'view_quilt' },
-    { label: 'Đặt chỗ & Duyệt', path: '/owner/bookings', icon: 'event_available' },
+    { label: 'Lịch sử phê duyệt', path: '/owner/bookings', icon: 'history' },
     { label: 'Doanh thu & Đối soát', path: '/owner/revenue', icon: 'account_balance_wallet' },
     { label: 'Bảng giá', path: '/owner/pricing', icon: 'payments' },
     {
@@ -125,12 +125,6 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
           path: '/owner/kyb',
           icon: 'verified',
           description: 'Quản lý hồ sơ pháp lý chủ bãi',
-        },
-        {
-          label: 'Tích hợp PMS / API',
-          path: '/owner/integrations',
-          icon: 'integration_instructions',
-          description: 'Khóa API & cấu hình Webhook',
         },
       ],
     },

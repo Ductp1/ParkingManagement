@@ -197,13 +197,13 @@ export const OwnerFeedbackPage: React.FC = () => {
         <div className="flex flex-col gap-2 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            CHĂM SÓC KHÁCH HÀNG • GIẢI TRÌNH TRANH CHẤP & ĐÁNH GIÁ (US-089)
+            CHĂM SÓC KHÁCH HÀNG • GIẢI TRÌNH TRANH CHẤP & ĐÁNH GIÁ
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Phản hồi Khiếu nại & Đánh giá
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed">
-            Giải trình tranh chấp trong 48 giờ (US-089) và tương tác chăm sóc khách hàng qua đánh giá bãi xe (US-094) trên hệ thống ParkMaster.
+            Giải trình tranh chấp trong 48 giờ và tương tác chăm sóc khách hàng qua đánh giá bãi xe trên hệ thống ParkMaster.
           </p>
         </div>
 
