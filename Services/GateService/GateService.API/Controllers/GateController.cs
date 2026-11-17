@@ -1,5 +1,6 @@
 using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
+using GateService.Application.Features.PlateRecognition;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GateService.API.Controllers;
@@ -44,6 +45,22 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
     [HttpPost("check-out")]
     public async Task<ActionResult<CheckOutResultDto>> CheckOut([FromBody] CheckOutCommand command, CancellationToken cancellationToken)
         => Ok(await checkOut.ExecuteAsync(command, cancellationToken));
+
+    /// <summary>POST /api/v1/gate/plate-scan (multipart, field "image") – đọc biển số từ ảnh camera/tải lên qua Plate Recognizer.</summary>
+    [HttpPost("plate-scan")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(5_000_000)]
+    [ProducesResponseType<PlateScanResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<PlateScanResultDto>> PlateScan(
+        IFormFile image, [FromServices] IScanPlateImageUseCase scanPlate, CancellationToken cancellationToken)
+    {
+        if (image.Length == 0 || !image.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new ProblemDetails { Title = "Dữ liệu không hợp lệ", Detail = "Vui lòng gửi một file ảnh." });
+        await using var stream = image.OpenReadStream();
+        return Ok(await scanPlate.ExecuteAsync(stream, image.FileName, cancellationToken));
+    }
 
     /// <summary>
     /// GET /api/v1/gate/console/bookings?parkingLotId=1&amp;staffUserId=4&amp;search=BK-0002 – UC-20 (US-076).
