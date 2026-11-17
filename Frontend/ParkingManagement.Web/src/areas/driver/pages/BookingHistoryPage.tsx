@@ -94,6 +94,8 @@ export const BookingHistoryPage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'completed' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 5;
 
   const fetchBookings = useCallback(async () => {
     if (!user?.id) {
@@ -422,22 +424,36 @@ export const BookingHistoryPage: React.FC = () => {
     }
   };
 
-  // Filter bookings
-  const filteredBookings = bookings.filter((b) => {
-    if (activeTab === 'upcoming' && b.status !== 'upcoming') return false;
-    if (activeTab === 'completed' && b.status !== 'completed') return false;
-    if (activeTab === 'cancelled' && b.status !== 'cancelled') return false;
+  // Filter & sort bookings (mới nhất lên đầu)
+  const filteredBookings = bookings
+    .filter((b) => {
+      if (activeTab === 'upcoming' && b.status !== 'upcoming') return false;
+      if (activeTab === 'completed' && b.status !== 'completed') return false;
+      if (activeTab === 'cancelled' && b.status !== 'cancelled') return false;
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchCode = b.code.toLowerCase().includes(q);
-      const matchLocation = b.location.toLowerCase().includes(q);
-      const matchPlate = b.plate.toLowerCase().includes(q);
-      if (!matchCode && !matchLocation && !matchPlate) return false;
-    }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchCode = b.code.toLowerCase().includes(q);
+        const matchLocation = b.location.toLowerCase().includes(q);
+        const matchPlate = b.plate.toLowerCase().includes(q);
+        if (!matchCode && !matchLocation && !matchPlate) return false;
+      }
 
-    return true;
-  });
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = a.startAtUtc ? new Date(a.startAtUtc).getTime() : 0;
+      const timeB = b.startAtUtc ? new Date(b.startAtUtc).getTime() : 0;
+      if (timeB !== timeA) return timeB - timeA;
+      return Number(b.id) - Number(a.id);
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedBookings = filteredBookings.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -472,60 +488,7 @@ export const BookingHistoryPage: React.FC = () => {
 
       {/* 2. Main Content Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6 flex-1 w-full">
-        {/* 3. KPI / Stats Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng lượt đặt</span>
-              <span className="text-2xl font-extrabold text-slate-900 mt-1">{bookings.length}</span>
-              <span className="text-[11px] text-emerald-600 font-medium mt-0.5">Đồng bộ từ hệ thống</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">local_parking</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Sắp diễn ra</span>
-              <span className="text-2xl font-extrabold text-blue-600 mt-1">
-                {bookings.filter((b) => b.status === 'upcoming').length}
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium mt-0.5">Sẵn sàng nhận diện ANPR</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">schedule</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã hoàn thành</span>
-              <span className="text-2xl font-extrabold text-emerald-600 mt-1">
-                {bookings.filter((b) => b.status === 'completed').length}
-              </span>
-              <span className="text-[11px] text-emerald-600 font-medium mt-0.5">Có thể xuất hóa đơn & đánh giá</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">verified</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đã hủy / Hết hạn</span>
-              <span className="text-2xl font-extrabold text-slate-700 mt-1">
-                {bookings.filter((b) => b.status === 'cancelled').length}
-              </span>
-              <span className="text-[11px] text-slate-500 font-medium mt-0.5">Miễn phí hủy trước 60 phút</span>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">replay</span>
-            </div>
-          </div>
-        </div>
-
-        {/* 4. Controls & Filters */}
+        {/* 3. Controls & Filters */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl w-full md:w-auto overflow-x-auto">
             <button
@@ -618,42 +581,34 @@ export const BookingHistoryPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-            <div className="w-full overflow-x-auto">
-              <table className="w-full table-fixed min-w-[900px] lg:min-w-full text-left border-separate border-spacing-0">
-                <colgroup>
-                  <col style={{ width: '15%' }} />
-                  <col style={{ width: '17%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '16%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '16%' }} />
-                </colgroup>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-visible">
+            <div className="w-full overflow-x-auto lg:overflow-visible">
+              <table className="w-full table-auto text-left border-separate border-spacing-0">
                 <thead>
                   <tr className="bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3 px-3 border-b border-slate-200">Mã đặt chỗ & Xe</th>
+                    <th className="py-3 px-3 border-b border-slate-200 rounded-tl-2xl">Mã đặt chỗ & Xe</th>
                     <th className="py-3 px-3 border-b border-slate-200">Bãi đỗ & Vị trí</th>
                     <th className="py-3 px-3 border-b border-slate-200">Thời gian</th>
                     <th className="py-3 px-3 border-b border-slate-200">Dịch vụ</th>
                     <th className="py-3 px-3 border-b border-slate-200">Tổng tiền</th>
                     <th className="py-3 px-2 text-center border-b border-slate-200">Trạng thái</th>
-                    <th className="py-3 px-3 text-right border-b border-slate-200">Thao tác</th>
+                    <th className="py-3 px-3 text-right border-b border-slate-200 rounded-tr-2xl">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="text-xs">
-                  {filteredBookings.length === 0 ? (
+                  {paginatedBookings.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-slate-400 text-xs border-b border-slate-100">
                         Không tìm thấy lượt đặt chỗ nào phù hợp.
                       </td>
                     </tr>
                   ) : (
-                    filteredBookings.map((b) => (
+                    paginatedBookings.map((b, idx) => (
                       <BookingTableRow
                         key={b.id}
                         booking={b}
                         isHighlighted={highlightId === b.id}
+                        openUpward={paginatedBookings.length > 1 && idx >= paginatedBookings.length - 2}
                         onViewQr={handleOpenQrModal}
                         onExtend={handleOpenExtendModal}
                         onEdit={handleOpenEditModal}
@@ -667,6 +622,51 @@ export const BookingHistoryPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination bar */}
+            {filteredBookings.length > 0 && (
+              <div className="px-4 py-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 bg-slate-50/40 rounded-b-2xl">
+                <span>
+                  Hiển thị{' '}
+                  <strong className="text-slate-800">
+                    {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredBookings.length)}
+                  </strong>{' '}
+                  trong tổng số <strong className="text-slate-800">{filteredBookings.length}</strong> lượt đặt (mới nhất trước)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Trước
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-lg font-bold transition-colors cursor-pointer ${
+                        page === safePage
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Sau
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

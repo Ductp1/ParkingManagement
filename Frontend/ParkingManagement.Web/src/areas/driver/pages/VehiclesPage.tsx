@@ -52,29 +52,29 @@ export const VehiclesPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 shrink-0">
           <button
             onClick={() => setIsRfidModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center gap-2 shadow-xs cursor-pointer"
+            className="h-10 sm:w-48 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer whitespace-nowrap"
             type="button"
           >
             <span className="material-symbols-outlined text-[18px] text-slate-500">contactless</span>
-            <span>Quản lý thẻ RFID & Barie</span>
-          </button>
-          <button
-            onClick={() => dispatch(fetchVehicles(userId))}
-            title="Tải lại danh sách"
-            className="p-2.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-xs cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px]">refresh</span>
+            <span>Thẻ RFID &amp; Barie</span>
           </button>
           <button
             onClick={() => setIsAddModalOpen(true)}
             disabled={vehicles.length >= 10}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            className="h-10 sm:w-48 px-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
           >
             <span className="material-symbols-outlined text-[20px]">add</span>
             <span>Thêm xe mới</span>
+          </button>
+          <button
+            onClick={() => dispatch(fetchVehicles(userId))}
+            title="Tải lại danh sách"
+            className="h-10 w-10 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all shadow-xs cursor-pointer flex items-center justify-center shrink-0"
+          >
+            <span className="material-symbols-outlined text-[20px]">refresh</span>
           </button>
         </div>
       </div>

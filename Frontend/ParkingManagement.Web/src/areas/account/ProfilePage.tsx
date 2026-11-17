@@ -93,7 +93,7 @@ export function ProfilePage() {
 
       <section className="account-card">
         {/* Navigation Tabs - Tối ưu UX */}
-        <div className="flex items-center gap-2 pb-4 mb-6 border-b border-slate-200 overflow-x-auto">
+        <div className="flex flex-wrap items-center gap-2 pb-4 mb-6 border-b border-slate-200">
           <Link to="/account/profile"
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               !identitySelected

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 export interface BookingItem {
   id: string;
@@ -25,6 +25,7 @@ export interface BookingItem {
 export interface BookingTableRowProps {
   booking: BookingItem;
   isHighlighted: boolean;
+  openUpward?: boolean;
   onViewQr: (b: BookingItem) => void;
   onExtend: (b: BookingItem) => void;
   onEdit: (b: BookingItem) => void;
@@ -76,6 +77,7 @@ const formatServiceLabel = (srv: string) => {
 export const BookingTableRow: React.FC<BookingTableRowProps> = ({
   booking: b,
   isHighlighted,
+  openUpward = false,
   onViewQr,
   onExtend,
   onEdit,
@@ -87,6 +89,20 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
   const isUpcoming = b.status === 'upcoming';
   const isCompleted = b.status === 'completed';
   const isCancelled = b.status === 'cancelled';
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   const timeInfo = parseTimeDisplay(b.status, b.timeRange);
 
@@ -116,10 +132,10 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
             }`}
           />
         )}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1">
+        <div className="flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span
-              className={`font-mono font-bold text-[10.5px] px-1.5 py-0.2 rounded border whitespace-nowrap ${
+              className={`font-mono font-bold text-[10.5px] px-1.5 py-0.5 rounded border whitespace-nowrap ${
                 isUpcoming
                   ? 'text-blue-700 bg-blue-50 border-blue-200'
                   : isCancelled
@@ -130,22 +146,23 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
               {b.code}
             </span>
             {isUpcoming && (
-              <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded bg-slate-100 text-slate-600 text-[9.5px] font-bold whitespace-nowrap">
+              <span
+                title="Tự động nhận diện biển số qua camera ANPR tại cổng"
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[9.5px] font-bold whitespace-nowrap"
+              >
                 <span className="material-symbols-outlined text-[10px]">camera</span>
                 ANPR
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1 text-slate-600 text-[11px] whitespace-nowrap overflow-hidden">
-            <span className="material-symbols-outlined text-[13px] text-slate-400 shrink-0">
-              directions_car
-            </span>
-            <span className="font-bold text-slate-900">{b.plate}</span>
-            <span className="text-slate-300">·</span>
-            <span
-              className="text-slate-500 text-[10px] truncate max-w-[70px]"
-              title={b.carModel}
-            >
+          <div className="flex flex-col gap-0.5 text-slate-600 text-[11px]">
+            <div className="flex items-center gap-1 whitespace-nowrap">
+              <span className="material-symbols-outlined text-[13px] text-slate-400 shrink-0">
+                directions_car
+              </span>
+              <span className="font-bold text-slate-900">{b.plate}</span>
+            </div>
+            <span className="text-slate-500 text-[10.5px] leading-snug break-words pl-[17px]">
               {b.carModel}
             </span>
           </div>
@@ -304,93 +321,127 @@ export const BookingTableRow: React.FC<BookingTableRowProps> = ({
           isHighlighted ? 'border-r-2 border-blue-500 rounded-r-xl' : ''
         }`}
       >
-        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+        <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap relative" ref={menuRef}>
           {isUpcoming ? (
             <>
-              {/* Nút chính: Vé QR */}
               <button
                 type="button"
                 onClick={() => onViewQr(b)}
-                title="Xem vé QR Check-in Barie"
-                className="inline-flex items-center gap-0.5 px-2 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-xs transition-all cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold shadow-xs transition-all cursor-pointer shrink-0"
               >
-                <span className="material-symbols-outlined text-[13px]">qr_code_2</span>
+                <span className="material-symbols-outlined text-[14px]">qr_code_2</span>
                 <span>Vé QR</span>
               </button>
 
-              {/* Nút Gia hạn giờ đỗ (Icon button tinh gọn) */}
               <button
                 type="button"
-                onClick={() => onExtend(b)}
-                title="Gia hạn thêm giờ đỗ"
-                className="p-1.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer shrink-0"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className="inline-flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer shrink-0"
               >
-                <span className="material-symbols-outlined text-[14px]">more_time</span>
+                <span>Thao tác</span>
+                <span className="material-symbols-outlined text-[15px]">expand_more</span>
               </button>
 
-              {/* Sửa thông tin (Icon button) */}
-              <button
-                type="button"
-                onClick={() => onEdit(b)}
-                title="Sửa thông tin đặt chỗ (Xe/Giờ)"
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-blue-600 transition-colors cursor-pointer shrink-0"
-              >
-                <span className="material-symbols-outlined text-[14px]">edit_calendar</span>
-              </button>
-
-              {/* Hủy đặt chỗ (Icon button) */}
-              <button
-                type="button"
-                onClick={() => onCancel(b)}
-                title="Hủy giữ chỗ (Chính sách hoàn tiền)"
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
-              >
-                <span className="material-symbols-outlined text-[14px]">close</span>
-              </button>
+              {menuOpen && (
+                <div
+                  className={`absolute right-0 w-48 rounded-xl bg-white border border-slate-200 shadow-xl py-1.5 z-50 text-left ${
+                    openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onExtend(b);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-indigo-600">more_time</span>
+                    <span>Gia hạn giờ đỗ</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEdit(b);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-blue-600">edit_calendar</span>
+                    <span>Sửa thông tin đặt chỗ</span>
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onCancel(b);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">cancel</span>
+                    <span>Hủy vé &amp; Hoàn tiền</span>
+                  </button>
+                </div>
+              )}
             </>
           ) : isCompleted ? (
             <>
-              {/* Hóa đơn điện tử VAT */}
               <button
                 type="button"
                 onClick={() => onInvoice(b)}
-                title="Xem & Tải hóa đơn VAT"
-                className="inline-flex items-center gap-0.5 px-2 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer shrink-0"
               >
-                <span className="material-symbols-outlined text-[13px] text-blue-600">
-                  receipt_long
-                </span>
+                <span className="material-symbols-outlined text-[14px] text-blue-600">receipt_long</span>
                 <span>Hóa đơn</span>
               </button>
 
-              {b.reviewed ? (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200 shrink-0">
-                  <span className="material-symbols-outlined text-[12px] text-amber-500">
-                    star
-                  </span>
-                  <span>{b.rating}★</span>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onFeedback(b)}
-                  className="inline-flex items-center gap-0.5 px-2 py-1.5 rounded-lg border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] transition-all cursor-pointer shrink-0"
-                >
-                  <span className="material-symbols-outlined text-[13px] text-amber-500">
-                    star
-                  </span>
-                  <span>Đánh giá</span>
-                </button>
-              )}
-
               <button
                 type="button"
-                onClick={() => onViewQr(b)}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer shrink-0"
-                title="Chi tiết vé"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className="inline-flex items-center gap-0.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer shrink-0"
               >
-                <span className="material-symbols-outlined text-[14px]">visibility</span>
+                <span>Thao tác</span>
+                <span className="material-symbols-outlined text-[15px]">expand_more</span>
               </button>
+
+              {menuOpen && (
+                <div
+                  className={`absolute right-0 w-48 rounded-xl bg-white border border-slate-200 shadow-xl py-1.5 z-50 text-left ${
+                    openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                  }`}
+                >
+                  {b.reviewed ? (
+                    <div className="px-3 py-2 text-xs font-bold text-amber-700 bg-amber-50/70 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[16px] text-amber-500">star</span>
+                      <span>Đã đánh giá: {b.rating}★</span>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onFeedback(b);
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50 flex items-center gap-2 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[16px] text-amber-500">star</span>
+                      <span>Đánh giá chuyến đi</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onViewQr(b);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px] text-slate-500">visibility</span>
+                    <span>Xem chi tiết vé</span>
+                  </button>
+                </div>
+              )}
             </>
           ) : (
             <button

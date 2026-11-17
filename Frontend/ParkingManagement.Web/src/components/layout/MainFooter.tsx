@@ -2,77 +2,68 @@ import React from 'react';
 
 export const MainFooter: React.FC = () => {
   return (
-    <footer className="bg-slate-900 text-slate-300 py-12 border-t border-slate-800 mt-auto">
+    <footer className="bg-slate-900 text-slate-300 py-7 border-t border-slate-800 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          {/* Col 1 */}
-          <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-6 items-start">
+          {/* Brand */}
+          <div className="lg:col-span-4 flex flex-col gap-2.5">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-base">
+              <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
                 P
               </div>
-              <span className="font-bold text-lg tracking-tight text-white">ParkMaster</span>
-            </div>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Hệ sinh thái bãi đỗ thông minh hàng đầu, ứng dụng công nghệ IoT và AI nhận diện tự động ANPR cho trải nghiệm gửi xe xuyên suốt.
-            </p>
-            <div className="flex items-center gap-2 pt-1">
-              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span className="text-xs text-emerald-300 font-semibold tracking-wide">
-                Hệ thống ANPR Optical trực tuyến: 24 Bãi đỗ TP.HCM
+              <span className="font-bold text-base tracking-tight text-white">ParkMaster</span>
+              <span className="ml-1 inline-flex items-center gap-1.5 text-[11px] text-emerald-300 font-semibold">
+                <span className="flex h-2 w-2 rounded-full bg-emerald-400"></span>
+                ANPR Online · 24 Bãi TP.HCM
               </span>
             </div>
+            <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+              Nền tảng đỗ xe thông minh ứng dụng IoT &amp; AI nhận diện biển số ANPR tự động.
+            </p>
           </div>
 
-          {/* Col 2 */}
-          <div className="flex flex-col gap-3">
-            <h3 className="font-semibold text-white text-base">Dịch vụ & Tính năng</h3>
-            <ul className="flex flex-col gap-2 text-sm text-slate-400">
-              <li><span className="hover:text-white transition-colors cursor-pointer">Tìm bãi thông minh</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">Đặt chỗ & Giữ trước 15'</span></li>
+          {/* Dịch vụ */}
+          <div className="lg:col-span-3 flex flex-col gap-2">
+            <h3 className="font-semibold text-white text-xs uppercase tracking-wider">Dịch vụ</h3>
+            <ul className="flex flex-col gap-1.5 text-xs text-slate-400">
+              <li><span className="hover:text-white transition-colors cursor-pointer">Tìm bãi &amp; Đặt chỗ</span></li>
               <li><span className="hover:text-white transition-colors cursor-pointer">Trạm sạc EV Fast-charge</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">Vé tháng & Doanh nghiệp</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">Cổng Barie ANPR</span></li>
+              <li><span className="hover:text-white transition-colors cursor-pointer">Vé tháng &amp; Doanh nghiệp</span></li>
             </ul>
           </div>
 
-          {/* Col 3 */}
-          <div className="flex flex-col gap-3">
-            <h3 className="font-semibold text-white text-base">Về ParkMaster</h3>
-            <ul className="flex flex-col gap-2 text-sm text-slate-400">
-              <li><span className="hover:text-white transition-colors cursor-pointer">Giới thiệu nền tảng</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">Tin tức & Sự kiện</span></li>
+          {/* Hỗ trợ */}
+          <div className="lg:col-span-2 flex flex-col gap-2">
+            <h3 className="font-semibold text-white text-xs uppercase tracking-wider">Hỗ trợ</h3>
+            <ul className="flex flex-col gap-1.5 text-xs text-slate-400">
               <li><span className="hover:text-white transition-colors cursor-pointer">Đối tác bãi đỗ</span></li>
+              <li><span className="hover:text-white transition-colors cursor-pointer">Trung tâm trợ giúp</span></li>
               <li><span className="hover:text-white transition-colors cursor-pointer">Chính sách bảo mật</span></li>
-              <li><span className="hover:text-white transition-colors cursor-pointer">Trung tâm hỗ trợ 24/7</span></li>
             </ul>
           </div>
 
-          {/* Col 4 */}
-          <div className="flex flex-col gap-4">
-            <h3 className="font-semibold text-white text-base">Tiêu chuẩn An toàn</h3>
-            <div className="flex flex-col gap-2">
-              <span className="text-xs text-slate-400">Chứng nhận an ninh & bảo mật:</span>
-              <div className="flex flex-wrap gap-2 text-xs text-white font-medium">
-                <span className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700">ISO 27001:2022</span>
-                <span className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700">TISAX AL3</span>
-                <span className="px-2.5 py-1 rounded bg-slate-800 border border-slate-700">Đã xác thực BCT</span>
-              </div>
+          {/* An toàn & Hotline */}
+          <div className="lg:col-span-3 flex flex-col gap-2">
+            <h3 className="font-semibold text-white text-xs uppercase tracking-wider">An toàn &amp; Liên hệ</h3>
+            <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-200 font-medium">
+              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">ISO 27001:2022</span>
+              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">TISAX AL3</span>
+              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700">Đã xác thực BCT</span>
             </div>
             <div className="text-xs text-slate-400">
-              Hotline hỗ trợ: <span className="text-white font-semibold">1900 6868 (24/7)</span>
+              Hotline 24/7: <span className="text-white font-semibold">1900 6868</span>
             </div>
           </div>
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <div className="flex flex-wrap items-center gap-6">
-            <span className="hover:text-white transition-colors cursor-pointer">Quy định & Chính sách</span>
+        <div className="mt-6 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400">
+          <div className="flex flex-wrap items-center gap-5">
+            <span className="hover:text-white transition-colors cursor-pointer">Quy định &amp; Chính sách</span>
             <span className="hover:text-white transition-colors cursor-pointer">Biểu phí dịch vụ</span>
             <span className="hover:text-white transition-colors cursor-pointer">Bảo mật thông tin</span>
           </div>
-          <div>Bản quyền © 2026 ParkMaster Vietnam. All rights reserved.</div>
+          <div>© 2026 ParkMaster Vietnam. All rights reserved.</div>
         </div>
       </div>
     </footer>
