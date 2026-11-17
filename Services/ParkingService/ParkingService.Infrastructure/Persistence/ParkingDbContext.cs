@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using ParkingManagement.ServiceDefaults.Persistence;
+using ParkingManagement.SharedKernel.Domain;
 using ParkingService.Domain.Entities;
 
 namespace ParkingService.Infrastructure.Persistence;
@@ -24,7 +25,16 @@ public sealed class ParkingDbContext(DbContextOptions<ParkingDbContext> options)
     public DbSet<LotIntegration> LotIntegrations => Set<LotIntegration>();
     public DbSet<SlotStateLog> SlotStateLogs => Set<SlotStateLog>();
     public DbSet<ExternalParkingLot> ExternalParkingLots => Set<ExternalParkingLot>();
+    public DbSet<EmergencyStopLog> EmergencyStopLogs => Set<EmergencyStopLog>();
     public DbSet<LotPhysicalChange> LotPhysicalChanges => Set<LotPhysicalChange>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        // US-068/069: opt-in cột NextAttemptAtUtc cho OutboxDispatcher (retry backoff) —
+        // giống UserService (parking.events cần dispatcher đẩy LotEmergencyStopped / LotDataMarkedStale).
+        modelBuilder.Entity<OutboxMessage>().Property(x => x.NextAttemptAtUtc);
+    }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

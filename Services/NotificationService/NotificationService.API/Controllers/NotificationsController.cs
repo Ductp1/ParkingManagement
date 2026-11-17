@@ -21,7 +21,8 @@ public sealed class NotificationsController(
     INotificationDispatcher dispatcher,
     IMarkNotificationAsReadUseCase markAsRead,
     IGetNotificationPreferencesUseCase getPreferences,
-    IUpdateNotificationPreferencesUseCase updatePreferences
+    IUpdateNotificationPreferencesUseCase updatePreferences,
+    Application.Features.Tracking.IGetDeliveryStatusUseCase deliveryStatus
 ) : ControllerBase
 {
     /// <summary>GET /api/v1/notifications?userId=5&unreadOnly&page&pageSize – hộp thư (validate ở use case → 400).</summary>
@@ -80,6 +81,17 @@ public sealed class NotificationsController(
         await updatePreferences.ExecuteAsync(userId, request, cancellationToken);
         return NoContent();
     }
+
+    /// <summary>
+    /// GET /api/v1/notifications/delivery-status?eventId={guid} – US-086: theo dõi trạng thái gửi
+    /// của 1 event khẩn cấp theo từng kênh (Sent/Pending/Failed, retry, lastError).
+    /// Quét notification có DedupeKey bắt đầu "evt:{eventId}:" (fan-out đa kênh + xác nhận booking).
+    /// </summary>
+    [HttpGet("delivery-status")]
+    public async Task<ActionResult<Application.Features.Tracking.DeliveryStatusDto>> DeliveryStatus(
+        [FromQuery] Guid eventId,
+        CancellationToken cancellationToken = default
+    ) => Ok(await deliveryStatus.ExecuteAsync(eventId, cancellationToken));
 }
 
 /// <summary>

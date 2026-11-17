@@ -257,6 +257,15 @@ public class PaymentSagaTests
         public Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
 
+        public Task<bool> HasOverlappingBookingForVehicleAsync(int userId, int vehicleId, string plateNumber, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> TryCreateBookingWithLockAsync(Booking booking, int? slotId, CancellationToken cancellationToken = default)
+        {
+            SavedBookings.Add(booking);
+            return Task.FromResult(true);
+        }
+
         public Task AddAsync(Booking booking, CancellationToken cancellationToken = default)
         {
             SavedBookings.Add(booking);

@@ -39,3 +39,16 @@ public interface ILotCapacityRealtimePublisher
 {
     Task PublishCapacityChangedAsync(int parkingLotId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// US-069: snapshot trạng thái vận hành của bãi pull real-time từ ParkingService
+/// (GET /api/v1/parking-lots/{lotId}/operations-status — endpoint nội bộ service-to-service).
+/// Lỗi hạ tầng → null (FAIL-OPEN: ParkingService chết không chặn toàn bộ xe vào — spec assumption 3).
+/// </summary>
+public sealed record LotOperationalStatusSnapshot(
+    int ParkingLotId, string Name, string Status, bool EmergencyStopped, string? EmergencyStopReason);
+
+public interface ILotOperationalStatusProvider
+{
+    Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default);
+}

@@ -23,13 +23,22 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
                 b.QrToken))
             .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
+        => ListByUserAsync(userId, status, null, null, cancellationToken);
+
+    public async Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, int? page, int? pageSize, CancellationToken cancellationToken)
     {
         var query = db.Bookings.AsNoTracking().Where(b => b.UserId == userId);
         if (status is { } s) query = query.Where(b => b.Status == s);
 
+        query = query.OrderByDescending(b => b.StartAtUtc);
+
+        if (page.HasValue && pageSize.HasValue && page.Value > 0 && pageSize.Value > 0)
+        {
+            query = query.Skip((page.Value - 1) * pageSize.Value).Take(pageSize.Value);
+        }
+
         return await query
-            .OrderByDescending(b => b.StartAtUtc)
             .Select(b => new BookingSummaryDto(b.Id, b.Code, b.Status.ToString(), b.ParkingLotName, b.SlotCode,
                 b.PlateNumber, b.StartAtUtc, b.EndAtUtc, b.TotalAmount))
             .ToListAsync(cancellationToken);

@@ -1,6 +1,7 @@
 using BookingService.Application.Features.Bookings;
 using BookingService.Domain.Entities;
 using ParkingManagement.SharedKernel.Enums;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Exceptions;
 using Xunit;
 
@@ -47,7 +48,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, QrService, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -94,7 +95,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, QrService, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -125,7 +126,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, QrService, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -156,7 +157,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
-        var useCase = new ModifyBookingUseCase(repo, queries, QrService, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -190,7 +191,7 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, QrService);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
 
@@ -225,7 +226,7 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, QrService);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(2)); // Bằng giờ cũ
 
@@ -250,7 +251,7 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, QrService);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
 
@@ -281,7 +282,7 @@ public class BookingModificationAndExtensionTests
         var queries = new FakeQueries(booking);
         var clock = new FixedClock(FixedNow);
         var qr = new QrTokenService(clock);
-        var useCase = new ModifyBookingUseCase(repo, queries, qr, clock);
+        var useCase = new ModifyBookingUseCase(repo, queries, new FakeBookingEventPublisher(), qr, clock);
 
         var cmd = new ModifyBookingCommand(
             UserId: 10,
@@ -336,7 +337,7 @@ public class BookingModificationAndExtensionTests
         repo.SavedBookings.Add(booking1);
         repo.SavedBookings.Add(booking2);
         var queries = new FakeQueries(booking1);
-        var useCase = new ExtendBookingUseCase(repo, queries, QrService);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
 
@@ -367,7 +368,7 @@ public class BookingModificationAndExtensionTests
         var repo = new FakeBookingRepo();
         repo.SavedBookings.Add(booking);
         var queries = new FakeQueries(booking);
-        var useCase = new ExtendBookingUseCase(repo, queries, QrService);
+        var useCase = new ExtendBookingUseCase(repo, queries, new FakeBookingEventPublisher(), QrService);
 
         // Gia hạn thêm 1 tiếng (tới FixedNow + 3h) -> phụ phí 20.000 -> TotalAmount = 60.000
         var cmd = new ExtendBookingCommand(UserId: 10, NewEndAtUtc: FixedNow.AddHours(3));
@@ -447,6 +448,32 @@ public class BookingModificationAndExtensionTests
             return Task.FromResult(res);
         }
 
+        public Task<bool> HasOverlappingBookingForVehicleAsync(int userId, int vehicleId, string plateNumber, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+        {
+            var normalizedPlate = plateNumber.Trim().ToUpperInvariant();
+            var res = SavedBookings.Any(b =>
+                b.UserId == userId &&
+                ((vehicleId > 0 && b.VehicleId == vehicleId) || b.PlateNumber == normalizedPlate) &&
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
+                b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
+                b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+            return Task.FromResult(res);
+        }
+
+        public async Task<bool> TryCreateBookingWithLockAsync(Booking booking, int? slotId, CancellationToken cancellationToken = default)
+        {
+            if (slotId.HasValue && slotId.Value > 0)
+            {
+                if (await HasOverlappingBookingForSlotAsync(slotId.Value, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+                    return false;
+            }
+            if (await HasOverlappingBookingForVehicleAsync(booking.UserId, booking.VehicleId, booking.PlateNumber, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+                return false;
+
+            SavedBookings.Add(booking);
+            return true;
+        }
+
 
 
 
@@ -463,4 +490,11 @@ public class BookingModificationAndExtensionTests
     {
         public override DateTimeOffset GetUtcNow() => new(utc, TimeSpan.Zero);
     }
+}
+/// <summary>US-083: fake publisher — Modify/Extend phải phát BookingModified/BookingExtended qua outbox.</summary>
+internal sealed class FakeBookingEventPublisher : IBookingEventPublisher
+{
+    public List<IntegrationEvent> Events { get; } = [];
+
+    public void Enqueue(IntegrationEvent integrationEvent) => Events.Add(integrationEvent);
 }

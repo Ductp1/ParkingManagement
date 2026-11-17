@@ -37,6 +37,24 @@ internal sealed class PartnerApplicationConfiguration : IEntityTypeConfiguration
         e.HasIndex(x => x.Status);
         e.HasIndex(x => x.TaxCode);
         e.HasIndex(x => x.CreatedOwnerProfileId);
+        e.HasIndex(x => x.ApplicantUserId);   // US-053: hồ sơ của tôi + chặn nộp trùng theo tài khoản
+    }
+}
+
+/// <summary>US-053: giấy tờ pháp lý của hồ sơ đối tác – khóa file duy nhất; FK Restrict (ServiceDefaults áp cho mọi FK).</summary>
+internal sealed class PartnerApplicationDocumentConfiguration : IEntityTypeConfiguration<PartnerApplicationDocument>
+{
+    public void Configure(EntityTypeBuilder<PartnerApplicationDocument> e)
+    {
+        e.ToTable("PartnerApplicationDocuments");
+        e.Property(x => x.DocumentType).HasConversion<string>().HasMaxLength(30);
+        e.Property(x => x.FileKey).HasMaxLength(300).IsRequired();
+        e.Property(x => x.ContentType).HasMaxLength(100).IsRequired();
+        e.Property(x => x.OriginalFileName).HasMaxLength(200).IsRequired();
+        e.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+        e.HasIndex(x => x.FileKey).IsUnique();
+        e.HasIndex(x => x.PartnerApplicationId);
+        e.HasOne(x => x.PartnerApplication).WithMany().HasForeignKey(x => x.PartnerApplicationId);
     }
 }
 

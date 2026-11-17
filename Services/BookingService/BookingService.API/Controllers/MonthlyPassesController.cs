@@ -1,5 +1,7 @@
 using BookingService.Application.Features.MonthlyPasses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ParkingManagement.SharedKernel.Contracts;
 
 namespace BookingService.API.Controllers;
 
@@ -9,20 +11,30 @@ public sealed record RegisterMonthlyPassRequest(
 
 /// <summary>
 /// US-066 (luật 4): đăng ký thuê bao mới — bị chặn khi A &gt;= Q
-/// (400 kèm mã SUBSCRIBER_QUOTA_FULL trong message). BookingService hiện chưa đăng ký JWT.
+/// (400 kèm mã SUBSCRIBER_QUOTA_FULL trong message).
 /// </summary>
 [ApiController]
 [Route("api/v1/monthly-passes")]
-public class MonthlyPassesController(IRegisterMonthlyPassUseCase registerMonthlyPass) : ControllerBase
+public class MonthlyPassesController(
+    IRegisterMonthlyPassUseCase registerMonthlyPass,
+    ICurrentUser currentUser) : ControllerBase
 {
     [HttpPost]
+    [Authorize]
     [ProducesResponseType<MonthlyPassDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<MonthlyPassDto>> Register(
         [FromBody] RegisterMonthlyPassRequest request, CancellationToken cancellationToken)
     {
+        var userId = request.UserId;
+        if (currentUser.UserId.HasValue && (!currentUser.Roles.Contains("Admin") || userId <= 0))
+        {
+            userId = currentUser.UserId.Value;
+        }
+
         var dto = await registerMonthlyPass.ExecuteAsync(new RegisterMonthlyPassCommand(
-            request.ParkingLotId, request.UserId, request.VehicleId, request.PlateNumber,
+            request.ParkingLotId, userId, request.VehicleId, request.PlateNumber,
             request.Months, request.OwnerProfileId, request.SlotId, request.SlotCode), cancellationToken);
         return StatusCode(StatusCodes.Status201Created, dto);
     }

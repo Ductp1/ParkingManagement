@@ -17,6 +17,16 @@ public sealed class UserServiceDirectory(HttpClient httpClient) : IUserDirectory
     public async Task<string?> GetPhoneNumberAsync(int userId, CancellationToken cancellationToken = default)
         => (await GetUserAsync(userId, cancellationToken))?.PhoneNumber;
 
+    /// <summary>US-085: GET /api/v1/users/owner-profiles/{id} → { ownerProfileId, userId, businessName }.</summary>
+    public async Task<int?> GetOwnerUserIdAsync(int ownerProfileId, CancellationToken cancellationToken = default)
+    {
+        using var response = await httpClient.GetAsync($"/api/v1/users/owner-profiles/{ownerProfileId}", cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            return null;
+        var payload = await response.Content.ReadFromJsonAsync<OwnerProfileIdentity>(cancellationToken: cancellationToken);
+        return payload?.UserId;
+    }
+
     private async Task<UserProfile?> GetUserAsync(int userId, CancellationToken cancellationToken)
     {
         using var response = await httpClient.GetAsync($"/api/v1/users/{userId}", cancellationToken);
@@ -28,4 +38,5 @@ public sealed class UserServiceDirectory(HttpClient httpClient) : IUserDirectory
     }
 
     private sealed record UserProfile(int Id, string? Email, string? PhoneNumber);
+    private sealed record OwnerProfileIdentity(int OwnerProfileId, int UserId, string BusinessName);
 }

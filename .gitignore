@@ -538,3 +538,6 @@ Frontend/ParkingManagement.Web/Dockerfile
 Frontend/ParkingManagement.Web/nginx.conf
 Frontend/ParkingManagement.Web/.dockerignore
 infrastructure/rabbitmq/definitions.docker.json
+
+# Backup cua appsettings.Local (tranh leak password RabbitMQ local)
+**/appsettings.*.bak
