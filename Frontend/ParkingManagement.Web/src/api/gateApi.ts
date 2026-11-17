@@ -80,7 +80,27 @@ export interface CheckOutCommandDto {
   confirmFee?: boolean;
 }
 
+/** Biển số đọc từ ảnh (Plate Recognizer). isValidFormat = false → staff cần kiểm tra lại. */
+export interface PlateScanResultDto {
+  plate: string;
+  plateDisplay: string;
+  confidence: number;
+  isValidFormat: boolean;
+}
+
 export const gateApi = {
+  /** Gửi ảnh camera/ảnh tải lên cho GateService đọc biển số. */
+  scanPlate: async (image: Blob, fileName = 'plate.jpg'): Promise<PlateScanResultDto> => {
+    const form = new FormData();
+    form.append('image', image, fileName);
+    // Ghi đè Content-Type mặc định (application/json) – nếu không axios sẽ đổi FormData thành JSON.
+    const response = await apiClient.post<PlateScanResultDto>('/api/v1/gate/plate-scan', form, {
+      timeout: 25000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
   /** UC-21: check-in tại cổng vào (QR / mã booking / nhập tay). */
   checkIn: async (command: CheckInCommandDto): Promise<ParkingSessionDto> => {
     const response = await apiClient.post<ParkingSessionDto>('/api/v1/gate/check-in', command);

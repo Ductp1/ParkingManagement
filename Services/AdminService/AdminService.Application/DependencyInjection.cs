@@ -65,6 +65,7 @@ public static class DependencyInjection
         services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();
         // US-053: form public đăng ký đối tác + giấy tờ pháp lý (chỉ Admin xem)
         services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
+        services.AddScoped<IListMyPartnerApplicationsUseCase, ListMyPartnerApplicationsUseCase>();
         services.AddScoped<IListPartnerDocumentsUseCase, ListPartnerDocumentsUseCase>();
         services.AddScoped<IGetPartnerDocumentFileUseCase, GetPartnerDocumentFileUseCase>();
         // US-116: hợp đồng theo từng bãi (sau KYB) – lập, xem trước, sửa, tải file, ký (kích hoạt bãi), hủy

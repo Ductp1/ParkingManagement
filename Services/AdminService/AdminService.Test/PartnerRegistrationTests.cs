@@ -9,6 +9,9 @@ namespace AdminService.Test;
 public class PartnerRegistrationTests
 {
     private static readonly DateTime Now = new(2026, 11, 13, 3, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>Tài xế đã đăng nhập (driver2) – người nộp lấy từ JWT.</summary>
+    private static readonly PartnerApplicant Applicant = new(UserId: 6, IsLotOwner: false);
     private static readonly byte[] Pdf = [.. "%PDF-1.7\n"u8, 1, 2, 3];
     private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9, 9];
 
@@ -43,7 +46,14 @@ public class PartnerRegistrationTests
         public PartnerApplication? Saved { get; private set; }
         public IReadOnlyList<PartnerApplicationDocument> SavedDocuments { get; private set; } = [];
 
-        public Task<bool> HasOpenApplicationAsync(string taxCode, string email, CancellationToken cancellationToken) => Task.FromResult(HasOpen);
+        public Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
+            => Task.FromResult(HasOpen);
+
+        public Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<MyPartnerApplicationDto>>(Saved?.ApplicantUserId == applicantUserId
+                ? [new MyPartnerApplicationDto(Saved.Code, Saved.Status.ToString(), Saved.BusinessName, Saved.TaxCode, SavedDocuments.Count,
+                    null, null, Now, null)]
+                : []);
 
         public Task<string> AddWithNewCodeAsync(PartnerApplication application, IReadOnlyList<PartnerApplicationDocument> documents, int year,
             CancellationToken cancellationToken)
@@ -70,12 +80,13 @@ public class PartnerRegistrationTests
         var repository = new FakeRepository();
         var storage = new FakeStorage();
 
-        var receipt = await UseCase(repository, storage).ExecuteAsync(Valid(), ValidDocs());
+        var receipt = await UseCase(repository, storage).ExecuteAsync(Applicant, Valid(), ValidDocs());
 
         Assert.Equal("PA-2026-0013", receipt.Code);
         Assert.Equal(nameof(PartnerApplicationStatus.Submitted), receipt.Status);
         var app = repository.Saved!;
         Assert.Equal(PartnerApplicationStatus.Submitted, app.Status);
+        Assert.Equal(6, app.ApplicantUserId);                       // hồ sơ gắn với tài khoản đã đăng nhập
         Assert.Equal("an.nguyen@baixe.vn", app.Email);
         Assert.Equal("0901234567", app.Phone);
         Assert.Equal(Now, app.ConsentAcceptedAtUtc);
@@ -97,14 +108,14 @@ public class PartnerRegistrationTests
     [Theory] // Thiếu giấy tờ bắt buộc → 400, không ghi file nào.
     [InlineData(PartnerDocumentType.BusinessLicense, "giấy đăng ký kinh doanh")]
     [InlineData(PartnerDocumentType.LotLegalProof, "giấy tờ pháp lý mặt bằng")]
-    [InlineData(PartnerDocumentType.IdCardFront, "ảnh cccd mặt trước")]
-    [InlineData(PartnerDocumentType.IdCardBack, "ảnh cccd mặt sau")]
+    [InlineData(PartnerDocumentType.IdCardFront, "ảnh CCCD mặt trước")]
+    [InlineData(PartnerDocumentType.IdCardBack, "ảnh CCCD mặt sau")]
     public async Task Submit_without_required_document_is_rejected(PartnerDocumentType missing, string message)
     {
         var storage = new FakeStorage();
         var docs = ValidDocs().Where(d => d.Type != missing).ToList();
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), storage).ExecuteAsync(Valid(), docs));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), storage).ExecuteAsync(Applicant, Valid(), docs));
 
         Assert.Contains(message, ex.Message);
         Assert.Empty(storage.Files);
@@ -117,7 +128,7 @@ public class PartnerRegistrationTests
         docs[0] = Doc(PartnerDocumentType.BusinessLicense, "<script>alert(1)</script>"u8.ToArray(), "dkkd.pdf");
         var storage = new FakeStorage();
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), storage).ExecuteAsync(Valid(), docs));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), storage).ExecuteAsync(Applicant, Valid(), docs));
 
         Assert.Contains("PDF, JPG hoặc PNG", ex.Message);
         Assert.Empty(storage.Files);
@@ -130,7 +141,7 @@ public class PartnerRegistrationTests
         docs[2] = new PartnerDocumentUpload(PartnerDocumentType.IdCardFront,
             new UploadedFile("cccd-truoc.png", PartnerDocumentRules.MaxFileBytes + 1, []));
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Applicant, Valid(), docs));
         Assert.Contains("10 MB", ex.Message);
     }
 
@@ -140,7 +151,7 @@ public class PartnerRegistrationTests
         var docs = ValidDocs();
         for (var i = 0; i < 5; i++) docs.Add(Doc(PartnerDocumentType.Other, Pdf));
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Applicant, Valid(), docs));
         Assert.Contains("Tối đa 8 file", ex.Message);
     }
 
@@ -152,7 +163,7 @@ public class PartnerRegistrationTests
         var docs = ValidDocs();
         docs[index] = Doc(docs[index].Type, Pdf, "cccd.pdf");
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Applicant, Valid(), docs));
         Assert.Contains("chỉ nhận ảnh JPG hoặc PNG", ex.Message);
     }
 
@@ -162,14 +173,14 @@ public class PartnerRegistrationTests
         var docs = ValidDocs();
         docs.Add(Doc(PartnerDocumentType.IdCardFront, Png, "cccd-truoc-2.png"));
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(), docs));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Applicant, Valid(), docs));
         Assert.Contains("chỉ tải lên 1 ảnh", ex.Message);
     }
 
     [Fact] // Không đồng ý điều khoản → 400.
     public async Task Submit_without_consent_is_rejected()
         => await Assert.ThrowsAsync<ValidationException>(
-            () => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Valid(consent: false), ValidDocs()));
+            () => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Applicant, Valid(consent: false), ValidDocs()));
 
     [Theory] // Dữ liệu sai định dạng → 400.
     [InlineData("taxCode", "12345", "Mã số thuế")]
@@ -184,7 +195,7 @@ public class PartnerRegistrationTests
             _ => Valid() with { Phone = value },
         };
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(request, ValidDocs()));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => UseCase(new FakeRepository(), new FakeStorage()).ExecuteAsync(Applicant, request, ValidDocs()));
         Assert.Contains(message, ex.Message);
     }
 
@@ -193,8 +204,34 @@ public class PartnerRegistrationTests
     {
         var storage = new FakeStorage();
         await Assert.ThrowsAsync<ConflictException>(
-            () => UseCase(new FakeRepository { HasOpen = true }, storage).ExecuteAsync(Valid(), ValidDocs()));
+            () => UseCase(new FakeRepository { HasOpen = true }, storage).ExecuteAsync(Applicant, Valid(), ValidDocs()));
         Assert.Empty(storage.Files);
+    }
+
+    [Fact] // Tài khoản đã là chủ bãi không nộp hồ sơ đối tác nữa → 409, không ghi file.
+    public async Task Submit_by_existing_lot_owner_is_conflict()
+    {
+        var storage = new FakeStorage();
+        var ex = await Assert.ThrowsAsync<ConflictException>(
+            () => UseCase(new FakeRepository(), storage).ExecuteAsync(Applicant with { IsLotOwner = true }, Valid(), ValidDocs()));
+        Assert.Contains("đã là chủ bãi", ex.Message);
+        Assert.Empty(storage.Files);
+    }
+
+    [Fact] // Người nộp xem lại hồ sơ của mình (chỉ trạng thái, không có giấy tờ); tài khoản khác không thấy.
+    public async Task Applicant_lists_own_applications_only()
+    {
+        var repository = new FakeRepository();
+        await UseCase(repository, new FakeStorage()).ExecuteAsync(Applicant, Valid(), ValidDocs());
+
+        var mine = await new ListMyPartnerApplicationsUseCase(repository).ExecuteAsync(Applicant.UserId);
+        var others = await new ListMyPartnerApplicationsUseCase(repository).ExecuteAsync(99);
+
+        var item = Assert.Single(mine);
+        Assert.Equal("PA-2026-0013", item.Code);
+        Assert.Equal("Submitted", item.Status);
+        Assert.Equal(4, item.DocumentCount);
+        Assert.Empty(others);
     }
 
     [Fact] // Lưu database lỗi → xóa các file đã ghi, không để file mồ côi.
@@ -202,7 +239,7 @@ public class PartnerRegistrationTests
     {
         var storage = new FakeStorage();
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => UseCase(new FakeRepository { FailOnSave = true }, storage).ExecuteAsync(Valid(), ValidDocs()));
+            () => UseCase(new FakeRepository { FailOnSave = true }, storage).ExecuteAsync(Applicant, Valid(), ValidDocs()));
         Assert.Empty(storage.Files);
     }
 

@@ -10,6 +10,8 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddE
 
 // ===== Composition Root: lắp ráp các layer của BookingService =====
 builder.AddServiceDefaults("BookingService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
+builder.Services.AddJwtAuth(Path.GetFullPath(
+    builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
 builder.Services.AddBookingApplication();                                  // Application: Use Case
 builder.Services.AddBookingInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 

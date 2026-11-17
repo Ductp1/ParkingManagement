@@ -35,6 +35,11 @@ public static class DependencyInjection
         services.AddScoped<IDataSeeder<GateDbContext>, GateDataSeeder>();
         // T-701: MVP dùng ManualPlateRecognizer; Phase 2 chỉ cần đổi dòng này sang OcrPlateRecognizer.
         services.AddScoped<IPlateRecognizer, ManualPlateRecognizer>();
+        services.AddHttpClient<IPlateImageReader, PlateRecognizerClient>(client =>
+        {
+            client.BaseAddress = new Uri(configuration["PlateRecognizer:BaseUrl"] ?? "https://api.platerecognizer.com/");
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         // T-702: Gate Console + nhật ký GateEvents.
         services.AddScoped<IParkingSessionWriter, ParkingSessionWriter>();
         services.AddScoped<IGateEventWriter, GateEventWriter>();
