@@ -287,10 +287,10 @@ export const OwnerStaffPage: React.FC = () => {
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bãi đã phân công</p>
-            <p className="text-2xl font-black text-indigo-600 mt-1">{stats.uniqueLots}</p>
+            <p className="text-2xl font-black text-blue-600 mt-1">{stats.uniqueLots}</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Trên tổng {lots.length} bãi xe</p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center">
             <Building2 size={22} />
           </div>
         </div>

@@ -67,6 +67,17 @@ export function IdentityCard() {
       if (user) dispatch(setUser({ ...user, kycStatus: next.status }));
       setStep('done');
     } catch (err: unknown) {
+      const status = (err as { status?: number } | null)?.status;
+      if (status === 409) {
+        // Hồ sơ đã được gửi/duyệt ở nơi khác (tab hoặc thiết bị khác): tải lại trạng thái thật thay vì báo lỗi chung.
+        const latest = await getMyKyc().catch(() => null);
+        if (latest) {
+          setKyc(latest);
+          if (user) dispatch(setUser({ ...user, kycStatus: latest.status }));
+        }
+        dialog.current?.close();
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Không gửi được số CCCD. Vui lòng thử lại.');
       setStep('enter');
     }

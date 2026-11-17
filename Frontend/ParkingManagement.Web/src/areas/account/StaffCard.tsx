@@ -36,9 +36,10 @@ export function StaffCard() {
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
+    setError('');
     apiClient.get<StaffItem[]>(endpoint, { params: { page }, signal: controller.signal })
       .then(response => setItems(response.data))
-      .catch(() => { if (!controller.signal.aborted) setError('Không thể tải danh sách nhân viên.'); })
+      .catch((err: unknown) => { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Không thể tải danh sách nhân viên.'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [page, revision]);
@@ -58,7 +59,7 @@ export function StaffCard() {
     setMessage('');
     try {
       const { data: created } = await apiClient.post<StaffItem>(endpoint, {
-        fullName: data.get('fullName'), contact: data.get('contact'),
+        fullName: String(data.get('fullName') ?? '').trim(), contact: String(data.get('contact') ?? '').trim(),
         parkingLotId: Number(data.get('parkingLotId')),
       });
       form.reset();

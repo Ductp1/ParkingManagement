@@ -55,7 +55,7 @@ export function PrivacyPage() {
           <Row label="Ảnh đại diện" value={data.avatarUrl ? 'Đã tải lên' : 'Chưa có'} edit="/account/profile" />
         </div>
         <div className="inventory-group"><h3>Định danh</h3>
-          <Row label="Trạng thái" value={kycLabels[data.kycStatus]?.text ?? data.kycStatus} edit={data.kycStatus === 'NotSubmitted' || data.kycStatus === 'Rejected' ? '/account/kyc' : undefined} editLabel="Xác minh" />
+          <Row label="Trạng thái" value={kycLabels[data.kycStatus]?.text ?? data.kycStatus} edit={data.kycStatus === 'NotSubmitted' || data.kycStatus === 'Rejected' ? '/account/profile#identity' : undefined} editLabel="Xác minh" />
           {data.kycDocumentType && <Row label="Loại giấy tờ" value={documentLabels[data.kycDocumentType] ?? data.kycDocumentType} />}
           {data.kycMaskedNumber && <Row label="Số giấy tờ" value={<span className="acct-num" style={{ fontSize: 16 }}>{data.kycMaskedNumber}</span>} />}
         </div>
@@ -134,7 +134,13 @@ function RequestDialog({ mode, onClose, onDone }: { mode: Mode; onClose: () => v
     try {
       if (mode === 'export') {
         const request = await submitDataRequest('Export', password);
-        await downloadExport(request.id, password);
+        try {
+          await downloadExport(request.id, password);
+        } catch (err) {
+          // Yêu cầu đã được lưu; chỉ bước tải tệp lỗi → báo rõ để người dùng không gửi trùng yêu cầu mới.
+          onDone(`Đã tạo yêu cầu xuất dữ liệu nhưng chưa tải được tệp (${err instanceof Error ? err.message : 'lỗi mạng'}). Vui lòng thử lại sau.`);
+          return;
+        }
         onDone('Đã tải bản sao dữ liệu về máy.');
       } else if (mode === 'correction') {
         await submitDataRequest('Correction', password, reason);

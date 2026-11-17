@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { logoutSession } from '@/api/authApi';
+import { parkingApi } from '@/api/parkingApi';
+import type { ParkingLotSearchItemDto } from '@/types/parking';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { logout } from '@/store/slices/authSlice';
 import { AuthScene } from '@/components/auth/AuthScene';
@@ -8,23 +10,14 @@ import './landing.css';
 
 /* ===================== Nội dung ===================== */
 
-interface FeaturedLot {
-  id: number;
-  name: string;
-  address: string;
-  price: string;
-  available: number;
-  tag: string;
-  image: string;
-}
+/** Bãi đỗ hiển thị trên trang giới thiệu: lấy thật từ ParkingService, quanh trung tâm TP.HCM (Quận 1). */
+const CITY_CENTER = { lat: 10.7769, lng: 106.7009 };
+const FEATURED_LIMIT = 4;
+const vnd = new Intl.NumberFormat('vi-VN');
+const priceLabel = (lot: ParkingLotSearchItemDto) => (lot.pricePerHour ? `${vnd.format(lot.pricePerHour)}đ/giờ` : 'Xem giá');
+const lotTag = (lot: ParkingLotSearchItemDto) => lot.amenities?.[0] ?? (lot.isOpenNow ? 'Đang mở cửa' : 'Đã đóng cửa');
 
-/** Dữ liệu minh hoạ cho trang giới thiệu (không phải số liệu trực tiếp). */
-const FEATURED_LOTS: FeaturedLot[] = [
-  { id: 1, name: 'Landmark 81', address: 'Bình Thạnh, TP.HCM', price: '30.000đ/giờ', available: 42, tag: 'Có trạm sạc xe điện', image: '/images/lot-1.jpg' },
-  { id: 2, name: 'Vinhomes Central Park', address: 'Bình Thạnh, TP.HCM', price: '25.000đ/giờ', available: 18, tag: 'Hầm B1–B2', image: '/images/lot-2.jpg' },
-  { id: 3, name: 'Saigon Centre', address: 'Quận 1, TP.HCM', price: '40.000đ/giờ', available: 9, tag: 'Đặt trước được', image: '/images/lot-3.jpg' },
-  { id: 4, name: 'Bitexco Financial', address: 'Quận 1, TP.HCM', price: '35.000đ/giờ', available: 28, tag: 'Camera 24/7', image: '/images/lot-4.jpg' },
-];
+type LotsState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; lots: ParkingLotSearchItemDto[] };
 
 const FEATURES = [
   { icon: 'local_parking', title: 'Xem chỗ trống trước khi đi', desc: 'Số chỗ trống của từng bãi cập nhật theo lượt xe ra vào tại cổng.' },
@@ -140,7 +133,7 @@ const BrandMark: React.FC<{ size?: number }> = ({ size = 34 }) => (
   <span
     aria-hidden="true"
     style={{ width: size, height: size }}
-    className="grid shrink-0 place-items-center rounded-[9px] bg-[#2f6fd6] text-white font-extrabold text-xl shadow-[inset_0_0_0_2px_rgb(255_255_255/0.7)]"
+    className="grid shrink-0 place-items-center rounded-[9px] bg-[#2563eb] text-white font-extrabold text-xl shadow-[inset_0_0_0_2px_rgb(255_255_255/0.7)]"
   >
     P
   </span>
@@ -176,13 +169,26 @@ export const LandingPage: React.FC = () => {
   const theme = useLandingTheme();
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [phoneInput, setPhoneInput] = useState('');
-  const [sentSuccess, setSentSuccess] = useState(false);
+  const [lotsState, setLotsState] = useState<LotsState>({ status: 'loading' });
+  const [lotsReload, setLotsReload] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     document.title = 'ParkMaster — Tìm chỗ đỗ xe còn trống ở TP.HCM';
   }, []);
+
+  // Bãi đỗ thật (API công khai GET /api/v1/parking-lots/search), gần trung tâm thành phố nhất trước.
+  useEffect(() => {
+    let cancelled = false;
+    setLotsState({ status: 'loading' });
+    parkingApi
+      .search({ ...CITY_CENTER, radiusKm: 30, limit: FEATURED_LIMIT, sortBy: 'Distance' })
+      .then((lots) => { if (!cancelled) setLotsState({ status: 'ready', lots }); })
+      .catch(() => { if (!cancelled) setLotsState({ status: 'error' }); });
+    return () => { cancelled = true; };
+  }, [lotsReload]);
+
+  const featuredLots = lotsState.status === 'ready' ? lotsState.lots : [];
 
   const getPortalPath = () => {
     if (!user) return '/login';
@@ -330,16 +336,18 @@ export const LandingPage: React.FC = () => {
               </div>
               <button type="submit" className="lp-btn px-6 py-3">Tìm bãi đỗ</button>
             </form>
-            <ul className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Chỗ trống minh hoạ">
-              {FEATURED_LOTS.slice(0, 3).map((lot) => (
-                <li key={lot.id} className="flex items-center gap-2 rounded-full bg-(--lp-glass-strong) px-3 py-1.5 text-sm">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="font-medium">{lot.name}</span>
-                  <span className="lp-num text-base font-semibold text-(--lp-primary)">{lot.available}</span>
-                  <span className="text-(--lp-faint)">chỗ</span>
-                </li>
-              ))}
-            </ul>
+            {featuredLots.length > 0 && (
+              <ul className="mt-6 flex flex-wrap justify-center gap-2" aria-label="Chỗ trống hiện tại">
+                {featuredLots.slice(0, 3).map((lot) => (
+                  <li key={lot.id} className="flex items-center gap-2 rounded-full bg-(--lp-glass-strong) px-3 py-1.5 text-sm">
+                    <span className={`h-2 w-2 rounded-full ${lot.availableSlots > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                    <span className="font-medium">{lot.name}</span>
+                    <span className="lp-num text-base font-semibold text-(--lp-primary)">{lot.availableSlots}</span>
+                    <span className="text-(--lp-faint)">chỗ</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
 
@@ -389,28 +397,53 @@ export const LandingPage: React.FC = () => {
               Xem tất cả bãi đỗ
             </button>
           </div>
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURED_LOTS.map((lot) => (
-              <button key={lot.id} type="button" onClick={findLots} className="group overflow-hidden rounded-2xl text-left cursor-pointer lp-glass">
-                <div className="relative">
-                  <img src={lot.image} alt={`Bãi đỗ ${lot.name}`} loading="lazy" className="aspect-[4/3] w-full object-cover" />
-                  <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-sm font-semibold text-[#0f1f38]">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="lp-num text-base">{lot.available}</span> chỗ trống
-                  </span>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-lg font-semibold group-hover:text-(--lp-primary)">{lot.name}</h3>
-                    <span className="lp-num whitespace-nowrap text-lg font-semibold">{lot.price}</span>
-                  </div>
-                  <p className="text-sm text-(--lp-faint)">{lot.address}</p>
-                  <p className="mt-2 text-sm text-(--lp-muted)">{lot.tag}</p>
-                </div>
+          {lotsState.status === 'loading' && (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4" role="status" aria-label="Đang tải bãi đỗ">
+              {Array.from({ length: FEATURED_LIMIT }, (_, i) => (
+                <div key={i} className="h-72 animate-pulse rounded-2xl lp-glass" />
+              ))}
+            </div>
+          )}
+          {lotsState.status === 'error' && (
+            <p role="alert" className="mt-10 rounded-2xl p-6 text-(--lp-muted) lp-glass">
+              Chưa tải được danh sách bãi đỗ.{' '}
+              <button type="button" onClick={() => setLotsReload((n) => n + 1)} className="font-semibold text-(--lp-primary) hover:underline cursor-pointer">
+                Thử lại
               </button>
-            ))}
-          </div>
-          <p className="mt-6 text-sm text-(--lp-faint)">Số chỗ trống và giá trên trang này là dữ liệu minh hoạ.</p>
+            </p>
+          )}
+          {lotsState.status === 'ready' && featuredLots.length === 0 && (
+            <p className="mt-10 rounded-2xl p-6 text-(--lp-muted) lp-glass">Chưa có bãi đỗ đối tác nào đang hoạt động gần trung tâm TP.HCM.</p>
+          )}
+          {featuredLots.length > 0 && (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {featuredLots.map((lot) => (
+                <button key={lot.id} type="button" onClick={findLots} className="group overflow-hidden rounded-2xl text-left cursor-pointer lp-glass">
+                  <div className="relative">
+                    {lot.coverImageUrl ? (
+                      <img src={lot.coverImageUrl} alt={`Bãi đỗ ${lot.name}`} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                    ) : (
+                      <div className="grid aspect-[4/3] w-full place-items-center bg-(--lp-primary-soft) text-(--lp-primary)" aria-hidden="true">
+                        <Icon name="local_parking" className="text-[56px]" />
+                      </div>
+                    )}
+                    <span className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full bg-white/90 px-2.5 py-1 text-sm font-semibold text-[#0f172a]">
+                      <span className={`h-2 w-2 rounded-full ${lot.availableSlots > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                      {lot.availableSlots > 0 ? <><span className="lp-num text-base">{lot.availableSlots}</span> chỗ trống</> : 'Hết chỗ'}
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="text-lg font-semibold group-hover:text-(--lp-primary)">{lot.name}</h3>
+                      <span className="lp-num whitespace-nowrap text-lg font-semibold">{priceLabel(lot)}</span>
+                    </div>
+                    <p className="text-sm text-(--lp-faint)">{lot.address}</p>
+                    <p className="mt-2 text-sm text-(--lp-muted)">{lotTag(lot)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* ===== Dành cho chủ bãi ===== */}
@@ -430,35 +463,12 @@ export const LandingPage: React.FC = () => {
                 ))}
               </ul>
 
-              {sentSuccess ? (
-                <p role="status" className="mt-8 font-semibold text-(--lp-ok)">
-                  Đã ghi nhận số {phoneInput}. Chúng tôi sẽ gọi lại trong giờ hành chính.
-                </p>
-              ) : (
-                <form
-                  className="mt-8"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (phoneInput.trim()) setSentSuccess(true);
-                  }}
-                >
-                  <label htmlFor="owner-phone" className="block font-semibold">Để lại số điện thoại, chúng tôi gọi lại hướng dẫn</label>
-                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      id="owner-phone"
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      required
-                      value={phoneInput}
-                      onChange={(e) => setPhoneInput(e.target.value)}
-                      placeholder="0901 234 567"
-                      className="w-full rounded-xl border border-(--lp-glass-line) bg-(--lp-glass-strong) px-4 py-3 text-base text-(--lp-text) placeholder:text-(--lp-faint) focus:border-(--lp-primary) focus:outline-none"
-                    />
-                    <button type="submit" className="lp-btn shrink-0 px-6 py-3">Gọi lại cho tôi</button>
-                  </div>
-                </form>
-              )}
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => navigate(isAuthenticated ? getPortalPath() : '/register')} className="lp-btn px-6 py-3">
+                  {isAuthenticated ? 'Vào trang của tôi' : 'Tạo tài khoản'}
+                </button>
+                <p className="text-sm text-(--lp-muted)">Sau khi có tài khoản, gửi hồ sơ đối tác để ParkMaster duyệt và mở bãi.</p>
+              </div>
             </div>
 
             <figure className="relative">
@@ -468,9 +478,9 @@ export const LandingPage: React.FC = () => {
                 loading="lazy"
                 className="aspect-[4/3] w-full rounded-2xl object-cover"
               />
-              <figcaption className="absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl bg-white/90 px-4 py-3 text-[#0f1f38] backdrop-blur">
-                <span className="lp-num rounded border-2 border-[#0f1f38] px-2.5 py-0.5 text-2xl font-semibold tracking-wide">51K-889.32</span>
-                <span className="text-sm font-semibold text-[#0f7a4f]">Khớp lượt đặt, cổng đã mở</span>
+              <figcaption className="absolute bottom-4 left-4 flex flex-wrap items-center gap-3 rounded-xl bg-white/90 px-4 py-3 text-[#0f172a] backdrop-blur">
+                <span className="lp-num rounded border-2 border-[#0f172a] px-2.5 py-0.5 text-2xl font-semibold tracking-wide">51K-889.32</span>
+                <span className="text-sm font-semibold text-[#047857]">Khớp lượt đặt, cổng đã mở</span>
               </figcaption>
             </figure>
           </div>

@@ -103,7 +103,7 @@ const KycReviewDrawer: React.FC<{ item: AdminKycItemDto; onClose: () => void; on
           label: 'Reason shown to the user',
           required: true,
           requiredMessage: 'A reason is required so the user knows what to fix.',
-          placeholder: 'For example: the back side is blurred, please retake it in good light.',
+          placeholder: 'For example: the Citizen ID number does not match the account holder.',
           maxLength: 500,
         }}
         onClose={() => setDialog(null)}

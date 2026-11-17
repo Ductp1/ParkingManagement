@@ -24,8 +24,8 @@ public sealed class StaffController(StaffUseCases staff) : ControllerBase
         => Ok(await staff.LotsAsync(ct));
 
     /// <summary>
-    /// POST /api/v1/users/me/staff – Tạo nhân viên mới (gửi OTP xác minh) hoặc gán thêm bãi
-    /// cho nhân viên đã thuộc chủ bãi này (dùng cùng Email/SĐT).
+    /// POST /api/v1/users/me/staff – Tạo nhân viên mới (email tên đăng nhập + mật khẩu tạm) hoặc gán thêm bãi
+    /// cho nhân viên đã thuộc chủ bãi này (dùng cùng email).
     /// </summary>
     [HttpPost]
     [EnableRateLimiting("auth")]

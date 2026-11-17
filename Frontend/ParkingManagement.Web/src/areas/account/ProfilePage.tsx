@@ -79,7 +79,7 @@ export function ProfilePage() {
   }
 
   return <div className="account-page">
-    <header className="account-header"><div><span className="account-kicker">TÀI KHOẢN CỦA BẠN</span><h1>Hồ sơ cá nhân</h1><p className="account-muted">Một chút thông tin, để mỗi hành trình gần gũi hơn.</p></div><UserRound className="text-indigo-500" size={30} /></header>
+    <header className="account-header"><div><span className="account-kicker">TÀI KHOẢN CỦA BẠN</span><h1>Hồ sơ cá nhân</h1><p className="account-muted">Một chút thông tin, để mỗi hành trình gần gũi hơn.</p></div><UserRound className="text-blue-500" size={30} /></header>
     {error && <div role="alert" className="account-notice error">{error} {!profile && <button className="underline ml-2" onClick={() => { setLoading(true); setError(''); setReload(n => n + 1); }}>Thử lại</button>}</div>}
     {message && <div role="status" className="account-notice success"><Check size={16} className="inline mr-2" />{message}</div>}
     {loading ? <div className="account-card account-empty" role="status">Đang tải hồ sơ…</div> : profile && <div className="account-grid">
@@ -88,7 +88,7 @@ export function ProfilePage() {
         {(file || removeAvatar) && <p className="account-muted text-xs mb-3">Ảnh xem trước · Chưa lưu</p>}
         <h2 className="break-words">{profile.fullName}</h2><p className="account-muted break-all mt-2">{profile.email || profile.phone}</p>
         <div className="flex flex-wrap justify-center gap-2 mt-4">{profile.roles?.map(role => <span className="account-badge" key={role}>{roleLabels[role]}</span>)}</div>
-        <div className="border-t border-slate-100 mt-6 pt-5 account-muted text-left"><ShieldCheck size={18} className="text-indigo-500 mb-2" />Thông tin liên hệ đã xác minh giúp bảo vệ và khôi phục tài khoản của bạn.</div>
+        <div className="border-t border-slate-100 mt-6 pt-5 account-muted text-left"><ShieldCheck size={18} className="text-blue-500 mb-2" />Thông tin liên hệ đã xác minh giúp bảo vệ và khôi phục tài khoản của bạn.</div>
       </aside>
 
       <section className="account-card">
@@ -97,7 +97,7 @@ export function ProfilePage() {
           <Link to="/account/profile"
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               !identitySelected
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
@@ -108,7 +108,7 @@ export function ProfilePage() {
           <Link to="/account/profile#identity"
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               identitySelected
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
