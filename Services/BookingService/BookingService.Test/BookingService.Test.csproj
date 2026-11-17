@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Unit test cho Domain + Application + Infrastructure của BookingService. -->
+  <!-- Unit test cho Domain + Application + Infrastructure của BookingService; US-083 thêm test consumer cần PostgreSQL thật. -->
+
   <PropertyGroup>
     <IsPackable>false</IsPackable>
   </PropertyGroup>

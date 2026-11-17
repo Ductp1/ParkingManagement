@@ -19,6 +19,21 @@ export interface ParkingLotDto {
   canBook?: boolean;
   amenities?: string[];
   photos?: string[];
+  /** US-069: chủ bãi sở hữu — dùng khi tạo booking thật (POST /api/v1/bookings). */
+  ownerProfileId?: number;
+}
+
+/**
+ * US-068: độ tươi dữ liệu của bãi xe (heartbeat & stale).
+ * Status: "NeverReported" | "Fresh" | "Stale".
+ */
+export interface LotOperationalStatusDto {
+  parkingLotId: number;
+  lotName: string;
+  status: 'NeverReported' | 'Fresh' | 'Stale' | string;
+  isDataStale: boolean;
+  lastHeartbeatAtUtc: string | null;
+  staleAfterMinutes: number;
 }
 
 export interface ParkingLotSearchItemDto {

@@ -1,10 +1,11 @@
-import { adminRequest, cleanParams } from './adminClientApi';
+import { adminFileRequest, adminRequest, cleanParams } from './adminClientApi';
 import type { PagedResult } from '@/types/adminCommon';
 import type {
   IssueOwnerAccountRequest,
   PartnerApplicationDetailDto,
   PartnerApplicationListQuery,
   PartnerApplicationSummaryDto,
+  PartnerDocumentDto,
   PartnerReasonRequest,
   PartnerRequestInfoRequest,
 } from '@/types/adminPartnerOnboarding';
@@ -23,6 +24,13 @@ export const adminPartnerOnboardingApi = {
 
   /** A2 – chi tiết hồ sơ. */
   getById: (id: number) => adminRequest<PartnerApplicationDetailDto>({ method: 'GET', url: `${BASE}/${id}` }),
+
+  /** US-053 – giấy tờ pháp lý đối tác nộp (chỉ Admin). */
+  listDocuments: (id: number) => adminRequest<PartnerDocumentDto[]>({ method: 'GET', url: `${BASE}/${id}/documents` }),
+
+  /** US-053 – nội dung một giấy tờ (Blob, gửi kèm Bearer token; không mở bằng link trần). */
+  getDocumentFile: (id: number, documentId: number) =>
+    adminFileRequest({ method: 'GET', url: `${BASE}/${id}/documents/${documentId}/file` }),
 
   /** A3 – Submitted → UnderReview. */
   startReview: (id: number) => adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/start-review` }),

@@ -21,7 +21,14 @@ public sealed class NotificationDataSeeder(ILogger<NotificationDataSeeder> logge
     private async Task SeedCoreAsync(NotificationDbContext db, CancellationToken cancellationToken)
     {
         if (await db.Notifications.AnyAsync(cancellationToken)) return;
-        var templates = await db.NotificationTemplates.ToDictionaryAsync(t => (t.Key, t.Channel), cancellationToken);
+        // US-083 i18n: mỗi (Key, Channel) có nhiều bản ngôn ngữ (vi/en) → gom nhóm và ưu tiên bản "vi"
+        // (tránh duplicate key khi fresh database có đủ 2 bản dịch cho cùng key).
+        var templates = await db.NotificationTemplates
+            .GroupBy(t => new { t.Key, t.Channel })
+            .ToDictionaryAsync(
+                g => (g.Key.Key, g.Key.Channel),
+                g => g.OrderBy(t => t.Language == "vi" ? 0 : 1).ThenBy(t => t.Id).First(),
+                cancellationToken);
 
         db.Notifications.AddRange(
             new Notification
@@ -63,6 +70,8 @@ public sealed class NotificationDataSeeder(ILogger<NotificationDataSeeder> logge
                 new DeviceToken { UserId = DemoIds.OwnerVincomUser, Token = "demo-fcm-token-owner-vincom-web", Platform = "Web", DeviceName = "Chrome – Owner portal", LastUsedAtUtc = DateTime.UtcNow });
         }
 
+        // US-086: (bản merge US-086 đã có đủ mẫu khẩn cấp qua migration Us086_EmergencyNotifications —
+        // không seed thêm template runtime nào tại đây.)
         await db.SaveChangesAsync(cancellationToken);
     }
 }

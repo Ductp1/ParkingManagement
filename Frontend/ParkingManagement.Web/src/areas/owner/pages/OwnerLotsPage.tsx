@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
+  Activity,
   Building2,
   Plus,
   Layers,
@@ -16,6 +17,7 @@ import { ownerStructureApi } from '@/api/ownerStructureApi';
 import { ownerCapacityApi } from '@/api/ownerCapacityApi';
 import { ownerLotDetailsApi } from '@/api/ownerLotDetailsApi';
 import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
+import type { LotOperationalStatusDto } from '@/types/parking';
 import type {
   ZoneDto,
   FloorDto,
@@ -50,6 +52,7 @@ import { RegisterLotModal } from '../components/RegisterLotModal';
 import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
 import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
 import { CapacityConfigSection } from '../components/capacity/CapacityConfigSection';
+import { OperationsPanel } from '../components/operations/OperationsPanel';
 import { WeeklyScheduleEditor } from '../components/operating/WeeklyScheduleEditor';
 import { AmenitiesSelector } from '../components/operating/AmenitiesSelector';
 import { LotAttributesEditor } from '../components/operating/LotAttributesEditor';
@@ -63,12 +66,14 @@ export const OwnerLotsPage: React.FC = () => {
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
   const [loadingLots, setLoadingLots] = useState(true);
+  const [lotsError, setLotsError] = useState<string | null>(null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
-  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operating' (US-062) | 'amenities' (US-064)
-  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operating' | 'amenities'>(() => {
+  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operations' (US-067/068/069) | 'operating' (US-062) | 'amenities' (US-064)
+  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operations' | 'operating' | 'amenities'>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'capacity') return 'capacity';
+    if (tabParam === 'operations') return 'operations';
     if (tabParam === 'operating' || tabParam === 'schedule') return 'operating';
     if (tabParam === 'amenities') return 'amenities';
     return 'structure';
@@ -130,12 +135,13 @@ export const OwnerLotsPage: React.FC = () => {
     text: string;
   } | null>(null);
 
-  // 1. Tải danh sách bãi đỗ của chủ bãi
+  // 1. Tải danh sách bãi đỗ của chủ bãi – chỉ gọi API thật, KHÔNG dùng mock fallback
   const loadOwnerLots = useCallback(async (autoSelectId?: number) => {
     setLoadingLots(true);
     try {
       const data = await ownerLotsApi.getMyLots(ownerProfileId);
       setLots(data);
+      setLotsError(null);
       if (data.length > 0) {
         const queryLotId = searchParams.get('lotId');
         const targetId = autoSelectId
@@ -147,9 +153,19 @@ export const OwnerLotsPage: React.FC = () => {
       } else {
         setSelectedLotId(null);
       }
-    } catch {
+    } catch (err) {
+      // Không fallback mock: hiển thị lỗi thật để chủ bãi biết ParkingService chưa sẵn sàng.
       setLots([]);
       setSelectedLotId(null);
+      setLotsError(
+        err instanceof Error
+          ? err.message
+          : 'Không tải được danh sách bãi đỗ từ ParkingService. Vui lòng kiểm tra backend.'
+      );
+      setActionMessage({
+        type: 'error',
+        text: 'Không tải được danh sách bãi đỗ từ hệ thống — vui lòng kiểm tra backend (Gateway :5000) đã chạy rồi bấm tải lại trang.',
+      });
     } finally {
       setLoadingLots(false);
     }
@@ -164,6 +180,55 @@ export const OwnerLotsPage: React.FC = () => {
     () => lots.find((l) => l.id === selectedLotId) || null,
     [lots, selectedLotId]
   );
+
+  // ===== US-068: Heartbeat & Stale Data =====
+  const [operationalStatus, setOperationalStatus] = useState<LotOperationalStatusDto | null>(null);
+  const [heartbeatBusy, setHeartbeatBusy] = useState(false);
+
+  const loadOperationalStatus = useCallback(async (lotId: number) => {
+    try {
+      const status = await ownerLotsApi.getOperationalStatus(lotId);
+      setOperationalStatus(status);
+    } catch (err) {
+      // Không chặn trang – chỉ log; badge hiển thị "đang tải" khi chưa có dữ liệu.
+      console.error('US-068: không tải được trạng thái độ tươi dữ liệu:', err);
+      setOperationalStatus(null);
+    }
+  }, []);
+
+  const handleSendHeartbeat = useCallback(async () => {
+    if (!selectedLotId) return;
+    setHeartbeatBusy(true);
+    try {
+      const result = await ownerLotsApi.sendHeartbeat(selectedLotId);
+      const status = await ownerLotsApi.getOperationalStatus(selectedLotId);
+      setOperationalStatus(status);
+      setActionMessage({
+        type: 'success',
+        text: result.recovered
+          ? 'US-068: Đã gửi heartbeat — bãi vừa THOÁT trạng thái stale, dữ liệu đáng tin trở lại.'
+          : 'US-068: Đã gửi heartbeat — dữ liệu bãi được xác nhận còn tươi.',
+      });
+    } catch (err) {
+      setActionMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'US-068: Không gửi được heartbeat tới ParkingService.',
+      });
+    } finally {
+      setHeartbeatBusy(false);
+    }
+  }, [selectedLotId]);
+
+  // US-068: tự làm mới trạng thái mỗi 30 giây (khớp LotHeartbeat:PollSeconds của backend)
+  useEffect(() => {
+    if (!selectedLotId) {
+      setOperationalStatus(null);
+      return;
+    }
+    void loadOperationalStatus(selectedLotId);
+    const interval = setInterval(() => void loadOperationalStatus(selectedLotId), 30_000);
+    return () => clearInterval(interval);
+  }, [selectedLotId, loadOperationalStatus]);
 
   // 2. Tải danh sách Zones và Cây phân cấp khi thay đổi bãi đỗ
   const loadStructureData = useCallback(async (lotId: number) => {
@@ -319,7 +384,7 @@ export const OwnerLotsPage: React.FC = () => {
     setSearchParams,
   ]);
 
-  const handleTabChange = (tab: 'structure' | 'capacity' | 'operating' | 'amenities') => {
+  const handleTabChange = (tab: 'structure' | 'capacity' | 'operations' | 'operating' | 'amenities') => {
     setActiveTab(tab);
     if (selectedLotId) {
       setSearchParams((prev) => {
@@ -789,6 +854,11 @@ export const OwnerLotsPage: React.FC = () => {
                 <Clock size={13} />
                 LỊCH HOẠT ĐỘNG & GIỜ MỞ CỬA (US-062)
               </>
+            ) : activeTab === 'operations' ? (
+              <>
+                <Activity size={13} />
+                Vận hành Real-time & Khẩn cấp (US-067/068/069)
+              </>
             ) : (
               <>
                 <Sparkles size={13} />
@@ -803,6 +873,8 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Cấu hình Sức chứa & Vùng đệm Vãng lai'
               : activeTab === 'operating'
               ? 'Lịch Hoạt Động & Khung Giờ Mở Cửa'
+              : activeTab === 'operations'
+              ? 'Vận hành Real-time & Emergency Stop'
               : 'Tiện Ích & Thông Tin Vận Hành Bãi Xe'}
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed">
@@ -812,6 +884,8 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Quản lý tỷ lệ giữ chỗ cho khách vãng lai, phân bổ hạn ngạch đặt chỗ Online và thiết lập ngưỡng khóa an toàn.'
               : activeTab === 'operating'
               ? 'Cấu hình thời gian đón khách 7 ngày trong tuần, chế độ 24/7, hoạt động qua đêm và tùy biến riêng theo từng tuần cụ thể.'
+              : activeTab === 'operations'
+              ? 'Giám sát vận hành real-time của bãi: số chỗ theo thời gian thực, nhịp heartbeat thiết bị (stale data) và đóng/mở bãi khẩn cấp.'
               : 'Thiết lập danh mục dịch vụ tiện ích (trạm sạc EV, mái che, CCTV...), hotline hỗ trợ khách hàng và chiều cao xe tối đa.'}
           </p>
         </div>
@@ -868,6 +942,20 @@ export const OwnerLotsPage: React.FC = () => {
             className="text-slate-400 hover:text-slate-700 text-xs cursor-pointer ml-3"
           >
             <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* US-068/US-053: lỗi tải danh sách bãi từ ParkingService (không còn mock fallback) */}
+      {lotsError && (
+        <div className="mt-4 p-4 rounded-2xl border bg-rose-50 text-rose-800 border-rose-200 text-xs font-semibold flex items-center justify-between">
+          <span>{lotsError}</span>
+          <button
+            type="button"
+            onClick={() => void loadOwnerLots()}
+            className="text-rose-700 hover:text-rose-900 text-xs font-bold cursor-pointer ml-3 whitespace-nowrap"
+          >
+            Thử lại
           </button>
         </div>
       )}
@@ -951,6 +1039,19 @@ export const OwnerLotsPage: React.FC = () => {
             <Sparkles size={16} />
             <span>Tiện ích bãi xe (US-064)</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange('operations')}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+              activeTab === 'operations'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+            }`}
+          >
+            <Activity size={16} />
+            Vận hành Real-time (US-067)
+          </button>
         </div>
       )}
 
@@ -998,6 +1099,59 @@ export const OwnerLotsPage: React.FC = () => {
                   {selectedLot.status}
                 </span>
               </div>
+            </div>
+
+            {/* US-068: Heartbeat & độ tươi dữ liệu – badge + heartbeat thật từ ParkingService */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Độ tươi dữ liệu (US-068)
+              </span>
+              <div className="mt-1 flex items-center gap-2 flex-wrap min-h-[26px]">
+                {operationalStatus ? (
+                  <span
+                    className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${
+                      operationalStatus.status === 'Fresh'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : operationalStatus.status === 'Stale'
+                          ? 'bg-rose-50 text-rose-700 border-rose-200'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        operationalStatus.status === 'Fresh'
+                          ? 'bg-emerald-500'
+                          : operationalStatus.status === 'Stale'
+                            ? 'bg-rose-500'
+                            : 'bg-slate-400'
+                      }`}
+                    ></span>
+                    {operationalStatus.status === 'Fresh'
+                      ? 'Dữ liệu tươi'
+                      : operationalStatus.status === 'Stale'
+                        ? 'DỮ LIỆU CŨ (STALE)'
+                        : 'Chưa có heartbeat'}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">Đang tải trạng thái…</span>
+                )}
+              </div>
+              {operationalStatus?.lastHeartbeatAtUtc && (
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Heartbeat gần nhất:{' '}
+                  {new Date(operationalStatus.lastHeartbeatAtUtc).toLocaleTimeString('vi-VN')} •
+                  ngưỡng stale {operationalStatus.staleAfterMinutes} phút
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleSendHeartbeat()}
+                disabled={heartbeatBusy || !selectedLotId}
+                className="mt-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+              >
+                <Activity size={12} />
+                {heartbeatBusy ? 'Đang gửi…' : 'Gửi Heartbeat'}
+              </button>
             </div>
           </div>
 
@@ -1120,7 +1274,19 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          4. TAB 3 CONTENT: LỊCH HOẠT ĐỘNG (US-062)
+          3. TAB 3 CONTENT: VẬN HÀNH REAL-TIME (US-067 dashboard / US-068 heartbeat / US-069 emergency)
+      ====================================================================== */}
+      {selectedLot && activeTab === 'operations' && (
+        <OperationsPanel
+          key={selectedLot.id}
+          lotId={selectedLot.id}
+          lotName={selectedLot.name}
+          onLotChanged={() => { void loadOwnerLots(selectedLot.id); }}
+        />
+      )}
+
+      {/* =====================================================================
+          4. TAB 4 CONTENT: LỊCH HOẠT ĐỘNG (US-062)
       ====================================================================== */}
       {selectedLot && activeTab === 'operating' && (
         <div className="mt-6 space-y-8">
@@ -1191,7 +1357,7 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          3. CÁC MODALS THAO TÁC
+          6. CÁC MODALS THAO TÁC
       ====================================================================== */}
       {/* Modal Thêm / Sửa Zone */}
       <ZoneModal

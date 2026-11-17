@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ParkingLotDto, ParkingLotSearchItemDto, FloorLayoutDto, ParkingLotHierarchyDto } from '@/types/parking';
+import type { ParkingLotDto, ParkingLotSearchItemDto, FloorLayoutDto, ParkingLotHierarchyDto, LotOperationalStatusDto } from '@/types/parking';
 
 export const parkingApi = {
   /**
@@ -7,6 +7,17 @@ export const parkingApi = {
    */
   getById: async (id: number): Promise<ParkingLotDto> => {
     const response = await apiClient.get<ParkingLotDto>(`/api/v1/parking-lots/${id}`);
+    return response.data;
+  },
+
+  /**
+   * US-068: độ tươi dữ liệu của bãi (heartbeat & stale) – để hiển thị cảnh báo
+   * "số chỗ trống có thể không chính xác" khi bãi quá hạn heartbeat.
+   */
+  getOperationalStatus: async (lotId: number): Promise<LotOperationalStatusDto> => {
+    const response = await apiClient.get<LotOperationalStatusDto>(
+      `/api/v1/parking-lots/${lotId}/operations/status`
+    );
     return response.data;
   },
 
