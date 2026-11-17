@@ -35,7 +35,7 @@ public sealed class IssueOwnerAccountUseCase(IPartnerApplicationRepository repos
 
         var account = await ownerAccounts.IssueOwnerAccountAsync(new IssueOwnerAccountCommand(
                 app.Id, app.FullName, app.Email, app.Phone, app.BusinessName, app.TaxCode, app.BusinessAddress,
-                bank.Bin, bank.BankName, bank.AccountNumber, bank.AccountName),
+                bank.Bin, bank.BankName, bank.AccountNumber, bank.AccountName, app.ApplicantUserId),
             IdempotencyKey(app.Id), cancellationToken);
 
         app.IssueAccount(performedByUserId, bank, account.UserId, account.OwnerProfileId);

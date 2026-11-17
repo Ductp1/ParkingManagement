@@ -37,6 +37,7 @@ internal sealed class PartnerApplicationConfiguration : IEntityTypeConfiguration
         e.HasIndex(x => x.Status);
         e.HasIndex(x => x.TaxCode);
         e.HasIndex(x => x.CreatedOwnerProfileId);
+        e.HasIndex(x => x.ApplicantUserId);   // US-053: hồ sơ của tôi + chặn nộp trùng theo tài khoản
     }
 }
 

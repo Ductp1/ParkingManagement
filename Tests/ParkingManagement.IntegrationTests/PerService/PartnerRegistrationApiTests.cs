@@ -48,24 +48,41 @@ public class PartnerRegistrationApiTests(AdminApiFixture fixture)
         return form;
     }
 
+    /// <summary>Tài khoản tài xế giả (id lớn, không trùng seed) – mỗi lần chạy fixture là DB mới nên không vướng "1 hồ sơ đang chờ / tài khoản".</summary>
+    private const int ApplicantUserId = 9001;
+
     private static string UniqueTaxCode() => $"09{Random.Shared.NextInt64(10_000_000, 99_999_999)}";
 
     [Fact]
-    public async Task Public_registration_keeps_legal_documents_admin_only_until_reviewed()
+    public async Task Logged_in_registration_keeps_legal_documents_admin_only_until_reviewed()
     {
         var taxCode = UniqueTaxCode();
         using var anonymous = fixture.AdminFactory.CreateClient();
+        using var applicant = fixture.CreateClientWithRole(ApplicantUserId, "Driver");
 
-        // 1. Nộp hồ sơ không cần đăng nhập → 201 + mã hồ sơ, trạng thái Submitted
-        var submit = await anonymous.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf));
+        // 1. Chưa đăng nhập không nộp được (401); tài khoản đã đăng nhập nộp → 201 + mã hồ sơ, trạng thái Submitted
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf))).StatusCode);
+        var submit = await applicant.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf));
         Assert.Equal(HttpStatusCode.Created, submit.StatusCode);
         var receipt = await submit.Content.ReadFromJsonAsync<JsonElement>();
         var code = receipt.GetProperty("code").GetString()!;
         Assert.Matches(@"^PA-\d{4}-\d{4}$", code);
         Assert.Equal("Submitted", receipt.GetProperty("status").GetString());
 
-        // Gửi lại cùng mã số thuế khi hồ sơ cũ còn chờ → 409
-        Assert.Equal(HttpStatusCode.Conflict, (await anonymous.PostAsync(RegisterUrl, Form(taxCode, $"other.{taxCode}@baixe.test", Pdf))).StatusCode);
+        // Cùng tài khoản nộp tiếp khi hồ sơ cũ còn chờ (dù khác MST / email) → 409
+        var otherTax = UniqueTaxCode();
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await applicant.PostAsync(RegisterUrl, Form(otherTax, $"other.{otherTax}@baixe.test", Pdf))).StatusCode);
+
+        // Người nộp xem trạng thái hồ sơ của mình; tài khoản khác không thấy; chưa đăng nhập 401
+        var mine = await applicant.GetFromJsonAsync<JsonElement>($"{RegisterUrl}/mine");
+        var own = mine.EnumerateArray().Single(a => a.GetProperty("code").GetString() == code);
+        Assert.Equal("Submitted", own.GetProperty("status").GetString());
+        Assert.Equal(4, own.GetProperty("documentCount").GetInt32());
+        Assert.False(own.TryGetProperty("documents", out _));     // không trả giấy tờ cho người nộp
+        using var stranger = fixture.CreateClientWithRole(ApplicantUserId + 100, "Driver");
+        Assert.Equal(0, (await stranger.GetFromJsonAsync<JsonElement>($"{RegisterUrl}/mine")).GetArrayLength());
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync($"{RegisterUrl}/mine")).StatusCode);
 
         // 2. Admin thấy hồ sơ trong hàng chờ
         var page = await fixture.AdminClient.GetFromJsonAsync<JsonElement>($"{AdminUrl}?search={code}");
@@ -107,12 +124,12 @@ public class PartnerRegistrationApiTests(AdminApiFixture fixture)
     }
 
     [Fact] // File đổi đuôi .pdf nhưng nội dung không phải PDF / ảnh → 400, không tạo hồ sơ.
-    public async Task Public_registration_rejects_file_whose_content_is_not_pdf_or_image()
+    public async Task Registration_rejects_file_whose_content_is_not_pdf_or_image()
     {
         var taxCode = UniqueTaxCode();
-        using var anonymous = fixture.AdminFactory.CreateClient();
+        using var applicant = fixture.CreateClientWithRole(ApplicantUserId + 1, "Driver");
 
-        var response = await anonymous.PostAsync(RegisterUrl, Form(taxCode, $"bad.{taxCode}@baixe.test", "<html>not a pdf</html>"u8.ToArray()));
+        var response = await applicant.PostAsync(RegisterUrl, Form(taxCode, $"bad.{taxCode}@baixe.test", "<html>not a pdf</html>"u8.ToArray()));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var page = await fixture.AdminClient.GetFromJsonAsync<JsonElement>($"{AdminUrl}?search={taxCode}");

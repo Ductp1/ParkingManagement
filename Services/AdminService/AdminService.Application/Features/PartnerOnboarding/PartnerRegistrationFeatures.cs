@@ -8,7 +8,14 @@ namespace AdminService.Application.Features.PartnerOnboarding;
 
 // ===== REQUEST / DTO =====
 
-/// <summary>Form đăng ký đối tác chủ bãi (US-053, public, không cần đăng nhập). Giấy tờ đi riêng trong <see cref="PartnerDocumentUpload"/>.</summary>
+/// <summary>Người nộp lấy từ JWT (không nhận từ form): tài khoản đã đăng nhập + đã là chủ bãi chưa.</summary>
+public sealed record PartnerApplicant(int UserId, bool IsLotOwner);
+
+/// <summary>Hồ sơ đăng ký của chính người nộp: chỉ trạng thái và phản hồi của Admin, không có giấy tờ.</summary>
+public sealed record MyPartnerApplicationDto(string Code, string Status, string BusinessName, string TaxCode, int DocumentCount,
+    string? InfoRequestNote, string? RejectReason, DateTime SubmittedAtUtc, DateTime? UpdatedAtUtc);
+
+/// <summary>Form đăng ký đối tác chủ bãi (US-053, cần đăng nhập). Giấy tờ đi riêng trong <see cref="PartnerDocumentUpload"/>.</summary>
 public sealed record SubmitPartnerApplicationRequest(
     string? FullName, string? Email, string? Phone, string? Position,
     PartnerBusinessType? BusinessType, string? BusinessName, string? TaxCode, string? BusinessAddress,
@@ -34,8 +41,13 @@ public sealed record PartnerDocumentRecord(int Id, int PartnerApplicationId, Par
 
 public interface IPartnerRegistrationRepository
 {
-    /// <summary>Đã có hồ sơ chưa kết thúc (không phải Activated / Rejected / Cancelled) cùng mã số thuế hoặc email.</summary>
-    Task<bool> HasOpenApplicationAsync(string taxCode, string email, CancellationToken cancellationToken);
+    /// <summary>
+    /// Đã có hồ sơ chưa kết thúc (không phải Activated / Rejected / Cancelled) của cùng tài khoản, hoặc cùng mã số thuế / email.
+    /// </summary>
+    Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken);
+
+    /// <summary>Hồ sơ của một tài khoản, mới nhất trước.</summary>
+    Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Sinh mã PA-{năm}-{số thứ tự} rồi lưu hồ sơ + giấy tờ trong một SaveChanges.
@@ -85,6 +97,9 @@ public static class PartnerDocumentRules
         _ => "Giấy tờ khác",
     };
 
+    /// <summary>Chỉ viết thường chữ cái đầu để giữ chữ viết tắt ("Ảnh CCCD mặt sau" → "ảnh CCCD mặt sau") – TXT-002.</summary>
+    private static string LowerFirst(string text) => text.Length == 0 ? text : char.ToLowerInvariant(text[0]) + text[1..];
+
     public static void EnsureSet(IReadOnlyList<PartnerDocumentUpload> documents)
     {
         if (documents.Count > MaxFiles) throw new ValidationException($"Tối đa {MaxFiles} file giấy tờ cho mỗi hồ sơ.");
@@ -92,7 +107,7 @@ public static class PartnerDocumentRules
         foreach (var type in Required)
         {
             if (!documents.Any(d => d.Type == type))
-                throw new ValidationException($"Vui lòng tải lên {Label(type).ToLowerInvariant()}.");
+                throw new ValidationException($"Vui lòng tải lên {LowerFirst(Label(type))}.");
         }
         foreach (var side in new[] { PartnerDocumentType.IdCardFront, PartnerDocumentType.IdCardBack })
         {
@@ -141,22 +156,25 @@ public static class PartnerDocumentRules
 
 public interface ISubmitPartnerApplicationUseCase
 {
-    Task<PartnerApplicationReceiptDto> ExecuteAsync(SubmitPartnerApplicationRequest request, IReadOnlyList<PartnerDocumentUpload> documents,
-        CancellationToken cancellationToken = default);
+    Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant applicant, SubmitPartnerApplicationRequest request,
+        IReadOnlyList<PartnerDocumentUpload> documents, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// US-053 (T1): người muốn làm chủ bãi nộp hồ sơ + giấy tờ pháp lý. Hồ sơ ở trạng thái Submitted và chờ Admin
-/// bắt đầu thẩm định (T2) rồi mới được cấp tài khoản (T6). File lưu trước, lưu database lỗi thì xóa file đã ghi.
+/// US-053 (T1): người dùng ĐÃ ĐĂNG NHẬP nộp hồ sơ làm chủ bãi + giấy tờ pháp lý. Hồ sơ gắn với tài khoản (ApplicantUserId),
+/// ở trạng thái Submitted và chờ Admin bắt đầu thẩm định (T2) rồi mới được duyệt / cấp quyền chủ bãi (T6).
+/// Đã là chủ bãi hoặc đang có hồ sơ chờ → 409. File lưu trước, lưu database lỗi thì xóa file đã ghi.
 /// </summary>
 public sealed partial class SubmitPartnerApplicationUseCase(
     IPartnerRegistrationRepository repository,
     IFileStorage storage,
     TimeProvider timeProvider) : ISubmitPartnerApplicationUseCase
 {
-    public async Task<PartnerApplicationReceiptDto> ExecuteAsync(SubmitPartnerApplicationRequest request,
+    public async Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant applicant, SubmitPartnerApplicationRequest request,
         IReadOnlyList<PartnerDocumentUpload> documents, CancellationToken cancellationToken = default)
     {
+        if (applicant.UserId <= 0) throw new ValidationException("Tài khoản người nộp không hợp lệ.");
+        if (applicant.IsLotOwner) throw new ConflictException("Tài khoản của bạn đã là chủ bãi, không cần đăng ký đối tác nữa.");
         if (!request.ConsentAccepted) throw new ValidationException("Vui lòng đồng ý với điều khoản xử lý dữ liệu để gửi hồ sơ.");
 
         var fullName = Text(request.FullName, "Họ tên người đăng ký", 200);
@@ -179,11 +197,12 @@ public sealed partial class SubmitPartnerApplicationUseCase(
         PartnerDocumentRules.EnsureSet(documents);
         var detected = documents.Select(d => (Upload: d, Kind: PartnerDocumentRules.Detect(d))).ToList();
 
-        if (await repository.HasOpenApplicationAsync(taxCode, email, cancellationToken))
-            throw new ConflictException("Mã số thuế hoặc email này đã có hồ sơ đang chờ xử lý. Vui lòng chờ Admin phản hồi.");
+        if (await repository.HasOpenApplicationAsync(applicant.UserId, taxCode, email, cancellationToken))
+            throw new ConflictException("Bạn (hoặc mã số thuế / email này) đã có hồ sơ đang chờ xử lý. Vui lòng chờ Admin phản hồi.");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var app = PartnerApplication.Submit(string.Empty, now);
+        app.ApplicantUserId = applicant.UserId;
         app.FullName = fullName;
         app.Email = email;
         app.Phone = phone;
@@ -282,6 +301,23 @@ public sealed partial class SubmitPartnerApplicationUseCase(
 
     [GeneratedRegex(@"^\d{10}(-\d{3})?$")]
     private static partial Regex TaxCodePattern();
+}
+
+// ===== USE CASE: người nộp xem hồ sơ của mình =====
+
+public interface IListMyPartnerApplicationsUseCase
+{
+    Task<IReadOnlyList<MyPartnerApplicationDto>> ExecuteAsync(int applicantUserId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>US-053: người nộp theo dõi hồ sơ (chờ duyệt / cần bổ sung / bị từ chối…). Không trả giấy tờ – chỉ Admin xem giấy tờ.</summary>
+public sealed class ListMyPartnerApplicationsUseCase(IPartnerRegistrationRepository repository) : IListMyPartnerApplicationsUseCase
+{
+    public Task<IReadOnlyList<MyPartnerApplicationDto>> ExecuteAsync(int applicantUserId, CancellationToken cancellationToken = default)
+    {
+        if (applicantUserId <= 0) throw new ValidationException("Tài khoản không hợp lệ.");
+        return repository.ListByApplicantAsync(applicantUserId, cancellationToken);
+    }
 }
 
 // ===== USE CASE: Admin xem giấy tờ =====
