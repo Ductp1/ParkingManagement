@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
+import { fetchVehicles } from '@/store/slices/vehicleSlice';
 import { parkingApi } from '@/api/parkingApi';
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
@@ -80,6 +81,12 @@ export const LotDetailPage: React.FC = () => {
   const { vehicles } = useAppSelector((state) => state.vehicle);
   const { user } = useAppSelector((state) => state.auth);
   const userId = user?.id || 5;
+
+  useEffect(() => {
+    if (vehicles.length === 0) {
+      void dispatch(fetchVehicles(userId));
+    }
+  }, [dispatch, userId, vehicles.length]);
 
   const [lot, setLot] = useState<ParkingLotDto | null>(null);
   const [selectedFloor, setSelectedFloor] = useState<'B1' | 'B2' | 'B3' | 'F1'>('B2');

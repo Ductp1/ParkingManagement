@@ -4,7 +4,12 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
+import { fetchVehicles } from '@/store/slices/vehicleSlice';
 import { parkingApi } from '@/api/parkingApi';
+import { bookingApi } from '@/api/bookingApi';
+import { paymentApi } from '@/api/paymentApi';
+import type { BookingDetailDto } from '@/types/booking';
+import type { AppliedPromotionDto, VietQrPaymentDto } from '@/types/payment';
 import type {
   ParkingLotSearchItemDto,
   FloorLayoutDto,
@@ -12,6 +17,11 @@ import type {
   ParkingLotHierarchyDto,
   SlotHierarchyDto,
 } from '@/types/parking';
+
+const toLocalInput = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 // ==========================================
 // 1. UTILITY: FORMAT TÊN BÃI GỌN GÀNG CHO MARKER
@@ -120,22 +130,33 @@ export const SmartParkingFinderPage: React.FC = () => {
   const [selectedSlotCode, setSelectedSlotCode] = useState<string | null>(null);
   const [isLoadingLayout, setIsLoadingLayout] = useState<boolean>(false);
 
-  // 7. Modal Checkout (Dịch vụ tiện ích & Phương thức thanh toán)
+  // 7. Modal Checkout (Dịch vụ tiện ích & Phương thức thanh toán thật)
   const [showCheckoutModal, setShowCheckoutModal] = useState<boolean>(false);
   const [hasEvService, setHasEvService] = useState<boolean>(false);
   const [hasWashService, setHasWashService] = useState<boolean>(false);
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'card' | 'etc' | 'gate'>('momo');
+  const [paymentMethod, setPaymentMethod] = useState<'gate' | 'vnpay' | 'vietqr'>('gate');
   const [bookingNote, setBookingNote] = useState<string>('');
   const [isBookingSubmitting, setIsBookingSubmitting] = useState<boolean>(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [startAtLocal, setStartAtLocal] = useState<string>(() =>
+    toLocalInput(new Date(Date.now() + 60 * 60 * 1000))
+  );
+  const [endAtLocal, setEndAtLocal] = useState<string>(() =>
+    toLocalInput(new Date(Date.now() + 3 * 60 * 60 * 1000))
+  );
+  const [quoteFinalAmount, setQuoteFinalAmount] = useState<number | null>(null);
 
-  // UI-13: Mã khuyến mãi (Voucher Code)
+  // UI-13: Mã khuyến mãi (PromotionService thật)
   const [voucherInput, setVoucherInput] = useState<string>('');
-  const [appliedVoucher, setAppliedVoucher] = useState<{ code: string; discount: number; label: string } | null>(null);
+  const [appliedVoucher, setAppliedVoucher] = useState<AppliedPromotionDto | null>(null);
+  const [promoBusy, setPromoBusy] = useState<boolean>(false);
   const [voucherMessage, setVoucherMessage] = useState<{ text: string; isError: boolean } | null>(null);
 
-  // 8. Modal xác nhận thành công
+  // 8. Modal xác nhận thành công (BookingDetailDto + VietQR thật)
   const [showBookingModal, setShowBookingModal] = useState<boolean>(false);
-  const [bookingSuccessCode, setBookingSuccessCode] = useState<string | null>(null);
+  const [bookingResult, setBookingResult] = useState<BookingDetailDto | null>(null);
+  const [vietQrData, setVietQrData] = useState<VietQrPaymentDto | null>(null);
+  const [paymentInitError, setPaymentInitError] = useState<string | null>(null);
 
   // 8. Refs cho Map & Caches
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -555,103 +576,214 @@ export const SmartParkingFinderPage: React.FC = () => {
     }
   };
 
-  // UI-13: Xử lý áp dụng mã khuyến mãi
-  const handleApplyVoucher = () => {
+  const activeCar = vehicles.find((v) => v.isDefault) || vehicles[0];
+  const vehicleTypeStr = String(activeCar?.vehicleType || 'Sedan');
+
+  useEffect(() => {
+    if (vehicles.length === 0) {
+      void dispatch(fetchVehicles(userId));
+    }
+  }, [dispatch, userId, vehicles.length]);
+
+  const durationHours = Math.max(
+    1,
+    Math.ceil((new Date(endAtLocal).getTime() - new Date(startAtLocal).getTime()) / 3600000)
+  );
+
+  useEffect(() => {
+    if (!showCheckoutModal || !currentSelectedLot || !startAtLocal || !endAtLocal) return;
+    if (new Date(endAtLocal).getTime() <= new Date(startAtLocal).getTime()) return;
+    let cancelled = false;
+    bookingApi
+      .getQuote(
+        currentSelectedLot.id,
+        vehicleTypeStr,
+        new Date(startAtLocal).toISOString(),
+        new Date(endAtLocal).toISOString()
+      )
+      .then((q) => {
+        if (!cancelled) setQuoteFinalAmount(q.finalAmount);
+      })
+      .catch(() => {
+        if (!cancelled) setQuoteFinalAmount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showCheckoutModal, currentSelectedLot, startAtLocal, endAtLocal, vehicleTypeStr]);
+
+  const baseParkingFee = quoteFinalAmount ?? (currentSelectedLot?.pricePerHour || 30000) * durationHours;
+  const evFee = hasEvService ? 50000 : 0;
+  const washFee = hasWashService ? 80000 : 0;
+  const subTotalAmount = Math.max(0, baseParkingFee + evFee + washFee);
+  const voucherDiscount = appliedVoucher ? appliedVoucher.discountAmount : 0;
+  const totalAmount = Math.max(0, subTotalAmount - voucherDiscount);
+
+  // UI-13: Áp dụng mã khuyến mãi thật qua PaymentService (POST /api/v1/promotions/apply)
+  const handleApplyVoucher = async () => {
+    if (!currentSelectedLot) return;
     const code = voucherInput.trim().toUpperCase();
     if (!code) {
       setVoucherMessage({ text: 'Vui lòng nhập mã khuyến mãi', isError: true });
       return;
     }
-    if (code === 'PARKNEW' || code === 'VIP2026' || code === 'EV2026' || code === 'PARK10') {
-      const discount = 20000;
-      setAppliedVoucher({ code, discount, label: 'Ưu đãi đặt trước' });
-      setVoucherMessage({ text: `Áp dụng thành công mã ${code} (-20.000 đ)`, isError: false });
-    } else {
-      setVoucherMessage({ text: 'Mã không tồn tại hoặc đã hết lượt áp dụng', isError: true });
+    setPromoBusy(true);
+    setVoucherMessage(null);
+    try {
+      const applied = await paymentApi.applyPromotion({
+        code,
+        parkingLotId: currentSelectedLot.id,
+        originalAmount: subTotalAmount,
+      });
+      setAppliedVoucher(applied);
+      setVoucherMessage({
+        text: `Áp dụng thành công mã ${applied.code} (-${applied.discountAmount.toLocaleString('vi-VN')} đ)`,
+        isError: false,
+      });
+    } catch (err) {
+      const axiosErr = err as { response?: { data?: { detail?: string; title?: string } } };
+      setAppliedVoucher(null);
+      setVoucherMessage({
+        text:
+          axiosErr?.response?.data?.detail ||
+          axiosErr?.response?.data?.title ||
+          'Mã không tồn tại hoặc đã hết lượt áp dụng',
+        isError: true,
+      });
+    } finally {
+      setPromoBusy(false);
     }
   };
-
-  const baseParkingFee = currentSelectedLot?.pricePerHour || 30000;
-  const evFee = hasEvService ? 50000 : 0;
-  const washFee = hasWashService ? 80000 : 0;
-  const voucherDiscount = appliedVoucher ? appliedVoucher.discount : 0;
-  const totalAmount = Math.max(0, baseParkingFee + evFee + washFee - voucherDiscount);
 
   const handleOpenCheckout = () => {
     if (!selectedSlotCode) {
       alert('Vui lòng chọn 1 vị trí ô đỗ trên sơ đồ.');
       return;
     }
+    setBookingError(null);
+    setPaymentInitError(null);
+    setVietQrData(null);
     setShowCheckoutModal(true);
   };
 
   const handleConfirmCheckout = async () => {
     if (!currentSelectedLot || !selectedSlotCode) return;
-    setIsBookingSubmitting(true);
+    setBookingError(null);
+    setPaymentInitError(null);
+    setVietQrData(null);
 
-    const bookingCode = `#PKM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const activeCar = vehicles.find((v) => v.isDefault) || vehicles[0];
+    if (!activeCar) {
+      setBookingError('Vui lòng thêm xe của bạn trong mục "Xe của tôi" trước khi đặt chỗ.');
+      return;
+    }
+    if (new Date(endAtLocal).getTime() <= new Date(startAtLocal).getTime()) {
+      setBookingError('Giờ ra dự kiến phải sau giờ vào dự kiến.');
+      return;
+    }
+
+    setIsBookingSubmitting(true);
     const activeFloor = availableFloors.find((f) => f.id === selectedFloorId);
 
-    // 1. Kích hoạt SignalR real-time qua NotificationService (port 5106 / Gateway 5000)
     try {
-      await dispatch(
-        sendBookingConfirmedNotification({
-          userId,
-          parkingLotName: currentSelectedLot.name,
-          slotCode: selectedSlotCode,
-          floor: activeFloor?.name || 'Tầng hầm',
-          bookingCode,
-        })
-      ).unwrap();
+      let ownerProfileId = 0;
+      try {
+        const lotDetail = await parkingApi.getById(currentSelectedLot.id);
+        ownerProfileId = lotDetail.ownerProfileId ?? 0;
+      } catch {
+        ownerProfileId = 0;
+      }
+
+      const result = await bookingApi.createBooking({
+        userId,
+        vehicleId: activeCar.id,
+        plateNumber: activeCar.plateNumber,
+        vehicleType: vehicleTypeStr,
+        parkingLotId: currentSelectedLot.id,
+        ownerProfileId,
+        parkingLotName: currentSelectedLot.name,
+        slotCode: selectedSlotCode,
+        allocationMode: 'Dynamic',
+        startAtUtc: new Date(startAtLocal).toISOString(),
+        endAtUtc: new Date(endAtLocal).toISOString(),
+        totalAmount,
+        promotionCode: appliedVoucher?.code ?? null,
+        requiresOwnerApproval: false,
+        payAtGate: paymentMethod === 'gate',
+      });
+      setBookingResult(result);
+
+      // 1. Kích hoạt SignalR real-time qua NotificationService (port 5106 / Gateway 5000)
+      try {
+        await dispatch(
+          sendBookingConfirmedNotification({
+            userId,
+            parkingLotName: result.parkingLotName || currentSelectedLot.name,
+            slotCode: result.slotCode || selectedSlotCode,
+            floor: activeFloor?.name || 'Tầng hầm',
+            bookingCode: result.code,
+          })
+        ).unwrap();
+      } catch (err) {
+        console.warn('SignalR notification dispatch warning:', err);
+      }
+
+      // 2. Khởi tạo thanh toán sandbox thật nếu chọn VNPAY hoặc VietQR
+      if (paymentMethod === 'vnpay') {
+        try {
+          const vnpay = await paymentApi.createVnpayPayment({
+            bookingId: result.id,
+            bookingCode: result.code,
+            parkingLotId: currentSelectedLot.id,
+            ownerProfileId,
+            userId,
+            amount: totalAmount,
+          });
+          window.location.href = vnpay.paymentUrl;
+          return;
+        } catch (payErr) {
+          const axiosErr = payErr as { response?: { data?: { detail?: string; title?: string } } };
+          setPaymentInitError(
+            axiosErr?.response?.data?.detail ||
+              axiosErr?.response?.data?.title ||
+              'Đã tạo booking nhưng chưa khởi tạo được cổng VNPAY — bạn có thể thanh toán lại từ Lịch sử đặt chỗ.'
+          );
+        }
+      } else if (paymentMethod === 'vietqr') {
+        try {
+          const qr = await paymentApi.createVietQrPayment({
+            bookingId: result.id,
+            bookingCode: result.code,
+            parkingLotId: currentSelectedLot.id,
+            ownerProfileId,
+            userId,
+            amount: totalAmount,
+            bankBin: '970436',
+            bankAccountNumber: '1012345678',
+            bankAccountName: 'PARKMASTER VIETNAM',
+          });
+          setVietQrData(qr);
+        } catch (payErr) {
+          const axiosErr = payErr as { response?: { data?: { detail?: string; title?: string } } };
+          setPaymentInitError(
+            axiosErr?.response?.data?.detail ||
+              axiosErr?.response?.data?.title ||
+              'Đã tạo booking nhưng chưa tạo được mã VietQR.'
+          );
+        }
+      }
+
+      setShowCheckoutModal(false);
+      setShowBookingModal(true);
     } catch (err) {
-      console.warn('SignalR notification dispatch warning:', err);
+      const axiosErr = err as { response?: { data?: { detail?: string; title?: string } } };
+      setBookingError(
+        axiosErr?.response?.data?.detail ||
+          axiosErr?.response?.data?.title ||
+          'Không tạo được booking — vui lòng thử lại sau.'
+      );
+    } finally {
+      setIsBookingSubmitting(false);
     }
-
-    // 2. Thu thập dịch vụ cộng thêm
-    const servicesList: string[] = [];
-    if (hasEvService) servicesList.push('Sạc nhanh EV 120kW');
-    if (hasWashService) servicesList.push('Rửa xe bọt tuyết');
-    servicesList.push('Bảo hiểm ParkMaster Care');
-    if (appliedVoucher) {
-      servicesList.push(`Voucher: ${appliedVoucher.code} (-${appliedVoucher.discount.toLocaleString('vi-VN')} đ)`);
-    }
-
-    const paymentLabelMap: Record<string, string> = {
-      momo: 'Ví MoMo / VNPay QR',
-      card: 'Thẻ Visa / MasterCard',
-      etc: 'Ví VETC / ePass ETC',
-      gate: 'Thanh toán tại cổng ANPR',
-    };
-
-    // 3. Lưu vào lịch sử đặt
-    const newBooking = {
-      id: String(Date.now()),
-      code: bookingCode,
-      plate: activeCar?.plateDisplay || activeCar?.plateNumber || '51K-889.32',
-      carModel: `${activeCar?.brand || ''} ${activeCar?.model || 'Ô tô'}`.trim() || 'Xe cá nhân',
-      location: currentSelectedLot.name,
-      spot: `Vị trí ${selectedSlotCode} • ${activeFloor?.name || 'Tầng hầm'}`,
-      timeRange: `Giữ chỗ 15 phút (Đến lúc ${new Date(Date.now() + 15 * 60000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})`,
-      dateLabel: 'Hôm nay',
-      services: servicesList,
-      totalPrice: totalAmount,
-      paymentMethod: paymentLabelMap[paymentMethod] || 'Thanh toán tại cổng ANPR',
-      status: 'upcoming' as const,
-      statusText: 'Đang giữ chỗ (15 phút)',
-    };
-
-    try {
-      const existing = JSON.parse(localStorage.getItem('parkmaster_driver_bookings') || '[]');
-      localStorage.setItem('parkmaster_driver_bookings', JSON.stringify([newBooking, ...existing]));
-    } catch (e) {
-      console.error('Failed to save booking to localStorage', e);
-    }
-
-    setIsBookingSubmitting(false);
-    setShowCheckoutModal(false);
-    setBookingSuccessCode(bookingCode);
-    setShowBookingModal(true);
   };
 
   return (
@@ -1579,6 +1711,28 @@ export const SmartParkingFinderPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Thời gian gửi & lấy xe dự kiến */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-slate-600">Giờ vào dự kiến</label>
+                  <input
+                    type="datetime-local"
+                    value={startAtLocal}
+                    onChange={(e) => setStartAtLocal(e.target.value)}
+                    className="h-8 px-2.5 rounded-lg bg-white border border-slate-300 text-xs text-slate-800 focus:outline-hidden focus:border-blue-600"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] font-bold text-slate-600">Giờ ra dự kiến ({durationHours} giờ)</label>
+                  <input
+                    type="datetime-local"
+                    value={endAtLocal}
+                    onChange={(e) => setEndAtLocal(e.target.value)}
+                    className="h-8 px-2.5 rounded-lg bg-white border border-slate-300 text-xs text-slate-800 focus:outline-hidden focus:border-blue-600"
+                  />
+                </div>
+              </div>
+
               {/* Phương thức thanh toán */}
               <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
@@ -1586,93 +1740,80 @@ export const SmartParkingFinderPage: React.FC = () => {
                   <span>Phương thức thanh toán</span>
                 </span>
 
-                <div className="grid grid-cols-2 gap-2">
-                  {/* MoMo / VNPay */}
-                  <label
-                    onClick={() => setPaymentMethod('momo')}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                      paymentMethod === 'momo'
-                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="pm_method"
-                      checked={paymentMethod === 'momo'}
-                      onChange={() => setPaymentMethod('momo')}
-                      className="w-3.5 h-3.5 text-blue-600"
-                    />
-                    <div className="min-w-0">
-                      <span className="font-bold block truncate">MoMo / VNPAY QR</span>
-                      <span className="text-[10px] text-slate-400 block">Thanh toán tức thì</span>
-                    </div>
-                  </label>
-
-                  {/* Card */}
-                  <label
-                    onClick={() => setPaymentMethod('card')}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                      paymentMethod === 'card'
-                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="pm_method"
-                      checked={paymentMethod === 'card'}
-                      onChange={() => setPaymentMethod('card')}
-                      className="w-3.5 h-3.5 text-blue-600"
-                    />
-                    <div className="min-w-0">
-                      <span className="font-bold block truncate">Thẻ Visa / Master</span>
-                      <span className="text-[10px] text-slate-400 block">Thẻ tín dụng/ghi nợ</span>
-                    </div>
-                  </label>
-
-                  {/* VETC */}
-                  <label
-                    onClick={() => setPaymentMethod('etc')}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
-                      paymentMethod === 'etc'
-                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
-                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="pm_method"
-                      checked={paymentMethod === 'etc'}
-                      onChange={() => setPaymentMethod('etc')}
-                      className="w-3.5 h-3.5 text-blue-600"
-                    />
-                    <div className="min-w-0">
-                      <span className="font-bold block truncate">Ví VETC / ePass</span>
-                      <span className="text-[10px] text-slate-400 block">Trừ phí tự động ETC</span>
-                    </div>
-                  </label>
-
-                  {/* Gate */}
+                <div className="space-y-2">
+                  {/* Pay at Gate */}
                   <label
                     onClick={() => setPaymentMethod('gate')}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                    className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
                       paymentMethod === 'gate'
                         ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
                         : 'border-slate-200 hover:bg-slate-50 text-slate-700'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="pm_method"
-                      checked={paymentMethod === 'gate'}
-                      onChange={() => setPaymentMethod('gate')}
-                      className="w-3.5 h-3.5 text-blue-600"
-                    />
-                    <div className="min-w-0">
-                      <span className="font-bold block truncate">Tại cổng ANPR</span>
-                      <span className="text-[10px] text-slate-400 block">Thanh toán khi ra bãi</span>
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="pm_method"
+                        checked={paymentMethod === 'gate'}
+                        onChange={() => setPaymentMethod('gate')}
+                        className="w-3.5 h-3.5 text-blue-600"
+                      />
+                      <div>
+                        <span className="font-bold block">Trả tại cổng khi ra bãi (Pay at Gate)</span>
+                        <span className="text-[10px] text-slate-400 block">Giữ chỗ ngay, thanh toán tại cổng ANPR</span>
+                      </div>
                     </div>
+                    <span className="material-symbols-outlined text-emerald-600 text-[18px]">local_atm</span>
+                  </label>
+
+                  {/* VNPAY-QR */}
+                  <label
+                    onClick={() => setPaymentMethod('vnpay')}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'vnpay'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="pm_method"
+                        checked={paymentMethod === 'vnpay'}
+                        onChange={() => setPaymentMethod('vnpay')}
+                        className="w-3.5 h-3.5 text-blue-600"
+                      />
+                      <div>
+                        <span className="font-bold block">Cổng thanh toán VNPAY-QR</span>
+                        <span className="text-[10px] text-slate-400 block">Chuyển hướng sang VNPAY Sandbox</span>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-blue-600 text-[18px]">payments</span>
+                  </label>
+
+                  {/* VietQR */}
+                  <label
+                    onClick={() => setPaymentMethod('vietqr')}
+                    className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      paymentMethod === 'vietqr'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-900 ring-1 ring-blue-600'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="radio"
+                        name="pm_method"
+                        checked={paymentMethod === 'vietqr'}
+                        onChange={() => setPaymentMethod('vietqr')}
+                        className="w-3.5 h-3.5 text-blue-600"
+                      />
+                      <div>
+                        <span className="font-bold block">Chuyển khoản nhanh VietQR</span>
+                        <span className="text-[10px] text-slate-400 block">Hiển thị mã QR chuyển khoản tức thì</span>
+                      </div>
+                    </div>
+                    <span className="material-symbols-outlined text-slate-600 text-[18px]">qr_code_2</span>
                   </label>
                 </div>
               </div>
@@ -1696,10 +1837,11 @@ export const SmartParkingFinderPage: React.FC = () => {
                   />
                   <button
                     type="button"
+                    disabled={promoBusy}
                     onClick={handleApplyVoucher}
-                    className="px-3.5 h-9 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
+                    className="px-3.5 h-9 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white text-xs font-bold transition-colors cursor-pointer shrink-0"
                   >
-                    Áp dụng
+                    {promoBusy ? 'Đang kiểm tra...' : 'Áp dụng'}
                   </button>
                 </div>
                 {voucherMessage && (
@@ -1709,7 +1851,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                 )}
                 {appliedVoucher && (
                   <div className="flex items-center justify-between text-[11px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md font-semibold mt-1">
-                    <span>Mã {appliedVoucher.code} đã áp dụng: -{appliedVoucher.discount.toLocaleString('vi-VN')} đ</span>
+                    <span>Mã {appliedVoucher.code} đã áp dụng: -{appliedVoucher.discountAmount.toLocaleString('vi-VN')} đ</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -1742,7 +1884,7 @@ export const SmartParkingFinderPage: React.FC = () => {
             <div className="shrink-0 px-5 sm:px-6 py-3.5 border-t border-slate-100 bg-slate-50/90 flex flex-col gap-3">
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between text-slate-500">
-                  <span>Phí giữ chỗ tiêu chuẩn (1 giờ đầu):</span>
+                  <span>Phí đỗ xe ({durationHours} giờ):</span>
                   <span className="font-semibold text-slate-800">{baseParkingFee.toLocaleString('vi-VN')} đ</span>
                 </div>
                 {(evFee > 0 || washFee > 0) && (
@@ -1762,6 +1904,12 @@ export const SmartParkingFinderPage: React.FC = () => {
                   <span className="text-xl font-black text-blue-700">{totalAmount.toLocaleString('vi-VN')} đ</span>
                 </div>
               </div>
+
+              {bookingError && (
+                <div className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                  {bookingError}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
@@ -1816,30 +1964,55 @@ export const SmartParkingFinderPage: React.FC = () => {
             <div className="my-4 p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500">Mã đặt chỗ:</span>
-                <span className="font-mono font-bold text-blue-700">{bookingSuccessCode}</span>
+                <span className="font-mono font-bold text-blue-700">{bookingResult?.code || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Bãi đỗ:</span>
-                <span className="font-semibold text-slate-800">{currentSelectedLot.name}</span>
+                <span className="font-semibold text-slate-800">{bookingResult?.parkingLotName || currentSelectedLot.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Ô đỗ được chọn:</span>
-                <span className="font-bold text-emerald-700">{selectedSlotCode}</span>
+                <span className="font-bold text-emerald-700">{bookingResult?.slotCode || selectedSlotCode}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Thời gian giữ chỗ:</span>
-                <span className="font-bold text-amber-600">15:00 phút</span>
+                <span className="text-slate-500">Giữ chỗ đến:</span>
+                <span className="font-bold text-amber-600">
+                  {bookingResult?.holdExpiresAtUtc
+                    ? new Date(bookingResult.holdExpiresAtUtc).toLocaleTimeString('vi-VN')
+                    : '15:00 phút'}
+                </span>
               </div>
             </div>
+
+            {vietQrData && (
+              <div className="w-full p-3.5 rounded-xl bg-blue-50 border border-blue-200 mb-4 flex flex-col items-center gap-2 text-xs">
+                <span className="font-bold text-blue-900">Quét mã VietQR để hoàn tất thanh toán</span>
+                <img src={vietQrData.qrImageUrl} alt="VietQR" className="w-40 h-40 rounded-lg border border-white shadow-xs bg-white" />
+                <div className="w-full text-left space-y-0.5 text-[11px] text-slate-700">
+                  <div>Ngân hàng: <strong>{vietQrData.bankAccountName}</strong> ({vietQrData.bankAccountNumber})</div>
+                  <div>Nội dung CK: <strong className="font-mono text-blue-700">{vietQrData.transferContent}</strong></div>
+                  <div>Số tiền: <strong className="text-blue-700">{vietQrData.amount.toLocaleString('vi-VN')} đ</strong></div>
+                </div>
+              </div>
+            )}
+
+            {paymentInitError && (
+              <div className="w-full px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold mb-4 text-left">
+                {paymentInitError}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
+                onClick={() => {
+                  setShowBookingModal(false);
+                  navigate(`/driver/payment-result?code=${encodeURIComponent(bookingResult?.code || '')}`);
+                }}
                 className="py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               >
-                <span className="material-symbols-outlined text-[16px]">navigation</span>
-                <span>Dẫn đường ngay</span>
+                <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+                <span>Biên nhận &amp; Hóa đơn</span>
               </button>
 
               <button
