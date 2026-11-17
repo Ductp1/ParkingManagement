@@ -9,7 +9,7 @@ using ParkingManagement.SharedKernel.Exceptions;
 namespace AdminService.Infrastructure.Persistence.Repositories;
 
 /// <summary>
-/// US-053: lưu hồ sơ đăng ký đối tác từ form public. Mã PA-{năm}-{4 số} tăng dần theo năm (không ngẫu nhiên);
+/// US-053: lưu hồ sơ đăng ký đối tác của người dùng đã đăng nhập. Mã PA-{năm}-{4 số} tăng dần theo năm (không ngẫu nhiên);
 /// hai hồ sơ nộp cùng lúc lấy trùng số thì unique index IX_PartnerApplications_Code chặn, lấy số kế tiếp và thử lại.
 /// </summary>
 public sealed class PartnerRegistrationRepository(AdminDbContext db) : IPartnerRegistrationRepository
@@ -20,9 +20,20 @@ public sealed class PartnerRegistrationRepository(AdminDbContext db) : IPartnerR
     private static readonly PartnerApplicationStatus[] Closed =
         [PartnerApplicationStatus.Activated, PartnerApplicationStatus.Rejected, PartnerApplicationStatus.Cancelled];
 
-    public Task<bool> HasOpenApplicationAsync(string taxCode, string email, CancellationToken cancellationToken)
+    public Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
         => db.PartnerApplications.AsNoTracking()
-            .AnyAsync(a => !Closed.Contains(a.Status) && (a.TaxCode == taxCode || a.Email.ToLower() == email), cancellationToken);
+            .AnyAsync(a => !Closed.Contains(a.Status)
+                           && (a.ApplicantUserId == applicantUserId || a.TaxCode == taxCode || a.Email.ToLower() == email),
+                cancellationToken);
+
+    public async Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken)
+        => await db.PartnerApplications.AsNoTracking()
+            .Where(a => a.ApplicantUserId == applicantUserId)
+            .OrderByDescending(a => a.CreatedAtUtc).ThenByDescending(a => a.Id)
+            .Select(a => new MyPartnerApplicationDto(a.Code, a.Status.ToString(), a.BusinessName, a.TaxCode,
+                db.PartnerApplicationDocuments.Count(d => d.PartnerApplicationId == a.Id),
+                a.InfoRequestNote, a.RejectReason, a.CreatedAtUtc, a.UpdatedAtUtc))
+            .ToListAsync(cancellationToken);
 
     public async Task<string> AddWithNewCodeAsync(PartnerApplication application, IReadOnlyList<PartnerApplicationDocument> documents,
         int year, CancellationToken cancellationToken)

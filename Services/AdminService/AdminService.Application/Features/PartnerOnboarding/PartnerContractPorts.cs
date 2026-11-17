@@ -39,9 +39,13 @@ public interface IFileStorage
 // ===== PORT: tạo tài khoản chủ bãi bên UserService (U2 / U3, Trường làm phía UserService) =====
 
 /// <summary>Body U2 POST api/v1/users/owner-profiles: thông tin pháp nhân + tài khoản nhận thanh toán mặc định (không còn hoa hồng).</summary>
+/// <remarks>
+/// ApplicantUserId (US-053): tài khoản đã đăng nhập nộp hồ sơ – UserService nên nâng chính tài khoản này thành chủ bãi thay vì tạo
+/// tài khoản mới. Null với hồ sơ seed / cũ.
+/// </remarks>
 public sealed record IssueOwnerAccountCommand(int PartnerApplicationId, string FullName, string Email, string Phone,
     string BusinessName, string TaxCode, string BusinessAddress, string BankBin, string BankName, string BankAccountNumber,
-    string BankAccountName);
+    string BankAccountName, int? ApplicantUserId = null);
 
 public sealed record IssuedOwnerAccountDto(int UserId, int OwnerProfileId);
 
