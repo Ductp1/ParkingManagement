@@ -305,10 +305,95 @@ public class BookingFeaturesTests
 
         Assert.NotNull(result);
         Assert.StartsWith("BK-", result.Code);
+        var parts = result.Code.Split('-');
+        Assert.Equal(3, parts.Length);
+        Assert.Equal(6, parts[2].Length); // BUG-LOAD-01: 6 chữ số ngẫu nhiên
+        Assert.True(int.TryParse(parts[2], out var num) && num >= 100000 && num <= 999999);
         Assert.Equal("PendingPayment", result.Status);
         Assert.Equal(FixedNow.AddMinutes(15), result.HoldExpiresAtUtc);
         Assert.NotNull(result.QrToken);
         Assert.Single(repo.SavedBookings);
+    }
+
+    [Fact] // SEC-002 / UAT-SEC-04: Client gửi giá 1đ bị server tự động tính lại theo thời lượng
+    public async Task CreateBooking_recalculates_price_when_client_spoofs_amount()
+    {
+        var repo = new FakeBookingRepo();
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
+
+        var cmd = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 1,
+            PlateNumber: "51F-123.45",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: 1,
+            SlotId: 2,
+            SlotCode: "B1-A02",
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddHours(1),
+            EndAtUtc: FixedNow.AddHours(3), // 2 giờ
+            TotalAmount: 1, // Client gửi 1đ
+            PromotionCode: null);
+
+        var result = await useCase.ExecuteAsync(cmd);
+
+        Assert.NotEqual(1m, result.TotalAmount);
+        Assert.Equal(40000m, result.TotalAmount); // 2 giờ * 20.000đ
+        Assert.Equal(40000m, repo.SavedBookings[0].TotalAmount);
+        Assert.Equal(40000m, repo.SavedBookings[0].PriceSnapshot!.FinalAmount);
+    }
+
+    [Fact] // US-025 Option B / UAT-DRV-16: 1 tài khoản được đặt nhiều xe khác nhau cùng khung giờ, nhưng chặn cùng 1 xe
+    public async Task CreateBooking_allows_same_user_different_vehicle_but_blocks_same_vehicle()
+    {
+        var repo = new FakeBookingRepo();
+        var qr = new QrTokenService();
+        var clock = new FixedClock(FixedNow);
+        var useCase = NewCreateBookingUseCase(repo, qr, clock);
+
+        var firstBooking = new CreateBookingCommand(
+            UserId: 5,
+            VehicleId: 1,
+            PlateNumber: "51F-111.11",
+            VehicleType: VehicleType.Sedan,
+            ParkingLotId: 1,
+            OwnerProfileId: 1,
+            ParkingLotName: "Bãi xe Vincom Đồng Khởi",
+            ZoneId: null,
+            SlotId: null,
+            SlotCode: null,
+            AllocationMode: AllocationMode.Dynamic,
+            StartAtUtc: FixedNow.AddHours(1),
+            EndAtUtc: FixedNow.AddHours(3),
+            TotalAmount: 50000,
+            PromotionCode: null);
+
+        var ok1 = await useCase.ExecuteAsync(firstBooking);
+        Assert.NotNull(ok1);
+
+        // Xe khác của cùng tài xế trong cùng khung giờ -> ĐƯỢC PHÉP (Option B)
+        var secondCarBooking = firstBooking with
+        {
+            VehicleId = 2,
+            PlateNumber = "51F-222.22"
+        };
+        var ok2 = await useCase.ExecuteAsync(secondCarBooking);
+        Assert.NotNull(ok2);
+        Assert.Equal(2, repo.SavedBookings.Count);
+
+        // Cùng xe 1 trong cùng khung giờ -> BỊ TỪ CHỐI (ConflictException)
+        var duplicateCarBooking = firstBooking with
+        {
+            VehicleId = 1,
+            PlateNumber = "51F-111.11"
+        };
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(duplicateCarBooking));
+        Assert.Contains("51F-111.11", ex.Message);
     }
 
     [Fact]
@@ -729,6 +814,32 @@ public class BookingFeaturesTests
                 b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
                 b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
             return Task.FromResult(res);
+        }
+
+        public Task<bool> HasOverlappingBookingForVehicleAsync(int userId, int vehicleId, string plateNumber, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+        {
+            var normalizedPlate = plateNumber.Trim().ToUpperInvariant();
+            var res = SavedBookings.Any(b =>
+                b.UserId == userId &&
+                ((vehicleId > 0 && b.VehicleId == vehicleId) || b.PlateNumber == normalizedPlate) &&
+                (excludeBookingId == null || b.Id != excludeBookingId.Value) &&
+                b.Status != BookingStatus.Cancelled && b.Status != BookingStatus.Expired && b.Status != BookingStatus.Completed && b.Status != BookingStatus.NoShow &&
+                b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+            return Task.FromResult(res);
+        }
+
+        public async Task<bool> TryCreateBookingWithLockAsync(Booking booking, int? slotId, CancellationToken cancellationToken = default)
+        {
+            if (slotId.HasValue && slotId.Value > 0)
+            {
+                if (await HasOverlappingBookingForSlotAsync(slotId.Value, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+                    return false;
+            }
+            if (await HasOverlappingBookingForVehicleAsync(booking.UserId, booking.VehicleId, booking.PlateNumber, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+                return false;
+
+            SavedBookings.Add(booking);
+            return true;
         }
 
 

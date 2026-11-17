@@ -24,7 +24,7 @@ public class CurrentUser(IHttpContextAccessor httpContextAccessor) : ICurrentUse
     public string? Email => User?.FindFirstValue(ClaimTypes.Email);
 
     public IReadOnlyList<string> Roles => 
-        User?.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList() ?? new List<string>();
+        User?.FindAll(c => c.Type == ClaimTypes.Role || c.Type == "role").Select(c => c.Value).Distinct().ToList() ?? new List<string>();
 
     public int? OwnerProfileId
     {
