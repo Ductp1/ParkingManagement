@@ -53,11 +53,11 @@ public sealed class BookingsController(
 
     /// <summary>
     /// GET /api/v1/bookings/gate?parkingLotId=1&amp;fromUtc=...&amp;toUtc=...&amp;search=BK|biển số – UC-20 (US-076).
-    /// Booking trong ca trực của Staff App, sắp theo giờ đến, có cờ "Quá giờ" (grace 15' – US-044).
+    /// Booking trong ca trực của Staff App / Owner Portal, sắp theo giờ đến, có cờ "Quá giờ" (grace 15' – US-044).
     /// Khách vãng lai không nằm ở đây (đó là ParkingSessions của GateService). Không trả SĐT/CCCD.
     /// </summary>
     [HttpGet("gate")]
-    [Authorize(Roles = "Staff,Admin")]
+    [Authorize(Roles = "LotOwner,Staff,Admin")]
     [ProducesResponseType<IReadOnlyList<GateBookingListItemDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -65,11 +65,23 @@ public sealed class BookingsController(
     public async Task<ActionResult<IReadOnlyList<GateBookingListItemDto>>> GateList(
         [FromQuery] int parkingLotId, [FromQuery] DateTime fromUtc, [FromQuery] DateTime toUtc,
         [FromQuery] string? search, [FromQuery] int gracePeriodMinutes = 15, CancellationToken cancellationToken = default)
-        => Ok(await listGateBookings.ExecuteAsync(
+    {
+        int? ownerProfileId = null;
+        if (currentUser.Roles.Contains("LotOwner") && !currentUser.Roles.Contains("Admin"))
+        {
+            if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0)
+            {
+                return Forbid();
+            }
+            ownerProfileId = currentUser.OwnerProfileId.Value;
+        }
+
+        return Ok(await listGateBookings.ExecuteAsync(
             new GateBookingListQuery(parkingLotId,
                 DateTime.SpecifyKind(fromUtc.ToUniversalTime(), DateTimeKind.Utc),
                 DateTime.SpecifyKind(toUtc.ToUniversalTime(), DateTimeKind.Utc),
-                search, gracePeriodMinutes), cancellationToken));
+                search, gracePeriodMinutes, ownerProfileId), cancellationToken));
+    }
 
     /// <summary>GET /api/v1/bookings?userId=5&amp;status=Confirmed&amp;page=1&amp;pageSize=20 – Booking của tôi (UC-13, BUG-LOAD-03).</summary>
     [HttpGet]
@@ -81,17 +93,14 @@ public sealed class BookingsController(
         [FromQuery] int userId, [FromQuery] BookingStatus? status,
         [FromQuery] int? page, [FromQuery] int? pageSize, CancellationToken cancellationToken)
     {
-        // SEC-003 / UAT-SEC-03: Tài xế chỉ xem được danh sách của chính mình
-        if (currentUser.UserId.HasValue && !currentUser.Roles.Contains("Admin"))
+        // SEC-003 / UAT-SEC-03: Tài xế chỉ xem được danh sách của chính mình; Admin không truyền userId thì mặc định xem của mình
+        if (userId == 0 && currentUser.UserId.HasValue)
         {
-            if (userId == 0)
-            {
-                userId = currentUser.UserId.Value;
-            }
-            else if (userId > 0 && userId != currentUser.UserId.Value)
-            {
-                return Forbid();
-            }
+            userId = currentUser.UserId.Value;
+        }
+        else if (userId > 0 && !currentUser.Roles.Contains("Admin") && currentUser.UserId.HasValue && userId != currentUser.UserId.Value)
+        {
+            return Forbid();
         }
         return Ok(await listMine.ExecuteAsync(userId, status, page, pageSize, cancellationToken));
     }

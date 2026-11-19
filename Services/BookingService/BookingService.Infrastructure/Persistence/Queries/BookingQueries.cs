@@ -67,15 +67,20 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
             .ToList();
     }
 
-    // UC-20 (US-076): booking trong ca trực của Staff — IsOverdue tính ở SQL (dịch được sang Postgres).
+    // UC-20 (US-076): booking trong ca trực của Staff / Chủ bãi — IsOverdue tính ở SQL (dịch được sang Postgres).
     public async Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
-        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+        DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default)
     {
         // Booking sắp đến trong ca (Confirmed theo khung giờ bắt đầu) + xe đang trong bãi + no-show vừa xảy ra trong ca.
         BookingStatus[] statuses = [BookingStatus.Confirmed, BookingStatus.CheckedIn, BookingStatus.Parking, BookingStatus.NoShow];
         var query = db.Bookings.AsNoTracking()
             .Where(b => b.ParkingLotId == parkingLotId && statuses.Contains(b.Status)
                      && ((b.StartAtUtc >= fromUtc && b.StartAtUtc <= toUtc) || b.Status != BookingStatus.Confirmed));
+
+        if (ownerProfileId.HasValue && ownerProfileId > 0)
+        {
+            query = query.Where(b => b.OwnerProfileId == ownerProfileId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {

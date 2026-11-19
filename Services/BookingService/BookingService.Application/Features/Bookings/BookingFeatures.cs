@@ -28,7 +28,7 @@ public sealed record GateBookingListItemDto(string Code, string PlateNumber, str
     DateTime StartAtUtc, DateTime EndAtUtc, string Status, bool IsOverdue, decimal TotalAmount);
 
 /// <summary>Tham số list booking trong ca: grace dùng để tính cờ "Quá giờ" (US-044).</summary>
-public sealed record GateBookingListQuery(int ParkingLotId, DateTime FromUtc, DateTime ToUtc, string? Search, int GracePeriodMinutes = 15);
+public sealed record GateBookingListQuery(int ParkingLotId, DateTime FromUtc, DateTime ToUtc, string? Search, int GracePeriodMinutes = 15, int? OwnerProfileId = null);
 
 public sealed record CancellationPreviewDto(string Code, bool CanCancel, string ResultStatus, int RefundPercent, decimal RefundAmount, string Reason);
 
@@ -131,7 +131,7 @@ public interface IBookingQueries
 
     /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
     Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
-        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken);
+        DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default);
 
     /// <summary>T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.</summary>
     Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
@@ -740,7 +740,7 @@ public sealed class ReviewBookingUseCase(
 
         events.Enqueue(new BookingCancelled(
             booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
-            booking.ParkingLotName, booking.StartAtUtc, 0m, reason));
+            booking.ParkingLotName, booking.StartAtUtc, booking.PaidAmount, reason));
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -868,7 +868,7 @@ public sealed class ListGateBookingsUseCase(IBookingQueries queries, TimeProvide
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         return await queries.ListForGateAsync(query.ParkingLotId, query.FromUtc, query.ToUtc, now,
-            query.GracePeriodMinutes, query.Search, cancellationToken);
+            query.GracePeriodMinutes, query.Search, query.OwnerProfileId, cancellationToken);
     }
 }
 

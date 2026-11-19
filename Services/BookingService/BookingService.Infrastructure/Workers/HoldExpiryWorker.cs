@@ -63,6 +63,19 @@ public sealed class HoldExpiryWorker(
         foreach (var b in overdueApprovals)
         {
             b.CancelByOwner(now, 0, "Quá 15 phút chủ bãi không phản hồi, tự động hủy để giải phóng chỗ");
+            if (b.PaidAmount > 0)
+            {
+                var cancelEvent = new ParkingManagement.SharedKernel.Contracts.BookingCancelled(
+                    b.Id, b.Code, b.UserId, b.ParkingLotId, b.OwnerProfileId,
+                    b.ParkingLotName, b.StartAtUtc, b.PaidAmount, "Quá 15 phút chủ bãi không phản hồi, tự động hủy hoàn tiền");
+
+                db.OutboxMessages.Add(new ParkingManagement.SharedKernel.Domain.OutboxMessage
+                {
+                    EventType = nameof(ParkingManagement.SharedKernel.Contracts.BookingCancelled),
+                    PayloadJson = System.Text.Json.JsonSerializer.Serialize(cancelEvent),
+                    OccurredAtUtc = now
+                });
+            }
         }
 
         await db.SaveChangesAsync(cancellationToken);

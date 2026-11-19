@@ -118,7 +118,7 @@ public class ApprovalLogsTests
         public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, ParkingManagement.SharedKernel.Enums.BookingStatus? status, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
 
-        public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc, DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc, DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
 
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
