@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IQuoteExitFeeUseCase, QuoteExitFeeUseCase>();
         // T-704: xác thực QR token do BookingService cấp (thuần crypto, không depends Infrastructure).
         services.AddSingleton<IBookingQrTokenValidator, BookingQrTokenValidator>();
+        services.AddScoped<IScanPlateImageUseCase, ScanPlateImageUseCase>();
         // T-703: GateDevices
         services.AddScoped<IGetGateDevicesUseCase, GetGateDevicesUseCase>();
         services.AddScoped<IGetGateDeviceByIdUseCase, GetGateDeviceByIdUseCase>();

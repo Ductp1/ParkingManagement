@@ -581,6 +581,9 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("ApplicantUserId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("BusinessAddress")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -713,6 +716,8 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ApplicantUserId");
 
                     b.HasIndex("Code")
                         .IsUnique();

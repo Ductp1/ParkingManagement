@@ -34,6 +34,11 @@ public class PartnerApplication : BaseEntity
     public string Code { get; set; } = string.Empty;
 
     // Người đăng ký
+    /// <summary>
+    /// US-053: tài khoản đã đăng nhập nộp hồ sơ (→ UserService, không FK). Null = hồ sơ seed / tạo trước khi bắt buộc đăng nhập.
+    /// Khi duyệt, UserService nâng chính tài khoản này thành chủ bãi.
+    /// </summary>
+    public int? ApplicantUserId { get; set; }
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
