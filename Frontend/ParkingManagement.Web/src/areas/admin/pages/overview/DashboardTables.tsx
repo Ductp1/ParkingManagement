@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { DataTable, type DataTableColumn } from '../../components/DataTable';
+import { CellText, DataTable, type DataTableColumn } from '../../components/DataTable';
 import { Panel } from '../../components/Panel';
 import { StateBlock } from '../../components/StateBlock';
+import { StatusIndicator } from '../../components/StatusIndicator';
 import { formatNumber, formatPercent, formatVnd } from '../../utils/format';
 import {
   deviceTypeLabel,
@@ -35,50 +36,83 @@ const WidgetBody = <T,>({ widget, label, children }: { widget: DashboardWidget<T
 
 // ===================== Lot occupancy =====================
 
-/** Thanh % lấp đầy; từ 90% chuyển màu cảnh báo kèm chữ "Nearly full" (không chỉ dựa vào màu). */
-const OccupancyBar: React.FC<{ percent: number; label: string }> = ({ percent, label }) => {
+/** Ngưỡng chia trạng thái theo % lấp đầy (giống thiết kế "Live facility occupancy"). */
+const AMPLE_BELOW_PERCENT = 50;
+
+/**
+ * Ô lấp đầy kiểu thiết kế: "x / y slots" bên trái, % bên phải, thanh tiến độ ngay dưới.
+ * Từ 90% thanh và % đổi màu cảnh báo (kèm trạng thái "Near capacity" ở cột Status – không chỉ dựa vào màu).
+ */
+const OccupancyCell: React.FC<{ active: number; capacity: number; percent: number; label: string; fallback?: boolean }> = ({
+  active,
+  capacity,
+  percent,
+  label,
+  fallback,
+}) => {
   const warning = percent >= OCCUPANCY_WARNING_PERCENT;
+  const width = Math.min(100, Math.max(0, percent));
   return (
-    <span className="flex min-w-[140px] items-center gap-2">
+    <span className="flex min-w-[180px] flex-col gap-1">
+      <span className="flex items-baseline justify-between gap-2">
+        <span
+          className="adm-type-body-small tabular-nums text-(--admin-text-primary)"
+          title={fallback ? "Capacity is the lot's total slots (gate capacity not configured yet)" : undefined}
+        >
+          {formatNumber(active)} / {formatNumber(capacity)} slots
+          {fallback && <span className="text-(--admin-text-secondary)">*</span>}
+        </span>
+        <span className={`adm-type-body-strong tabular-nums ${warning ? 'text-(--admin-status-warning-text)' : 'text-(--admin-text-primary)'}`}>
+          {formatPercent(percent)}
+        </span>
+      </span>
       <span
         role="meter"
         aria-label={`Occupancy of ${label}`}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={Math.min(100, percent)}
+        aria-valuenow={width}
         aria-valuetext={formatPercent(percent)}
-        className="relative h-2 flex-1 overflow-hidden rounded-[2px] bg-(--admin-surface-page)"
+        className="relative block h-1.5 overflow-hidden rounded-full bg-(--admin-chart-track)"
       >
         <span
-          className={`adm-tr-colors absolute inset-y-0 left-0 ${warning ? 'bg-(--admin-status-danger)' : 'bg-(--admin-brand-navy-800)'}`}
-          style={{ width: `${Math.min(100, percent)}%` }}
+          className={`adm-tr-colors absolute inset-y-0 left-0 rounded-full ${warning ? 'bg-(--admin-status-warning)' : 'bg-(--admin-status-success)'}`}
+          style={{ width: `${width}%` }}
         />
       </span>
-      <span className={`adm-type-body-default w-14 text-right tabular-nums ${warning ? 'text-(--admin-status-danger)' : ''}`}>
-        {formatPercent(percent)}
-      </span>
-      {warning && <span className="adm-type-body-small whitespace-nowrap text-(--admin-status-danger)">Nearly full</span>}
     </span>
   );
 };
 
-const LotFlags: React.FC<{ row: LotOccupancyRowDto }> = ({ row }) => (
-  <span className="flex flex-wrap gap-1">
-    {row.isEmergencyStopped && (
-      <span className="adm-type-body-small rounded-[2px] border border-(--admin-status-danger) px-1.5 text-(--admin-status-danger)">Emergency stop</span>
-    )}
-    {row.instantBookingPaused && (
-      <span className="adm-type-body-small rounded-[2px] border border-(--admin-border-default) px-1.5 text-(--admin-text-secondary)">
-        Instant booking paused
-      </span>
-    )}
-    {!row.isEmergencyStopped && !row.instantBookingPaused && <span className="adm-type-body-small text-(--admin-text-secondary)">—</span>}
-  </span>
-);
+/**
+ * Trạng thái vận hành của bãi trong một ô: bãi không hoạt động / dừng khẩn cấp (đỏ) > gần đầy ≥ 90% (cam)
+ * > bình thường / còn nhiều chỗ (xanh). Tạm dừng đặt ngay là dòng phụ.
+ */
+const LotStatusCell: React.FC<{ row: LotOccupancyRowDto }> = ({ row }) => {
+  const main =
+    row.lotStatus !== 'Active' ? (
+      <StatusIndicator tone="danger" label={lotStatusLabel(row.lotStatus)} />
+    ) : row.isEmergencyStopped ? (
+      <StatusIndicator tone="danger" label="Emergency stop" />
+    ) : row.occupancyPercent >= OCCUPANCY_WARNING_PERCENT ? (
+      <StatusIndicator tone="warning" label="Near capacity" />
+    ) : row.occupancyPercent >= AMPLE_BELOW_PERCENT ? (
+      <StatusIndicator tone="success" label="Normal flow" />
+    ) : (
+      <StatusIndicator tone="success" label="Ample space" />
+    );
+  return (
+    <span className="flex flex-col gap-0.5">
+      {main}
+      {row.lotStatus !== 'Active' && row.isEmergencyStopped && <span className="adm-type-body-small text-(--admin-status-danger)">Emergency stop</span>}
+      {row.instantBookingPaused && <span className="adm-type-body-small text-(--admin-text-secondary)">Instant booking paused</span>}
+    </span>
+  );
+};
 
 const occupied = (active: number, capacity: number) => `${formatNumber(active)} / ${formatNumber(capacity)}`;
 
-/** Cột theo Figma "Lot occupancy & capacity": bãi (tên + quận, thành phố) · lấp đầy · tích hợp · trạng thái bãi · cờ sức chứa. */
+/** Cột theo thiết kế "Live facility occupancy": bãi (tên + quận, thành phố) · lấp đầy (số + thanh) · tích hợp · trạng thái. */
 const LOT_COLUMNS: DataTableColumn<LotOccupancyRowDto>[] = [
   {
     key: 'name',
@@ -97,37 +131,28 @@ const LOT_COLUMNS: DataTableColumn<LotOccupancyRowDto>[] = [
     ),
   },
   {
-    key: 'occupied',
-    header: 'Parked / Capacity',
-    width: 130,
-    align: 'right',
+    key: 'occupancy',
+    header: 'Occupancy',
+    width: 260,
     render: (r) => (
-      <span className="tabular-nums" title={r.capacitySource === 'parking' ? "Capacity is the lot's total slots (gate capacity not configured yet)" : undefined}>
-        {occupied(r.activeSessions, r.capacity)}
-        {r.capacitySource === 'parking' && <span className="text-(--admin-text-secondary)">*</span>}
-      </span>
+      <OccupancyCell active={r.activeSessions} capacity={r.capacity} percent={r.occupancyPercent} label={r.name} fallback={r.capacitySource === 'parking'} />
     ),
   },
-  { key: 'percent', header: 'Occupancy', width: 210, render: (r) => <OccupancyBar percent={r.occupancyPercent} label={r.name} /> },
-  { key: 'integration', header: 'Integration', width: 100, render: (r) => integrationTierLabel(r.integrationTier) },
-  {
-    key: 'status',
-    header: 'Lot status',
-    width: 110,
-    render: (r) => (
-      <span className={r.lotStatus === 'Active' ? '' : 'text-(--admin-status-danger)'}>{lotStatusLabel(r.lotStatus)}</span>
-    ),
-  },
-  { key: 'flags', header: 'Capacity flags', width: 150, render: (r) => <LotFlags row={r} /> },
+  { key: 'integration', header: 'Integration', width: 110, render: (r) => <CellText>{integrationTierLabel(r.integrationTier)}</CellText> },
+  { key: 'status', header: 'Status', width: 170, render: (r) => <LotStatusCell row={r} /> },
 ];
 
 const districtName = (r: DistrictOccupancyRowDto) => `${r.district ?? 'Unknown district'}, ${r.city}`;
 
 const DISTRICT_COLUMNS: DataTableColumn<DistrictOccupancyRowDto>[] = [
-  { key: 'district', header: 'District', render: (r) => districtName(r) },
+  { key: 'district', header: 'District', render: (r) => <span className="adm-type-body-strong">{districtName(r)}</span> },
   { key: 'lots', header: 'Lots', width: 90, align: 'right', render: (r) => formatNumber(r.lotCount) },
-  { key: 'occupied', header: 'Parked / Capacity', width: 130, align: 'right', render: (r) => occupied(r.activeSessions, r.capacity) },
-  { key: 'percent', header: 'Occupancy', width: 210, render: (r) => <OccupancyBar percent={r.occupancyPercent} label={districtName(r)} /> },
+  {
+    key: 'occupancy',
+    header: 'Occupancy',
+    width: 300,
+    render: (r) => <OccupancyCell active={r.activeSessions} capacity={r.capacity} percent={r.occupancyPercent} label={districtName(r)} />,
+  },
 ];
 
 type OccupancyView = 'lot' | 'district';
@@ -216,54 +241,61 @@ const OccupancyTables: React.FC<{ value: LotOccupancyDto; asOfUtc: string | null
 
 export const LotOccupancyPanel: React.FC<{ widget: DashboardWidget<LotOccupancyDto> | null; busy: boolean }> = ({ widget, busy }) =>
   isHiddenWidget(widget) ? null : (
-    <Panel title="Lot occupancy" description="Vehicles parked now / capacity · lots waiting for KYB approval are not counted" padded={false}>
+    <Panel
+    title="Live occupancy by lot"
+    description="Vehicles parked now against gate capacity · lots waiting for KYB approval are not counted"
+    action={{ label: 'All parking lots →', to: '/admin/operations/parking-lots' }}
+    padded={false}
+  >
       <WidgetBody widget={widget} label="Lot occupancy">
         {(value) => <OccupancyTables value={value} asOfUtc={widget?.asOfUtc ?? null} busy={busy} />}
       </WidgetBody>
     </Panel>
   );
 
-// ===================== Gate devices =====================
+// ===================== Gate device health =====================
 
-const deviceCount = (n: number, highlight: boolean) => (
-  <span className={`tabular-nums ${highlight && n > 0 ? 'font-semibold text-(--admin-status-danger)' : ''}`}>{formatNumber(n)}</span>
+/** Một dòng thiết bị theo loại (thiết kế "System health & sensors"): tên · "x/y online" · trạng thái bằng chấm + chữ. */
+const DeviceHealthRow: React.FC<{ row: GateDeviceTypeRowDto }> = ({ row }) => (
+  <li className="flex min-h-10 items-center justify-between gap-3 border-b border-(--admin-border-default) px-3 py-2 last:border-b-0">
+    <span className="adm-type-body-default text-(--admin-text-primary)">{deviceTypeLabel(row.deviceType)}</span>
+    <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
+      <span className="adm-type-body-small tabular-nums text-(--admin-text-secondary)">
+        {formatNumber(row.online)}/{formatNumber(row.total)} online
+      </span>
+      {row.offline > 0 ? (
+        <StatusIndicator tone="danger" label={`${formatNumber(row.offline)} offline`} />
+      ) : row.maintenance > 0 ? (
+        <StatusIndicator tone="warning" label={`${formatNumber(row.maintenance)} maintenance`} />
+      ) : (
+        <StatusIndicator tone="success" label="All online" />
+      )}
+    </span>
+  </li>
 );
 
-const DEVICE_COLUMNS: DataTableColumn<GateDeviceTypeRowDto>[] = [
-  { key: 'type', header: 'Device type', render: (r) => deviceTypeLabel(r.deviceType) },
-  { key: 'online', header: 'Online', width: 90, align: 'right', render: (r) => deviceCount(r.online, false) },
-  { key: 'offline', header: 'Offline', width: 90, align: 'right', render: (r) => deviceCount(r.offline, true) },
-  { key: 'maintenance', header: 'Maintenance', width: 110, align: 'right', render: (r) => deviceCount(r.maintenance, false) },
-  { key: 'total', header: 'Total', width: 80, align: 'right', render: (r) => formatNumber(r.total) },
-];
-
-export const GateDevicesPanel: React.FC<{ widget: DashboardWidget<GateDevicesDto> | null; busy: boolean }> = ({ widget, busy }) =>
+export const GateDevicesPanel: React.FC<{ widget: DashboardWidget<GateDevicesDto> | null }> = ({ widget }) =>
   isHiddenWidget(widget) ? null : (
-    <Panel
-      title="Gate devices"
-      description="Devices in use by type and status"
-      action={{ label: 'All devices →', to: '/admin/operations/gate-activity/devices' }}
-      padded={false}
-    >
+    <Panel title="Gate device health" action={{ label: 'All devices →', to: '/admin/operations/gate-activity/devices' }} padded={false}>
       <WidgetBody widget={widget} label="Gate devices">
         {(value) => (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-(--admin-border-default) px-3 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-(--admin-border-default) bg-(--admin-surface-page) px-3 py-1.5">
               <span className={`adm-type-body-small ${value.offline > 0 ? 'text-(--admin-status-danger)' : 'text-(--admin-text-secondary)'}`}>
-                {value.offline > 0 ? `${formatNumber(value.offline)} offline` : 'No devices offline'} · total{' '}
-                {formatNumber(value.total)}
+                {value.offline > 0 ? `${formatNumber(value.offline)} offline` : 'No devices offline'} · total {formatNumber(value.total)}
               </span>
               <AsOfNote asOfUtc={widget?.asOfUtc ?? null} />
             </div>
-            <div className="overflow-x-auto" data-testid="gate-devices">
-              <DataTable
-                bare
-                columns={DEVICE_COLUMNS}
-                rows={value.byType}
-                rowKey={(r) => r.deviceType}
-                busy={busy}
-                placeholder={<StateBlock type="empty" bare title="No gate devices yet" message="Devices that owners register at their gates appear here." />}
-              />
+            <div data-testid="gate-devices">
+              {value.byType.length === 0 ? (
+                <StateBlock type="empty" bare className="min-h-0 py-6" title="No gate devices yet" message="Devices that owners register at their gates appear here." />
+              ) : (
+                <ul className="m-0 list-none p-0">
+                  {value.byType.map((r) => (
+                    <DeviceHealthRow key={r.deviceType} row={r} />
+                  ))}
+                </ul>
+              )}
             </div>
           </>
         )}

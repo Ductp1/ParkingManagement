@@ -194,7 +194,8 @@ describe('DashboardPage (US-081) – trạng thái từng widget', () => {
     renderPage();
 
     await screen.findByTestId('occupancy-lot');
-    expect(screen.queryByTestId(/^kpi-/)).toBeNull();
+    // Bốn KPI của kpis.* đều chưa có nguồn → ẩn; còn ô lấp đầy (nguồn bảng lấp đầy vẫn có).
+    expect(screen.getAllByTestId(/^kpi-/).map((el) => el.getAttribute('data-testid'))).toEqual(['kpi-Current occupancy']);
     expect(screen.queryByText('Work queues')).toBeNull();
     expect(screen.getByText('Platform governance')).toBeTruthy();
   });
@@ -245,11 +246,13 @@ describe('DashboardPage (US-081) – bảng lấp đầy', () => {
     const byLot = await screen.findByTestId('occupancy-lot');
 
     expect(within(byLot).getByText('92,4%')).toBeTruthy();
-    expect(within(byLot).getByText('Nearly full')).toBeTruthy(); // chỉ bãi ≥ 90%
-    expect(within(byLot).getAllByText('Nearly full')).toHaveLength(1);
+    expect(within(byLot).getByText('Near capacity')).toBeTruthy(); // chỉ bãi ≥ 90%
+    expect(within(byLot).getAllByText('Near capacity')).toHaveLength(1);
+    expect(within(byLot).getByText('Normal flow')).toBeTruthy(); // 82,4%
     expect(within(byLot).getByText('Instant booking paused')).toBeTruthy();
     expect(within(byLot).getByText('Emergency stop')).toBeTruthy();
     expect(within(byLot).getByText('Suspended')).toBeTruthy();
+    expect(within(byLot).getByText(/388 \/ 420 slots/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'By lot' }).getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(screen.getByRole('button', { name: 'By district' }));
@@ -282,7 +285,37 @@ describe('DashboardPage (US-081) – bảng lấp đầy', () => {
     const devices = await screen.findByTestId('gate-devices');
 
     expect(within(devices).getByText('ANPR camera')).toBeTruthy();
-    expect(screen.getByText(/1 offline/)).toBeTruthy();
+    expect(within(devices).getByText('46/47 online')).toBeTruthy();
+    expect(within(devices).getByText('1 offline')).toBeTruthy(); // ANPR có 1 thiết bị mất kết nối
+    expect(within(devices).getByText('1 maintenance')).toBeTruthy(); // Barrier có 1 thiết bị bảo trì
+    expect(screen.getByText(/1 offline · total 88/)).toBeTruthy();
+  });
+});
+
+describe('DashboardPage (US-081) – KPI lấp đầy và lối tắt', () => {
+  it('KPI "Current occupancy": đang đỗ / sức chứa toàn sàn, % và chỗ còn trống từ cùng nguồn bảng lấp đầy', async () => {
+    renderPage();
+    const tile = await screen.findByTestId('kpi-Current occupancy');
+
+    await waitFor(() => expect(within(tile).getByText('920 / 1.920')).toBeTruthy());
+    expect(within(tile).getByText(/47,9% full · 1\.000 slots free/)).toBeTruthy();
+    expect(within(tile).getByRole('link', { name: /View details/ }).getAttribute('href')).toBe('/admin/operations/parking-lots');
+  });
+
+  it('Quick actions chỉ dẫn tới trang admin đã có', async () => {
+    renderPage();
+    await screen.findByTestId('occupancy-lot');
+
+    const hrefs = within(screen.getByRole('heading', { name: 'Quick actions' }).closest('section') as HTMLElement)
+      .getAllByRole('link')
+      .map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual([
+      '/admin/operations/kyb-review?status=Submitted',
+      '/admin/operations/partner-onboarding?status=Submitted',
+      '/admin/support/sanctions',
+      '/admin/communications/send-notification',
+      '/admin/operations/gate-activity',
+    ]);
   });
 });
 

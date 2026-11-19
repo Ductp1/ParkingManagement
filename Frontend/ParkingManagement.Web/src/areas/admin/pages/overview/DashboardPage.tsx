@@ -7,13 +7,15 @@ import { DetailColumns, QueryIssueState } from '../../components/PageLayout';
 import { isQueryIssue } from '../../utils/queryStatus';
 import { Panel } from '../../components/Panel';
 import { StateBlock } from '../../components/StateBlock';
-import { formatClockIct, formatDate, formatDateTimeIct, formatNumber, formatVnd, ictDateParam } from '../../utils/format';
+import { formatClockIct, formatDate, formatDateTimeIct, formatNumber, formatPercent, formatVnd, ictDateParam } from '../../utils/format';
+import { AdminIcon } from '../../components/AdminIcon';
+import { ADMIN_ICONS, type AdminIconName } from '../../components/adminIcons';
 import { KpiWidget, QueueRow } from './DashboardWidgetState';
-import { isHiddenWidget } from './dashboardFormat';
+import { isHiddenWidget, OCCUPANCY_WARNING_PERCENT } from './dashboardFormat';
 import { DashboardRetryContext } from './dashboardRetry';
 import { GateDevicesPanel, LotOccupancyPanel, PaymentsByMethodPanel } from './DashboardTables';
 import { REFRESH_INTERVAL_MS, useDashboardOverview } from './useDashboardOverview';
-import type { BookingsTodayDto, DashboardOverviewDto, DashboardWidget } from './dashboardTypes';
+import type { BookingsTodayDto, DashboardOverviewDto, DashboardWidget, LotOccupancyDto } from './dashboardTypes';
 
 const auditLink = (todayParam: string | null, service?: string) => {
   const params = new URLSearchParams();
@@ -49,8 +51,17 @@ const Badge: React.FC<{ tone: 'danger' | 'muted'; children: React.ReactNode }> =
 );
 
 /** Dải KPI: doanh thu (gộp + ròng), phiên đang hoạt động (+ badge bất thường), booking hôm nay, tranh chấp đang mở. */
-const KpiRow: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) =>
-  allHidden(data ? Object.values(data.kpis) : null) ? null : (
+/** KPI "Current occupancy": đang đỗ / sức chứa toàn sàn (cùng nguồn bảng lấp đầy), % + chỗ còn trống; ≥ 90% tô cam. */
+const occupancyFormat = (occupancy: DashboardWidget<LotOccupancyDto> | null) => {
+  const capacity = occupancy?.status === 'available' && occupancy.value ? occupancy.value.totalCapacity : 0;
+  return (n: number) => `${formatNumber(n)} / ${formatNumber(capacity)}`;
+};
+
+/** Dải KPI (thiết kế "Facility operations overview"): doanh thu · lấp đầy · phiên đang đỗ · booking · tranh chấp. Ô chưa có nguồn bị ẩn. */
+const KpiRow: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) => {
+  const occupancy = data?.tables.lotOccupancy ?? null;
+  if (allHidden(data ? [...Object.values(data.kpis), data.tables.lotOccupancy] : null)) return null;
+  return (
     <KpiStrip>
       <KpiWidget
         label="Revenue today (gross)"
@@ -58,6 +69,18 @@ const KpiRow: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) =>
         count={(v) => v.gross}
         format={formatVnd}
         detail={(v) => `Net ${formatVnd(v.net)} · refunded ${formatVnd(v.refunded)} · ${formatNumber(v.succeededCount)} payments`}
+      />
+      <KpiWidget
+        label="Current occupancy"
+        widget={occupancy}
+        count={(v) => v.totalActive}
+        format={occupancyFormat(occupancy)}
+        to="/admin/operations/parking-lots"
+        detail={(v) => (
+          <span className={v.occupancyPercent >= OCCUPANCY_WARNING_PERCENT ? 'text-(--admin-status-warning-text)' : undefined}>
+            {formatPercent(v.occupancyPercent)} full · {formatNumber(Math.max(0, v.totalCapacity - v.totalActive))} slots free
+          </span>
+        )}
       />
       <KpiWidget
         label="Active parking sessions"
@@ -84,6 +107,42 @@ const KpiRow: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) =>
       />
     </KpiStrip>
   );
+};
+
+/** Lối tắt tới các trang admin đã có (thiết kế "Operational quick actions") – không có hành động nào chưa có API. */
+const QUICK_ACTIONS: Array<{ icon: AdminIconName; title: string; description: string; to: string }> = [
+  { icon: 'file', title: 'Review KYB applications', description: 'Check documents and approve new lots', to: '/admin/operations/kyb-review?status=Submitted' },
+  { icon: 'user', title: 'Partner applications', description: 'New owners waiting for review', to: '/admin/operations/partner-onboarding?status=Submitted' },
+  { icon: 'ban', title: 'Sanctions', description: 'Issue or review SLA sanctions', to: '/admin/support/sanctions' },
+  { icon: 'send', title: 'Send a notification', description: 'Message one user from a template', to: '/admin/communications/send-notification' },
+  { icon: 'eye', title: 'Gate activity', description: 'Sessions and devices at the gates', to: '/admin/operations/gate-activity' },
+];
+
+const QuickActionsPanel: React.FC = () => (
+  <Panel title="Quick actions" padded={false}>
+    <ul className="m-0 list-none p-0">
+      {QUICK_ACTIONS.map((a) => (
+        <li key={a.to} className="border-b border-(--admin-border-default) last:border-b-0">
+          <Link
+            to={a.to}
+            className="adm-tr-colors flex min-h-12 items-center gap-3 px-3 py-2 text-(--admin-text-primary) hover:bg-(--admin-surface-selected)"
+          >
+            <span aria-hidden="true" className="flex size-7 shrink-0 items-center justify-center rounded-[2px] bg-(--admin-surface-page) text-(--admin-brand-navy-900)">
+              <AdminIcon icon={ADMIN_ICONS[a.icon]} />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="adm-type-body-strong">{a.title}</span>
+              <span className="adm-type-body-small text-(--admin-text-secondary)">{a.description}</span>
+            </span>
+            <span aria-hidden="true" className="text-(--admin-text-secondary)">
+              <AdminIcon icon={ADMIN_ICONS.chevronRight} />
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  </Panel>
+);
 
 const QueuesPanel: React.FC<{ data: DashboardOverviewDto | null }> = ({ data }) => {
   const q = data?.queues ?? null;
@@ -216,7 +275,7 @@ export const DashboardPage: React.FC = () => {
   const titleBar = (
     <AdminTitleBar
       title="Platform overview"
-      subtitle={`${dayLabel} (ICT) · ${generated} · refreshes every ${REFRESH_INTERVAL_MS / 1000} seconds while this tab is open`}
+      subtitle={`Live occupancy, work queues and gate health across all lots · ${dayLabel} (ICT) · ${generated} · refreshes every ${REFRESH_INTERVAL_MS / 1000} seconds`}
       actions={
         <AdminButton
           variant="onNavy"
@@ -283,13 +342,14 @@ export const DashboardPage: React.FC = () => {
           <>
             <LotOccupancyPanel widget={data?.tables.lotOccupancy ?? null} busy={isFetching && data !== null} />
             <PaymentsByMethodPanel widget={data?.tables.paymentsByMethodToday ?? null} busy={isFetching && data !== null} />
+            <GovernancePanel data={data} />
           </>
         }
         side={
           <>
             <QueuesPanel data={data} />
-            <GateDevicesPanel widget={data?.tables.gateDevices ?? null} busy={isFetching && data !== null} />
-            <GovernancePanel data={data} />
+            <QuickActionsPanel />
+            <GateDevicesPanel widget={data?.tables.gateDevices ?? null} />
           </>
         }
       />
