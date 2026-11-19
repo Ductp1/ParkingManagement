@@ -72,10 +72,10 @@ public class CancellationPolicyTests
         public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
         public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
-            DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+            DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
@@ -735,10 +735,10 @@ public class BookingFeaturesTests
             => Task.FromResult<IReadOnlyList<BookingSummaryDto>>([]);
 
         public Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
-            DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+            DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
