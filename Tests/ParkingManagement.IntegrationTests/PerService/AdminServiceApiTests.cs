@@ -137,6 +137,9 @@ public sealed class AdminApiFixture : IAsyncLifetime
                     { BaseAddress = UserFactory.ClientOptions.BaseAddress };
                     return new UserServiceClient(http, sp.GetRequiredService<ILogger<UserServiceClient>>());
                 });
+                // US-053: duyệt hồ sơ đối tác gọi U2 qua IOwnerAccountClient – cùng client in-memory ở trên.
+                services.AddScoped<AdminService.Application.Features.PartnerOnboarding.IOwnerAccountClient>(sp =>
+                    (UserServiceClient)sp.GetRequiredService<IUserServiceClient>());
             });
         });
         AdminClient = AdminFactory.CreateClient();

@@ -31,11 +31,6 @@ export interface PartnerApplicationReceipt {
 }
 
 /** 400 dữ liệu sai · 409 trùng email / SĐT / MST với hồ sơ đang xử lý · 429 quá số hồ sơ cho phép mỗi giờ (AdminService qua Gateway). */
-export async function submitPartnerApplication(request: PartnerApplicationRequest): Promise<PartnerApplicationReceipt> {
-  const { data } = await apiClient.post<PartnerApplicationReceipt>('/api/v1/partner-applications', request);
-  return data;
-}
-
 /** P2 (T4): hồ sơ đang chờ bổ sung, đọc bằng link ParkMaster gửi – token đi trong header, không nằm trong URL gọi API. */
 export interface PartnerApplicationEditView {
   code: string;

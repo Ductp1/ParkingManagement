@@ -33,10 +33,34 @@ public class PartnerApplicationSubmitTests
     }
 
     /// <summary>Repository + cổng đọc trong bộ nhớ: gán Id / mã như DB, giữ audit log.</summary>
-    internal sealed class InMemoryIntake : IPartnerApplicationIntakeRepository, IPartnerApplicationQueries, IPartnerApplicationRepository
+    internal sealed class InMemoryIntake : IPartnerApplicationIntakeRepository, IPartnerApplicationQueries, IPartnerApplicationRepository,
+        IPartnerRegistrationRepository
     {
         public List<PartnerApplication> Applications { get; } = [];
         public List<AuditLog> Audits { get; } = [];
+        public List<PartnerApplicationDocument> Documents { get; } = [];
+
+        // ----- Form public (multipart + giấy tờ, không bắt buộc đăng nhập) – cùng kho với Admin nhập hồ sơ -----
+
+        public Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
+            => Task.FromResult(Applications.Any(a => !a.IsTerminal
+                                                     && (a.ApplicantUserId == applicantUserId || a.TaxCode == taxCode || a.Email == email)));
+
+        public Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<string> AddWithNewCodeAsync(PartnerApplication application, IReadOnlyList<PartnerApplicationDocument> documents, int year,
+            CancellationToken cancellationToken, Func<PartnerApplication, AuditLog>? buildAuditLog = null)
+        {
+            var last = Applications.Select(a => a.Code).Where(c => c.StartsWith(PartnerApplicationCode.Prefix(year))).Max();
+            application.Code = PartnerApplicationCode.Next(year, last);
+            typeof(BaseEntity).GetProperty(nameof(BaseEntity.Id), BindingFlags.Public | BindingFlags.Instance)!
+                .SetValue(application, Applications.Count + 100);
+            Applications.Add(application);
+            Documents.AddRange(documents);
+            if (buildAuditLog is not null) Audits.Add(buildAuditLog(application));
+            return Task.FromResult(application.Code);
+        }
 
         public Task<OpenApplicationMatch?> FindOpenDuplicateAsync(string email, string phone, string taxCode, CancellationToken ct,
             int? excludeId = null)
@@ -83,7 +107,6 @@ public class PartnerApplicationSubmitTests
         }
     }
 
-    private static SubmitPartnerApplicationUseCase Submit(InMemoryIntake store) => new(store, new FixedClock(Now));
     private static CreatePartnerApplicationUseCase Create(InMemoryIntake store) => new(store, store, new FixedClock(Now));
 
     // ==================== Kiểm tra + chuẩn hóa ====================
@@ -154,71 +177,58 @@ public class PartnerApplicationSubmitTests
     [InlineData("PA-2026-xx", "PA-2026-0001")]
     public void Code_continues_the_yearly_sequence(string? last, string expected) => Assert.Equal(expected, PartnerApplicationCode.Next(2026, last));
 
-    // ==================== Form public (P1) ====================
+    // ==================== Hồ sơ mới: mã, trùng lặp, kiểm tra (dùng chung cho mọi cách tạo hồ sơ) ====================
+    // Form public (đối tác tự nộp, multipart + giấy tờ, không cần đăng nhập) có test riêng ở PartnerRegistrationTests
+    // (Anonymous_submit_*, Submit_writes_audit_log_*). Các test dưới chạy qua đường Admin nhập hồ sơ – cùng PartnerApplicationInput.
 
     [Fact]
-    public async Task Public_submit_creates_submitted_application_and_audit_without_actor()
+    public async Task New_application_is_submitted_with_normalized_data()
     {
         var store = new InMemoryIntake();
 
-        var receipt = await Submit(store).ExecuteAsync(Valid());
+        await Create(store).ExecuteAsync(AdminBody(Valid(), null), AdminId);
 
-        Assert.Equal(("PA-2026-0001", "Submitted", Now), (receipt.Code, receipt.Status, receipt.SubmittedAtUtc));
         var app = Assert.Single(store.Applications);
         Assert.Equal((PartnerApplicationStatus.Submitted, "minh@example.vn", "0901234567", Now),
             (app.Status, app.Email, app.Phone, app.ConsentAcceptedAtUtc));
         Assert.Equal(2, app.LotCount);
-
-        var audit = Assert.Single(store.Audits);
-        Assert.Null(audit.UserId);
-        Assert.Equal(("PartnerApplication.Submitted", "PartnerApplication", app.Id.ToString()), (audit.Action, audit.EntityName, audit.EntityId));
-        Assert.Equal("PA-2026-0001", JsonDocument.Parse(audit.NewValuesJson!).RootElement.GetProperty("code").GetString());
+        Assert.Null(app.ApplicantUserId);                           // hồ sơ không gắn tài khoản: duyệt xong mới cấp tài khoản mới
+        Assert.Equal("PA-2026-0001", JsonDocument.Parse(Assert.Single(store.Audits).NewValuesJson!).RootElement.GetProperty("code").GetString());
     }
 
     [Fact]
-    public async Task Second_public_submit_gets_next_code()
+    public async Task Second_application_gets_next_code()
     {
         var store = new InMemoryIntake();
-        await Submit(store).ExecuteAsync(Valid());
+        await Create(store).ExecuteAsync(AdminBody(Valid(), null), AdminId);
 
-        var second = await Submit(store).ExecuteAsync(Valid() with { Email = "b@example.vn", Phone = "0912345678", TaxCode = "0312345679" });
+        var second = await Create(store).ExecuteAsync(
+            AdminBody(Valid() with { Email = "b@example.vn", Phone = "0912345678", TaxCode = "0312345679" }, null), AdminId);
 
         Assert.Equal("PA-2026-0002", second.Code);
-    }
-
-    [Fact]
-    public async Task Public_duplicate_of_open_application_is_409_without_revealing_its_code()
-    {
-        var store = new InMemoryIntake();
-        await Submit(store).ExecuteAsync(Valid());
-
-        var ex = await Assert.ThrowsAsync<ConflictException>(() => Submit(store).ExecuteAsync(Valid() with { Email = "other@example.vn" }));
-
-        Assert.Contains("số điện thoại, mã số thuế", ex.Message);
-        Assert.DoesNotContain("PA-2026", ex.Message);
-        Assert.Single(store.Applications);
     }
 
     [Fact]
     public async Task Closed_application_does_not_block_a_new_one()
     {
         var store = new InMemoryIntake();
-        await Submit(store).ExecuteAsync(Valid());
+        await Create(store).ExecuteAsync(AdminBody(Valid(), null), AdminId);
         var first = store.Applications[0];
         first.StartReview(AdminId);
         first.Reject(AdminId, "Thiếu giấy phép kinh doanh");
 
-        var receipt = await Submit(store).ExecuteAsync(Valid());
+        var dto = await Create(store).ExecuteAsync(AdminBody(Valid(), null), AdminId);
 
-        Assert.Equal("PA-2026-0002", receipt.Code);
+        Assert.Equal("PA-2026-0002", dto.Code);
     }
 
     [Fact]
-    public async Task Public_submit_validates_before_touching_the_store()
+    public async Task New_application_is_validated_before_touching_the_store()
     {
         var store = new InMemoryIntake();
 
-        await Assert.ThrowsAsync<ValidationException>(() => Submit(store).ExecuteAsync(Valid() with { ConsentAccepted = false }));
+        await Assert.ThrowsAsync<ValidationException>(() =>
+            Create(store).ExecuteAsync(AdminBody(Valid() with { ConsentAccepted = false }, null), AdminId));
 
         Assert.Empty(store.Applications);
         Assert.Empty(store.Audits);
@@ -244,7 +254,7 @@ public class PartnerApplicationSubmitTests
     public async Task Admin_intake_duplicate_names_the_open_application()
     {
         var store = new InMemoryIntake();
-        await Submit(store).ExecuteAsync(Valid());
+        await Create(store).ExecuteAsync(AdminBody(Valid(), null), AdminId);
 
         var ex = await Assert.ThrowsAsync<ConflictException>(() =>
             Create(store).ExecuteAsync(AdminBody(Valid() with { Phone = "0987654321", TaxCode = "0399999999" }, null), AdminId));

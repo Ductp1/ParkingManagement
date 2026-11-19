@@ -7,30 +7,16 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace AdminService.API.Controllers;
 
 /// <summary>
-/// US-116 T1 / US-053 (P1): form public "Đăng ký đối tác" – chủ bãi nộp hồ sơ, KHÔNG cần đăng nhập, không tạo tài khoản.
-/// Admin thẩm định ở api/v1/admin/partner-applications rồi mới cấp tài khoản. Giới hạn số lần gửi theo IP (policy "partner-apply").
+/// US-116 T4: link bổ sung hồ sơ đối tác (không đăng nhập, xác thực bằng header X-Edit-Token). Nộp hồ sơ mới đi qua
+/// POST api/v1/admin/partner-registrations (multipart, kèm giấy tờ). Giới hạn số lần mở / gửi theo IP (policy "partner-edit").
 /// </summary>
 [ApiController]
 [Route("api/v1/partner-applications")]
 [AllowAnonymous]
-public sealed class PartnerApplicationsController(ISubmitPartnerApplicationUseCase submit, IGetPartnerApplicationForEditUseCase getForEdit,
+public sealed class PartnerApplicationsController(IGetPartnerApplicationForEditUseCase getForEdit,
     IResubmitPartnerApplicationUseCase resubmit) : ControllerBase
 {
     public const string EditTokenHeader = "X-Edit-Token";
-
-    /// <summary>POST /api/v1/partner-applications – 201 { code, status, submittedAtUtc }.</summary>
-    [HttpPost]
-    [EnableRateLimiting(PartnerApplicationRateLimit.Policy)]
-    [ProducesResponseType<PartnerApplicationReceiptDto>(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
-    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<PartnerApplicationReceiptDto>> Submit([FromBody] SubmitPartnerApplicationRequest request,
-        CancellationToken cancellationToken)
-    {
-        var receipt = await submit.ExecuteAsync(request, cancellationToken);
-        return StatusCode(StatusCodes.Status201Created, receipt);
-    }
 
     /// <summary>
     /// GET /api/v1/partner-applications/PA-2026-0012 (header X-Edit-Token) – P2 / T4: đối tác mở link bổ sung, nhận dữ liệu form + nội dung

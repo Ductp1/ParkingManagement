@@ -8,17 +8,8 @@ using ParkingManagement.SharedKernel.Exceptions;
 namespace AdminService.Application.Features.PartnerOnboarding;
 
 // ===== REQUEST =====
-
-/// <summary>
-/// T1 (US-116 / US-053): form "Đăng ký đối tác" 4 phần – Liên hệ · Doanh nghiệp · Bãi đỗ · Đồng ý xử lý dữ liệu (Nghị định 13/2023).
-/// Mọi trường là chuỗi thô từ form; chuẩn hóa + kiểm tra ở <see cref="PartnerApplicationInput"/>.
-/// </summary>
-public sealed record SubmitPartnerApplicationRequest(
-    string? FullName, string? Email, string? Phone, string? Position,
-    PartnerBusinessType? BusinessType, string? BusinessName, string? TaxCode, string? BusinessAddress,
-    string? LegalRepresentativeName, string? LegalRepresentativePosition,
-    int LotCount, string? PrimaryLotAddress, int? EstimatedCarSlots, int? EstimatedMotorbikeSlots, string? OperatingHours,
-    bool ConsentAccepted);
+// Form đối tác tự nộp (multipart, kèm giấy tờ) là SubmitPartnerApplicationRequest + SubmitPartnerApplicationUseCase ở
+// PartnerRegistrationFeatures.cs. File này giữ phần Admin nhập hồ sơ thay đối tác và chuẩn hóa dữ liệu dùng chung với link bổ sung (T4).
 
 /// <summary>
 /// Admin nhập hồ sơ thay đối tác (nhận qua điện thoại / hotline). ConsentAccepted = Admin xác nhận đối tác đã đồng ý xử lý dữ liệu
@@ -28,16 +19,13 @@ public sealed record AdminCreatePartnerApplicationRequest(
     string? FullName, string? Email, string? Phone, string? Position,
     PartnerBusinessType? BusinessType, string? BusinessName, string? TaxCode, string? BusinessAddress,
     string? LegalRepresentativeName, string? LegalRepresentativePosition,
-    int LotCount, string? PrimaryLotAddress, int? EstimatedCarSlots, int? EstimatedMotorbikeSlots, string? OperatingHours,
+    int? LotCount, string? PrimaryLotAddress, int? EstimatedCarSlots, int? EstimatedMotorbikeSlots, string? OperatingHours,
     bool ConsentAccepted, string? IntakeNote)
 {
     public SubmitPartnerApplicationRequest ToSubmit() => new(FullName, Email, Phone, Position, BusinessType, BusinessName, TaxCode,
         BusinessAddress, LegalRepresentativeName, LegalRepresentativePosition, LotCount, PrimaryLotAddress, EstimatedCarSlots,
         EstimatedMotorbikeSlots, OperatingHours, ConsentAccepted);
 }
-
-/// <summary>Phản hồi của form public: chỉ mã hồ sơ + trạng thái, không trả lại dữ liệu cá nhân.</summary>
-public sealed record PartnerApplicationReceiptDto(string Code, string Status, DateTime SubmittedAtUtc);
 
 // ===== Kiểm tra + chuẩn hóa =====
 
@@ -101,7 +89,7 @@ public sealed record PartnerApplicationInput(
         var legalName = Text(r.LegalRepresentativeName, "Người đại diện theo pháp luật", 2, 200);
         var legalPosition = Optional(r.LegalRepresentativePosition, "Chức vụ người đại diện", 100);
 
-        if (r.LotCount is < 1 or > MaxLots) errors.Add($"Số bãi đỗ phải từ 1 đến {MaxLots}.");
+        if (r.LotCount is not (>= 1 and <= MaxLots)) errors.Add($"Số bãi đỗ phải từ 1 đến {MaxLots}.");
         var lotAddress = Text(r.PrimaryLotAddress, "Địa chỉ bãi chính", 5, 300);
         var cars = Slots(r.EstimatedCarSlots, "Số chỗ ô tô");
         var motorbikes = Slots(r.EstimatedMotorbikeSlots, "Số chỗ xe máy");
@@ -111,7 +99,7 @@ public sealed record PartnerApplicationInput(
         if (errors.Count > 0) throw new ValidationException(string.Join(" ", errors));
 
         return new PartnerApplicationInput(fullName, email, phone, position, businessType, businessName, taxCode, businessAddress,
-            legalName, legalPosition, r.LotCount, lotAddress, cars, motorbikes, hours);
+            legalName, legalPosition, r.LotCount ?? 0, lotAddress, cars, motorbikes, hours);
     }
 
     /// <summary>"+84 901.234.567" → "0901234567".</summary>
@@ -244,30 +232,6 @@ internal static class PartnerIntake
             .Where(f => f is not null));
 }
 
-public interface ISubmitPartnerApplicationUseCase
-{
-    Task<PartnerApplicationReceiptDto> ExecuteAsync(SubmitPartnerApplicationRequest request, CancellationToken cancellationToken = default);
-}
-
-/// <summary>
-/// US-116 T1 (P1, form public – không đăng nhập): tạo hồ sơ Submitted để Admin thẩm định ở Partner Onboarding.
-/// Trùng email / SĐT / MST với hồ sơ đang xử lý → 409 (không nêu mã hồ sơ). Chưa kiểm tra trùng tài khoản UserService (U1 chưa có).
-/// </summary>
-public sealed class SubmitPartnerApplicationUseCase(IPartnerApplicationIntakeRepository repository, TimeProvider clock)
-    : ISubmitPartnerApplicationUseCase
-{
-    public async Task<PartnerApplicationReceiptDto> ExecuteAsync(SubmitPartnerApplicationRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var input = PartnerApplicationInput.From(request ?? throw new ValidationException("Thiếu dữ liệu hồ sơ."));
-        var now = clock.GetUtcNow().UtcDateTime;
-        var app = await PartnerIntake.CreateAsync(repository, input, now, adminUserId: null, "Submitted", "Đối tác tự nộp qua form đăng ký",
-            m => $"Đã có hồ sơ đối tác đang được xử lý với {PartnerIntake.Fields(m)} này. Vui lòng liên hệ hotline 1900 6868 để được hỗ trợ.",
-            cancellationToken);
-        return new PartnerApplicationReceiptDto(app.Code, app.Status.ToString(), now);
-    }
-}
-
 public interface ICreatePartnerApplicationUseCase
 {
     Task<PartnerApplicationDetailDto> ExecuteAsync(AdminCreatePartnerApplicationRequest request, int performedByUserId,
@@ -275,7 +239,7 @@ public interface ICreatePartnerApplicationUseCase
 }
 
 /// <summary>
-/// US-116 T1 do Admin nhập thay đối tác (nhận qua điện thoại): cùng kiểm tra như form public; trùng → 409 kèm mã hồ sơ đang xử lý.
+/// US-116 T1 do Admin nhập thay đối tác (nhận qua điện thoại, chưa có giấy tờ): kiểm tra như form; trùng → 409 kèm mã hồ sơ đang xử lý.
 /// Hồ sơ vào trạng thái Submitted như hồ sơ tự nộp, audit log ghi Admin + ghi chú cuộc gọi.
 /// </summary>
 public sealed class CreatePartnerApplicationUseCase(IPartnerApplicationIntakeRepository repository, IPartnerApplicationQueries queries,

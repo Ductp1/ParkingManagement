@@ -2,11 +2,11 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PartnerApplyPage } from './PartnerApplyPage';
+import { PartnerApplyWizard } from './PartnerApplyPage';
 import { emptyForm, stepErrors, toRequest, validate, type PartnerApplyForm } from './partnerApplyForm';
 
+// Wizard 4 bước dùng cho link bổ sung hồ sơ (/partner/apply/edit – US-116 T4); hồ sơ mới nộp ở /partner/register (kèm giấy tờ).
 const h = vi.hoisted(() => ({ submit: vi.fn() }));
-vi.mock('@/api/partnerApplicationsApi', () => ({ submitPartnerApplication: h.submit }));
 vi.mock('@/components/auth/AuthLayout', () => ({ AuthLayout: ({ children }: { children: React.ReactNode }) => <main>{children}</main> }));
 
 const byId = (key: string) => document.getElementById(`partner-${key}`) as HTMLInputElement;
@@ -34,7 +34,11 @@ const fillLots = async (user: ReturnType<typeof userEvent.setup>) => {
 const renderPage = () =>
   render(
     <MemoryRouter>
-      <PartnerApplyPage />
+      <PartnerApplyWizard
+        heading="Bổ sung hồ sơ đối tác"
+        onSubmit={async (form) => (await h.submit(toRequest(form))).code}
+        renderDone={(code) => <h2>Đã gửi hồ sơ {code}</h2>}
+      />
     </MemoryRouter>
   );
 
@@ -67,7 +71,7 @@ describe('partnerApplyForm', () => {
   });
 });
 
-describe('PartnerApplyPage', () => {
+describe('PartnerApplyWizard', () => {
   it('blocks a step with errors and shows them on the fields', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -105,8 +109,7 @@ describe('PartnerApplyPage', () => {
       email: 'minh@example.vn', phone: '0901234567', businessType: 'HouseholdBusiness', taxCode: '079201001234', lotCount: 1,
       estimatedMotorbikeSlots: 120, estimatedCarSlots: null, consentAccepted: true,
     });
-    expect(await screen.findByRole('heading', { name: 'Đã nhận hồ sơ của bạn' })).toBeTruthy();
-    expect(screen.getByText('PA-2026-0011')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Đã gửi hồ sơ PA-2026-0011' })).toBeTruthy();
   });
 
   it('keeps entered values when going back and lets the review edit a step', async () => {

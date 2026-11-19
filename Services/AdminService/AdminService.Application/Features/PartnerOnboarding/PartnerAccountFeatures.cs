@@ -1,3 +1,4 @@
+using AdminService.Domain.Enums;
 using AdminService.Domain.ValueObjects;
 
 namespace AdminService.Application.Features.PartnerOnboarding;
@@ -35,11 +36,20 @@ public sealed class IssueOwnerAccountUseCase(IPartnerApplicationRepository repos
 
         var account = await ownerAccounts.IssueOwnerAccountAsync(new IssueOwnerAccountCommand(
                 app.Id, app.FullName, app.Email, app.Phone, app.BusinessName, app.TaxCode, app.BusinessAddress,
-                bank.Bin, bank.BankName, bank.AccountNumber, bank.AccountName),
+                bank.Bin, bank.BankName, bank.AccountNumber, bank.AccountName, app.ApplicantUserId),
             IdempotencyKey(app.Id), cancellationToken);
 
         app.IssueAccount(performedByUserId, bank, account.UserId, account.OwnerProfileId);
-        await repository.SaveWithAuditAsync(PartnerApplicationAudit.Build(app, "AccountIssued", performedByUserId, before, null),
+        // US-053: hồ sơ do tài khoản đã đăng nhập nộp → UserService đã thêm role chủ bãi cho chính tài khoản đó (đang hoạt động sẵn,
+        // không cần link kích hoạt) → hồ sơ kết thúc ở Activated. Hồ sơ nộp không cần tài khoản / Admin nhập (US-116): UserService tạo
+        // tài khoản mới + gửi link kích hoạt → hồ sơ ở AccountIssued tới khi chủ bãi kích hoạt (đồng bộ khi Admin mở hồ sơ – T8).
+        string? reason = null;
+        if (app.ApplicantUserId is { } applicantUserId)
+        {
+            app.MoveTo(PartnerApplicationStatus.Activated);
+            reason = $"Đã thêm role chủ bãi cho tài khoản #{applicantUserId}";
+        }
+        await repository.SaveWithAuditAsync(PartnerApplicationAudit.Build(app, "AccountIssued", performedByUserId, before, reason),
             cancellationToken);
         return await PartnerApplicationSteps.ReloadAsync(queries, id, cancellationToken);
     }

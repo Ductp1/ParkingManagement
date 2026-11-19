@@ -23,26 +23,71 @@ using static AdminService.Test.PartnerApplicationSubmitTests;
 
 namespace AdminService.Test;
 
-// US-116 T1: API hồ sơ đối tác mới trên TestServer với pipeline thật (AddServiceDefaults + AddJwtAuth + rate limit + UseServiceDefaults).
+// US-116 T1 / US-053: API hồ sơ đối tác mới trên TestServer với pipeline thật (AddServiceDefaults + AddJwtAuth + rate limit + UseServiceDefaults).
 public class PartnerApplicationsEndpointTests
 {
-    private const string PublicUrl = "api/v1/partner-applications";
+    private const string PublicUrl = "api/v1/admin/partner-registrations";
+    private const string EditUrl = "api/v1/partner-applications";
     private const string AdminUrl = "api/v1/admin/partner-applications";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
-    [Fact]
+    /// <summary>Form multipart đúng như trang /partner/register gửi: các trường + 4 giấy tờ bắt buộc.</summary>
+    private static MultipartFormDataContent Form(SubmitPartnerApplicationRequest r)
+    {
+        var form = new MultipartFormDataContent();
+        void Field(string name, object? value)
+        {
+            if (value is not null) form.Add(new StringContent(value is bool b ? (b ? "true" : "false") : value.ToString()!), name);
+        }
+        Field("fullName", r.FullName); Field("email", r.Email); Field("phone", r.Phone); Field("position", r.Position);
+        Field("businessType", r.BusinessType); Field("businessName", r.BusinessName); Field("taxCode", r.TaxCode);
+        Field("businessAddress", r.BusinessAddress); Field("legalRepresentativeName", r.LegalRepresentativeName);
+        Field("legalRepresentativePosition", r.LegalRepresentativePosition); Field("lotCount", r.LotCount);
+        Field("primaryLotAddress", r.PrimaryLotAddress); Field("estimatedCarSlots", r.EstimatedCarSlots);
+        Field("estimatedMotorbikeSlots", r.EstimatedMotorbikeSlots); Field("operatingHours", r.OperatingHours);
+        Field("consentAccepted", r.ConsentAccepted);
+        void File(string name, byte[] bytes, string fileName, string type)
+        {
+            var part = new ByteArrayContent(bytes);
+            part.Headers.ContentType = new MediaTypeHeaderValue(type);
+            form.Add(part, name, fileName);
+        }
+        byte[] pdf = [.. "%PDF-1.7\n"u8, 1, 2, 3];
+        byte[] png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9, 9];
+        File("businessLicenseFiles", pdf, "dkkd.pdf", "application/pdf");
+        File("lotLegalProofFiles", pdf, "mat-bang.pdf", "application/pdf");
+        File("idCardFrontFiles", png, "cccd-truoc.png", "image/png");
+        File("idCardBackFiles", png, "cccd-sau.png", "image/png");
+        return form;
+    }
+
+    [Fact] // US-116 T1: chủ bãi chưa có tài khoản nộp hồ sơ + giấy tờ KHÔNG cần đăng nhập → 201, chỉ trả mã + trạng thái.
     public async Task Anonymous_submit_returns_201_with_code_only()
     {
         await using var host = await ApiHost.StartAsync();
 
-        var response = await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+        var response = await host.Client.PostAsync(PublicUrl, Form(Valid()));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
         Assert.Equal("PA-2026-0001", body.GetProperty("code").GetString());
         Assert.Equal("Submitted", body.GetProperty("status").GetString());
         Assert.False(body.TryGetProperty("email", out _));
-        Assert.Single(host.Store.Applications);
+        var app = Assert.Single(host.Store.Applications);
+        Assert.Null(app.ApplicantUserId);
+        Assert.Equal(4, host.Store.Documents.Count);
+        Assert.Null(Assert.Single(host.Store.Audits).UserId);
+    }
+
+    [Fact] // Đang đăng nhập (vd. tài xế muốn làm chủ bãi) → hồ sơ gắn tài khoản trong JWT.
+    public async Task Logged_in_submit_links_the_account()
+    {
+        await using var host = await ApiHost.StartAsync();
+
+        var response = await host.SendAsync(HttpMethod.Post, PublicUrl, "Driver", content: Form(Valid()));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(7, Assert.Single(host.Store.Applications).ApplicantUserId);
     }
 
     [Fact]
@@ -50,11 +95,11 @@ public class PartnerApplicationsEndpointTests
     {
         await using var host = await ApiHost.StartAsync();
 
-        var response = await host.Client.PostAsJsonAsync(PublicUrl, Valid() with { ConsentAccepted = false }, Json);
+        var response = await host.Client.PostAsync(PublicUrl, Form(Valid() with { ConsentAccepted = false }));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(Json);
-        Assert.Contains("Nghị định 13/2023", problem!.Detail);
+        Assert.Contains("điều khoản xử lý dữ liệu", problem!.Detail);
         Assert.Empty(host.Store.Applications);
     }
 
@@ -62,27 +107,29 @@ public class PartnerApplicationsEndpointTests
     public async Task Duplicate_submit_returns_409()
     {
         await using var host = await ApiHost.StartAsync();
-        await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+        await host.Client.PostAsync(PublicUrl, Form(Valid()));
 
-        var response = await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+        var response = await host.Client.PostAsync(PublicUrl, Form(Valid()));
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Single(host.Store.Applications);
     }
 
     [Fact]
     public async Task Too_many_submits_from_one_ip_returns_429()
     {
-        await using var host = await ApiHost.StartAsync(perHour: 2);
+        await using var host = await ApiHost.StartAsync();
 
         var statuses = new List<HttpStatusCode>();
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i <= PartnerRegistrationRateLimit.PermitLimit; i++)
         {
             var body = Valid() with { Email = $"p{i}@example.vn", Phone = $"090000000{i}", TaxCode = $"031234567{i}" };
-            statuses.Add((await host.Client.PostAsJsonAsync(PublicUrl, body, Json)).StatusCode);
+            statuses.Add((await host.Client.PostAsync(PublicUrl, Form(body))).StatusCode);
         }
 
-        Assert.Equal([HttpStatusCode.Created, HttpStatusCode.Created, HttpStatusCode.TooManyRequests], statuses);
-        Assert.Equal(2, host.Store.Applications.Count);
+        Assert.All(statuses.Take(PartnerRegistrationRateLimit.PermitLimit), s => Assert.Equal(HttpStatusCode.Created, s));
+        Assert.Equal(HttpStatusCode.TooManyRequests, statuses[^1]);
+        Assert.Equal(PartnerRegistrationRateLimit.PermitLimit, host.Store.Applications.Count);
     }
 
     [Fact]
@@ -133,17 +180,17 @@ public class PartnerApplicationsEndpointTests
     public async Task Partner_reads_and_resubmits_with_the_edit_link_header()
     {
         await using var host = await ApiHost.StartAsync();
-        await host.Client.PostAsJsonAsync(PublicUrl, Valid(), Json);
+        await host.Client.PostAsync(PublicUrl, Form(Valid()));
         var app = host.Store.Applications.Single();
         app.StartReview(1);
         app.RequestInfo(1, "Bổ sung số chỗ ô tô");
         var link = await new IssuePartnerEditLinkUseCase(host.Store, PartnerEditLinkOptions.Default, TimeProvider.System).ExecuteAsync(app.Id, 1);
 
-        var noToken = await host.Client.GetAsync($"{PublicUrl}/{app.Code}");
-        var read = new HttpRequestMessage(HttpMethod.Get, $"{PublicUrl}/{app.Code}");
+        var noToken = await host.Client.GetAsync($"{EditUrl}/{app.Code}");
+        var read = new HttpRequestMessage(HttpMethod.Get, $"{EditUrl}/{app.Code}");
         read.Headers.Add(PartnerApplicationsController.EditTokenHeader, link.Token);
         var readResponse = await host.Client.SendAsync(read);
-        var put = new HttpRequestMessage(HttpMethod.Put, $"{PublicUrl}/{app.Code}/resubmit") { Content = JsonContent.Create(Valid() with { LotCount = 4 }, options: Json) };
+        var put = new HttpRequestMessage(HttpMethod.Put, $"{EditUrl}/{app.Code}/resubmit") { Content = JsonContent.Create(Valid() with { LotCount = 4 }, options: Json) };
         put.Headers.Add(PartnerApplicationsController.EditTokenHeader, link.Token);
         var putResponse = await host.Client.SendAsync(put);
 
@@ -152,6 +199,14 @@ public class PartnerApplicationsEndpointTests
         Assert.Equal("Bổ sung số chỗ ô tô", (await readResponse.Content.ReadFromJsonAsync<JsonElement>(Json)).GetProperty("infoRequestNote").GetString());
         Assert.Equal(HttpStatusCode.OK, putResponse.StatusCode);
         Assert.Equal((AdminService.Domain.Enums.PartnerApplicationStatus.UnderReview, 4), (app.Status, app.LotCount));
+    }
+
+    private sealed class MemoryFileStorage : IFileStorage
+    {
+        private readonly Dictionary<string, byte[]> files = [];
+        public Task SaveAsync(string key, byte[] content, CancellationToken cancellationToken) { files[key] = content; return Task.CompletedTask; }
+        public Task<byte[]?> ReadAsync(string key, CancellationToken cancellationToken) => Task.FromResult(files.GetValueOrDefault(key));
+        public Task DeleteAsync(string key, CancellationToken cancellationToken) { files.Remove(key); return Task.CompletedTask; }
     }
 
     private sealed class FixedTime(DateTime now) : TimeProvider
@@ -187,11 +242,14 @@ public class PartnerApplicationsEndpointTests
             });
             builder.AddServiceDefaults("AdminService");
             builder.Services.AddJwtAuth(host.publicKeyPath);
+            builder.Services.AddPartnerRegistrationRateLimit();
             builder.Services.AddPartnerApplicationRateLimit(builder.Configuration);
             // Chỉ dùng 2 endpoint tạo hồ sơ – các controller khác của assembly không được gọi nên không cần đăng ký phụ thuộc.
             builder.Services.AddSingleton<TimeProvider>(new FixedTime(new DateTime(2026, 11, 13, 2, 0, 0, DateTimeKind.Utc)));
             builder.Services.AddSingleton<IPartnerApplicationIntakeRepository>(host.Store);
             builder.Services.AddSingleton<IPartnerApplicationQueries>(host.Store);
+            builder.Services.AddSingleton<IPartnerRegistrationRepository>(host.Store);
+            builder.Services.AddSingleton<IFileStorage, MemoryFileStorage>();
             builder.Services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
             builder.Services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
             builder.Services.AddSingleton<IPartnerApplicationRepository>(host.Store);
@@ -202,6 +260,7 @@ public class PartnerApplicationsEndpointTests
                          typeof(IListPartnerApplicationsUseCase), typeof(IGetPartnerApplicationUseCase), typeof(IStartPartnerReviewUseCase),
                          typeof(IRequestPartnerInfoUseCase), typeof(IRejectPartnerApplicationUseCase), typeof(ICancelPartnerApplicationUseCase),
                          typeof(IIssueOwnerAccountUseCase), typeof(IResendOwnerActivationUseCase), typeof(IIssuePartnerEditLinkUseCase),
+                         typeof(IListMyPartnerApplicationsUseCase), typeof(IListPartnerDocumentsUseCase), typeof(IGetPartnerDocumentFileUseCase),
                      })
                 builder.Services.AddSingleton(type, _ => UnusedProxy.For(type));
 
@@ -213,11 +272,12 @@ public class PartnerApplicationsEndpointTests
             return host;
         }
 
-        public Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string role, object? body = null)
+        public Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string role, object? body = null, HttpContent? content = null)
         {
             var request = new HttpRequestMessage(method, url);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", MintToken(role));
-            if (body is not null) request.Content = JsonContent.Create(body, options: Json);
+            if (content is not null) request.Content = content;
+            else if (body is not null) request.Content = JsonContent.Create(body, options: Json);
             return Client.SendAsync(request);
         }
 

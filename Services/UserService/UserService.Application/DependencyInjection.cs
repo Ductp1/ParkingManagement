@@ -29,6 +29,9 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Privacy.DataRequestUseCases>();
         services.AddScoped<UserService.Application.Features.Kyc.KycUseCases>();
         services.AddScoped<UserService.Application.Features.History.ParkingHistoryUseCases>();
+        // US-053: Admin duyệt hồ sơ đối tác → thêm role LotOwner cho chính tài khoản người nộp
+        services.AddScoped<UserService.Application.Features.OwnerOnboarding.IGrantLotOwnerRoleUseCase,
+            UserService.Application.Features.OwnerOnboarding.GrantLotOwnerRoleUseCase>();
         return services;
     }
 }

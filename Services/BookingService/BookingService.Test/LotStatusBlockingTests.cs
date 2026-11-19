@@ -138,6 +138,15 @@ public class LotStatusBlockingTests
 
         public Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
+
+        public Task<bool> HasOverlappingBookingForVehicleAsync(int lotId, int vehicleId, string licensePlate, DateTime checkIn, DateTime checkOut, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+            => Task.FromResult(false);
+
+        public Task<bool> TryCreateBookingWithLockAsync(Booking booking, int? slotId, CancellationToken cancellationToken = default)
+        {
+            SavedBookings.Add(booking);
+            return Task.FromResult(true);
+        }
     }
 
     private sealed class FakeEventPublisher : IBookingEventPublisher

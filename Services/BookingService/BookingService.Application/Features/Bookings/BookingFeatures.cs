@@ -125,6 +125,8 @@ public interface IBookingQueries
 {
     Task<BookingDetailDto?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, int? page, int? pageSize, CancellationToken cancellationToken)
+        => ListByUserAsync(userId, status, cancellationToken);
 
     /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
     Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
@@ -141,6 +143,8 @@ public interface IBookingRepository
     Task<Booking?> GetEntityByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<bool> HasOverlappingBookingForSlotAsync(int slotId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default);
     Task<bool> HasOverlappingBookingForUserAsync(int userId, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default);
+    Task<bool> HasOverlappingBookingForVehicleAsync(int userId, int vehicleId, string plateNumber, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default);
+    Task<bool> TryCreateBookingWithLockAsync(Booking booking, int? slotId, CancellationToken cancellationToken = default);
     Task<bool> IsSlotAssignedToActiveMonthlyPassAsync(int slotId, CancellationToken cancellationToken = default);
     Task<int> CountCancellationsTodayAsync(int userId, DateTime todayUtc, CancellationToken cancellationToken = default);
     Task AddOutboxMessageAsync(string eventType, string payloadJson, CancellationToken cancellationToken = default);
@@ -220,15 +224,15 @@ public sealed class GetBookingByCodeUseCase(IBookingQueries queries) : IGetBooki
 
 public interface IListMyBookingsUseCase
 {
-    Task<IReadOnlyList<BookingSummaryDto>> ExecuteAsync(int userId, BookingStatus? status, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<BookingSummaryDto>> ExecuteAsync(int userId, BookingStatus? status, int? page = null, int? pageSize = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class ListMyBookingsUseCase(IBookingQueries queries) : IListMyBookingsUseCase
 {
-    public Task<IReadOnlyList<BookingSummaryDto>> ExecuteAsync(int userId, BookingStatus? status, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<BookingSummaryDto>> ExecuteAsync(int userId, BookingStatus? status, int? page = null, int? pageSize = null, CancellationToken cancellationToken = default)
     {
         if (userId <= 0) throw new ValidationException("UserId phải là số nguyên dương.");
-        return queries.ListByUserAsync(userId, status, cancellationToken);
+        return queries.ListByUserAsync(userId, status, page, pageSize, cancellationToken);
     }
 }
 
@@ -358,8 +362,19 @@ public sealed class CreateBookingUseCase(
             }
         }
 
-        var code = $"BK-{now:yyyyMMdd}-{Random.Shared.Next(1000, 9999)}";
+        // BUG-LOAD-01: Nâng dải số ngẫu nhiên lên 6 chữ số để giảm thiểu xung đột mã trong ngày
+        var code = $"BK-{now:yyyyMMdd}-{Random.Shared.Next(100000, 999999)}";
         var qrToken = qrService.GenerateToken(code, command.PlateNumber, command.ParkingLotId, command.EndAtUtc.AddHours(2));
+
+        // SEC-002 / UAT-SEC-04: Tính toán giá tiền phía máy chủ dựa trên thời lượng đặt chỗ, không chấp nhận giá giả mạo từ client
+        var durationHours = (decimal)Math.Max(1, Math.Ceiling((command.EndAtUtc - command.StartAtUtc).TotalHours));
+        const decimal minHourlyRate = 20_000m;
+        var calculatedAmount = durationHours * minHourlyRate;
+        var totalAmount = command.TotalAmount;
+        if (totalAmount < calculatedAmount || totalAmount <= 1000m)
+        {
+            totalAmount = calculatedAmount;
+        }
 
         var booking = new Booking
         {
@@ -378,7 +393,7 @@ public sealed class CreateBookingUseCase(
             StartAtUtc = command.StartAtUtc,
             EndAtUtc = command.EndAtUtc,
             RequiresOwnerApproval = command.RequiresOwnerApproval,
-            TotalAmount = command.TotalAmount,
+            TotalAmount = totalAmount,
             PaidAmount = 0,
             PromotionCode = command.PromotionCode,
             QrToken = qrToken
@@ -392,16 +407,27 @@ public sealed class CreateBookingUseCase(
         {
             BookingId = booking.Id,
             RateCardId = 1,
-            BaseAmount = command.TotalAmount,
+            BaseAmount = totalAmount,
             SurchargeAmount = 0,
             DiscountAmount = 0,
-            FinalAmount = command.TotalAmount,
+            FinalAmount = totalAmount,
             BillingGracePeriodMinutes = 15,
             RateCardJson = "{}"
         };
 
-        await repository.AddAsync(booking, cancellationToken);
-        await repository.SaveChangesAsync(cancellationToken);
+        // BUG-BOOK-001 / UAT-DRV-08 & UAT-DRV-16: Khóa đồng thời và lưu trong transaction để tránh race condition đặt trùng slot / trùng xe
+        var created = await repository.TryCreateBookingWithLockAsync(booking, command.SlotId, cancellationToken);
+        if (!created)
+        {
+            if (command.SlotId.HasValue && command.SlotId.Value > 0 &&
+                await repository.HasOverlappingBookingForSlotAsync(command.SlotId.Value, command.StartAtUtc, command.EndAtUtc, null, cancellationToken))
+            {
+                var slotDisplay = string.IsNullOrWhiteSpace(command.SlotCode) ? command.SlotId.Value.ToString() : command.SlotCode;
+                throw new ConflictException($"Vị trí đỗ {slotDisplay} đã có người đặt trước trong khung giờ này. Vui lòng chọn vị trí hoặc khung giờ khác.");
+            }
+
+            throw new ConflictException($"Xe {command.PlateNumber} đã có booking đặt trước trong khung giờ này. Vui lòng chọn xe hoặc khung giờ khác.");
+        }
 
         // US-083/085: phát BookingCreated sau khi có Id (outbox commit ở save tiếp theo —
         // thông báo tạo đơn là thông báo phụ, thông báo chính thức là BookingConfirmed sau thanh toán).

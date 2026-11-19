@@ -55,8 +55,7 @@ public static class DependencyInjection
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
         services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
         services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();
-        // US-116 T1: hồ sơ mới – đối tác tự nộp (form public) hoặc Admin nhập thay
-        services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
+        // US-116 T1: hồ sơ mới do Admin nhập thay đối tác (đối tác tự nộp: SubmitPartnerApplicationUseCase – US-053 bên dưới)
         services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
         // US-116 T3/T4: link bổ sung hồ sơ + đối tác gửi bổ sung; T8: đồng bộ trạng thái kích hoạt từ UserService
         services.AddSingleton(PartnerEditLinkOptions.Default);
@@ -72,6 +71,11 @@ public static class DependencyInjection
         // US-116: cấp tài khoản chủ bãi qua UserService (kèm tài khoản nhận tiền), gửi lại link kích hoạt
         services.AddScoped<IIssueOwnerAccountUseCase, IssueOwnerAccountUseCase>();
         services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();
+        // US-053 / US-116 T1: form public đăng ký đối tác (không cần đăng nhập) + giấy tờ pháp lý (chỉ Admin xem)
+        services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
+        services.AddScoped<IListMyPartnerApplicationsUseCase, ListMyPartnerApplicationsUseCase>();
+        services.AddScoped<IListPartnerDocumentsUseCase, ListPartnerDocumentsUseCase>();
+        services.AddScoped<IGetPartnerDocumentFileUseCase, GetPartnerDocumentFileUseCase>();
         // US-116: hợp đồng theo từng bãi (sau KYB) – lập, xem trước, sửa, tải file, ký (kích hoạt bãi), hủy
         services.AddScoped<IListLotContractsUseCase, ListLotContractsUseCase>();
         services.AddScoped<IGetLotContractUseCase, GetLotContractUseCase>();

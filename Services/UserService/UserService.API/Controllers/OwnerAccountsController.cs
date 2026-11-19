@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using UserService.Application.Features.Identity;
+using UserService.Application.Features.OwnerOnboarding;
 
 namespace UserService.API.Controllers;
 
@@ -13,11 +14,14 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users/owner-profiles")]
 [Authorize(Policy = "RequireAdmin")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class OwnerAccountsController(OwnerAccountUseCases owners) : ControllerBase
+public sealed class OwnerAccountsController(OwnerAccountUseCases owners, IGrantLotOwnerRoleUseCase grantLotOwner) : ControllerBase
 {
     /// <summary>
-    /// POST /api/v1/users/owner-profiles (header Idempotency-Key) – tạo User LotOwner + OwnerProfile, gửi link kích hoạt.
-    /// 200 { userId, ownerProfileId }; gọi lại cho cùng hồ sơ trả đúng tài khoản đã tạo; trùng email / SĐT / MST → 409.
+    /// POST /api/v1/users/owner-profiles (header Idempotency-Key) – U2, một endpoint cho cả hai cách nộp hồ sơ đối tác:
+    /// - có ApplicantUserId (người nộp đã đăng nhập – US-053): thêm role LotOwner + OwnerProfile cho chính tài khoản đó, không tạo
+    ///   tài khoản mới, không cần link kích hoạt;
+    /// - không có (đối tác nộp không cần tài khoản / Admin nhập – US-116): tạo User LotOwner + OwnerProfile, gửi link kích hoạt.
+    /// 200 { userId, ownerProfileId }; gọi lại cho cùng hồ sơ trả đúng tài khoản; trùng / không cấp được → 409.
     /// </summary>
     [HttpPost]
     [ProducesResponseType<IssuedOwnerAccount>(StatusCodes.Status200OK)]
@@ -25,7 +29,14 @@ public sealed class OwnerAccountsController(OwnerAccountUseCases owners) : Contr
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<IssuedOwnerAccount>> Issue([FromBody] IssueOwnerAccountRequest request, CancellationToken ct)
-        => Ok(await owners.IssueAsync(request, ct));
+    {
+        if (request.ApplicantUserId is null) return Ok(await owners.IssueAsync(request, ct));
+
+        var granted = await grantLotOwner.ExecuteAsync(new GrantLotOwnerRoleCommand(request.PartnerApplicationId, request.FullName,
+            request.Email, request.Phone, request.BusinessName, request.TaxCode, request.BusinessAddress, request.BankBin, request.BankName,
+            request.BankAccountNumber, request.BankAccountName, request.ApplicantUserId), ct);
+        return Ok(new IssuedOwnerAccount(granted.UserId, granted.OwnerProfileId));
+    }
 
     /// <summary>POST /api/v1/users/owner-profiles/5/activation-link – thu hồi link cũ, gửi link mới. 204; đã kích hoạt → 409.</summary>
     [HttpPost("{ownerProfileId:int}/activation-link")]

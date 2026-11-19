@@ -25,10 +25,30 @@ public class PartnerApplicationFollowUpTests
 
     private TimeProvider Time => new Clock(() => clockNow);
 
+    private sealed class NoStorage : IFileStorage
+    {
+        public Task SaveAsync(string key, byte[] content, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<byte[]?> ReadAsync(string key, CancellationToken cancellationToken) => Task.FromResult<byte[]?>(null);
+        public Task DeleteAsync(string key, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private static readonly byte[] Pdf = [.. "%PDF-1.7\n"u8, 1, 2, 3];
+    private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9, 9];
+
+    /// <summary>Đối tác tự nộp qua form public (không đăng nhập, đủ 4 giấy tờ bắt buộc).</summary>
+    private Task<PartnerApplicationReceiptDto> Seed(SubmitPartnerApplicationRequest request)
+        => new SubmitPartnerApplicationUseCase(store, new NoStorage(), Time).ExecuteAsync(null, request,
+        [
+            new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.BusinessLicense, new UploadedFile("dkkd.pdf", Pdf.Length, Pdf)),
+            new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.LotLegalProof, new UploadedFile("mb.pdf", Pdf.Length, Pdf)),
+            new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.IdCardFront, new UploadedFile("t.png", Png.Length, Png)),
+            new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.IdCardBack, new UploadedFile("s.png", Png.Length, Png)),
+        ]);
+
     /// <summary>Hồ sơ mới qua form public rồi Admin chuyển sang NeedsMoreInfo.</summary>
     private async Task<PartnerApplication> NeedsMoreInfo()
     {
-        await new SubmitPartnerApplicationUseCase(store, Time).ExecuteAsync(Valid());
+        await Seed(Valid());
         var app = store.Applications[^1];
         app.StartReview(AdminId);
         app.RequestInfo(AdminId, "Bổ sung giấy phép kinh doanh và số chỗ ô tô");
@@ -61,7 +81,7 @@ public class PartnerApplicationFollowUpTests
     [Fact]
     public async Task Edit_link_needs_needs_more_info_and_reissue_revokes_the_old_one()
     {
-        await new SubmitPartnerApplicationUseCase(store, Time).ExecuteAsync(Valid() with
+        await Seed(Valid() with
         {
             Email = "submitted@example.vn", Phone = "0911111111", TaxCode = "0311111111",
         });
@@ -133,7 +153,7 @@ public class PartnerApplicationFollowUpTests
     public async Task Resubmit_checks_input_and_duplicates_with_other_open_applications()
     {
         var app = await NeedsMoreInfo();
-        await new SubmitPartnerApplicationUseCase(store, Time).ExecuteAsync(Valid() with
+        await Seed(Valid() with
         {
             Email = "other@example.vn", Phone = "0912345678", TaxCode = "0399999999",
         });
@@ -159,7 +179,7 @@ public class PartnerApplicationFollowUpTests
 
     private async Task<PartnerApplication> AccountIssued()
     {
-        await new SubmitPartnerApplicationUseCase(store, Time).ExecuteAsync(Valid());
+        await Seed(Valid());
         var app = store.Applications[^1];
         app.StartReview(AdminId);
         app.IssueAccount(AdminId, BankAccount.Create("970436", "Vietcombank", "0071000123456", "CONG TY A"), 41, 7);

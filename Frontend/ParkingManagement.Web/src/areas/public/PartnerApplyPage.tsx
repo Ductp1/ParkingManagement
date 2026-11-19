@@ -1,14 +1,12 @@
-import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AuthLayout } from '@/components/auth/AuthLayout';
-import { submitPartnerApplication } from '@/api/partnerApplicationsApi';
 import {
   BUSINESS_TYPES,
   STEPS,
   emptyForm,
   stepErrors,
-  toRequest,
   validate,
   type PartnerApplyErrors,
   type PartnerApplyField,
@@ -284,44 +282,5 @@ export function PartnerApplyWizard({ heading, initial, notice, intros = DEFAULT_
         </p>
       </div>
     </AuthLayout>
-  );
-}
-
-/** Màn hoàn tất của hồ sơ mới: mã hồ sơ + các bước tiếp theo. */
-function ReceivedView({ code }: { code: string }) {
-  return (
-    <>
-      <div className="auth-success-icon">
-        <Check size={30} />
-      </div>
-      <h1 className="auth-heading">Đã nhận hồ sơ của bạn</h1>
-      <p className="auth-description">Mã hồ sơ – vui lòng ghi lại để tra cứu khi liên hệ ParkMaster:</p>
-      <span className="partner-apply-code">{code}</span>
-      <ol className="partner-apply-next">
-        <li>ParkMaster thẩm định hồ sơ và có thể gọi cho bạn để bổ sung thông tin.</li>
-        <li>Khi hồ sơ được duyệt, bạn nhận email kích hoạt tài khoản chủ bãi.</li>
-        <li>Đăng nhập để khai báo từng bãi và nộp hồ sơ KYB; bãi nhận đặt chỗ sau khi được duyệt và ký hợp đồng.</li>
-      </ol>
-      <Link className="auth-submit" to="/">
-        Về trang chủ <ArrowRight size={17} />
-      </Link>
-      <p className="auth-switch">
-        Cần hỗ trợ? Gọi <a href="tel:19006868">{HOTLINE}</a>
-      </p>
-    </>
-  );
-}
-
-/**
- * /partner/apply – "Đăng ký đối tác" (US-116 T1 / US-053): chủ bãi nộp hồ sơ 4 bước, KHÔNG tạo tài khoản ở bước này.
- * ParkMaster thẩm định (Admin › Partner Onboarding) rồi gửi link kích hoạt tài khoản chủ bãi qua email.
- */
-export function PartnerApplyPage() {
-  return (
-    <PartnerApplyWizard
-      heading="Đăng ký đối tác chủ bãi"
-      onSubmit={async (form) => (await submitPartnerApplication(toRequest(form))).code}
-      renderDone={(code) => <ReceivedView code={code} />}
-    />
   );
 }

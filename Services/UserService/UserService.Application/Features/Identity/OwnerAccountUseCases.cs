@@ -13,9 +13,14 @@ namespace UserService.Application.Features.Identity;
 // ===== DTO (khớp AdminService IssueOwnerAccountCommand / IssuedOwnerAccountDto) =====
 
 /// <summary>U2 – Admin cấp tài khoản chủ bãi từ hồ sơ đối tác đã thẩm định (US-116 T6).</summary>
+/// <summary>
+/// Body U2 (khớp AdminService IssueOwnerAccountCommand). ApplicantUserId có giá trị = hồ sơ do tài khoản đã đăng nhập nộp (US-053)
+/// → thêm role chủ bãi cho chính tài khoản đó; null = đối tác nộp không cần tài khoản / Admin nhập (US-116) → tạo tài khoản mới
+/// + gửi link kích hoạt.
+/// </summary>
 public sealed record IssueOwnerAccountRequest(int PartnerApplicationId, string? FullName, string? Email, string? Phone,
     string? BusinessName, string? TaxCode, string? BusinessAddress, string? BankBin, string? BankName, string? BankAccountNumber,
-    string? BankAccountName);
+    string? BankAccountName, int? ApplicantUserId = null);
 
 public sealed record IssuedOwnerAccount(int UserId, int OwnerProfileId);
 

@@ -61,6 +61,73 @@ public sealed class BookingRepository(BookingDbContext db) : IBookingRepository
         return query.AnyAsync(cancellationToken);
     }
 
+    public Task<bool> HasOverlappingBookingForVehicleAsync(int userId, int vehicleId, string plateNumber, DateTime startUtc, DateTime endUtc, int? excludeBookingId = null, CancellationToken cancellationToken = default)
+    {
+        var normalizedPlate = plateNumber.Trim().ToUpperInvariant();
+        var query = db.Bookings.AsNoTracking().Where(b =>
+            b.UserId == userId &&
+            ActiveSlotStatuses.Contains(b.Status) &&
+            ((vehicleId > 0 && b.VehicleId == vehicleId) || b.PlateNumber == normalizedPlate) &&
+            b.StartAtUtc < endUtc && startUtc < b.EndAtUtc);
+
+        if (excludeBookingId.HasValue)
+        {
+            query = query.Where(b => b.Id != excludeBookingId.Value);
+        }
+
+        return query.AnyAsync(cancellationToken);
+    }
+
+    public async Task<bool> TryCreateBookingWithLockAsync(Booking booking, int? slotId, CancellationToken cancellationToken = default)
+    {
+        var isNpgsql = db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+        if (!isNpgsql)
+        {
+            if (slotId.HasValue && slotId.Value > 0)
+            {
+                if (await HasOverlappingBookingForSlotAsync(slotId.Value, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+                    return false;
+            }
+            if (await HasOverlappingBookingForVehicleAsync(booking.UserId, booking.VehicleId, booking.PlateNumber, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+                return false;
+
+            db.Bookings.Add(booking);
+            await db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+
+        await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
+
+        // Khóa theo slot để ngăn chặn race condition khi nhiều người cùng đặt 1 ô cùng 1 mili-giây (BUG-BOOK-001)
+        if (slotId.HasValue && slotId.Value > 0)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock({0})", [(long)(2_000_000_000L + slotId.Value)], cancellationToken);
+
+            if (await HasOverlappingBookingForSlotAsync(slotId.Value, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+            {
+                return false;
+            }
+        }
+
+        // Khóa theo vehicleId nếu có để ngăn cùng 1 xe đặt 2 booking trùng giờ
+        if (booking.VehicleId > 0)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "SELECT pg_advisory_xact_lock({0})", [(long)(1_000_000_000L + booking.VehicleId)], cancellationToken);
+        }
+
+        if (await HasOverlappingBookingForVehicleAsync(booking.UserId, booking.VehicleId, booking.PlateNumber, booking.StartAtUtc, booking.EndAtUtc, null, cancellationToken))
+        {
+            return false;
+        }
+
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public Task<bool> IsSlotAssignedToActiveMonthlyPassAsync(int slotId, CancellationToken cancellationToken = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);

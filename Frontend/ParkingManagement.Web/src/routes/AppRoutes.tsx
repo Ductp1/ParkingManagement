@@ -6,7 +6,7 @@ import { AccountLayout } from '@/areas/account/AccountLayout';
 import { HistoryPage } from '@/areas/account/HistoryPage';
 import { PrivacyPage } from '@/areas/account/PrivacyPage';
 import { LandingPage } from '@/areas/public/LandingPage';
-import { PartnerApplyPage } from '@/areas/public/PartnerApplyPage';
+import { PartnerRegisterPage } from '@/areas/public/PartnerRegisterPage';
 import { PartnerApplyEditPage } from '@/areas/public/PartnerApplyEditPage';
 import { OwnerActivatePage } from '@/areas/public/OwnerActivatePage';
 import React from 'react';
@@ -40,9 +40,12 @@ export const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/partner/apply" element={<PartnerApplyPage />} />
+      {/* US-053 / US-116: đăng ký đối tác chủ bãi – công khai, KHÔNG cần đăng nhập (kèm giấy tờ pháp lý). */}
+      <Route path="/partner/register" element={<PartnerRegisterPage />} />
+      {/* Đường dẫn cũ của form đăng ký – giữ cho link đã gửi / bookmark. */}
+      <Route path="/partner/apply" element={<Navigate to="/partner/register" replace />} />
+      {/* Link bổ sung hồ sơ (US-116 T4) và link kích hoạt trong email (U4/U5) – công khai, xếp trước /owner/* cần đăng nhập. */}
       <Route path="/partner/apply/edit" element={<PartnerApplyEditPage />} />
-      {/* Link kích hoạt trong email (US-116 U4/U5) – công khai, xếp hạng cao hơn /owner/* cần đăng nhập. */}
       <Route path="/owner/activate" element={<OwnerActivatePage />} />
       <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>

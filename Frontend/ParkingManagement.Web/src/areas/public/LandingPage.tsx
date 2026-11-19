@@ -429,7 +429,7 @@ export const LandingPage: React.FC = () => {
               </ul>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button type="button" onClick={() => navigate('/partner/apply')} className="lp-btn px-6 py-3">
+                <button type="button" onClick={() => navigate('/partner/register')} className="lp-btn px-6 py-3">
                   Đăng ký đối tác
                 </button>
                 <span className="text-(--lp-muted)">

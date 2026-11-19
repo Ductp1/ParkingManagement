@@ -45,7 +45,9 @@ public static class DependencyInjection
         services.AddSingleton(SanctionSettingsFrom(configuration));
         services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
-        services.AddScoped<IPartnerApplicationIntakeRepository, PartnerApplicationIntakeRepository>();   // US-116 T1
+        services.AddScoped<IPartnerApplicationIntakeRepository, PartnerApplicationIntakeRepository>();   // US-116 T1: Admin nhập hồ sơ, T4
+        services.AddScoped<IPartnerRegistrationRepository, PartnerRegistrationRepository>(); // US-053: form public đăng ký đối tác
+        services.AddScoped<IPartnerDocumentQueries, PartnerDocumentQueries>();               // US-053: giấy tờ pháp lý (chỉ Admin)
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
         services.AddScoped<ICommissionRateQueries, CommissionRateQueries>();                 // US-079: tỷ lệ hoa hồng theo hợp đồng
         services.AddScoped<ILotContractRepository, LotContractRepository>();
