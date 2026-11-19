@@ -109,7 +109,7 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 leading-tight">
-                Đăng ký Bãi đỗ xe mới (US-053)
+                Đăng ký Bãi đỗ xe mới
               </h3>
               <p className="text-[11px] text-slate-500">
                 Khai báo cơ sở hạ tầng để tiến hành nộp hồ sơ thẩm định KYB

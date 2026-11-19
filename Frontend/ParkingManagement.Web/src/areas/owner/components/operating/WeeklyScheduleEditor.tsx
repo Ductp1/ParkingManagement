@@ -376,7 +376,7 @@ export const WeeklyScheduleEditor: React.FC<WeeklyScheduleEditorProps> = ({
               <CalendarDays size={18} />
             </span>
             <h3 className="text-base font-bold text-slate-900">
-              Lịch Hoạt Động & Khung Giờ Mở Cửa (US-062)
+              Lịch Hoạt Động & Khung Giờ Mở Cửa
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-1">

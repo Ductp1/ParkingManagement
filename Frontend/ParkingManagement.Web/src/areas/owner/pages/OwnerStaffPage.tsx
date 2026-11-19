@@ -170,22 +170,22 @@ export const OwnerStaffPage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
             <Users size={13} />
-            QUẢN LÝ NHÂN VIÊN TRỰC CỔNG (UI-28)
+            QUẢN LÝ NHÂN VIÊN TRỰC CỔNG
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Nhân viên & Phân công trạm barie
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
+          <p className="text-slate-500 text-sm leading-relaxed">
             Thêm người trực cổng barie cho từng bãi đỗ xe. Nhân viên mới nhận tài khoản và mật khẩu tạm thời qua email; gán quyền và thu hồi phiên làm việc tức thì.
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start lg:self-end">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
             onClick={() => void loadStaff(page, true)}
             disabled={refreshing || loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 active:bg-slate-100 shadow-sm transition-all"
+            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0 disabled:opacity-50"
             title="Tải lại danh sách"
           >
             <RefreshCw size={15} className={refreshing ? 'animate-spin text-blue-600' : ''} />
@@ -194,10 +194,10 @@ export const OwnerStaffPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-md shadow-blue-500/10 transition-all hover:-translate-y-0.5"
+            className="h-11 px-5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shrink-0"
           >
-            <UserPlus size={16} />
-            Thêm nhân viên
+            <UserPlus size={18} />
+            <span>Thêm nhân viên</span>
           </button>
         </div>
       </div>

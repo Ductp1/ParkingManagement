@@ -152,7 +152,7 @@ export const OwnerRefundModal: React.FC<OwnerRefundModalProps> = ({
             <div>
               <h3 className="text-base font-bold text-slate-900">Hoàn tiền bồi hoàn cho khách</h3>
               <p className="text-xs text-emerald-700 font-medium">
-                Mã booking: <span className="font-mono font-bold">{bookingCode}</span> (UI-24 / US-041)
+                Mã booking: <span className="font-mono font-bold">{bookingCode}</span>
               </p>
             </div>
           </div>

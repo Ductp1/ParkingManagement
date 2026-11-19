@@ -284,7 +284,7 @@ export const FloorLayoutVersionsModal: React.FC<FloorLayoutVersionsModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
-                  Quản lý Sơ đồ Tầng (US-059 & US-060)
+                  Quản lý Sơ đồ Tầng
                 </span>
                 <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
                   {versions.length} phiên bản

@@ -97,7 +97,7 @@ export const ReportReviewModal: React.FC<ReportReviewModalProps> = ({
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 leading-relaxed">
             <p className="font-semibold flex items-center gap-1.5 mb-1 text-amber-950">
               <ShieldAlert className="w-4 h-4 text-amber-600" />
-              Quy trình kiểm duyệt đánh giá (US-094 AC2)
+              Quy trình kiểm duyệt đánh giá
             </p>
             Đánh giá bị báo cáo sẽ được chuyển vào hàng đợi kiểm duyệt của Admin. Chủ bãi không thể tự ý gỡ
             đánh giá nhằm đảm bảo tính minh bạch và công bằng cho khách hàng.

@@ -145,7 +145,7 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-extrabold uppercase text-blue-700 tracking-wider">
-                    Danh Sách & Quản Lý Ô Đỗ (US-058 & US-063)
+                    Danh Sách & Quản Lý Ô Đỗ
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
                     {slots.length} ô
