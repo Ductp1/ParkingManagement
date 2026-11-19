@@ -16,7 +16,7 @@ public sealed record BookingSummaryDto(int Id, string Code, string Status, strin
 public sealed record BookingDetailDto(int Id, string Code, string Status, int UserId, int VehicleId, string PlateNumber, string VehicleType,
     int ParkingLotId, string ParkingLotName, int? ZoneId, int? SlotId, string? SlotCode, DateTime StartAtUtc, DateTime EndAtUtc,
     DateTime? HoldExpiresAtUtc, decimal TotalAmount, decimal DiscountAmount, decimal PaidAmount, string? PromotionCode,
-    PriceSnapshotDto? PriceSnapshot, IReadOnlyList<StatusLogDto> History, string? QrToken = null);
+    PriceSnapshotDto? PriceSnapshot, IReadOnlyList<StatusLogDto> History, string? QrToken = null, int? OwnerProfileId = null);
 
 public sealed record PriceSnapshotDto(int RateCardId, decimal BaseAmount, decimal SurchargeAmount, decimal DiscountAmount,
     decimal FinalAmount, int BillingGracePeriodMinutes, string RateCardJson);
@@ -81,7 +81,8 @@ public sealed record ApprovalLogDto(
     string Result,
     int? ReviewedByUserId,
     string? Reason,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    int? OwnerProfileId = null);
 
 // ===== US-039: DANH SÁCH BOOKING VƯỢT 30 PHÚT ÂN HẠN CHECK-IN (CHO STAFF HỦY NO-SHOW – UC-24) =====
 public sealed record NoShowCandidateDto(string Code, int UserId, string PlateNumber, int ParkingLotId, string ParkingLotName,
@@ -134,7 +135,7 @@ public interface IBookingQueries
 
     /// <summary>T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.</summary>
     Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default);
 }
 
 public interface IBookingRepository
@@ -461,7 +462,8 @@ public sealed class CreateBookingUseCase(
             booking.HoldExpiresAtUtc, booking.TotalAmount, booking.DiscountAmount, booking.PaidAmount,
             booking.PromotionCode, null,
             booking.StatusLogs.Select(l => new StatusLogDto(l.FromStatus?.ToString(), l.ToStatus.ToString(), l.ChangedByUserId, l.Reason, l.CreatedAtUtc)).ToList(),
-            booking.QrToken);
+            booking.QrToken,
+            booking.OwnerProfileId);
     }
 }
 
@@ -967,17 +969,17 @@ public sealed class ProcessPaymentResultUseCase(
 public interface IGetApprovalLogsUseCase
 {
     Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class GetApprovalLogsUseCase(IBookingQueries queries) : IGetApprovalLogsUseCase
 {
     public Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
     {
         if (fromUtc.HasValue && toUtc.HasValue && toUtc < fromUtc)
             throw new ValidationException("Khoảng thời gian tra cứu không hợp lệ (toUtc phải sau fromUtc).");
 
-        return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, cancellationToken);
+        return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, ownerProfileId, cancellationToken);
     }
 }

@@ -20,7 +20,8 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
                 b.StatusLogs.OrderBy(l => l.CreatedAtUtc)
                     .Select(l => new StatusLogDto(l.FromStatus.ToString(), l.ToStatus.ToString(), l.ChangedByUserId, l.Reason, l.CreatedAtUtc))
                     .ToList(),
-                b.QrToken))
+                b.QrToken,
+                b.OwnerProfileId))
             .FirstOrDefaultAsync(cancellationToken);
 
     public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
@@ -94,12 +95,17 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
 
     // T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.
     public async Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
     {
         var query = db.BookingStatusLogs.AsNoTracking()
             .Include(l => l.Booking)
             .Where(l => l.FromStatus == BookingStatus.PendingOwnerApproval
                      && (l.ToStatus == BookingStatus.Confirmed || l.ToStatus == BookingStatus.Cancelled));
+
+        if (ownerProfileId.HasValue && ownerProfileId > 0)
+        {
+            query = query.Where(l => l.Booking.OwnerProfileId == ownerProfileId.Value);
+        }
 
         if (parkingLotId.HasValue && parkingLotId > 0)
         {
@@ -141,7 +147,8 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
                 l.ToStatus == BookingStatus.Confirmed ? "Approved" : "Rejected",
                 l.ChangedByUserId,
                 l.Reason,
-                l.CreatedAtUtc))
+                l.CreatedAtUtc,
+                l.Booking.OwnerProfileId))
             .ToListAsync(cancellationToken);
     }
 }

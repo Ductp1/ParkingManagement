@@ -75,7 +75,7 @@ public class CancellationPolicyTests
             DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 
@@ -738,7 +738,7 @@ public class BookingFeaturesTests
             DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<ApprovalLogDto>>([]);
     }
 

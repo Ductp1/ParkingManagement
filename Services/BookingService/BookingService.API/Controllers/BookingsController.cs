@@ -32,10 +32,18 @@ public sealed class BookingsController(
     public async Task<ActionResult<BookingDetailDto>> GetByCode(string code, CancellationToken cancellationToken)
     {
         var result = await getByCode.ExecuteAsync(code, cancellationToken);
-        // SEC-003 / UAT-SEC-03: Nếu là tài xế đã đăng nhập, chỉ được xem booking của chính mình (hoặc Admin/Owner/Staff xem được)
+        // SEC-003 / UAT-SEC-03: Nếu là tài xế đã đăng nhập, chỉ được xem booking của chính mình
         if (currentUser.IsAuthenticated && currentUser.Roles.Contains("Driver") && !currentUser.Roles.Contains("Admin"))
         {
             if (currentUser.UserId.HasValue && result.UserId != currentUser.UserId.Value)
+            {
+                return Forbid();
+            }
+        }
+        // Chủ bãi chỉ xem được chi tiết booking của bãi mình sở hữu
+        if (currentUser.IsAuthenticated && currentUser.Roles.Contains("LotOwner") && !currentUser.Roles.Contains("Admin"))
+        {
+            if (currentUser.OwnerProfileId.HasValue && result.OwnerProfileId != currentUser.OwnerProfileId.Value)
             {
                 return Forbid();
             }
@@ -122,12 +130,25 @@ public sealed class BookingsController(
         [FromQuery] DateTime? toUtc,
         [FromQuery] string? result,
         CancellationToken cancellationToken)
-        => Ok(await getApprovalLogs.ExecuteAsync(
+    {
+        int? ownerProfileId = null;
+        if (!currentUser.Roles.Contains("Admin"))
+        {
+            if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0)
+            {
+                return Forbid();
+            }
+            ownerProfileId = currentUser.OwnerProfileId.Value;
+        }
+
+        return Ok(await getApprovalLogs.ExecuteAsync(
             parkingLotId,
             fromUtc.HasValue ? DateTime.SpecifyKind(fromUtc.Value.ToUniversalTime(), DateTimeKind.Utc) : null,
             toUtc.HasValue ? DateTime.SpecifyKind(toUtc.Value.ToUniversalTime(), DateTimeKind.Utc) : null,
             result,
+            ownerProfileId,
             cancellationToken));
+    }
 
     /// <summary>POST /api/v1/bookings – Tạo booking và giữ chỗ 15 phút (US-022, US-024, US-025, US-026, US-027).</summary>
     [HttpPost]
@@ -219,9 +240,20 @@ public sealed class BookingsController(
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> Approve(string code, [FromBody] ReviewBookingCommand command, CancellationToken cancellationToken)
-        => Ok(await reviewBooking.ApproveAsync(code, command, cancellationToken));
+    {
+        if (!currentUser.Roles.Contains("Admin"))
+        {
+            if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0)
+            {
+                return Forbid();
+            }
+            command = command with { OwnerProfileId = currentUser.OwnerProfileId.Value };
+        }
+        return Ok(await reviewBooking.ApproveAsync(code, command, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/bookings/{code}/reject – Chủ bãi từ chối booking (Bãi Mức 0 - US-031).</summary>
     [HttpPost("{code}/reject")]
@@ -229,9 +261,20 @@ public sealed class BookingsController(
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> Reject(string code, [FromBody] ReviewBookingCommand command, CancellationToken cancellationToken)
-        => Ok(await reviewBooking.RejectAsync(code, command, cancellationToken));
+    {
+        if (!currentUser.Roles.Contains("Admin"))
+        {
+            if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0)
+            {
+                return Forbid();
+            }
+            command = command with { OwnerProfileId = currentUser.OwnerProfileId.Value };
+        }
+        return Ok(await reviewBooking.RejectAsync(code, command, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/bookings/{code}/lot-cancel – Chủ bãi hủy booking do sự cố bãi (Hoàn 100% - US-042).</summary>
     [HttpPost("{code}/lot-cancel")]
@@ -239,9 +282,20 @@ public sealed class BookingsController(
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> LotCancel(string code, [FromBody] LotCancelBookingCommand command, CancellationToken cancellationToken)
-        => Ok(await lotCancelBooking.ExecuteAsync(code, command, cancellationToken));
+    {
+        if (!currentUser.Roles.Contains("Admin"))
+        {
+            if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0)
+            {
+                return Forbid();
+            }
+            command = command with { OwnerProfileId = currentUser.OwnerProfileId.Value };
+        }
+        return Ok(await lotCancelBooking.ExecuteAsync(code, command, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/bookings/{code}/check-in – Cổng xác nhận xe vào (Nội bộ cho TV7 - GateService).</summary>
     [HttpPost("{code}/check-in")]

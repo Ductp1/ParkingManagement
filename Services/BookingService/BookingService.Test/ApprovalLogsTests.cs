@@ -75,6 +75,37 @@ public class ApprovalLogsTests
         Assert.Equal("BK-0003", result[0].BookingCode);
     }
 
+    [Fact]
+    public async Task GetApprovalLogs_filters_by_owner_profile_id_and_isolates_other_owners()
+    {
+        // Arrange
+        var logs = new List<ApprovalLogDto>
+        {
+            new(1, 101, "BK-0001", "51A-11111", 1, "Bãi Quận 1", "Approved", 5, "Duyệt thành công", FixedNow.AddHours(-2), OwnerProfileId: 10),
+            new(2, 102, "BK-0002", "51A-22222", 1, "Bãi Quận 1", "Rejected", 5, "Bãi đầy đột xuất", FixedNow.AddHours(-1), OwnerProfileId: 10),
+            new(3, 103, "BK-0003", "51A-33333", 2, "Bãi Quận 3", "Approved", 6, "Duyệt thành công", FixedNow, OwnerProfileId: 20)
+        };
+
+        var fakeQueries = new FakeApprovalLogQueries(logs);
+        var useCase = new GetApprovalLogsUseCase(fakeQueries);
+
+        // Act - Chủ bãi 10 xem log (không truyền parkingLotId) -> chỉ thấy log của bãi mình (OwnerProfileId = 10)
+        var resultOwner10 = await useCase.ExecuteAsync(null, null, null, null, ownerProfileId: 10);
+
+        // Assert
+        Assert.NotNull(resultOwner10);
+        Assert.Equal(2, resultOwner10.Count);
+        Assert.All(resultOwner10, l => Assert.Equal(10, l.OwnerProfileId));
+
+        // Act - Chủ bãi 10 cố tình truyền parkingLotId = 2 của chủ bãi 20 -> trả về rỗng, không lộ log bãi khác
+        var resultHacked = await useCase.ExecuteAsync(2, null, null, null, ownerProfileId: 10);
+        Assert.Empty(resultHacked);
+
+        // Act - Admin (ownerProfileId = null) xem tất cả -> thấy đủ cả 3
+        var resultAdmin = await useCase.ExecuteAsync(null, null, null, null, ownerProfileId: null);
+        Assert.Equal(3, resultAdmin.Count);
+    }
+
     // ==========================================
     // TEST DOUBLES (FAKES)
     // ==========================================
@@ -91,9 +122,12 @@ public class ApprovalLogsTests
             => Task.FromResult<IReadOnlyList<GateBookingListItemDto>>([]);
 
         public Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+            int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
         {
             IEnumerable<ApprovalLogDto> query = sampleLogs;
+
+            if (ownerProfileId.HasValue && ownerProfileId > 0)
+                query = query.Where(l => l.OwnerProfileId == ownerProfileId.Value);
 
             if (parkingLotId.HasValue && parkingLotId > 0)
                 query = query.Where(l => l.ParkingLotId == parkingLotId.Value);
