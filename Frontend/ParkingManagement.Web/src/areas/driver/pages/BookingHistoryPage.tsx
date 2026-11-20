@@ -1,6 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { getLotLayout } from '@/components/parking3d/lotLayouts';
+import { resolveTarget } from '@/components/parking3d/routePlanner';
+
+const ParkingRoute3DViewer = lazy(() => import('@/components/parking3d/ParkingRoute3DViewer'));
 import { useAppSelector } from '@/store';
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
@@ -152,6 +156,11 @@ export const BookingHistoryPage: React.FC = () => {
   const [qrDetail, setQrDetail] = useState<BookingDetailDto | null>(null);
   const [qrLoading, setQrLoading] = useState<boolean>(false);
   const [qrError, setQrError] = useState<string | null>(null);
+  const [showRoute3D, setShowRoute3D] = useState<boolean>(false);
+
+  const qr3DLayout = getLotLayout(qrDetail?.parkingLotId);
+  const canShowQrRoute3D =
+    !!qr3DLayout && !!qrDetail?.slotCode && !!resolveTarget(qr3DLayout, qrDetail.slotCode);
 
   // UI-10: Cancellation & Refund State (preview thật từ GET /{code}/cancellation-preview)
   const [activeCancelBooking, setActiveCancelBooking] = useState<BookingItem | null>(null);
@@ -1324,6 +1333,17 @@ export const BookingHistoryPage: React.FC = () => {
               </div>
             </div>
 
+            {canShowQrRoute3D && (
+              <button
+                type="button"
+                onClick={() => setShowRoute3D(true)}
+                className="w-full mb-2.5 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">view_in_ar</span>
+                <span>Xem đường đi 3D từ cổng vào tới ô đỗ</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setActiveQrBooking(null)}
@@ -1396,6 +1416,16 @@ export const BookingHistoryPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {showRoute3D && qrDetail && (
+        <Suspense fallback={null}>
+          <ParkingRoute3DViewer
+            lotId={qrDetail.parkingLotId}
+            slotCode={qrDetail.slotCode}
+            lotName={qrDetail.parkingLotName}
+            onClose={() => setShowRoute3D(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

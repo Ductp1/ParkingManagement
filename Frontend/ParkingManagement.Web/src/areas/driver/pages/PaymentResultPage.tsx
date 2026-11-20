@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { getLotLayout } from '@/components/parking3d/lotLayouts';
+import { resolveTarget } from '@/components/parking3d/routePlanner';
+
+const ParkingRoute3DViewer = lazy(() => import('@/components/parking3d/ParkingRoute3DViewer'));
 import { bookingApi } from '@/api/bookingApi';
 import { paymentApi } from '@/api/paymentApi';
 import type { BookingDetailDto } from '@/types/booking';
@@ -30,6 +34,11 @@ export const PaymentResultPage: React.FC = () => {
   const [payments, setPayments] = useState<PaymentDto[]>([]);
   const [invoice, setInvoice] = useState<InvoiceDto | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
+  const [showRoute3D, setShowRoute3D] = useState(false);
+
+  const route3DLayout = getLotLayout(booking?.parkingLotId);
+  const canShowRoute3D =
+    !!route3DLayout && !!booking?.slotCode && !!resolveTarget(route3DLayout, booking.slotCode);
 
   useEffect(() => {
     let active = true;
@@ -276,6 +285,16 @@ export const PaymentResultPage: React.FC = () => {
             </div>
 
             <div className="px-6 sm:px-8 pb-6 flex flex-wrap gap-3">
+              {canShowRoute3D && (
+                <button
+                  type="button"
+                  onClick={() => setShowRoute3D(true)}
+                  className="px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">view_in_ar</span>
+                  <span>Xem đường đi 3D tới ô đỗ</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleDownloadInvoice}
@@ -302,6 +321,17 @@ export const PaymentResultPage: React.FC = () => {
           </div>
         )}
       </main>
+
+      {showRoute3D && booking && (
+        <Suspense fallback={null}>
+          <ParkingRoute3DViewer
+            lotId={booking.parkingLotId}
+            slotCode={booking.slotCode}
+            lotName={booking.parkingLotName}
+            onClose={() => setShowRoute3D(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };

@@ -1,5 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { getLotLayout } from '@/components/parking3d/lotLayouts';
+import { resolveTarget } from '@/components/parking3d/routePlanner';
+
+// Xem 3D đường đi tới ô đã đặt – tải riêng (three.js) chỉ khi tài xế mở.
+const ParkingRoute3DViewer = lazy(() => import('@/components/parking3d/ParkingRoute3DViewer'));
 import { useAppSelector, useAppDispatch } from '@/store';
 import { sendBookingConfirmedNotification } from '@/store/slices/notificationSlice';
 import { fetchVehicles } from '@/store/slices/vehicleSlice';
@@ -84,6 +89,7 @@ export const LotDetailPage: React.FC = () => {
   const [bookingBusy, setBookingBusy] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingResult, setBookingResult] = useState<BookingDetailDto | null>(null);
+  const [showRoute3D, setShowRoute3D] = useState(false);
 
   // Fetch lot info, hierarchy & reviews from API
   useEffect(() => {
@@ -306,6 +312,10 @@ export const LotDetailPage: React.FC = () => {
       ? `${selectedFloorLabel} • Loại ô: ${selectedCell.slotType || 'Standard'} • Phù hợp: ${selectedCell.maxVehicleType || 'Mọi xe'}`
       : `${selectedFloorLabel} • Hệ thống tự động phân bổ ô trống phù hợp khi vào cổng`,
   };
+  // Chỉ hiện nút "Xem đường đi 3D" khi bãi có mô hình và tìm được tầng của ô đã đặt trong mô hình.
+  const route3DLayout = getLotLayout(bookingResult?.parkingLotId ?? lot?.id);
+  const canShowRoute3D =
+    !!route3DLayout && !!resolveTarget(route3DLayout, bookingResult?.slotCode || currentSpot.code, activeFloor?.name);
 
   // Default vehicle selection (from real user vehicles in Redux or fallback)
   const defaultVehicle = vehicles.find((v) => v.isDefault) || vehicles[0];
@@ -1563,8 +1573,30 @@ export const LotDetailPage: React.FC = () => {
                 Lịch sử đặt
               </button>
             </div>
+            {canShowRoute3D && (
+              <button
+                type="button"
+                onClick={() => setShowRoute3D(true)}
+                className="mt-2.5 w-full py-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">view_in_ar</span>
+                <span>Xem đường đi 3D từ cổng vào tới ô đỗ</span>
+              </button>
+            )}
           </div>
         </div>
+      )}
+
+      {showRoute3D && (
+        <Suspense fallback={null}>
+          <ParkingRoute3DViewer
+            lotId={bookingResult?.parkingLotId ?? lot?.id ?? 0}
+            slotCode={bookingResult?.slotCode || currentSpot.code}
+            floorHint={activeFloor?.name}
+            lotName={bookingResult?.parkingLotName || lot?.name}
+            onClose={() => setShowRoute3D(false)}
+          />
+        </Suspense>
       )}
     </div>
   );
