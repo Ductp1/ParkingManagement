@@ -2,8 +2,8 @@ import React from 'react';
 import { humanizeEnum, statusTone, type StatusTone } from '../utils/enumLabels';
 
 const TONE_COLOR: Record<StatusTone, { dot: string; text: string }> = {
-  success: { dot: 'bg-(--admin-status-success)', text: 'text-(--admin-status-success)' },
-  warning: { dot: 'bg-(--admin-status-warning)', text: 'text-(--admin-status-warning)' },
+  success: { dot: 'bg-(--admin-status-success)', text: 'text-(--admin-status-success-text)' },
+  warning: { dot: 'bg-(--admin-status-warning)', text: 'text-(--admin-status-warning-text)' },
   danger: { dot: 'bg-(--admin-status-danger)', text: 'text-(--admin-status-danger)' },
   info: { dot: 'bg-(--admin-status-info)', text: 'text-(--admin-status-info)' },
   neutral: { dot: 'bg-(--admin-text-secondary)', text: 'text-(--admin-text-secondary)' },

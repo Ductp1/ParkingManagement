@@ -1,266 +1,300 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { capacityApi, type LotCapacityConfigDto } from '@/api/capacityApi';
+import { AdminApiError } from '@/api/adminClientApi';
 import { useParkingHub, type CapacityChangedEvent } from '@/realtime/useParkingHub';
-import {
-  validateCapacityConfig,
-  type CapacityFieldError,
-  type CapacityFieldName,
-  type CapacityTextValues,
-} from '@/features/capacity/capacityRules';
+import type { CapacityFieldError, CapacityFieldName, CapacityTextValues } from '@/features/capacity/capacityRules';
+import { AdminTitleBar } from '../../../layout/AdminTitleBar';
+import { ActionDialog } from '../../../components/ActionDialog';
+import { AdminButton } from '../../../components/AdminButton';
+import { Banner } from '../../../components/Banner';
+import { LotPicker } from '../../../components/LotPicker';
+import { Panel } from '../../../components/Panel';
+import { StateBlock } from '../../../components/StateBlock';
+import { useAdminQuery } from '../../../hooks/useAdminQuery';
+import { useAdminToast } from '../../../hooks/useAdminToast';
+import { useListParams } from '../../../hooks/useListParams';
+import { useLotOptions } from '../../../hooks/useLotOptions';
+import { formatDateTimeIct, formatNumber } from '../../../utils/format';
+import { CapacityForm } from './CapacityForm';
+import { CapacityUsagePanel } from './CapacityUsagePanel';
+import { capacityWarnings, checkForm, fieldErrorText, toCapacityFailure, valuesFrom } from './capacityCopy';
+import { QueryIssueState } from '../../../components/PageLayout';
+import { isQueryIssue } from '../../../utils/queryStatus';
+
+const NO_TOUCH: Record<CapacityFieldName, boolean> = { capacity: false, transientBuffer: false, subscriberQuota: false };
+
+/** capacityApi (GateService, axios) → AdminApiError để dùng chung trạng thái của useAdminQuery (403 / lỗi + Retry). */
+const loadCapacity = async (lotId: number): Promise<LotCapacityConfigDto> => {
+  try {
+    return await capacityApi.get(lotId);
+  } catch (err: unknown) {
+    const f = toCapacityFailure(err);
+    throw new AdminApiError(f.status, f.message, f.problem);
+  }
+};
+
+const sameValues = (a: CapacityTextValues, b: CapacityTextValues) =>
+  a.capacity === b.capacity && a.transientBuffer === b.transientBuffer && a.subscriberQuota === b.subscriberQuota;
+
+const TwoColumns: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  // ≥1280px: hai cột (Live usage | Configuration); hẹp hơn: xếp dọc.
+  <div className="grid items-start gap-4 xl:grid-cols-2">{children}</div>
+);
 
 /**
- * US-066 – Trang admin cấu hình sức chứa:
- * - Nhãn tiếng Việt không dùng ký hiệu C/B/Q + gợi ý xám dưới mỗi ô.
- * - Lỗi hiện sau khi blur từng ô hoặc bấm Lưu (hiện lỗi mọi ô); ô đang đỏ mà gõ lại thì lỗi tự mất.
- * - "Chỗ dùng chung" chỉ tính khi đủ 3 ô hợp lệ; thiếu/âm → "—"; B + Q > C → cảnh báo đỏ.
- * - Server 400: hiển thị lỗi từ server đúng chỗ (cùng nội dung client); 409: tải lại + báo.
- * - Nút Lưu khóa khi chưa có thay đổi, đang lưu, hoặc còn lỗi từ server chưa được sửa.
+ * Sức chứa của MỘT bãi. Gắn key = lotId ở trang cha → đổi bãi thì state + truy vấn làm lại từ đầu
+ * (không hiện số của bãi cũ trong lúc tải bãi mới).
  */
-export const CapacityConfigPage: React.FC<{ lotId?: number }> = ({ lotId = 1 }) => {
-  const EMPTY: CapacityTextValues = { capacity: '', transientBuffer: '', subscriberQuota: '' };
-  const [dto, setDto] = useState<LotCapacityConfigDto | null>(null);
-  const [values, setValues] = useState<CapacityTextValues>(EMPTY);
-  const [initial, setInitial] = useState<CapacityTextValues>(EMPTY);
-  const [touched, setTouched] = useState<Record<CapacityFieldName, boolean>>({
-    capacity: false, transientBuffer: false, subscriberQuota: false,
-  });
-  const [serverFieldErrors, setServerFieldErrors] = useState<Partial<Record<CapacityFieldName, CapacityFieldError>>>({});
+const LotCapacityEditor: React.FC<{ lotId: number; lotName: string }> = ({ lotId, lotName }) => {
+  const toast = useAdminToast();
+  const query = useAdminQuery(() => loadCapacity(lotId), [lotId]);
+
+  const [live, setLive] = useState<LotCapacityConfigDto | null>(null);
+  /**
+   * Version mà form đang dựa vào (gửi kèm PUT để chống ghi đè). Tách khỏi live.version: sự kiện realtime khi form đang sửa
+   * KHÔNG được nâng version này, nếu không lần lưu sẽ ghi đè thay đổi của người khác thay vì nhận 409.
+   */
+  const [baseVersion, setBaseVersion] = useState(0);
+  const [values, setValues] = useState<CapacityTextValues>(valuesFrom(null));
+  const [initial, setInitial] = useState<CapacityTextValues>(valuesFrom(null));
+  const [touched, setTouched] = useState(NO_TOUCH);
+  const [serverErrors, setServerErrors] = useState<Partial<Record<CapacityFieldName, CapacityFieldError>>>({});
   const [serverSummary, setServerSummary] = useState<CapacityFieldError | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const [conflict, setConflict] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [runtime, setRuntime] = useState<LotCapacityConfigDto | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    const data = await capacityApi.get(lotId);
-    setDto(data);
-    setRuntime(data);
-    const loaded: CapacityTextValues = data.configured
-      ? { capacity: String(data.capacity), transientBuffer: String(data.transientBuffer), subscriberQuota: String(data.subscriberQuota) }
-      : EMPTY;
-    setValues(loaded);
-    setInitial(loaded);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lotId]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const onCapacityChanged = useCallback((event: CapacityChangedEvent) => {
-    setRuntime((prev) => (prev
-      ? {
-          ...prev,
-          capacity: event.capacity,
-          transientBuffer: event.transientBuffer,
-          subscriberQuota: event.subscriberQuota,
-          availableForTransient: event.availableForTransient,
-          availableForSubscriber: event.availableForSubscriber,
-          version: event.version,
-        }
-      : prev));
-  }, []);
-  useParkingHub(lotId, onCapacityChanged);
-
-  const outcome = validateCapacityConfig(values);
-  const isDirty = values.capacity !== initial.capacity
-    || values.transientBuffer !== initial.transientBuffer
-    || values.subscriberQuota !== initial.subscriberQuota;
-  const hasServerError = Object.keys(serverFieldErrors).length > 0 || serverSummary !== null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setTouched({ capacity: true, transientBuffer: true, subscriberQuota: true });
-    setSaved(false);
-    if (!outcome.isValid) return; // hiện lỗi mọi ô + khối tổng hợp, không gọi API
-
-    setSaving(true);
-    try {
-      const result = await capacityApi.put(lotId, { ...outcome.parsed!, version: dto?.version ?? 0 });
-      setWarnings(result.warnings);
-      setServerFieldErrors({});
-      setServerSummary(null);
-      setSaved(true);
-      setRuntime(result.snapshot);
-      setDto(result.snapshot);
-      setInitial(values);
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { status: number; data?: {
-        errors?: Record<string, CapacityFieldError | CapacityFieldError[]>;
-        summary?: CapacityFieldError;
-        detail?: string;
-      } } };
-      if (axiosErr.response?.status === 409) {
-        setConflict('Có người vừa sửa cấu hình — đã tải lại dữ liệu mới nhất, vui lòng kiểm tra và lưu lại.');
-        await load();
-      } else if (axiosErr.response?.status === 400) {
-        const raw = axiosErr.response.data?.errors ?? {};
-        const mapped: Partial<Record<CapacityFieldName, CapacityFieldError>> = {};
-        for (const [field, value] of Object.entries(raw)) {
-          const first = Array.isArray(value) ? value[0] : value;
-          if (first) mapped[field as CapacityFieldName] = first;
-        }
-        setServerFieldErrors(mapped);
-        setServerSummary(axiosErr.response.data?.summary ?? null);
-      } else {
-        setConflict(axiosErr.response?.data?.detail ?? 'Không lưu được cấu hình. Vui lòng thử lại.');
-      }
-    } finally {
-      setSaving(false);
-    }
+  /** Nạp snapshot mới vào màn hình (tải xong, lưu xong, Reload sau 409). */
+  const applySnapshot = (snapshot: LotCapacityConfigDto) => {
+    setLive(snapshot);
+    setBaseVersion(snapshot.version);
+    setValues(valuesFrom(snapshot));
+    setInitial(valuesFrom(snapshot));
+    setTouched(NO_TOUCH);
+    setServerErrors({});
+    setServerSummary(null);
+    setConflict(false);
+    setSaveError(null);
   };
 
-  const handleChange = (name: CapacityFieldName, text: string) => {
+  // Dữ liệu tải mới (Retry, Reload sau 409) → nạp vào form ngay trong render (không dùng effect).
+  const [synced, setSynced] = useState<LotCapacityConfigDto | null>(null);
+  if (query.data && query.data !== synced) {
+    setSynced(query.data);
+    applySnapshot(query.data);
+  }
+
+  const dirty = !sameValues(values, initial);
+
+  // Realtime: số chỗ trống + cấu hình mới (người khác lưu). Form chưa sửa thì cập nhật luôn giá trị trong ô.
+  const onCapacityChanged = useCallback(
+    (e: CapacityChangedEvent) => {
+      setLive((prev) =>
+        prev
+          ? {
+              ...prev,
+              capacity: e.capacity,
+              transientBuffer: e.transientBuffer,
+              subscriberQuota: e.subscriberQuota,
+              availableForTransient: e.availableForTransient,
+              availableForSubscriber: e.availableForSubscriber,
+              version: e.version,
+            }
+          : prev
+      );
+      if (!dirty) {
+        const next = { capacity: String(e.capacity), transientBuffer: String(e.transientBuffer), subscriberQuota: String(e.subscriberQuota) };
+        setValues(next);
+        setInitial(next);
+        setBaseVersion(e.version);
+      }
+    },
+    [dirty]
+  );
+  useParkingHub(lotId, onCapacityChanged);
+
+  const parked = live?.configured ? live.totalParked : 0;
+  const check = checkForm(values, parked);
+  const hasServerError = Object.keys(serverErrors).length > 0 || serverSummary !== null;
+  const canSave = dirty && check.isValid && !hasServerError && !saving && !conflict;
+
+  const errorFor = (name: CapacityFieldName): string | null => {
+    const error = serverErrors[name] ?? (touched[name] ? check.fieldErrors[name] : undefined);
+    return error ? fieldErrorText(error, values, parked) : null;
+  };
+  const anyTouched = Object.values(touched).some(Boolean);
+  const summaryError = serverSummary ?? (anyTouched ? check.summary : null);
+
+  const change = (name: CapacityFieldName, text: string) => {
     setValues((prev) => ({ ...prev, [name]: text }));
-    // Sửa ô đang đỏ → xóa lỗi server của ô đó; client validate tự tính lại tức thì.
-    setServerFieldErrors((prev) => {
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    setServerErrors((prev) => {
       if (!(name in prev)) return prev;
       const next = { ...prev };
       delete next[name];
       return next;
     });
     setServerSummary(null);
-    setSaved(false);
+    setSaveError(null);
   };
 
-  const handleBlur = (name: CapacityFieldName) => setTouched((prev) => ({ ...prev, [name]: true }));
+  const save = async () => {
+    if (!check.parsed || !live) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await capacityApi.put(lotId, { ...check.parsed, version: baseVersion });
+      applySnapshot(result.snapshot);
+      toast.show({ type: 'success', title: 'Capacity saved', message: `${lotName} · ${formatNumber(result.snapshot.capacity)} spots` });
+    } catch (err: unknown) {
+      const f = toCapacityFailure(err);
+      if (f.status === 409) {
+        setConflict(true);
+      } else if (f.status === 400 && (Object.keys(f.fieldErrors).length > 0 || f.summary)) {
+        setServerErrors(f.fieldErrors);
+        setServerSummary(f.summary);
+      } else {
+        setSaveError(f.message);
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const visibleError = (name: CapacityFieldName): CapacityFieldError | null =>
-    serverFieldErrors[name] ?? (touched[name] ? outcome.fieldErrors[name] ?? null : null);
+  /** Giảm tổng số chỗ so với cấu hình đang áp dụng → hỏi lại trước khi lưu. */
+  const submit = () => {
+    const before = live?.configured ? live.capacity : null;
+    if (before !== null && check.parsed && check.parsed.capacity < before) setConfirmOpen(true);
+    else void save();
+  };
 
-  const view = runtime ?? dto;
-  return renderPage({
-    lotId, view, values, touched, outcome, visibleError,
-    hasServerError, serverSummary, isDirty, saving, warnings, conflict, saved,
-    handleChange, handleBlur, handleSubmit,
-  });
-};
+  const reset = () => {
+    setValues(initial);
+    setTouched(NO_TOUCH);
+    setServerErrors({});
+    setServerSummary(null);
+    setSaveError(null);
+  };
 
-type PageProps = {
-  lotId: number;
-  view: LotCapacityConfigDto | null;
-  values: CapacityTextValues;
-  touched: Record<CapacityFieldName, boolean>;
-  outcome: ReturnType<typeof validateCapacityConfig>;
-  visibleError: (name: CapacityFieldName) => CapacityFieldError | null;
-  hasServerError: boolean;
-  serverSummary: CapacityFieldError | null;
-  isDirty: boolean;
-  saving: boolean;
-  warnings: string[];
-  conflict: string | null;
-  saved: boolean;
-  handleChange: (name: CapacityFieldName, text: string) => void;
-  handleBlur: (name: CapacityFieldName) => void;
-  handleSubmit: (e: React.FormEvent) => void;
-};
+  if (query.status === 'forbidden') return <StateBlock type="noPermission" message="Only administrators can change lot capacity." />;
+  if (isQueryIssue(query.status)) return <QueryIssueState status={query.status} error={query.error} onRetry={query.refetch} />;
+  if (query.status === 'error' || query.status === 'unavailable') {
+    return (
+      <StateBlock
+        type="error"
+        title="Could not load capacity"
+        message={query.error?.problem ? query.error.message : 'Capacity for this lot could not be loaded. Try again.'}
+        onRetry={query.refetch}
+      />
+    );
+  }
+  if (!live) {
+    return (
+      <TwoColumns>
+        <Panel title="Live usage">
+          <StateBlock type="loading" bare />
+        </Panel>
+        <Panel title="Configuration">
+          <StateBlock type="loading" bare />
+        </Panel>
+      </TwoColumns>
+    );
+  }
 
-const FIELDS: Array<{ name: CapacityFieldName; label: string; hint: string }> = [
-  { name: 'capacity', label: 'Tổng số chỗ của bãi', hint: 'Ví dụ: 100' },
-  { name: 'transientBuffer', label: 'Chỗ tối đa cho xe vãng lai', hint: 'Xe vào ra lẻ, không đăng ký trước' },
-  { name: 'subscriberQuota', label: 'Chỗ tối đa cho khách đăng ký', hint: 'Khách thuê tháng hoặc đặt trước' },
-];
+  const alert = conflict ? (
+    <Banner
+      tone="danger"
+      action={
+        <AdminButton variant="secondary" icon="refresh" onClick={query.refetch}>
+          Reload
+        </AdminButton>
+      }
+    >
+      This configuration was changed by someone else. Reload to see the latest values.
+    </Banner>
+  ) : saveError ? (
+    <Banner tone="danger">{saveError}</Banner>
+  ) : null;
 
-const renderPage = (p: PageProps): React.ReactElement => {
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6" data-testid="capacity-config-page">
-      <h1 className="text-2xl font-bold text-slate-800">Cấu hình sức chứa — Bãi #{p.lotId}</h1>
+    <>
+      <TwoColumns>
+        <CapacityUsagePanel live={live} />
+        <CapacityForm
+          values={values}
+          errorFor={errorFor}
+          summary={summaryError ? fieldErrorText(summaryError, values, parked) : null}
+          shared={check.shared}
+          warnings={capacityWarnings(check.parsed, live.configured ? live : null)}
+          canSave={canSave}
+          dirty={dirty}
+          saving={saving}
+          configured={live.configured}
+          lastUpdated={live.updatedAtUtc ? formatDateTimeIct(live.updatedAtUtc) : null}
+          alert={alert}
+          onChange={change}
+          onBlur={(name) => setTouched((prev) => ({ ...prev, [name]: true }))}
+          onSubmit={submit}
+          onReset={reset}
+        />
+      </TwoColumns>
+      <ActionDialog
+        open={confirmOpen}
+        title="Reduce total spots?"
+        description={
+          check.parsed
+            ? `Total spots for ${lotName} go from ${formatNumber(live.capacity)} to ${formatNumber(check.parsed.capacity)}. ` +
+              'Fewer vehicles will be admitted at the gate once this is saved.'
+            : undefined
+        }
+        confirmLabel="Save changes"
+        onClose={() => setConfirmOpen(false)}
+        onSubmit={save}
+      />
+    </>
+  );
+};
 
-      <div className="grid grid-cols-3 gap-3" data-testid="runtime-panel">
-        <div className="rounded-xl border border-slate-200 p-3">
-          <div className="text-xs text-slate-500">Đang đỗ (T)</div>
-          <div className="text-xl font-bold" data-testid="runtime-total">{p.view?.totalParked ?? 0}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 p-3">
-          <div className="text-xs text-slate-500">Vãng lai (V)</div>
-          <div className="text-xl font-bold" data-testid="runtime-transient">{p.view?.transientParked ?? 0}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 p-3">
-          <div className="text-xs text-slate-500">Thuê bao hiệu lực (A)</div>
-          <div className="text-xl font-bold" data-testid="runtime-subscribers">{p.view?.activeSubscribers ?? 0}</div>
-        </div>
-        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3">
-          <div className="text-xs text-emerald-700">Còn cho vãng lai</div>
-          <div className="text-xl font-bold text-emerald-700" data-testid="runtime-avail-transient">{p.view?.availableForTransient ?? 0}</div>
-        </div>
-        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3">
-          <div className="text-xs text-blue-700">Còn cho thuê bao</div>
-          <div className="text-xl font-bold text-blue-700" data-testid="runtime-avail-subscriber">{p.view?.availableForSubscriber ?? 0}</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 p-3">
-          <div className="text-xs text-slate-500">Version</div>
-          <div className="text-xl font-bold" data-testid="runtime-version">{p.view?.version ?? 0}</div>
-        </div>
-      </div>
+/**
+ * Operations / Capacity (P1-10, US-066): sức chứa tại cổng theo bãi – GateService GET/PUT /api/v1/lots/{lotId}/capacity-config.
+ * Chọn bãi bằng LotPicker (?lotId= trên URL); trái Live usage (realtime qua useParkingHub), phải Configuration.
+ * Version chỉ dùng ngầm để chống ghi đè (409 → Reload). Câu chữ tiếng Anh theo `code` (capacityCopy).
+ */
+export const CapacityConfigPage: React.FC = () => {
+  const params = useListParams();
+  const lotParam = params.get('lotId');
+  const lotId = Number(lotParam);
+  const hasLot = Number.isInteger(lotId) && lotId > 0;
+  const lots = useLotOptions();
+  const lotsFailed = ['error', 'forbidden', 'unavailable'].includes(lots.query.status);
 
-      {p.warnings.length > 0 && (
-        <div className="rounded-xl bg-amber-50 border border-amber-300 p-4 text-amber-800 text-sm space-y-1" data-testid="server-warnings">
-          {p.warnings.map((w) => <p key={w}>{w}</p>)}
-        </div>
+  return (
+    <>
+      <AdminTitleBar
+        title="Capacity"
+        subtitle="How many vehicles each lot takes at the gate, split between walk-ins and monthly passes."
+        actions={
+          <LotPicker
+            value={lotParam}
+            lots={lots.lots}
+            loading={lots.query.status === 'loading'}
+            onChange={(v) => params.set({ lotId: v || null })}
+          />
+        }
+      />
+      {hasLot ? (
+        <LotCapacityEditor key={lotId} lotId={lotId} lotName={lots.byId(lotId)?.name ?? `Lot #${lotId}`} />
+      ) : lotsFailed ? (
+        <StateBlock
+          type="error"
+          title="Could not load parking lots"
+          message={lots.query.error?.problem ? lots.query.error.message : 'The lot list could not be loaded. Try again.'}
+          onRetry={lots.query.refetch}
+        />
+      ) : (
+        <StateBlock type="empty" title="Choose a lot" message="Pick a parking lot above to see and change its capacity." />
       )}
-      {p.conflict && (
-        <div className="rounded-xl bg-red-50 border border-red-300 p-4 text-red-700 text-sm" data-testid="conflict-banner">{p.conflict}</div>
-      )}
-      {p.saved && p.warnings.length === 0 && !p.conflict && (
-        <div className="rounded-xl bg-emerald-50 border border-emerald-300 p-4 text-emerald-700 text-sm" data-testid="saved-banner">Đã lưu cấu hình thành công.</div>
-      )}
-
-      <form onSubmit={p.handleSubmit} className="rounded-2xl border border-slate-200 p-5 space-y-4" noValidate>
-        {FIELDS.map((field) => {
-          const error = p.visibleError(field.name);
-          return (
-            <div key={field.name}>
-              <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor={`field-${field.name}`}>{field.label}</label>
-              <input
-                id={`field-${field.name}`}
-                data-testid={`input-${field.name}`}
-                type="number"
-                className={`w-full rounded-lg border px-3 py-2 ${error ? 'border-red-400' : 'border-slate-300'}`}
-                value={p.values[field.name]}
-                onChange={(e) => p.handleChange(field.name, e.target.value)}
-                onBlur={() => p.handleBlur(field.name)}
-              />
-              {error
-                ? <p className="text-xs text-red-600 mt-1" data-testid={`error-${field.name}`}>{error.message}</p>
-                : <p className="text-xs text-slate-400 mt-1">{field.hint}</p>}
-            </div>
-          );
-        })}
-
-        <div
-          className={`rounded-lg p-3 text-sm ${
-            p.outcome.shared.state === 'overflow' ? 'bg-red-50 text-red-700 border border-red-300' : 'bg-slate-50 text-slate-700'
-          }`}
-          data-testid="shared-zone"
-        >
-          <div className="font-medium">
-            Chỗ dùng chung <span className="text-xs text-slate-400 font-normal">(Ai đến trước được trước)</span>
-          </div>
-          <div data-testid="shared-zone-value" className="text-lg font-bold">
-            {p.outcome.shared.state === 'ok' && p.outcome.shared.value}
-            {p.outcome.shared.state === 'overflow' && `Đang thiếu ${p.outcome.shared.deficit} chỗ, hãy giảm bớt`}
-            {(p.outcome.shared.state === 'incomplete' || p.outcome.shared.state === 'invalid') && '—'}
-          </div>
-          {(p.outcome.shared.state === 'incomplete' || p.outcome.shared.state === 'invalid') && (
-            <div className="text-xs text-slate-400" data-testid="shared-zone-hint">Nhập đủ 3 ô để xem</div>
-          )}
-        </div>
-
-        {(p.serverSummary ?? p.outcome.summary) && (
-          <div className="rounded-xl bg-red-50 border border-red-300 p-4 text-red-700 text-sm" data-testid="summary-error">
-            {(p.serverSummary ?? p.outcome.summary)?.message}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          data-testid="submit-button"
-          disabled={p.saving || !p.isDirty || p.hasServerError}
-          title={!p.isDirty ? 'Chưa có thay đổi nào để lưu' : p.hasServerError ? 'Sửa các ô lỗi trước khi lưu' : undefined}
-          className="w-full rounded-lg bg-blue-600 text-white font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {p.saving ? 'Đang lưu…' : 'Lưu cấu hình'}
-        </button>
-      </form>
-    </div>
+    </>
   );
 };

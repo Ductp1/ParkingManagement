@@ -1,29 +1,31 @@
-/** Nhãn tiếng Việt cho giá trị enum (chuỗi) trong DTO dashboard US-081; giá trị lạ hiện nguyên văn. */
+import type { DashboardWidget } from './dashboardTypes';
+
+/** Nhãn tiếng Anh cho giá trị enum (chuỗi) trong DTO dashboard US-081; giá trị lạ hiện nguyên văn. */
 
 const DEVICE_TYPES: Record<string, string> = {
-  AnprCamera: 'Camera ANPR',
+  AnprCamera: 'ANPR camera',
   Webcam: 'Webcam',
-  Barrier: 'Barie',
+  Barrier: 'Barrier',
   Kiosk: 'Kiosk',
-  QrScanner: 'Máy quét QR',
-  SlotSensor: 'Cảm biến ô đỗ',
+  QrScanner: 'QR scanner',
+  SlotSensor: 'Slot sensor',
 };
 
 const PAYMENT_METHODS: Record<string, string> = {
   Vnpay: 'VNPAY',
   Momo: 'MoMo',
   VietQr: 'VietQR',
-  Cash: 'Tiền mặt',
+  Cash: 'Cash',
 };
 
 const LOT_STATUSES: Record<string, string> = {
-  Active: 'Đang hoạt động',
-  Suspended: 'Tạm khóa',
-  PendingApproval: 'Chờ duyệt',
+  Active: 'Active',
+  Suspended: 'Suspended',
+  PendingApproval: 'Pending approval',
 };
 
 const INTEGRATION_TIERS: Record<string, string> = {
-  Manual: 'Thủ công',
+  Manual: 'Manual',
   PmsApi: 'PMS API',
   EdgeIot: 'Edge IoT',
 };
@@ -35,3 +37,10 @@ export const lotStatusLabel = (value: string): string => LOT_STATUSES[value] ?? 
 
 /** Ngưỡng cảnh báo lấp đầy (US-081): từ 90% trở lên. */
 export const OCCUPANCY_WARNING_PERCENT = 90;
+
+/**
+ * Widget chưa có nguồn dữ liệu (unavailable + no_source) thì ẩn hẳn – không "—", không ghi chú.
+ * Nguồn có rồi (available) hoặc nguồn lỗi (source_error) thì widget tự hiện lại.
+ */
+export const isHiddenWidget = (widget: DashboardWidget<unknown> | null): boolean =>
+  widget !== null && widget.status === 'unavailable' && widget.reason === 'no_source';

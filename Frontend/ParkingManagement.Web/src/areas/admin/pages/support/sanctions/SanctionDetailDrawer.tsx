@@ -117,7 +117,7 @@ export const SanctionDetailBody: React.FC<{ detail: SanctionDetailDto; onChanged
         </div>
         <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
           {SYNC_TARGETS.map((t) => (
-            <li key={t.key} data-testid={`sync-${t.short}`} className="flex items-center justify-between gap-3">
+            <li key={t.key} data-testid={`sync-${t.key}`} className="flex items-center justify-between gap-3">
               <span className="adm-type-body-default">{t.label}</span>
               <span className="flex items-center gap-2">
                 <StatusIndicator value={s[t.key]} />
@@ -161,7 +161,7 @@ export const SanctionDetailBody: React.FC<{ detail: SanctionDetailDto; onChanged
         description={
           s.parkingLotId === null && (s.level === 'TemporarySuspension' || s.level === 'PermanentBan')
             ? 'Unlocks the owner account (Users › Unlock owner flow) and notifies the owner.'
-            : 'Lifts the sanction in ParkingService and notifies the owner.'
+            : 'Lifts the sanction on the lot and notifies the owner.'
         }
         confirmLabel="Revoke sanction"
         destructive

@@ -62,7 +62,7 @@ export const ContractTemplateEditorPage: React.FC = () => {
   if (!query.data) {
     return (
       <>
-        <AdminTitleBar title="Contract template" subtitle="—" />
+        <AdminTitleBar title="Contract template" />
         <QueryState
           status={valid ? query.status : 'empty'}
           error={query.error}

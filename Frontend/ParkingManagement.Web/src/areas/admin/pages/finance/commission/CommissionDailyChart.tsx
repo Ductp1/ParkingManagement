@@ -18,13 +18,13 @@ export const CommissionDailyChart: React.FC<{ days: AdminCommissionDayDto[] }> =
     <figure className="m-0 flex flex-col gap-2">
       <div
         role="img"
-        aria-label={`Hoa hồng theo ngày, ${days.length} ngày, tổng ${formatVnd(total)}${pendingDays > 0 ? `, ${pendingDays} ngày còn giao dịch chờ tính` : ''}`}
+        aria-label={`Commission by day, ${days.length} days, total ${formatVnd(total)}${pendingDays > 0 ? `, ${pendingDays} days with pending payments` : ''}`}
         className="flex h-40 items-end gap-px border-b border-(--admin-border-default)"
       >
         {days.map((d) => {
           const pct = max > 0 ? (d.commissionAmount / max) * 100 : 0;
-          const title = `${displayDate(d.date)}: ${formatVnd(d.commissionAmount)} · ${formatNumber(d.transactionCount)} giao dịch${
-            d.pendingCount > 0 ? ` · ${formatNumber(d.pendingCount)} chờ tính` : ''
+          const title = `${displayDate(d.date)}: ${formatVnd(d.commissionAmount)} · ${formatNumber(d.transactionCount)} payments${
+            d.pendingCount > 0 ? ` · ${formatNumber(d.pendingCount)} pending` : ''
           }`;
           return (
             <div key={d.date} title={title} data-testid="commission-bar" className="relative flex h-full min-w-0 flex-1 flex-col justify-end">
@@ -46,12 +46,12 @@ export const CommissionDailyChart: React.FC<{ days: AdminCommissionDayDto[] }> =
         ))}
       </figcaption>
       <table className="sr-only">
-        <caption>Hoa hồng theo ngày</caption>
+        <caption>Commission by day</caption>
         <thead>
           <tr>
-            <th scope="col">Ngày</th>
-            <th scope="col">Hoa hồng</th>
-            <th scope="col">Giao dịch chờ tính</th>
+            <th scope="col">Date</th>
+            <th scope="col">Commission</th>
+            <th scope="col">Pending payments</th>
           </tr>
         </thead>
         <tbody>

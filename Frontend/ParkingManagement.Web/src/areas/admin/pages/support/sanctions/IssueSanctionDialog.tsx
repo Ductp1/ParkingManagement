@@ -252,7 +252,7 @@ export const IssueSanctionDialog: React.FC<IssueSanctionDialogProps> = ({ preset
       open
       size={640}
       title="Issue sanction"
-      description="SLA sanctions · Partner contract Art. 7. Saved first, then pushed to ParkingService / UserService and the owner is notified."
+      description="SLA sanctions under Art. 7 of the partner contract. The sanction takes effect on the lot or account and the owner is notified."
       onClose={close}
       onConfirm={confirm}
       confirmLabel={form.level === SanctionLevel.PermanentBan ? 'Terminate partner' : 'Issue sanction'}
@@ -268,7 +268,7 @@ export const IssueSanctionDialog: React.FC<IssueSanctionDialogProps> = ({ preset
         onChange={(v) => void chooseOwner(v)}
         options={ownerOptions}
         placeholder={owners ? 'Select an owner…' : 'Loading owners…'}
-        helper={form.ownerProfileId !== null ? `OwnerProfile #${form.ownerProfileId}` : resolving ? 'Resolving owner profile…' : undefined}
+        helper={form.ownerProfileId !== null ? `Owner #${form.ownerProfileId}` : resolving ? 'Resolving owner profile…' : undefined}
         error={visible('owner')}
       />
 
@@ -360,7 +360,7 @@ export const IssueSanctionDialog: React.FC<IssueSanctionDialogProps> = ({ preset
         onChange={(penalty) => set({ penalty })}
         suffix="₫"
         placeholder="Optional"
-        helper="Recorded only · deducted in the owner settlement (US-080)."
+        helper="Recorded here and deducted in the owner settlement."
         error={visible('penalty')}
       />
       {show.confirmOwner && form.ownerProfileId !== null && (

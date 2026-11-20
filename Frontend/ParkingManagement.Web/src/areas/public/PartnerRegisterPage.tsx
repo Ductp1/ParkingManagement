@@ -1,298 +1,462 @@
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, FileText, Lock, Upload, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import '@/areas/admin/theme/admin.css';
+import { logoutSession } from '@/api/authApi';
 import {
-  PARTNER_DOCUMENT_LIMITS as LIMITS,
   partnerRegistrationApi,
   type PartnerApplicationReceipt,
   type PartnerDocumentFiles,
   type PartnerDocumentKind,
-  type PartnerRegistrationFields,
 } from '@/api/partnerRegistrationApi';
+import { useAppDispatch, useAppSelector } from '@/store';
+import { logout } from '@/store/slices/authSlice';
+import {
+  checkFile,
+  createEmptyForm,
+  DOCUMENTS,
+  EMPTY_FILES,
+  FIELD_STEP,
+  fieldLabel,
+  mapServerError,
+  maskEmail,
+  STEPS,
+  toSubmitFields,
+  validateAll,
+  validateStep,
+  type FieldErrors,
+  type FieldKey,
+  type RegistrationForm,
+  type StepId,
+} from './partner-register/registrationForm';
+import { clearDraft, formatClock, loadDraft, saveDraft } from './partner-register/registrationDraft';
+import { CompactStepper, RegisterStepper, type StepStatus } from './partner-register/RegisterStepper';
+import { AfterSubmitAccordion, AfterSubmitCard, PrepareCard, SupportText } from './partner-register/SidebarCards';
+import { ApplicantStep, BusinessStep, DocumentsStep, LotStep, ReviewStep } from './partner-register/Steps';
+import { SuccessView } from './partner-register/SuccessView';
+import { Notice } from './partner-register/ui';
+import { buttonClass } from './partner-register/styles';
 
-const EMPTY_FIELDS: PartnerRegistrationFields = {
-  fullName: '',
-  position: '',
-  email: '',
-  phone: '',
-  businessType: 'Company',
-  businessName: '',
-  taxCode: '',
-  businessAddress: '',
-  legalRepresentativeName: '',
-  legalRepresentativePosition: '',
-  lotCount: '1',
-  primaryLotAddress: '',
-  estimatedCarSlots: '',
-  estimatedMotorbikeSlots: '',
-  operatingHours: '',
-  consentAccepted: false,
+type SubmitError = { kind: 'network' | 'conflict' | 'rate' | 'server'; message: string } | null;
+
+/** Sửa trường nào thì xoá lỗi của ô tương ứng (một số trường gộp vào một ô lỗi). */
+const ERROR_KEYS: Partial<Record<keyof RegistrationForm, FieldKey[]>> = {
+  openTime: ['operatingHours'],
+  closeTime: ['operatingHours'],
+  open24h: ['operatingHours'],
+  representativeIsMe: ['legalRepresentativeName', 'legalRepresentativePosition'],
+  fullName: ['fullName', 'legalRepresentativeName'],
+  position: ['position', 'legalRepresentativePosition'],
 };
 
-const EMPTY_FILES: PartnerDocumentFiles = { businessLicense: [], representativeId: [], lotLegalProof: [], other: [] };
-
-const DOCUMENTS: Array<{ kind: PartnerDocumentKind; label: string; hint: string; required: boolean }> = [
-  { kind: 'businessLicense', label: 'Giấy đăng ký kinh doanh', hint: 'Giấy chứng nhận đăng ký doanh nghiệp hoặc hộ kinh doanh', required: true },
-  { kind: 'representativeId', label: 'Giấy tờ tùy thân người đại diện', hint: 'CCCD (2 mặt) hoặc hộ chiếu', required: true },
-  { kind: 'lotLegalProof', label: 'Giấy tờ mặt bằng bãi', hint: 'Sổ đỏ, hợp đồng thuê mặt bằng…', required: false },
-  { kind: 'other', label: 'Giấy tờ khác', hint: 'Chứng nhận PCCC, giấy phép liên quan…', required: false },
-];
-
-const inputClass =
-  'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100';
-
-const formatSize = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
-
-const isAllowedFile = (file: File) => /\.(pdf|jpe?g|png)$/i.test(file.name);
-
-function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
-  return (
-    <label className="block text-sm font-semibold text-slate-700">
-      {label}
-      {required && <span className="text-red-500"> *</span>}
-      {children}
-    </label>
-  );
-}
-
-function Section({ step, title, description, children }: { step: number; title: string; description?: string; children: ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <h2 className="flex items-center gap-2.5 text-base font-bold text-slate-900">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs text-white">{step}</span>
-        {title}
-      </h2>
-      {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">{children}</div>
-    </section>
-  );
-}
+const AUTOSAVE_MS = 800;
 
 /**
- * US-053: trang public "Trở thành đối tác chủ bãi". Người đăng ký điền thông tin pháp nhân + bãi dự kiến và tải giấy tờ pháp lý.
- * Hồ sơ vào hàng chờ Partner Onboarding; Admin thẩm định (xem giấy tờ) rồi mới cấp tài khoản chủ bãi.
+ * US-053 / US-116: trang public "Đăng ký trở thành đối tác" – KHÔNG cần đăng nhập (đang đăng nhập thì hồ sơ gắn với tài khoản đó).
+ * Wizard 5 bước theo Figma "Partner Registration" (221:139…221:161). Gửi một lần multipart tới
+ * POST /api/v1/admin/partner-registrations (tên field giữ nguyên). Bản nháp chỉ lưu chữ / số trong localStorage 7 ngày.
  */
 export function PartnerRegisterPage() {
-  const [fields, setFields] = useState<PartnerRegistrationFields>(EMPTY_FIELDS);
+  const dispatch = useAppDispatch();
+  const user = useAppSelector((s) => s.auth.user);
+  const signedInEmail = user?.email?.trim() || undefined;
+
+  // Khôi phục bản nháp (Figma 13) – đọc một lần khi mở trang.
+  const [draft] = useState(loadDraft);
+  const [form, setForm] = useState<RegistrationForm>(() => draft?.form ?? createEmptyForm());
   const [files, setFiles] = useState<PartnerDocumentFiles>(EMPTY_FILES);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [step, setStep] = useState<StepId>(() => draft?.step ?? 1);
+  const [completed, setCompleted] = useState<Set<StepId>>(() => new Set(STEPS.filter((s) => s.id < (draft?.step ?? 1)).map((s) => s.id)));
+  const [errors, setErrors] = useState<FieldErrors>({});
+  /** Bước đã bị chặn vì lỗi – stepper hiện "Cần sửa" cho tới khi hết lỗi. */
+  const [flagged, setFlagged] = useState<Set<StepId>>(() => new Set());
+  const [showSummary, setShowSummary] = useState(false);
+  /** Tăng mỗi lần chặn vì lỗi → focus vào summary (không focus lại khi người dùng đang gõ sửa). */
+  const [summaryTick, setSummaryTick] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [submitError, setSubmitError] = useState<SubmitError>(null);
   const [receipt, setReceipt] = useState<PartnerApplicationReceipt | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(() => draft?.savedAt ?? null);
+  const [restoredAt, setRestoredAt] = useState<number | null>(() => draft?.savedAt ?? null);
+  const [signingOut, setSigningOut] = useState(false);
 
-  const allFiles = Object.values(files).flat();
-  const totalBytes = allFiles.reduce((sum, f) => sum + f.size, 0);
+  const dirty = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
+  const moved = useRef(false);
 
-  const set = <K extends keyof PartnerRegistrationFields>(key: K) => (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const value = e.target instanceof HTMLInputElement && e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-    setFields((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const addFiles = (kind: PartnerDocumentKind) => (e: ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []);
-    e.target.value = '';
-    setError('');
-    const bad = picked.find((f) => !isAllowedFile(f));
-    if (bad) return setError(`"${bad.name}": chỉ nhận file PDF, JPG hoặc PNG.`);
-    const big = picked.find((f) => f.size > LIMITS.maxFileBytes);
-    if (big) return setError(`"${big.name}" lớn hơn 10 MB.`);
-    if (allFiles.length + picked.length > LIMITS.maxFiles) return setError(`Tối đa ${LIMITS.maxFiles} file giấy tờ cho mỗi hồ sơ.`);
-    if (totalBytes + picked.reduce((s, f) => s + f.size, 0) > LIMITS.maxTotalBytes) return setError('Tổng dung lượng giấy tờ tối đa 25 MB.');
-    setFiles((prev) => ({ ...prev, [kind]: [...prev[kind], ...picked] }));
-  };
-
-  const removeFile = (kind: PartnerDocumentKind, index: number) =>
-    setFiles((prev) => ({ ...prev, [kind]: prev[kind].filter((_, i) => i !== index) }));
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (busy) return;
-    setError('');
-    const missing = DOCUMENTS.find((d) => d.required && files[d.kind].length === 0);
-    if (missing) return setError(`Vui lòng tải lên ${missing.label.toLowerCase()}.`);
-    if (!fields.consentAccepted) return setError('Vui lòng đồng ý với điều khoản xử lý dữ liệu.');
-
-    setBusy(true);
-    try {
-      setReceipt(await partnerRegistrationApi.submit(fields, files));
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không gửi được hồ sơ, vui lòng thử lại.');
-    } finally {
-      setBusy(false);
-    }
+  // Đang đăng nhập (Figma 2): email lấy từ tài khoản và khoá lại; họ tên / SĐT chỉ điền khi còn trống.
+  // Điều chỉnh state ngay lúc render khi tài khoản đổi (user nạp bất đồng bộ sau khi trang mở).
+  const [prefilledFor, setPrefilledFor] = useState<number | null>(null);
+  if (user && prefilledFor !== user.id) {
+    setPrefilledFor(user.id);
+    setForm((prev) => ({
+      ...prev,
+      email: user.email?.trim() || prev.email,
+      fullName: prev.fullName || user.fullName || '',
+      phone: prev.phone || user.phone || '',
+    }));
   }
 
+  // Tự lưu nháp sau khi người dùng sửa (không lưu file).
+  useEffect(() => {
+    if (!dirty.current || receipt) return undefined;
+    const timer = window.setTimeout(() => {
+      const at = saveDraft(form, step);
+      if (at) setSavedAt(at);
+    }, AUTOSAVE_MS);
+    return () => window.clearTimeout(timer);
+  }, [form, step, receipt]);
+
+  // Đổi bước → đưa tiêu đề bước vào tầm nhìn và focus (bỏ qua lần render đầu).
+  useEffect(() => {
+    if (!moved.current) return;
+    headingRef.current?.focus({ preventScroll: true });
+    headingRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  }, [step]);
+
+  useEffect(() => {
+    if (summaryTick > 0) summaryRef.current?.focus();
+  }, [summaryTick]);
+
+  const goTo = useCallback((next: StepId) => {
+    moved.current = true;
+    setShowSummary(false);
+    setStep(next);
+  }, []);
+
+  const update = (patch: Partial<RegistrationForm>) => {
+    dirty.current = true;
+    setForm((prev) => ({ ...prev, ...patch }));
+    setSubmitError(null);
+    setErrors((prev) => {
+      const next = { ...prev };
+      (Object.keys(patch) as Array<keyof RegistrationForm>).forEach((key) => {
+        (ERROR_KEYS[key] ?? [key as FieldKey]).forEach((k) => delete next[k]);
+      });
+      return next;
+    });
+  };
+
+  const stepErrors = (s: StepId, source: FieldErrors = errors) => (Object.keys(source) as FieldKey[]).filter((k) => FIELD_STEP[k] === s);
+
+  const statusOf = (s: StepId): StepStatus => {
+    if (flagged.has(s) && stepErrors(s).length > 0) return 'error';
+    if (s === step) return 'current';
+    return completed.has(s) ? 'done' : 'todo';
+  };
+
+  const showErrors = (found: FieldErrors) => {
+    const first = (Object.keys(found) as FieldKey[])[0];
+    const target = FIELD_STEP[first];
+    setErrors((prev) => ({ ...prev, ...found }));
+    setFlagged((prev) => new Set(prev).add(target));
+    if (target !== step) {
+      moved.current = true;
+      setStep(target);
+    }
+    setShowSummary(true);
+    setSummaryTick((t) => t + 1);
+  };
+
+  const onPick = (kind: PartnerDocumentKind, picked: File[], replacing?: File) => {
+    const spec = DOCUMENTS.find((d) => d.kind === kind)!;
+    const next: PartnerDocumentFiles = { ...files, [kind]: [...files[kind]] };
+    let problem: string | null = null;
+    let target = replacing;
+    picked.forEach((file) => {
+      const err = checkFile(spec, file, next, target);
+      if (err) {
+        problem ??= picked.length > 1 ? `${file.name}: ${err}` : err;
+        return;
+      }
+      if (spec.imageOnly) next[kind] = [file];
+      else if (target) {
+        const replaced = target;
+        next[kind] = next[kind].map((f) => (f === replaced ? file : f));
+        target = undefined;
+      } else next[kind] = [...next[kind], file];
+    });
+    setFiles(next);
+    setSubmitError(null);
+    setErrors((prev) => {
+      const rest = { ...prev };
+      delete rest[`doc-${kind}`];
+      delete rest.documents;
+      return problem ? { ...rest, [`doc-${kind}`]: problem } : rest;
+    });
+  };
+
+  const onRemove = (kind: PartnerDocumentKind, file: File) => {
+    setFiles((prev) => ({ ...prev, [kind]: prev[kind].filter((f) => f !== file) }));
+    setErrors((prev) => {
+      const rest = { ...prev };
+      delete rest[`doc-${kind}`];
+      delete rest.documents;
+      return rest;
+    });
+  };
+
+  const saveNow = () => {
+    const at = saveDraft(form, step);
+    if (at) setSavedAt(at);
+  };
+
+  const startOver = () => {
+    clearDraft();
+    dirty.current = false;
+    setForm({ ...createEmptyForm(), email: signedInEmail ?? '', fullName: user?.fullName ?? '', phone: user?.phone ?? '' });
+    setFiles(EMPTY_FILES);
+    setCompleted(new Set());
+    setFlagged(new Set());
+    setErrors({});
+    setSubmitError(null);
+    setSavedAt(null);
+    setRestoredAt(null);
+    goTo(1);
+  };
+
+  const signOut = async () => {
+    setSigningOut(true);
+    try {
+      await logoutSession();
+    } catch {
+      /* Phiên phía server có thể đã hết hạn – vẫn đăng xuất ở trình duyệt. */
+    } finally {
+      dispatch(logout());
+      setPrefilledFor(null);
+      setForm((prev) => ({ ...prev, email: '' }));
+      setSigningOut(false);
+    }
+  };
+
+  const submit = async () => {
+    const all = validateAll(form, files);
+    if (Object.keys(all).length > 0) return showErrors(all);
+    setSubmitting(true);
+    setSubmitError(null);
+    setProgress(0);
+    try {
+      const result = await partnerRegistrationApi.submit(toSubmitFields(form), files, { onUploadProgress: setProgress });
+      clearDraft();
+      dirty.current = false;
+      setReceipt(result);
+      window.scrollTo?.({ top: 0 });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      const status = (err as { status?: number }).status;
+      if (status === 400) {
+        const field = mapServerError(message);
+        if (field) return showErrors({ [field]: message });
+        return setSubmitError({ kind: 'server', message });
+      }
+      if (status === 409) return setSubmitError({ kind: 'conflict', message });
+      if (status === 429) return setSubmitError({ kind: 'rate', message: message || 'Bạn đã gửi hồ sơ quá nhiều lần. Vui lòng thử lại sau 10 phút.' });
+      if (status === undefined || status >= 500) return setSubmitError({ kind: 'network', message });
+      setSubmitError({ kind: 'server', message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    if (step === 5) {
+      void submit();
+      return;
+    }
+    const found = validateStep(step, form, files);
+    if (Object.keys(found).length > 0) {
+      setErrors((prev) => {
+        const rest = { ...prev };
+        stepErrors(step, prev).forEach((k) => delete rest[k]);
+        return { ...rest, ...found };
+      });
+      setFlagged((prev) => new Set(prev).add(step));
+      setShowSummary(true);
+      setSummaryTick((t) => t + 1);
+      return;
+    }
+    setCompleted((prev) => new Set(prev).add(step));
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      next.delete(step);
+      return next;
+    });
+    goTo((step + 1) as StepId);
+  };
+
+  const focusField = (key: FieldKey) => {
+    const el = document.getElementById(`pr-${key}`);
+    el?.focus();
+    el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  };
+
+  const current = STEPS[step - 1];
+  const summaryKeys = showSummary ? stepErrors(step) : [];
+  const stepProps = { form, update, errors, disabled: submitting };
+  const savedText = savedAt ? `Đã lưu nháp lúc ${formatClock(savedAt)}` : '';
+  const primaryLabel = step < 5 ? 'Tiếp tục' : submitError?.kind === 'network' ? 'Thử lại' : 'Gửi hồ sơ đăng ký';
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-4">
-          <Link to="/" className="flex items-center gap-2 text-lg font-extrabold text-slate-900">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white">P</span>
+    <div className="admin-scope min-h-screen bg-(--admin-surface-page)">
+      <header className="border-b border-(--admin-border-default) bg-(--admin-surface-card)">
+        <div className="mx-auto flex h-[72px] max-w-[1120px] items-center justify-between gap-4 px-4 md:px-8">
+          <Link to="/" className="rounded text-lg font-bold text-(--admin-brand-navy-900) outline-none focus-visible:ring-2 focus-visible:ring-(--admin-brand-navy-900)">
             ParkMaster
           </Link>
-          <Link to="/login" className="text-sm font-semibold text-blue-600 hover:underline">
-            Đã là đối tác? Đăng nhập
-          </Link>
+          <p className="flex items-center gap-3 text-[13px]">
+            <span className="text-(--admin-text-secondary)">Đã là đối tác?</span>
+            <Link to="/login" className="rounded font-semibold text-(--admin-brand-navy-900) outline-none hover:underline focus-visible:ring-2 focus-visible:ring-(--admin-brand-navy-900)">
+              Đăng nhập
+            </Link>
+          </p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8">
-        {receipt ? (
-          <div className="rounded-2xl border border-emerald-200 bg-white p-8 text-center shadow-sm">
-            <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-500" />
-            <h1 className="mt-4 text-2xl font-extrabold text-slate-900">Đã gửi hồ sơ đăng ký</h1>
-            <p className="mt-2 text-slate-600">
-              Mã hồ sơ của bạn là <strong className="text-slate-900">{receipt.code}</strong>. Vui lòng lưu lại để tra cứu khi liên hệ hỗ trợ.
-            </p>
-            <ol className="mx-auto mt-6 max-w-md space-y-2 text-left text-sm text-slate-600">
-              <li>1. Admin ParkMaster thẩm định thông tin và giấy tờ pháp lý của bạn.</li>
-              <li>2. Nếu cần bổ sung, chúng tôi sẽ liên hệ qua email hoặc số điện thoại đã đăng ký.</li>
-              <li>3. Khi hồ sơ được duyệt, bạn nhận email kích hoạt tài khoản chủ bãi.</li>
-            </ol>
-            <Link to="/" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700">
-              <ArrowLeft size={16} /> Về trang chủ
-            </Link>
+      {receipt ? (
+        <main className="mx-auto max-w-[1120px] px-4 py-10 md:px-8">
+          <SuccessView receipt={receipt} email={signedInEmail ?? form.email} />
+        </main>
+      ) : (
+        <main className="mx-auto max-w-[1120px] px-4 pt-8 pb-48 md:px-8 md:pb-12 lg:pt-12">
+          <h1 className="text-2xl font-bold tracking-tight text-(--admin-text-primary) md:text-[32px] md:leading-10">Đăng ký trở thành đối tác</h1>
+          <p className="mt-2 text-sm text-(--admin-text-secondary)">Đưa bãi đỗ của Bạn lên ParkMaster. Hoàn tất hồ sơ theo 5 bước dưới đây.</p>
+
+          <div className="mt-6 lg:hidden">
+            <CompactStepper current={step} statusOf={statusOf} />
           </div>
-        ) : (
-          <>
-            <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Đăng ký trở thành đối tác chủ bãi</h1>
-            <p className="mt-2 text-slate-600">
-              Điền thông tin doanh nghiệp và tải giấy tờ pháp lý. Hồ sơ sẽ được Admin thẩm định trước khi cấp tài khoản chủ bãi.
-            </p>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-5" noValidate={false}>
-              <Section step={1} title="Người đăng ký">
-                <Field label="Họ và tên" required>
-                  <input className={inputClass} required maxLength={200} autoComplete="name" value={fields.fullName} onChange={set('fullName')} disabled={busy} />
-                </Field>
-                <Field label="Chức vụ">
-                  <input className={inputClass} maxLength={100} value={fields.position} onChange={set('position')} disabled={busy} placeholder="Giám đốc, quản lý…" />
-                </Field>
-                <Field label="Email" required>
-                  <input className={inputClass} required type="email" maxLength={254} autoComplete="email" value={fields.email} onChange={set('email')} disabled={busy} />
-                </Field>
-                <Field label="Số điện thoại" required>
-                  <input className={inputClass} required type="tel" maxLength={20} autoComplete="tel" value={fields.phone} onChange={set('phone')} disabled={busy} placeholder="0901234567" />
-                </Field>
-              </Section>
+          <div className="mt-6 grid gap-8 lg:mt-8 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,720px)] xl:justify-between">
+            <aside className="hidden flex-col gap-6 self-start lg:sticky lg:top-6 lg:flex">
+              <RegisterStepper current={step} statusOf={statusOf} onSelect={goTo} disabled={submitting} />
+              <AfterSubmitCard />
+              <PrepareCard />
+              <SupportText />
+            </aside>
 
-              <Section step={2} title="Doanh nghiệp / hộ kinh doanh">
-                <Field label="Loại hình" required>
-                  <select className={inputClass} value={fields.businessType} onChange={set('businessType')} disabled={busy}>
-                    <option value="Company">Doanh nghiệp</option>
-                    <option value="HouseholdBusiness">Hộ kinh doanh</option>
-                  </select>
-                </Field>
-                <Field label="Mã số thuế" required>
-                  <input className={inputClass} required maxLength={14} inputMode="numeric" pattern="\d{10}(-\d{3})?" title="10 số, hoặc 10 số kèm -3 số chi nhánh" value={fields.taxCode} onChange={set('taxCode')} disabled={busy} placeholder="0312345678" />
-                </Field>
-                <div className="sm:col-span-2">
-                  <Field label="Tên doanh nghiệp / hộ kinh doanh" required>
-                    <input className={inputClass} required maxLength={300} value={fields.businessName} onChange={set('businessName')} disabled={busy} />
-                  </Field>
-                </div>
-                <div className="sm:col-span-2">
-                  <Field label="Địa chỉ trụ sở" required>
-                    <input className={inputClass} required maxLength={500} value={fields.businessAddress} onChange={set('businessAddress')} disabled={busy} />
-                  </Field>
-                </div>
-                <Field label="Người đại diện pháp luật" required>
-                  <input className={inputClass} required maxLength={200} value={fields.legalRepresentativeName} onChange={set('legalRepresentativeName')} disabled={busy} />
-                </Field>
-                <Field label="Chức vụ người đại diện">
-                  <input className={inputClass} maxLength={100} value={fields.legalRepresentativePosition} onChange={set('legalRepresentativePosition')} disabled={busy} />
-                </Field>
-              </Section>
-
-              <Section step={3} title="Bãi đỗ dự kiến">
-                <Field label="Số bãi" required>
-                  <input className={inputClass} required type="number" min={1} max={100} value={fields.lotCount} onChange={set('lotCount')} disabled={busy} />
-                </Field>
-                <Field label="Giờ hoạt động">
-                  <input className={inputClass} maxLength={100} value={fields.operatingHours} onChange={set('operatingHours')} disabled={busy} placeholder="06:00–22:00" />
-                </Field>
-                <div className="sm:col-span-2">
-                  <Field label="Địa chỉ bãi chính" required>
-                    <input className={inputClass} required maxLength={500} value={fields.primaryLotAddress} onChange={set('primaryLotAddress')} disabled={busy} />
-                  </Field>
-                </div>
-                <Field label="Số chỗ ô tô (ước tính)">
-                  <input className={inputClass} type="number" min={0} max={10000} value={fields.estimatedCarSlots} onChange={set('estimatedCarSlots')} disabled={busy} />
-                </Field>
-                <Field label="Số chỗ xe máy (ước tính)">
-                  <input className={inputClass} type="number" min={0} max={10000} value={fields.estimatedMotorbikeSlots} onChange={set('estimatedMotorbikeSlots')} disabled={busy} />
-                </Field>
-              </Section>
-
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <h2 className="flex items-center gap-2.5 text-base font-bold text-slate-900">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs text-white">4</span>
-                  Giấy tờ pháp lý
-                </h2>
-                <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-500">
-                  <Lock size={15} className="mt-0.5 shrink-0 text-emerald-600" />
-                  Giấy tờ chỉ Admin ParkMaster xem được để thẩm định hồ sơ. PDF, JPG hoặc PNG, mỗi file tối đa 10 MB, tối đa {LIMITS.maxFiles} file (tổng 25 MB).
-                </p>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {DOCUMENTS.map((doc) => (
-                    <div key={doc.kind} className="rounded-xl border border-dashed border-slate-300 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-800">
-                            {doc.label}
-                            {doc.required && <span className="text-red-500"> *</span>}
-                          </p>
-                          <p className="text-xs text-slate-500">{doc.hint}</p>
-                        </div>
-                        <label className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 ${busy ? 'pointer-events-none opacity-60' : ''}`}>
-                          <Upload size={14} /> Chọn file
-                          <input type="file" className="sr-only" multiple accept={LIMITS.accept} onChange={addFiles(doc.kind)} disabled={busy} aria-label={`Tải lên ${doc.label}`} />
-                        </label>
-                      </div>
-                      {files[doc.kind].length > 0 && (
-                        <ul className="mt-3 space-y-1.5">
-                          {files[doc.kind].map((file, i) => (
-                            <li key={`${file.name}-${i}`} className="flex items-center gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
-                              <FileText size={14} className="shrink-0 text-slate-400" />
-                              <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                              <span className="text-slate-400">{formatSize(file.size)}</span>
-                              <button type="button" onClick={() => removeFile(doc.kind, i)} disabled={busy} className="text-slate-400 hover:text-red-500" aria-label={`Bỏ ${file.name}`}>
-                                <X size={14} />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-700">
-                <input type="checkbox" className="mt-0.5 h-4 w-4 accent-blue-600" checked={fields.consentAccepted} onChange={set('consentAccepted')} disabled={busy} />
-                <span>
-                  Tôi xác nhận thông tin và giấy tờ là chính xác, đồng ý để ParkMaster lưu trữ và xử lý dữ liệu này nhằm thẩm định hồ sơ đối tác.
-                </span>
-              </label>
-
-              {error && (
-                <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                  {error}
+            <div className="min-w-0">
+              {restoredAt && (
+                <div className="mb-4">
+                  <Notice tone="success" role="status" title={`Đã khôi phục bản nháp lúc ${formatClock(restoredAt)}`} onClose={() => setRestoredAt(null)}>
+                    <button
+                      type="button"
+                      onClick={startOver}
+                      className="rounded font-semibold text-(--admin-brand-navy-900) underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-(--admin-brand-navy-900)"
+                    >
+                      Bắt đầu lại
+                    </button>
+                  </Notice>
                 </div>
               )}
 
-              <div className="flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Link to="/" className="text-center text-sm font-semibold text-slate-500 hover:text-slate-700">
-                  Hủy
-                </Link>
-                <button type="submit" disabled={busy} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow hover:bg-blue-700 disabled:opacity-60">
-                  {busy ? 'Đang gửi hồ sơ…' : 'Gửi hồ sơ đăng ký'}
-                </button>
+              <form onSubmit={handleSubmit} noValidate aria-labelledby="pr-step-title">
+                <section className="scroll-mt-6 rounded-xl border border-(--admin-border-default) bg-(--admin-surface-card) p-5 md:p-6">
+                  <h2 id="pr-step-title" ref={headingRef} tabIndex={-1} className="scroll-mt-6 text-lg font-semibold text-(--admin-text-primary) outline-none">
+                    Bước {step}/{STEPS.length} · {current.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-(--admin-text-secondary)">{current.description}</p>
+
+                  <div className="mt-5 flex flex-col gap-5">
+                    {summaryKeys.length > 0 && (
+                      <div ref={summaryRef} tabIndex={-1} role="alert" className="flex flex-col gap-2 outline-none">
+                        <Notice tone="danger" title={`Còn ${summaryKeys.length} mục cần sửa`}>
+                          Vui lòng kiểm tra các thông tin dưới đây để tiếp tục.
+                        </Notice>
+                        <ul className="flex flex-wrap gap-1">
+                          {summaryKeys.map((key) => (
+                            <li key={key}>
+                              <a
+                                href={`#pr-${key}`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  focusField(key);
+                                }}
+                                className={`${buttonClass('ghost')} h-8 px-3 text-[13px]`}
+                              >
+                                {fieldLabel(key, form.businessType)}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {step === 5 && submitting && (
+                      <Notice tone="info" role="status" title="Đang gửi hồ sơ của Bạn...">
+                        Vui lòng giữ trang này mở cho đến khi hoàn tất.{progress > 0 && progress < 100 ? ` Đã tải lên ${progress}%.` : ''}
+                      </Notice>
+                    )}
+                    {step === 5 && submitError && (
+                      <div role="alert">
+                        {submitError.kind === 'network' ? (
+                          <Notice tone="danger" title="Không thể gửi hồ sơ lúc này">
+                            Kết nối bị gián đoạn. Thông tin và giấy tờ của Bạn vẫn được giữ lại.
+                          </Notice>
+                        ) : (
+                          <Notice tone={submitError.kind === 'rate' ? 'warning' : 'danger'} title={submitError.message} />
+                        )}
+                      </div>
+                    )}
+
+                    {step === 1 && (
+                      <ApplicantStep {...stepProps} signedInEmail={signedInEmail} onSignOut={() => void signOut()} signingOut={signingOut} />
+                    )}
+                    {step === 2 && <BusinessStep {...stepProps} />}
+                    {step === 3 && <LotStep {...stepProps} />}
+                    {step === 4 && <DocumentsStep files={files} errors={errors} disabled={submitting} onPick={onPick} onRemove={onRemove} />}
+                    {step === 5 && <ReviewStep {...stepProps} files={files} onEdit={goTo} emailShown={signedInEmail ? maskEmail(signedInEmail) : form.email} />}
+                  </div>
+                </section>
+
+                {/* Thanh thao tác: mobile cố định đáy màn hình, từ md dính đáy cột form (Figma sticky action bar). */}
+                <div className="fixed inset-x-0 bottom-0 z-20 border-t border-(--admin-border-default) bg-(--admin-surface-card) px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgb(0_0_0/0.06)] md:sticky md:bottom-4 md:mt-4 md:rounded-xl md:border md:px-5 md:py-3">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+                    <button
+                      type="submit"
+                      className={`${buttonClass('primary')} order-1 w-full md:order-2 md:ml-auto md:w-auto`}
+                      disabled={submitting || (step === 5 && !form.consentAccepted)}
+                      aria-busy={submitting || undefined}
+                    >
+                      {submitting ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                          Đang gửi…
+                        </>
+                      ) : (
+                        primaryLabel
+                      )}
+                    </button>
+                    <div className={`order-2 grid gap-2 md:order-1 md:flex md:items-center md:gap-3 ${step > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {step > 1 && (
+                        <button type="button" className={buttonClass('secondary')} onClick={() => goTo((step - 1) as StepId)} disabled={submitting}>
+                          Quay lại
+                        </button>
+                      )}
+                      <button type="button" className={buttonClass('ghost')} onClick={saveNow} disabled={submitting}>
+                        Lưu nháp
+                      </button>
+                      {savedText && <span className="hidden text-xs text-(--admin-text-secondary) md:inline">{savedText}</span>}
+                    </div>
+                    {savedText && (
+                      <span className="order-3 text-center text-xs text-(--admin-text-secondary) md:hidden" aria-live="polite">
+                        {savedText}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </form>
+
+              <div className="mt-6 flex flex-col gap-4 lg:hidden">
+                <AfterSubmitAccordion />
+                <SupportText />
               </div>
-            </form>
-          </>
-        )}
-      </main>
+            </div>
+          </div>
+        </main>
+      )}
     </div>
   );
 }

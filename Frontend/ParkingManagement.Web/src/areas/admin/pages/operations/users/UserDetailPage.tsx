@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { adminUsersApi } from '@/api/adminUsersApi';
 import { adminOperationsApi } from '@/api/adminOperationsApi';
 import { SanctionStatus, SanctionSyncStatus, UserRoleType, UserStatus } from '@/types/adminEnums';
@@ -19,11 +19,14 @@ import { useAdminBreadcrumb } from '../../../hooks/useAdminBreadcrumb';
 import { useAdminToast } from '../../../hooks/useAdminToast';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatDateTime, formatShortDateTime, formatVnd, orEmpty } from '../../../utils/format';
-import { LockOwnerDialog, RetrySyncDialog, UnlockOwnerDialog } from './UserDialogs';
+import { DeleteUserDialog, LockOwnerDialog, ReactivateUserDialog, SuspendUserDialog, UnlockOwnerDialog } from './UserDialogs';
+import { MoreActionsMenu } from '../../../components/MoreActionsMenu';
+import { useAppSelector } from '@/store';
 import { AuditTrailLink } from '../../../components/AuditTrailLink';
 import { auditLogListLink } from '../../access/auditLogFormat';
+import { UserDataRequestsPanel } from './UserDataRequestsPanel';
 
-type UserDialog = 'lock' | 'unlock' | 'retry' | null;
+type UserDialog = 'lock' | 'unlock' | 'suspend' | 'reactivate' | 'delete' | null;
 
 const queryCopy = (title: string, service: string) => ({ emptyTitle: 'Nothing here yet', emptyMessage: 'No records.', errorTitle: title, service });
 
@@ -41,16 +44,13 @@ const OwnerSections: React.FC<{ user: AdminUserDto; sanctions: AdminQueryResult<
 
   return (
     <>
-      <Panel title="Owner profile" description="OwnerProfiles">
+      <Panel title="Owner profile">
         <DetailList>
           <DetailRow label="OwnerProfile">#{ownerProfileId}</DetailRow>
           <DetailRow label="Business name">{user.ownerProfile!.businessName}</DetailRow>
-          <DetailRow label="Contract" future>
-            —
-          </DetailRow>
         </DetailList>
       </Panel>
-      <Panel title="Lots" description="ParkingService · ParkingLots.OwnerProfileId" padded={false}>
+      <Panel title="Lots" padded={false}>
         <PanelQuery query={lots} service="ParkingService" title="Could not load lots">
           {(data) => (
             <DataTable
@@ -69,7 +69,7 @@ const OwnerSections: React.FC<{ user: AdminUserDto; sanctions: AdminQueryResult<
       </Panel>
       <Panel
         title="Sanction history"
-        description="AdminService · Sanctions (owner- and lot-level)"
+        description="Owner- and lot-level"
         padded={false}
         action={{ label: 'Open in Sanctions →', to: `/admin/support/sanctions?ownerProfileId=${ownerProfileId}` }}
       >
@@ -95,7 +95,7 @@ const OwnerSections: React.FC<{ user: AdminUserDto; sanctions: AdminQueryResult<
                   ),
                 },
                 { key: 'status', header: 'Status', render: (r) => <CellStatus value={r.status} /> },
-                { key: 'sync', header: 'UserService sync', render: (r) => <CellStatus value={r.userServiceSyncStatus} /> },
+                { key: 'sync', header: 'Account update', render: (r) => <CellStatus value={r.userServiceSyncStatus} /> },
               ]}
             />
           )}
@@ -110,7 +110,7 @@ const DriverSections: React.FC<{ userId: number }> = ({ userId }) => {
   const bookings = useAdminQuery(() => adminOperationsApi.getUserBookings(userId), [userId], (d) => d.length === 0);
   return (
     <>
-      <Panel title="Vehicles" description="VehicleService · Vehicles" padded={false}>
+      <Panel title="Vehicles" padded={false}>
         <PanelQuery query={vehicles} service="VehicleService" title="Could not load vehicles">
           {(data) => (
             <DataTable
@@ -130,7 +130,7 @@ const DriverSections: React.FC<{ userId: number }> = ({ userId }) => {
           )}
         </PanelQuery>
       </Panel>
-      <Panel title="Recent bookings" description="BookingService · Bookings" padded={false}>
+      <Panel title="Recent bookings" padded={false}>
         <PanelQuery query={bookings} service="BookingService" title="Could not load bookings">
           {(data) => (
             <DataTable
@@ -158,6 +158,9 @@ export const UserDetailPage: React.FC = () => {
   const userId = Number(id);
   const valid = Number.isInteger(userId) && userId > 0;
   const toast = useAdminToast();
+  const navigate = useNavigate();
+  const currentAdminId = useAppSelector((s) => s.auth.user?.id);
+  const [loadedAt] = useState(() => Date.now());   // mốc so sánh "đang đình chỉ" (render phải thuần)
   const [dialog, setDialog] = useState<UserDialog>(null);
 
   const query = useAdminQuery(valid ? () => adminUsersApi.getById(userId) : null, [userId]);
@@ -174,7 +177,7 @@ export const UserDetailPage: React.FC = () => {
   if (!user) {
     return (
       <>
-        <AdminTitleBar title="Users" subtitle="—" />
+        <AdminTitleBar title="Users" />
         <QueryState
           status={valid ? query.status : 'empty'}
           error={query.error}
@@ -188,7 +191,12 @@ export const UserDetailPage: React.FC = () => {
 
   const isOwner = user.roles.includes(UserRoleType.LotOwner) && user.ownerProfile !== null;
   const isDriver = user.roles.includes(UserRoleType.Driver);
-  const isLocked = user.status === UserStatus.Locked;
+  // Chủ bãi: khóa nằm ở OwnerProfile (Lock owner, US-096), User.Status giữ nguyên. Người dùng khác: Locked (vô thời hạn) hoặc Active + lockedUntilUtc.
+  const isLocked = isOwner ? user.ownerLocked ?? user.status === UserStatus.Locked : user.status === UserStatus.Locked;
+  const suspendedUntil = !isOwner && user.lockedUntilUtc && new Date(user.lockedUntilUtc).getTime() > loadedAt ? user.lockedUntilUtc : null;
+  const suspended = !isOwner && (user.status === UserStatus.Locked || suspendedUntil !== null);
+  const isSelf = currentAdminId === user.id;
+  const canManage = !isSelf && user.status !== UserStatus.PendingVerification && user.status !== UserStatus.Banned;
   const latest = sanctions.data?.items[0] ?? null;
   const activeLock = sanctions.data?.items.find((s) => s.status === SanctionStatus.Active && s.parkingLotId === null) ?? null;
   const syncFailed = latest !== null && latest.userServiceSyncStatus === SanctionSyncStatus.Failed;
@@ -196,21 +204,29 @@ export const UserDetailPage: React.FC = () => {
   const subtitle = [
     `User #${user.id}`,
     user.roles.map(humanizeEnum).join(', '),
-    user.ownerProfile ? `OwnerProfile #${user.ownerProfile.id}` : null,
+    user.ownerProfile ? `Owner #${user.ownerProfile.id}` : null,
     isLocked ? 'Locked' : null,
+    suspended ? (suspendedUntil ? `Suspended until ${formatDateTime(suspendedUntil)} ICT` : 'Suspended') : null,
   ]
     .filter(Boolean)
     .join(' · ');
 
-  const titleAction = !isOwner ? undefined : syncFailed ? (
-    <AdminButton onClick={() => setDialog('retry')}>Retry sync</AdminButton>
-  ) : isLocked ? (
-    <AdminButton onClick={() => setDialog('unlock')}>Unlock owner</AdminButton>
-  ) : (
-    <AdminButton variant="destructive" onClick={() => setDialog('lock')}>
-      Lock owner
+  const titleAction = isOwner ? (
+    isLocked ? (
+      <AdminButton onClick={() => setDialog('unlock')}>Unlock owner</AdminButton>
+    ) : (
+      <AdminButton variant="destructive" onClick={() => setDialog('lock')}>
+        Lock owner
+      </AdminButton>
+    )
+  ) : suspended ? (
+    <AdminButton onClick={() => setDialog('reactivate')}>Reactivate</AdminButton>
+  ) : canManage ? (
+    <AdminButton variant="destructive" onClick={() => setDialog('suspend')}>
+      Suspend
     </AdminButton>
-  );
+  ) : undefined;
+  const moreActions = isSelf ? [] : [{ key: 'delete', label: 'Delete user…', destructive: true, onSelect: () => setDialog('delete') }];
 
   const done = (title: string, message: string) => {
     toast.show({ type: 'success', title, message });
@@ -227,9 +243,16 @@ export const UserDetailPage: React.FC = () => {
           <>
             <AuditTrailLink to={user.ownerProfile ? auditLogListLink({ ownerProfileId: user.ownerProfile.id }) : auditLogListLink({ userId: user.id })} />
             {titleAction}
+            <MoreActionsMenu items={moreActions} />
           </>
         }
       />
+
+      {suspended && (
+        <Banner tone="danger">
+          Suspended {suspendedUntil ? `until ${formatDateTime(suspendedUntil)} ICT` : 'indefinitely'} · “{orEmpty(user.lockReason)}”. The user is signed out and cannot sign in.
+        </Banner>
+      )}
 
       {isOwner && isLocked && latest && !syncFailed && (
         <Banner tone="danger">
@@ -238,14 +261,14 @@ export const UserDetailPage: React.FC = () => {
       )}
       {isOwner && syncFailed && latest && (
         <Banner tone="danger">
-          Sanction #{latest.id} saved, but UserService did not apply the change (sync Failed). Retry — the original reason and end date are used.
+          Sanction #{latest.id} was saved, but the account has not been updated yet. Ask the technical team to apply it.
         </Banner>
       )}
 
       <DetailColumns
         main={
           <>
-            <Panel title="Account" description="Users">
+            <Panel title="Account">
               <DetailList>
                 <DetailRow label="User ID">{user.id}</DetailRow>
                 <DetailRow label="Email">{orEmpty(user.email)}</DetailRow>
@@ -255,7 +278,7 @@ export const UserDetailPage: React.FC = () => {
                 </DetailRow>
               </DetailList>
             </Panel>
-            <Panel title="KYC" description="Users.Kyc* (number stored AES-256 encrypted)">
+            <Panel title="KYC" description="The document number is stored encrypted">
               <DetailList>
                 <DetailRow label="KYC status">
                   <StatusIndicator value={user.kycStatus} />
@@ -268,7 +291,7 @@ export const UserDetailPage: React.FC = () => {
         }
         side={
           <>
-            <Panel title="Roles" description="UserRoles" padded={false}>
+            <Panel title="Roles" padded={false}>
               <DataTable
                 bare
                 rows={user.roles}
@@ -276,14 +299,31 @@ export const UserDetailPage: React.FC = () => {
                 columns={[{ key: 'role', header: 'Role', render: (r) => <CellText>{humanizeEnum(r)}</CellText> }]}
               />
             </Panel>
-            <Panel title="Security events" description="SecurityEvents (latest 3)">
-              <StateBlock type="unavailable" bare className="min-h-0 py-4" message="UserService has no endpoint for security events yet." />
-            </Panel>
-            <Panel title="Data subject requests" description="DataSubjectRequests">
-              <StateBlock type="unavailable" bare className="min-h-0 py-4" message="UserService has no endpoint for data requests yet." />
-            </Panel>
+            <UserDataRequestsPanel userId={user.id} />
           </>
         }
+      />
+
+      <SuspendUserDialog
+        open={dialog === 'suspend'}
+        user={user}
+        onClose={() => setDialog(null)}
+        onDone={() => done('User suspended', `${user.fullName} is signed out and cannot sign in.`)}
+      />
+      <ReactivateUserDialog
+        open={dialog === 'reactivate'}
+        user={user}
+        onClose={() => setDialog(null)}
+        onDone={() => done('User reactivated', `${user.fullName} can sign in again.`)}
+      />
+      <DeleteUserDialog
+        open={dialog === 'delete'}
+        user={user}
+        onClose={() => setDialog(null)}
+        onDone={() => {
+          toast.show({ type: 'success', title: 'User deleted', message: `${user.fullName} was anonymized and the email can be used again.` });
+          navigate('/admin/operations/users', { replace: true });
+        }}
       />
 
       {isOwner && (
@@ -301,7 +341,6 @@ export const UserDetailPage: React.FC = () => {
             onClose={() => setDialog(null)}
             onDone={() => done('Owner unlocked', `${user.fullName} can sign in again.`)}
           />
-          <RetrySyncDialog open={dialog === 'retry'} user={user} sanction={latest} onClose={() => setDialog(null)} />
         </>
       )}
     </>

@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddSingleton(SanctionSettingsFrom(configuration));
         services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
+        services.AddScoped<IPartnerApplicationIntakeRepository, PartnerApplicationIntakeRepository>();   // US-116 T1: Admin nhập hồ sơ, T4
         services.AddScoped<IPartnerRegistrationRepository, PartnerRegistrationRepository>(); // US-053: form public đăng ký đối tác
         services.AddScoped<IPartnerDocumentQueries, PartnerDocumentQueries>();               // US-053: giấy tờ pháp lý (chỉ Admin)
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
@@ -82,6 +83,15 @@ public static class DependencyInjection
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         services.AddTransient<IUserServiceClient>(sp => sp.GetRequiredService<UserServiceClient>());
+        services.AddScoped<AdminService.Application.Features.Users.IAdminAuditWriter, AdminService.Infrastructure.Persistence.Repositories.AdminAuditWriter>();
+        services.AddSingleton<AdminService.Application.Features.PartnerOnboarding.IPartnerEditLinkBuilder>(new PartnerEditLinkBuilder(configuration));
+        // US-096: nghĩa vụ trước khi xóa user – booking (BookingService) và quyết toán (PaymentService) qua Gateway, JWT Admin chuyển tiếp.
+        services.AddHttpClient<AdminService.Application.Features.Users.IUserObligationSource, UserObligationSource>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         // US-116: tạo / kích hoạt tài khoản chủ bãi (U2 / U3) dùng chung client UserService.
         services.AddTransient<IOwnerAccountClient>(sp => sp.GetRequiredService<UserServiceClient>());
         // US-116: đọc hồ sơ KYB + kích hoạt bãi bên ParkingService qua Gateway (route parking-lots), chuyển tiếp JWT Admin.

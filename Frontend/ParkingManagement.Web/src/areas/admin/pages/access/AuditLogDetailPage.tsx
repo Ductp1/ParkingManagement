@@ -20,7 +20,7 @@ export const AuditLogDetailPage: React.FC = () => {
   if (!log) {
     return (
       <>
-        <AdminTitleBar title={auditId !== null ? `Audit log #${auditId}` : 'Audit Log'} subtitle="—" />
+        <AdminTitleBar title={auditId !== null ? `Audit log #${auditId}` : 'Audit Log'} />
         <QueryState
           status={auditId === null ? 'empty' : query.status}
           error={query.error}
@@ -42,17 +42,17 @@ export const AuditLogDetailPage: React.FC = () => {
             <Panel title="Changed fields" description="Old → new value of each field · sensitive values masked" padded={false}>
               <AuditChangesTable changes={log.changes} />
             </Panel>
-            <Panel title="Old values" description="OldValuesJson (masked)">
+            <Panel title="Old values" description="Sensitive values are masked">
               <AuditJsonBlock value={log.oldValues} />
             </Panel>
-            <Panel title="New values" description="NewValuesJson (masked)">
+            <Panel title="New values" description="Sensitive values are masked">
               <AuditJsonBlock value={log.newValues} />
             </Panel>
           </>
         }
         side={
           <>
-            <Panel title="Entry" description="AuditLogs">
+            <Panel title="Entry">
               <AuditEntryList log={log} />
             </Panel>
             <Panel title="Related entries">

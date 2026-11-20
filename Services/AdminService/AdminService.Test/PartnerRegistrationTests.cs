@@ -45,9 +45,14 @@ public class PartnerRegistrationTests
         public bool FailOnSave { get; init; }
         public PartnerApplication? Saved { get; private set; }
         public IReadOnlyList<PartnerApplicationDocument> SavedDocuments { get; private set; } = [];
+        public AuditLog? Audit { get; private set; }
+        public int? CheckedApplicantUserId { get; private set; }
 
         public Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
-            => Task.FromResult(HasOpen);
+        {
+            CheckedApplicantUserId = applicantUserId;
+            return Task.FromResult(HasOpen);
+        }
 
         public Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<MyPartnerApplicationDto>>(Saved?.ApplicantUserId == applicantUserId
@@ -56,12 +61,14 @@ public class PartnerRegistrationTests
                 : []);
 
         public Task<string> AddWithNewCodeAsync(PartnerApplication application, IReadOnlyList<PartnerApplicationDocument> documents, int year,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, Func<PartnerApplication, AuditLog>? buildAuditLog = null)
         {
             if (FailOnSave) throw new InvalidOperationException("database down");
             application.Code = $"PA-{year}-0013";
+            typeof(PartnerApplication).BaseType!.GetProperty("Id")!.SetValue(application, 13);
             Saved = application;
             SavedDocuments = documents;
+            Audit = buildAuditLog?.Invoke(application);
             return Task.FromResult(application.Code);
         }
     }
@@ -103,6 +110,48 @@ public class PartnerRegistrationTests
         Assert.Matches(@"/id-card-back-4\.png$", repository.SavedDocuments[3].FileKey);
         Assert.Equal(64, license.Sha256.Length);
         Assert.Equal(Pdf, storage.Files[license.FileKey]);
+    }
+
+    [Fact] // US-116 T1: chủ bãi CHƯA có tài khoản vẫn nộp được – hồ sơ không gắn tài khoản, Admin duyệt xong mới cấp (link kích hoạt).
+    public async Task Anonymous_submit_creates_submitted_application_without_account()
+    {
+        var repository = new FakeRepository();
+        var storage = new FakeStorage();
+
+        var receipt = await UseCase(repository, storage).ExecuteAsync(null, Valid(), ValidDocs());
+
+        Assert.Equal(("PA-2026-0013", nameof(PartnerApplicationStatus.Submitted)), (receipt.Code, receipt.Status));
+        var app = repository.Saved!;
+        Assert.Null(app.ApplicantUserId);
+        Assert.Equal(4, repository.SavedDocuments.Count);
+        Assert.Equal(4, storage.Files.Count);
+        Assert.Equal(0, repository.CheckedApplicantUserId);          // không đăng nhập: chỉ so trùng mã số thuế / email
+    }
+
+    [Fact] // Nộp hồ sơ ghi audit log cùng transaction: không đăng nhập thì không có người thực hiện.
+    public async Task Submit_writes_audit_log_with_or_without_account()
+    {
+        var anonymous = new FakeRepository();
+        await UseCase(anonymous, new FakeStorage()).ExecuteAsync(null, Valid(), ValidDocs());
+        Assert.Equal("PartnerApplication.Submitted", anonymous.Audit!.Action);
+        Assert.Equal(("PartnerApplication", "13"), (anonymous.Audit.EntityName, anonymous.Audit.EntityId));
+        Assert.Null(anonymous.Audit.UserId);
+        Assert.Contains("\"documentCount\":4", anonymous.Audit.NewValuesJson);
+
+        var loggedIn = new FakeRepository();
+        await UseCase(loggedIn, new FakeStorage()).ExecuteAsync(Applicant, Valid(), ValidDocs());
+        Assert.Equal(6, loggedIn.Audit!.UserId);
+    }
+
+    [Fact] // Không đăng nhập + trùng hồ sơ đang xử lý → 409, không ghi file.
+    public async Task Anonymous_submit_duplicate_of_open_application_is_conflict()
+    {
+        var storage = new FakeStorage();
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            UseCase(new FakeRepository { HasOpen = true }, storage).ExecuteAsync(null, Valid(), ValidDocs()));
+        Assert.Contains("mã số thuế / email", ex.Message);
+        Assert.DoesNotContain("PA-2026", ex.Message);                   // form public không lộ mã hồ sơ của người khác
+        Assert.Empty(storage.Files);
     }
 
     [Theory] // Thiếu giấy tờ bắt buộc → 400, không ghi file nào.

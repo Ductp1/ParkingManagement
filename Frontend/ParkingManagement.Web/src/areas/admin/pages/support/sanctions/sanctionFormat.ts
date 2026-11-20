@@ -152,8 +152,8 @@ export const toIssueRequest = (form: IssueForm) => {
 };
 
 export const SYNC_TARGETS = [
-  { key: 'userServiceSyncStatus', label: 'UserService', short: 'User' },
-  { key: 'parkingSyncStatus', label: 'ParkingService', short: 'Parking' },
+  { key: 'userServiceSyncStatus', label: 'Owner account', short: 'Account' },
+  { key: 'parkingSyncStatus', label: 'Lot listing', short: 'Lot' },
   { key: 'notificationSyncStatus', label: 'Notification', short: 'Notify' },
 ] as const;
 

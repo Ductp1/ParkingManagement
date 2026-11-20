@@ -55,15 +55,26 @@ public static class DependencyInjection
         // US-116: Partner Onboarding – Admin xem hồ sơ đối tác
         services.AddScoped<IListPartnerApplicationsUseCase, ListPartnerApplicationsUseCase>();
         services.AddScoped<IGetPartnerApplicationUseCase, GetPartnerApplicationUseCase>();
+        // US-116 T1: hồ sơ mới do Admin nhập thay đối tác (đối tác tự nộp: SubmitPartnerApplicationUseCase – US-053 bên dưới)
+        services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
+        // US-116 T3/T4: link bổ sung hồ sơ + đối tác gửi bổ sung; T8: đồng bộ trạng thái kích hoạt từ UserService
+        services.AddSingleton(PartnerEditLinkOptions.Default);
+        services.AddScoped<IIssuePartnerEditLinkUseCase, IssuePartnerEditLinkUseCase>();
+        services.AddScoped<IGetPartnerApplicationForEditUseCase, GetPartnerApplicationForEditUseCase>();
+        services.AddScoped<IResubmitPartnerApplicationUseCase, ResubmitPartnerApplicationUseCase>();
+        services.AddScoped<IOwnerActivationSync, OwnerActivationSync>();
         // US-116: thẩm định – bắt đầu xem xét, yêu cầu bổ sung, từ chối, hủy
         services.AddScoped<IStartPartnerReviewUseCase, StartPartnerReviewUseCase>();
         services.AddScoped<IRequestPartnerInfoUseCase, RequestPartnerInfoUseCase>();
         services.AddScoped<IRejectPartnerApplicationUseCase, RejectPartnerApplicationUseCase>();
         services.AddScoped<ICancelPartnerApplicationUseCase, CancelPartnerApplicationUseCase>();
+        services.AddScoped<IRetryPartnerCleanupUseCase, RetryPartnerCleanupUseCase>();                 // US-116: thử lại gỡ tài khoản sau khi hủy hồ sơ
+        services.AddScoped<IResendPartnerInfoRequestUseCase, ResendPartnerInfoRequestUseCase>();       // US-116: gửi lại email yêu cầu bổ sung
+        services.AddScoped<AdminService.Application.Features.Users.IAdminUserLifecycleUseCase, AdminService.Application.Features.Users.AdminUserLifecycleUseCase>();  // US-096: đình chỉ / xóa user
         // US-116: cấp tài khoản chủ bãi qua UserService (kèm tài khoản nhận tiền), gửi lại link kích hoạt
         services.AddScoped<IIssueOwnerAccountUseCase, IssueOwnerAccountUseCase>();
         services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();
-        // US-053: form public đăng ký đối tác + giấy tờ pháp lý (chỉ Admin xem)
+        // US-053 / US-116 T1: form public đăng ký đối tác (không cần đăng nhập) + giấy tờ pháp lý (chỉ Admin xem)
         services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
         services.AddScoped<IListMyPartnerApplicationsUseCase, ListMyPartnerApplicationsUseCase>();
         services.AddScoped<IListPartnerDocumentsUseCase, ListPartnerDocumentsUseCase>();

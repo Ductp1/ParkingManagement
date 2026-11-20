@@ -7,10 +7,10 @@
 export type CommissionPeriod = 'month' | 'prev-month' | '7d' | 'custom';
 
 export const PERIOD_OPTIONS: Array<{ value: CommissionPeriod; label: string }> = [
-  { value: 'month', label: 'Tháng này' },
-  { value: 'prev-month', label: 'Tháng trước' },
-  { value: '7d', label: '7 ngày qua' },
-  { value: 'custom', label: 'Tùy chọn' },
+  { value: 'month', label: 'This month' },
+  { value: 'prev-month', label: 'Last month' },
+  { value: '7d', label: 'Last 7 days' },
+  { value: 'custom', label: 'Custom' },
 ];
 
 /** Giới hạn của PaymentService (GetAdminCommissionSummaryUseCase.MaxRangeDays). */
@@ -82,9 +82,9 @@ export const resolveRange = (periodParam: string, fromParam: string, toParam: st
     case 'custom': {
       const from = toDayNumber(fromParam);
       const to = toDayNumber(toParam);
-      if (from === null || to === null) return { ok: false, period, error: 'Chọn ngày bắt đầu và ngày kết thúc hợp lệ.' };
-      if (from > to) return { ok: false, period, error: 'Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.' };
-      if (to - from + 1 > MAX_RANGE_DAYS) return { ok: false, period, error: `Khoảng thời gian tối đa ${MAX_RANGE_DAYS} ngày.` };
+      if (from === null || to === null) return { ok: false, period, error: 'Choose a valid start and end date.' };
+      if (from > to) return { ok: false, period, error: 'The start date must be on or before the end date.' };
+      if (to - from + 1 > MAX_RANGE_DAYS) return { ok: false, period, error: `The range can be at most ${MAX_RANGE_DAYS} days.` };
       return { ok: true, range: build(period, from, to) };
     }
     default:

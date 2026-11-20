@@ -10,12 +10,18 @@ export interface AdminQueryResult<T> {
   refetch: () => void;
 }
 
-/** 404/405/501 hoặc không kết nối được = endpoint chưa có/chưa chạy → hiển thị EmptyState thật. */
-const UNAVAILABLE = new Set([0, 404, 405, 501]);
+/** 405/501 hoặc 404 không có ProblemDetails = route chưa có → "chưa khả dụng", không hiển thị dữ liệu giả. */
+const UNAVAILABLE = new Set([404, 405, 501]);
+
+const browserOffline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
 
 export const toQueryStatus = (error: AdminApiError): AdminQueryStatus => {
+  if (error.status === 401) return 'sessionExpired';
   if (error.status === 403) return 'forbidden';
+  // 404 kèm ProblemDetails = service trả lời "không tìm thấy" cho bản ghi cụ thể.
+  if (error.status === 404 && error.problem) return 'notFound';
   if (UNAVAILABLE.has(error.status)) return 'unavailable';
+  if (error.network || (error.status === 0 && browserOffline())) return 'offline';
   return 'error';
 };
 
@@ -23,7 +29,7 @@ const toAdminError = (err: unknown): AdminApiError =>
   err instanceof AdminApiError ? err : new AdminApiError(0, err instanceof Error ? err.message : String(err));
 
 /**
- * Gọi API khi deps đổi, giữ status loading/ready/empty/error/forbidden/unavailable cho màn hình.
+ * Gọi API khi deps đổi, giữ status (xem AdminQueryStatus) cho màn hình.
  * fetcher = null → chưa đủ điều kiện gọi (ví dụ chưa chọn bãi), status = 'empty'.
  * isEmpty quyết định khi nào dữ liệu trả về được coi là rỗng (EmptyState).
  */

@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Net.Mail;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using AdminService.Domain.Entities;
 using AdminService.Domain.Enums;
@@ -8,14 +10,17 @@ namespace AdminService.Application.Features.PartnerOnboarding;
 
 // ===== REQUEST / DTO =====
 
-/// <summary>Người nộp lấy từ JWT (không nhận từ form): tài khoản đã đăng nhập + đã là chủ bãi chưa.</summary>
+/// <summary>Người nộp lấy từ JWT (không nhận từ form) khi đang đăng nhập: tài khoản + đã là chủ bãi chưa. Không đăng nhập → null.</summary>
 public sealed record PartnerApplicant(int UserId, bool IsLotOwner);
 
 /// <summary>Hồ sơ đăng ký của chính người nộp: chỉ trạng thái và phản hồi của Admin, không có giấy tờ.</summary>
 public sealed record MyPartnerApplicationDto(string Code, string Status, string BusinessName, string TaxCode, int DocumentCount,
     string? InfoRequestNote, string? RejectReason, DateTime SubmittedAtUtc, DateTime? UpdatedAtUtc);
 
-/// <summary>Form đăng ký đối tác chủ bãi (US-053, cần đăng nhập). Giấy tờ đi riêng trong <see cref="PartnerDocumentUpload"/>.</summary>
+/// <summary>
+/// Form đăng ký đối tác chủ bãi (US-053 / US-116 T1) – KHÔNG bắt buộc đăng nhập. Giấy tờ đi riêng trong <see cref="PartnerDocumentUpload"/>.
+/// Cũng là dữ liệu form khi Admin nhập hồ sơ thay đối tác và khi đối tác gửi bổ sung qua link (T4).
+/// </summary>
 public sealed record SubmitPartnerApplicationRequest(
     string? FullName, string? Email, string? Phone, string? Position,
     PartnerBusinessType? BusinessType, string? BusinessName, string? TaxCode, string? BusinessAddress,
@@ -50,11 +55,11 @@ public interface IPartnerRegistrationRepository
     Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Sinh mã PA-{năm}-{số thứ tự} rồi lưu hồ sơ + giấy tờ trong một SaveChanges.
+    /// Sinh mã PA-{năm}-{số thứ tự} rồi lưu hồ sơ + giấy tờ (+ audit log nếu có, cần Id hồ sơ) trong CÙNG một transaction.
     /// Trùng mã (hai người nộp cùng lúc) thì lấy số kế tiếp và thử lại. Trả mã đã lưu.
     /// </summary>
     Task<string> AddWithNewCodeAsync(PartnerApplication application, IReadOnlyList<PartnerApplicationDocument> documents, int year,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken, Func<PartnerApplication, AuditLog>? buildAuditLog = null);
 }
 
 public interface IPartnerDocumentQueries
@@ -156,25 +161,31 @@ public static class PartnerDocumentRules
 
 public interface ISubmitPartnerApplicationUseCase
 {
-    Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant applicant, SubmitPartnerApplicationRequest request,
+    Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant? applicant, SubmitPartnerApplicationRequest request,
         IReadOnlyList<PartnerDocumentUpload> documents, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// US-053 (T1): người dùng ĐÃ ĐĂNG NHẬP nộp hồ sơ làm chủ bãi + giấy tờ pháp lý. Hồ sơ gắn với tài khoản (ApplicantUserId),
-/// ở trạng thái Submitted và chờ Admin bắt đầu thẩm định (T2) rồi mới được duyệt / cấp quyền chủ bãi (T6).
-/// Đã là chủ bãi hoặc đang có hồ sơ chờ → 409. File lưu trước, lưu database lỗi thì xóa file đã ghi.
+/// US-053 / US-116 (T1): chủ bãi nộp hồ sơ đối tác + giấy tờ pháp lý, KHÔNG cần đăng nhập (đối tác chưa có tài khoản; Admin duyệt xong
+/// mới cấp – T6). Nếu người nộp đang đăng nhập thì hồ sơ gắn với tài khoản đó (ApplicantUserId) và khi duyệt, chính tài khoản đó được
+/// thêm quyền chủ bãi; tài khoản đã là chủ bãi → 409. Trùng email / mã số thuế với hồ sơ đang xử lý → 409.
+/// Hồ sơ ở trạng thái Submitted, audit log ghi cùng transaction. File lưu trước, lưu database lỗi thì xóa file đã ghi.
 /// </summary>
 public sealed partial class SubmitPartnerApplicationUseCase(
     IPartnerRegistrationRepository repository,
     IFileStorage storage,
     TimeProvider timeProvider) : ISubmitPartnerApplicationUseCase
 {
-    public async Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant applicant, SubmitPartnerApplicationRequest request,
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+
+    public async Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant? applicant, SubmitPartnerApplicationRequest request,
         IReadOnlyList<PartnerDocumentUpload> documents, CancellationToken cancellationToken = default)
     {
-        if (applicant.UserId <= 0) throw new ValidationException("Tài khoản người nộp không hợp lệ.");
-        if (applicant.IsLotOwner) throw new ConflictException("Tài khoản của bạn đã là chủ bãi, không cần đăng ký đối tác nữa.");
+        if (applicant is not null)
+        {
+            if (applicant.UserId <= 0) throw new ValidationException("Tài khoản người nộp không hợp lệ.");
+            if (applicant.IsLotOwner) throw new ConflictException("Tài khoản của bạn đã là chủ bãi, không cần đăng ký đối tác nữa.");
+        }
         if (!request.ConsentAccepted) throw new ValidationException("Vui lòng đồng ý với điều khoản xử lý dữ liệu để gửi hồ sơ.");
 
         var fullName = Text(request.FullName, "Họ tên người đăng ký", 200);
@@ -197,12 +208,14 @@ public sealed partial class SubmitPartnerApplicationUseCase(
         PartnerDocumentRules.EnsureSet(documents);
         var detected = documents.Select(d => (Upload: d, Kind: PartnerDocumentRules.Detect(d))).ToList();
 
-        if (await repository.HasOpenApplicationAsync(applicant.UserId, taxCode, email, cancellationToken))
-            throw new ConflictException("Bạn (hoặc mã số thuế / email này) đã có hồ sơ đang chờ xử lý. Vui lòng chờ Admin phản hồi.");
+        // Không đăng nhập: applicantUserId = 0 không khớp hồ sơ nào, chỉ so mã số thuế / email.
+        if (await repository.HasOpenApplicationAsync(applicant?.UserId ?? 0, taxCode, email, cancellationToken))
+            throw new ConflictException(
+                "Đã có hồ sơ đối tác đang được xử lý với mã số thuế / email này. Vui lòng chờ Admin phản hồi hoặc gọi hotline 1900 6868.");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var app = PartnerApplication.Submit(string.Empty, now);
-        app.ApplicantUserId = applicant.UserId;
+        app.ApplicantUserId = applicant?.UserId;
         app.FullName = fullName;
         app.Email = email;
         app.Phone = phone;
@@ -237,7 +250,24 @@ public sealed partial class SubmitPartnerApplicationUseCase(
                     upload.File.Content.Length, ContractSupport.Sha256Hex(upload.File.Content)));
             }
 
-            var code = await repository.AddWithNewCodeAsync(app, entities, now.Year, cancellationToken);
+            var code = await repository.AddWithNewCodeAsync(app, entities, now.Year, cancellationToken, saved => new AuditLog
+            {
+                SourceService = "AdminService",
+                UserId = applicant?.UserId,
+                Action = $"{PartnerApplicationAudit.EntityName}.Submitted",
+                EntityName = PartnerApplicationAudit.EntityName,
+                EntityId = saved.Id.ToString(CultureInfo.InvariantCulture),
+                NewValuesJson = JsonSerializer.Serialize(new
+                {
+                    code = saved.Code,
+                    status = saved.Status.ToString(),
+                    businessName = saved.BusinessName,
+                    taxCode = saved.TaxCode,
+                    lotCount = saved.LotCount,
+                    documentCount = entities.Count,
+                }, Json),
+                Reason = applicant is null ? "Đối tác tự nộp qua form đăng ký" : "Đối tác tự nộp qua form đăng ký (đã đăng nhập)",
+            });
             return new PartnerApplicationReceiptDto(code, app.Status.ToString(), now);
         }
         catch

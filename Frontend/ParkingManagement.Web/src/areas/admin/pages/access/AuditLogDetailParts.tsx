@@ -45,7 +45,7 @@ const InlineLink: React.FC<{ to: string | null; children: React.ReactNode }> = (
 /** AdminService ghi trực tiếp (US-096 / US-098 / US-116); service khác gửi qua sự kiện AuditRecorded (T-802). */
 export const AuditOriginNote: React.FC<{ log: AuditLogDetailDto }> = ({ log }) =>
   log.sourceService === OWN_SERVICE ? (
-    <Banner tone="info">Recorded directly by AdminService together with the change. Append-only: it cannot be edited or deleted.</Banner>
+    <Banner tone="info">Recorded together with the change. Audit entries cannot be edited or deleted.</Banner>
   ) : (
     <Banner tone="info">
       Sent by {log.sourceService} as an AuditRecorded event and stored by AdminService at the time the action happened. Append-only: it cannot be

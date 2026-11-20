@@ -1,7 +1,7 @@
 import React from 'react';
 import { AdminTitleBar } from '../layout/AdminTitleBar';
 import { StateBlock } from './StateBlock';
-import type { AdminQueryStatus } from '@/types/adminCommon';
+import type { AdminQueryIssue, AdminQueryStatus } from '@/types/adminCommon';
 import type { AdminApiError } from '@/api/adminClientApi';
 
 interface ListScreenProps {
@@ -53,12 +53,34 @@ export const SummaryRow: React.FC<{ items: Array<{ label: string; value: React.R
   </div>
 );
 
+interface QueryIssueStateProps {
+  status: AdminQueryIssue;
+  error: AdminApiError | null;
+  onRetry?: () => void;
+  bare?: boolean;
+  className?: string;
+  /** Tiêu đề riêng cho "không tìm thấy" (vd. "Parking lot not found"). */
+  notFoundTitle?: string;
+}
+
+/**
+ * Màn chung cho notFound / offline / sessionExpired để mọi trang hiển thị giống nhau.
+ * notFound ưu tiên message của server (ProblemDetails); offline có Retry; sessionExpired chỉ báo đang chuyển trang.
+ */
+export const QueryIssueState: React.FC<QueryIssueStateProps> = ({ status, error, onRetry, bare, className, notFoundTitle }) => {
+  if (status === 'notFound') {
+    return <StateBlock type="notFound" title={notFoundTitle} message={error?.problem ? error.message : undefined} bare={bare} className={className} />;
+  }
+  if (status === 'offline') return <StateBlock type="offline" onRetry={onRetry} bare={bare} className={className} />;
+  return <StateBlock type="sessionExpired" bare={bare} className={className} />;
+};
+
 export interface QueryCopy {
   emptyTitle: string;
   emptyMessage: string;
   errorTitle: string;
-  /** Tên service để mô tả khi endpoint chưa có. */
-  service: string;
+  /** Không hiển thị cho người dùng (giữ để màn cũ không phải sửa); sẽ bỏ khi gom PageHeader (P1-9). */
+  service?: string;
 }
 
 interface QueryStateProps {
@@ -83,17 +105,11 @@ export const QueryState: React.FC<QueryStateProps> = ({ status, error, copy, onR
     case 'forbidden':
       return <StateBlock type="noPermission" message={error?.message} bare={bare} />;
     case 'unavailable':
-      return (
-        <StateBlock
-          type="unavailable"
-          message={
-            error?.status === 0
-              ? `${copy.service} is not reachable through the API Gateway (${error.message}).`
-              : `${copy.service} has no endpoint for this screen yet (HTTP ${error?.status ?? 404}). Nothing is shown instead of sample data.`
-          }
-          bare={bare}
-        />
-      );
+      return <StateBlock type="unavailable" bare={bare} />;
+    case 'notFound':
+    case 'offline':
+    case 'sessionExpired':
+      return <QueryIssueState status={status} error={error} onRetry={onRetry} bare={bare} />;
     case 'error':
       return (
         <StateBlock
@@ -102,7 +118,7 @@ export const QueryState: React.FC<QueryStateProps> = ({ status, error, copy, onR
           message={
             error?.problem
               ? error.message
-              : `${copy.service} did not respond${error ? ` (HTTP ${error.status})` : ''}. Try again.`
+              : 'The server did not respond. Try again.'
           }
           onRetry={onRetry}
           bare={bare}

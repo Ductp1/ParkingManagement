@@ -41,7 +41,7 @@ const ToggleFlagDialog: React.FC<{
     <AdminDialog
       open
       title={`${flag.isEnabled ? 'Disable' : 'Enable'} ${flag.key}?`}
-      description="Takes effect immediately for every service that reads this flag. Recorded in AuditLogs."
+      description="Takes effect immediately for every service that reads this flag. Recorded in the audit log."
       onClose={onClose}
       onConfirm={confirm}
       confirmLabel={flag.isEnabled ? 'Disable flag' : 'Enable flag'}
@@ -67,7 +67,7 @@ export const FeatureFlagsPage: React.FC = () => {
   const flags = query.data?.featureFlags ?? [];
 
   return (
-    <ListScreen title="Feature Flags" subtitle={query.data ? `FeatureFlags · ${formatNumber(flags.length)} flags (US-099)` : '—'}>
+    <ListScreen title="Feature Flags" subtitle={query.data ? `${formatNumber(flags.length)} ${flags.length === 1 ? 'flag' : 'flags'}` : undefined}>
       <DataTable
         rows={query.status === 'ready' ? flags : []}
         rowKey={(r) => r.key}

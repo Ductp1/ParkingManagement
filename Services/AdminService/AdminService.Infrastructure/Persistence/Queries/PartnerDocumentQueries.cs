@@ -11,7 +11,7 @@ public sealed class PartnerDocumentQueries(AdminDbContext db) : IPartnerDocument
 
     public async Task<IReadOnlyList<PartnerDocumentRecord>> ListAsync(int applicationId, CancellationToken cancellationToken)
         => await db.PartnerApplicationDocuments.AsNoTracking()
-            .Where(d => d.PartnerApplicationId == applicationId)
+            .Where(d => d.PartnerApplicationId == applicationId && d.SupersededAtUtc == null)
             .OrderBy(d => d.DocumentType).ThenBy(d => d.Id)
             .Select(d => new PartnerDocumentRecord(d.Id, d.PartnerApplicationId, d.DocumentType, d.FileKey, d.ContentType,
                 d.OriginalFileName, d.SizeBytes, d.CreatedAtUtc))

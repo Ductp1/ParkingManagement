@@ -6,7 +6,7 @@ export const KYB_BASE = '/admin/operations/kyb-review';
 export const kybCode = (id: number) => `#${id}`;
 
 /** Chủ bãi: tên doanh nghiệp thuộc UserService, ParkingService chỉ trả OwnerProfileId. */
-export const ownerLabel = (ownerProfileId: number) => `OwnerProfile #${ownerProfileId}`;
+export const ownerLabel = (ownerProfileId: number) => `Owner #${ownerProfileId}`;
 
 /** "Done · 16/10/2026" / "Yes · 16/10/2026" / "No" cho cột Field survey. */
 export const surveyText = (required: boolean, at: string | null, completedAt: string | null) =>

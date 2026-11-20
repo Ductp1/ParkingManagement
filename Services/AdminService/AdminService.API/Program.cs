@@ -14,14 +14,15 @@ builder.Services.AddJwtAuth(Path.GetFullPath(
 builder.Services.AddAdminApplication();                                  // Application: Use Case
 builder.Services.AddAdminInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 builder.Services.AddInternalEventReceiver();                             // T-802: khóa nội bộ cho /internal/v1/events
-builder.Services.AddPartnerRegistrationRateLimit();                      // US-053: chống spam form public đăng ký đối tác
+builder.Services.AddPartnerRegistrationRateLimit();                      // US-053 / US-116 T1: chống spam form public đăng ký đối tác
+builder.Services.AddPartnerApplicationRateLimit(builder.Configuration);    // US-116 T4: mở / gửi link bổ sung hồ sơ theo IP
 
 var app = builder.Build();
 
 // Tạo/cập nhật database riêng của service + nạp dữ liệu demo (bật/tắt trong appsettings → "Database").
 await app.InitializeDatabaseAsync<AdminDbContext>();
 
-app.UseRateLimiter();
+app.UsePartnerApplicationRateLimit();                                     // forwarded headers + UseRateLimiter (một lần), trước MapControllers
 app.UseServiceDefaults();
 app.Run();
 

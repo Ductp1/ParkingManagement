@@ -10,4 +10,5 @@ public enum KycStatus { NotSubmitted = 0, Pending = 1, Verified = 2, Rejected = 
 
 public enum KycDocumentType { CitizenId = 1, DriverLicense = 2 }
 
-public enum OtpPurpose { Register = 1, ResetPassword = 2, ChangeContact = 3, Login = 4 }
+/// <summary>OwnerActivation (US-116 U2–U5): link kích hoạt tài khoản chủ bãi do Admin cấp – lưu SHA-256 của token, không phải mã 6 số.</summary>
+public enum OtpPurpose { Register = 1, ResetPassword = 2, ChangeContact = 3, Login = 4, OwnerActivation = 5 }

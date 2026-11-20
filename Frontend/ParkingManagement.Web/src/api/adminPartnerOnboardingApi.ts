@@ -1,9 +1,11 @@
 import { adminFileRequest, adminRequest, cleanParams } from './adminClientApi';
 import type { PagedResult } from '@/types/adminCommon';
 import type {
+  AdminCreatePartnerApplicationRequest,
   IssueOwnerAccountRequest,
   PartnerApplicationDetailDto,
   PartnerApplicationListQuery,
+  PartnerEditLinkDto,
   PartnerApplicationSummaryDto,
   PartnerDocumentDto,
   PartnerReasonRequest,
@@ -22,6 +24,10 @@ export const adminPartnerOnboardingApi = {
       params: cleanParams({ status: query.status, search: query.search, page: query.page, pageSize: query.pageSize }),
     }),
 
+  /** T1 – Admin nhập hồ sơ thay đối tác (nhận qua điện thoại); trả chi tiết hồ sơ mới (Submitted). */
+  create: (data: AdminCreatePartnerApplicationRequest) =>
+    adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: BASE, data }),
+
   /** A2 – chi tiết hồ sơ. */
   getById: (id: number) => adminRequest<PartnerApplicationDetailDto>({ method: 'GET', url: `${BASE}/${id}` }),
 
@@ -39,6 +45,9 @@ export const adminPartnerOnboardingApi = {
   requestInfo: (id: number, data: PartnerRequestInfoRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/request-info`, data }),
 
+  /** T3 – hồ sơ NeedsMoreInfo: cấp (lại) link bổ sung một lần, 7 ngày; link cũ hết hiệu lực. */
+  issueEditLink: (id: number) => adminRequest<PartnerEditLinkDto>({ method: 'POST', url: `${BASE}/${id}/edit-link` }),
+
   /** A9 – UnderReview → AccountIssued: UserService tạo tài khoản chủ bãi; lưu tài khoản nhận thanh toán. */
   issueAccount: (id: number, data: IssueOwnerAccountRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/issue-account`, data }),
@@ -51,7 +60,14 @@ export const adminPartnerOnboardingApi = {
   reject: (id: number, data: PartnerReasonRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/reject`, data }),
 
-  /** A12 – hủy hồ sơ. */
+  /** US-116 – gửi lại email yêu cầu bổ sung (link mới, link cũ hết hiệu lực); dueAtUtc = null giữ hạn cũ. */
+  resendInfoRequest: (id: number, data: { dueAtUtc?: string | null; rowVersion?: string | null } = {}) =>
+    adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/resend-info-request`, data }),
+
+  /** US-116 – thử lại gỡ tài khoản chủ bãi bên UserService sau khi hủy hồ sơ (cleanup Failed / Pending). */
+  retryCleanup: (id: number) => adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/retry-cleanup` }),
+
+  /** A12 – hủy / bỏ hồ sơ (kể cả đã cấp tài khoản mà chủ bãi chưa kích hoạt). */
   cancel: (id: number, data: PartnerReasonRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/cancel`, data }),
 };

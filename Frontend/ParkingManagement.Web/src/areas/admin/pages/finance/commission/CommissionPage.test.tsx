@@ -118,10 +118,10 @@ describe('CommissionPage (US-079)', () => {
     expect(signal).toBeInstanceOf(AbortSignal);
 
     await waitFor(() => expect(within(kpi('GMV')).getByText('₫250.000')).toBeTruthy());
-    expect(within(kpi('Đã hoàn')).getByText('₫20.000')).toBeTruthy();
-    expect(within(kpi('Doanh thu thuần')).getByText('₫230.000')).toBeTruthy();
-    await waitFor(() => expect(within(kpi('Hoa hồng')).getByText('₫13.750')).toBeTruthy());
-    expect(within(kpi('Tỷ lệ hiệu dụng')).getByText('5,98%')).toBeTruthy();
+    expect(within(kpi('Refunded')).getByText('₫20.000')).toBeTruthy();
+    expect(within(kpi('Net revenue')).getByText('₫230.000')).toBeTruthy();
+    await waitFor(() => expect(within(kpi('Commission')).getByText('₫13.750')).toBeTruthy());
+    expect(within(kpi('Effective rate')).getByText('5,98%')).toBeTruthy();
     expect(screen.getByText(/01\/11\/2026 – 06\/11\/2026/)).toBeTruthy();
   });
 
@@ -130,11 +130,11 @@ describe('CommissionPage (US-079)', () => {
 
     const tile = await screen.findByTestId('kpi-pending');
     await waitFor(() => expect(tile.getAttribute('data-tone')).toBe('warning'));
-    expect(tile.getAttribute('title')).toBe('Đang chờ job tính, không phải 0');
+    expect(tile.getAttribute('title')).toBe('Waiting to be calculated – not zero');
     await waitFor(() => expect(within(tile).getByText('1')).toBeTruthy());           // đếm lên xong (count-up)
-    expect(within(kpi('Hoa hồng')).getByText(/Chưa đủ · còn 1 giao dịch chờ tính/)).toBeTruthy();
+    expect(within(kpi('Commission')).getByText(/Incomplete · 1 payments still pending/)).toBeTruthy();
     const vincom = (await screen.findByText('Vincom Bà Triệu')).closest('tr') as HTMLElement;
-    expect(within(vincom).getByText('1 chờ tính')).toBeTruthy();
+    expect(within(vincom).getByText('1 pending')).toBeTruthy();
   });
 
   it('bảng theo bãi ghép tỷ lệ (AdminService) với số hoa hồng (PaymentService), link hợp đồng đúng URL', async () => {
@@ -142,26 +142,26 @@ describe('CommissionPage (US-079)', () => {
 
     const row = (await screen.findByText('Bãi Xanh Ba Đình')).closest('tr') as HTMLElement;
     expect(within(row).getAllByText('7,5%')).toHaveLength(2);                          // tỷ lệ hiện tại + tỷ lệ hiệu dụng
-    expect(within(row).getByText('Hợp đồng')).toBeTruthy();
+    expect(within(row).getByText('Contract')).toBeTruthy();
     await waitFor(() => expect(within(row).getByText('₫9.750')).toBeTruthy());
     expect(within(row).getByText('Công ty Bãi Xanh')).toBeTruthy();
     const link = within(row).getByRole('link', { name: /HD-SP-2026-0011 · v2/ });
     expect(link.getAttribute('href')).toBe('/admin/operations/lot-contracts?q=HD-SP-2026-0011');
 
     const vincom = screen.getByText('Vincom Bà Triệu').closest('tr') as HTMLElement;
-    expect(within(vincom).getByText('Mặc định')).toBeTruthy();
-    expect(within(vincom).getByText('Chưa có hợp đồng đã ký')).toBeTruthy();
-    expect(within(vincom).getByText('OwnerProfile #31')).toBeTruthy();                 // chủ bãi lấy từ sổ hoa hồng
+    expect(within(vincom).getByText('Default')).toBeTruthy();
+    expect(within(vincom).getByText('No signed contract')).toBeTruthy();
+    expect(within(vincom).getByText('Owner #31')).toBeTruthy();                 // chủ bãi lấy từ sổ hoa hồng
   });
 
   it('banner tỷ lệ mặc định + thay đổi đã lên lịch + link đổi tỷ lệ', async () => {
     renderAt();
 
-    const banner = (await screen.findByText(/Tỷ lệ mặc định hiện tại/)).closest('[role="status"]') as HTMLElement;
+    const banner = (await screen.findByText(/Current default rate/)).closest('[role="status"]') as HTMLElement;
     await waitFor(() => expect(within(banner).getByText('10%')).toBeTruthy());
     expect(within(banner).getByText('12%')).toBeTruthy();
     expect(banner.textContent).toContain('20/11/2026 08:00 ICT');
-    expect(within(banner).getByRole('link', { name: 'Đổi tỷ lệ mặc định' }).getAttribute('href')).toBe(
+    expect(within(banner).getByRole('link', { name: 'Change default rate' }).getAttribute('href')).toBe(
       '/admin/access/system-settings/DEFAULT_COMMISSION_RATE'
     );
   });
@@ -170,7 +170,7 @@ describe('CommissionPage (US-079)', () => {
     renderAt();
     await waitFor(() => expect(h.summary).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByLabelText('Kỳ'), { target: { value: 'prev-month' } });
+    fireEvent.change(screen.getByLabelText('Period'), { target: { value: 'prev-month' } });
 
     await waitFor(() => expect(location()).toContain('period=prev-month'));
     await waitFor(() => expect(h.summary).toHaveBeenCalledTimes(2));
@@ -189,7 +189,7 @@ describe('CommissionPage (US-079)', () => {
     renderAt();
     await waitFor(() => expect(h.allRates).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByLabelText('Nguồn tỷ lệ'), { target: { value: 'DefaultConfig' } });
+    fireEvent.change(screen.getByLabelText('Rate source'), { target: { value: 'DefaultConfig' } });
 
     await waitFor(() => expect(location()).toContain('source=DefaultConfig'));
     await waitFor(() => expect(h.allRates).toHaveBeenCalledTimes(2));
@@ -199,21 +199,21 @@ describe('CommissionPage (US-079)', () => {
   it('kỳ tùy chọn sai → báo lỗi, không gọi PaymentService', async () => {
     renderAt('/admin/finance/commission?period=custom&from=2026-11-05&to=2026-11-01');
 
-    expect(await screen.findByText(/Ngày bắt đầu phải trước hoặc bằng ngày kết thúc/)).toBeTruthy();
+    expect(await screen.findByText(/The start date must be on or before the end date/)).toBeTruthy();
     await waitFor(() => expect(h.allRates).toHaveBeenCalled());
     expect(h.summary).not.toHaveBeenCalled();
   });
 
   it('PaymentService lỗi: vẫn hiện bảng tỷ lệ, cột tiền "—", có nút Thử lại', async () => {
-    h.summary.mockRejectedValueOnce(new AdminApiError(500, 'PaymentService lỗi nội bộ.')).mockResolvedValue(summary());
+    h.summary.mockRejectedValueOnce(new AdminApiError(500, 'HTTP 500')).mockResolvedValue(summary());
     renderAt();
 
-    const banner = (await screen.findByText(/Không tải được số hoa hồng \(PaymentService\)/)).closest('[role="alert"]') as HTMLElement;
+    const banner = (await screen.findByText(/Couldn't load commission figures\./)).closest('[role="alert"]') as HTMLElement;
     const row = screen.getByText('Bãi Xanh Ba Đình').closest('tr') as HTMLElement;
     expect(within(row).getByText('7,5%')).toBeTruthy();                                // chỉ tỷ lệ hiện tại – hiệu dụng là "—"
     expect(within(row).getAllByText('—').length).toBeGreaterThan(0);
 
-    fireEvent.click(within(banner).getByRole('button', { name: 'Thử lại' }));
+    fireEvent.click(within(banner).getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(h.summary).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(within(screen.getByText('Bãi Xanh Ba Đình').closest('tr') as HTMLElement).getByText('₫9.750')).toBeTruthy());
   });
@@ -222,10 +222,10 @@ describe('CommissionPage (US-079)', () => {
     h.allRates.mockRejectedValue(new AdminApiError(503, 'AdminService chưa sẵn sàng.'));
     renderAt();
 
-    expect(await screen.findByText(/Không tải được tỷ lệ hoa hồng \(AdminService\)/)).toBeTruthy();
-    const row = (await screen.findByText('Bãi #11')).closest('tr') as HTMLElement;
+    expect(await screen.findByText(/Couldn't load commission rates/)).toBeTruthy();
+    const row = (await screen.findByText('Lot #11')).closest('tr') as HTMLElement;
     await waitFor(() => expect(within(row).getByText('₫9.750')).toBeTruthy());
-    await waitFor(() => expect(within(kpi('Hoa hồng')).getByText('₫13.750')).toBeTruthy());
+    await waitFor(() => expect(within(kpi('Commission')).getByText('₫13.750')).toBeTruthy());
   });
 
   it('bãi có giao dịch nhưng không có trong danh sách tỷ lệ vẫn hiện, không ẩn', async () => {
@@ -234,27 +234,27 @@ describe('CommissionPage (US-079)', () => {
     }));
     renderAt();
 
-    const row = (await screen.findByText('Bãi #99')).closest('tr') as HTMLElement;
-    expect(within(row).getByText('Không có trong danh sách tỷ lệ')).toBeTruthy();
-    expect(within(row).getByText('Mặc định')).toBeTruthy();
+    const row = (await screen.findByText('Lot #99')).closest('tr') as HTMLElement;
+    expect(within(row).getByText('Not in the rate list')).toBeTruthy();
+    expect(within(row).getByText('Default')).toBeTruthy();
   });
 
   it('ParkingService thiếu → banner partial', async () => {
     h.allRates.mockResolvedValue(rates({ partial: true, partialReason: 'ParkingService không phản hồi kịp (3 giây).' }));
     renderAt();
-    expect(await screen.findByText(/Thiếu thông tin một số bãi từ ParkingService/)).toBeTruthy();
+    expect(await screen.findByText(/Some lot details could not be loaded/)).toBeTruthy();
   });
 
   it('kỳ không có giao dịch → empty state', async () => {
     h.summary.mockResolvedValue(summary({ totals: totals(0, 0, 0, 0, 0), byLot: [], byOwner: [], byRateSource: [], series: [] }));
     renderAt();
-    expect(await screen.findByText('Không có giao dịch trong kỳ')).toBeTruthy();
+    expect(await screen.findByText('No payments in this period')).toBeTruthy();
   });
 
   it('tab Theo chủ bãi: link đối tác đúng URL, đổi tab giữ bộ lọc', async () => {
     renderAt('/admin/finance/commission?period=7d');
 
-    fireEvent.click(await screen.findByRole('link', { name: 'Theo chủ bãi' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'By owner' }));
     await waitFor(() => expect(location()).toBe('/admin/finance/commission/owners?period=7d'));
 
     const link = await screen.findByRole('link', { name: 'Công ty Bãi Xanh' });
@@ -262,13 +262,13 @@ describe('CommissionPage (US-079)', () => {
     await waitFor(() => expect(within(link.closest('tr') as HTMLElement).getByText('₫9.750')).toBeTruthy());
   });
 
-  it('tab Theo nguồn tỷ lệ: Hợp đồng và Mặc định', async () => {
+  it('tab Theo nguồn tỷ lệ: Contract và Default', async () => {
     renderAt('/admin/finance/commission/sources');
 
-    const contract = (await screen.findByText('LotContract')).closest('tr') as HTMLElement;
+    const contract = (await screen.findByRole('cell', { name: 'Contract' })).closest('tr') as HTMLElement;
     await waitFor(() => expect(within(contract).getByText('₫9.750')).toBeTruthy());
     expect(within(contract).getByText('7,5%')).toBeTruthy();
-    const fallback = screen.getByText('DefaultConfig').closest('tr') as HTMLElement;
+    const fallback = screen.getByRole('cell', { name: 'Default' }).closest('tr') as HTMLElement;
     expect(within(fallback).getByText('₫4.000')).toBeTruthy();
   });
 
@@ -284,7 +284,7 @@ describe('CommissionPage (US-079)', () => {
     await waitFor(() => expect(within(screen.getByText('Bãi Xanh Ba Đình').closest('tr') as HTMLElement).getByText('₫9.750')).toBeTruthy());
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Xuất CSV dữ liệu tổng hợp đang hiển thị' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Export the totals shown as CSV' }));
     });
 
     expect(fileName).toBe('commission_2026-11-01_2026-11-06.csv');

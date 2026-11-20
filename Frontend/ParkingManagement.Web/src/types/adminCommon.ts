@@ -19,7 +19,22 @@ export interface PageQuery {
 /**
  * Trạng thái hiển thị của một truy vấn trong admin:
  * - forbidden: 403 → màn "No permission"
- * - unavailable: 404/405/501/lỗi mạng tới endpoint chưa có → EmptyState thật, không hiển thị dữ liệu giả
+ * - sessionExpired: 401 → xóa phiên, chuyển về /login (không hiện lỗi chung)
+ * - notFound: 404 có ProblemDetails → bản ghi không tồn tại / đã xóa
+ * - unavailable: 404 không body / 405 / 501 → chức năng chưa có, không hiển thị dữ liệu giả
+ * - offline: không tới được server → báo mất kết nối + Retry
  * - error: lỗi khác → ErrorState + Retry
  */
-export type AdminQueryStatus = 'loading' | 'ready' | 'empty' | 'error' | 'forbidden' | 'unavailable';
+export type AdminQueryStatus =
+  | 'loading'
+  | 'ready'
+  | 'empty'
+  | 'error'
+  | 'forbidden'
+  | 'unavailable'
+  | 'notFound'
+  | 'offline'
+  | 'sessionExpired';
+
+/** Các trạng thái lỗi có màn riêng (ngoài error/forbidden/unavailable) – dùng chung QueryIssueState. */
+export type AdminQueryIssue = 'notFound' | 'offline' | 'sessionExpired';

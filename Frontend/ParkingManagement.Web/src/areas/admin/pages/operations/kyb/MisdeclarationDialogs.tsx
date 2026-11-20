@@ -109,7 +109,7 @@ const ReportDialog: React.FC<ReportDialogProps> = ({ open, view, summary, onClos
     <AdminDialog
       open={open}
       title="Report misdeclaration"
-      description="Opens a LotMisdeclarationCase for this Active lot. One open case per lot."
+      description="Opens a misdeclaration case for this live lot. Only one case can be open per lot."
       onClose={close}
       onConfirm={confirm}
       confirmLabel={suspected ? 'Suspend lot' : 'Send warning'}

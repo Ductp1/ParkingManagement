@@ -12,12 +12,12 @@ import type {
  * Một nguồn chưa có / lỗi → cột của nguồn đó là null (hiện "—"), phần còn lại vẫn hiển thị.
  */
 
-export const SOURCE_LABEL: Record<CommissionRateSource, string> = { LotContract: 'Hợp đồng', DefaultConfig: 'Mặc định' };
+export const SOURCE_LABEL: Record<CommissionRateSource, string> = { LotContract: 'Contract', DefaultConfig: 'Default' };
 
 export const REASON_LABEL: Record<CommissionRateReason, string> = {
-  BeforeEffective: 'Hợp đồng chưa đến ngày hiệu lực',
-  AfterExpiry: 'Hợp đồng đã hết hạn',
-  NoSignedContract: 'Chưa có hợp đồng đã ký',
+  BeforeEffective: 'Contract not in effect yet',
+  AfterExpiry: 'Contract expired',
+  NoSignedContract: 'No signed contract',
 };
 
 export const isRateSource = (v: string): v is CommissionRateSource => v === 'LotContract' || v === 'DefaultConfig';
@@ -125,7 +125,7 @@ export const buildLotRows = (
     const ledgerSource = m.rateSources.length === 1 ? m.rateSources[0] : null;
     const row: CommissionLotRow = {
       parkingLotId: m.parkingLotId,
-      lotName: `Bãi #${m.parkingLotId}`,
+      lotName: `Lot #${m.parkingLotId}`,
       district: null,
       ownerProfileId: m.ownerProfileId,
       ownerName: ownerNameOf(rates, m.ownerProfileId),
@@ -213,11 +213,11 @@ export const buildSourceRows = (rates: CommissionRateListDto | null, summary: Ad
 export type LotSort = 'commission' | 'gross' | 'rate' | 'pending' | 'name';
 
 export const LOT_SORT_OPTIONS: Array<{ value: LotSort; label: string }> = [
-  { value: 'commission', label: 'Hoa hồng ↓' },
+  { value: 'commission', label: 'Commission ↓' },
   { value: 'gross', label: 'GMV ↓' },
-  { value: 'rate', label: 'Tỷ lệ hiện tại ↓' },
-  { value: 'pending', label: 'Chờ tính ↓' },
-  { value: 'name', label: 'Tên bãi A→Z' },
+  { value: 'rate', label: 'Current rate ↓' },
+  { value: 'pending', label: 'Pending ↓' },
+  { value: 'name', label: 'Lot name A→Z' },
 ];
 
 export const isLotSort = (v: string): v is LotSort => LOT_SORT_OPTIONS.some((o) => o.value === v);

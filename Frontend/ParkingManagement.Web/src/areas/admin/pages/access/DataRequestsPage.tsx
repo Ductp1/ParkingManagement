@@ -19,6 +19,8 @@ import { useAdminToast } from '../../hooks/useAdminToast';
 import { useListParams } from '../../hooks/useListParams';
 import { humanizeEnum } from '../../utils/enumLabels';
 import { formatDateTimeIct, orEmpty } from '../../utils/format';
+import { AuditTrailLink } from '../../components/AuditTrailLink';
+import { DSR_AUDIT_ENTITY, auditLogListLink } from './auditLogFormat';
 
 const STATUSES = Object.values(DataRequestStatus);
 const TYPES = Object.values(DataRequestType);
@@ -78,6 +80,10 @@ const DataRequestDrawer: React.FC<{ request: AdminDataRequestDto; onClose: () =>
               <DetailRow label="Completed">{formatDateTimeIct(request.completedAtUtc)}</DetailRow>
               <DetailRow label="Handled by">{request.handledByUserId ? `Admin #${request.handledByUserId}` : '—'}</DetailRow>
               <DetailRow label="Note">{orEmpty(request.resultNote)}</DetailRow>
+              {/* T-803: lịch sử xử lý yêu cầu trong Audit Log (US-100). */}
+              <DetailRow label="History">
+                <CellLink to={auditLogListLink({ service: 'UserService', entity: DSR_AUDIT_ENTITY, entityId: String(request.id) })}>View in audit log</CellLink>
+              </DetailRow>
             </DetailList>
           </section>
 
@@ -123,7 +129,7 @@ const DataRequestDrawer: React.FC<{ request: AdminDataRequestDto; onClose: () =>
       <ActionDialog
         open={dialog === 'complete'}
         title="Mark as corrected"
-        description="Status → Completed. The user sees your note on their request."
+        description="The request is marked completed. The user sees your note on their request."
         confirmLabel="Mark corrected"
         field={{
           label: 'What was changed',
@@ -144,7 +150,7 @@ const DataRequestDrawer: React.FC<{ request: AdminDataRequestDto; onClose: () =>
       <ActionDialog
         open={dialog === 'reject'}
         title="Reject request"
-        description="Status → Rejected. The user sees the reason on their request."
+        description="The request is rejected. The user sees the reason on their request."
         confirmLabel="Reject"
         destructive
         field={{
@@ -225,14 +231,18 @@ export const DataRequestsPage: React.FC<{ subTabs: SubTab[] }> = ({ subTabs }) =
       title="Security & Privacy"
       subtitle={subtitle}
       actions={
-        <AdminButton variant="onNavy" icon="refresh" onClick={query.refetch}>
-          Refresh
-        </AdminButton>
+        <>
+          {/* T-803: mọi thao tác trên yêu cầu dữ liệu cá nhân trong Audit Log (US-100). */}
+          <AuditTrailLink to={auditLogListLink({ service: 'UserService', entity: DSR_AUDIT_ENTITY })} />
+          <AdminButton variant="onNavy" icon="refresh" onClick={query.refetch}>
+            Refresh
+          </AdminButton>
+        </>
       }
       top={
         <>
           <SubTabs tabs={subTabs} />
-          <Banner tone="info">Personal-data requests under Decree 13/2023 (US-007). Due is the legal deadline; oldest deadlines are listed first.</Banner>
+          <Banner tone="info">Personal-data requests under Decree 13/2023. Due is the legal deadline; oldest deadlines are listed first.</Banner>
         </>
       }
       filters={

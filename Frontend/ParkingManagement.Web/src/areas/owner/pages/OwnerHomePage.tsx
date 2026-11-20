@@ -16,7 +16,8 @@ import { StaleDataBanner } from '../components/capacity/StaleDataBanner';
 export const OwnerHomePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAppSelector((s) => s.auth);
-  const ownerProfileId = user?.id || 2;
+  // OwnerProfile.Id của chủ bãi đang đăng nhập (KHÔNG phải User.Id); 0 = tài khoản không có hồ sơ chủ bãi → API trả lỗi thay vì đọc nhầm tenant khác.
+  const ownerProfileId = user?.ownerProfileId ?? 0;
 
   // Trạng thái Rời nền tảng (UI-21) & Stale Data (UI-27)
   const [exitStatus, setExitStatus] = useState<OwnerExitStatusDto | null>(null);

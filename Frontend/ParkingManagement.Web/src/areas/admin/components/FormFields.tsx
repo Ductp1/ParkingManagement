@@ -1,7 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { AdminIcon } from './AdminIcon';
 import { ADMIN_ICONS } from './adminIcons';
-import { FutureTag } from './FutureTag';
 import { formatNumber } from '../utils/format';
 import { animate, motionMs, motionPx, motionVar } from '../utils/motion';
 
@@ -27,15 +26,14 @@ interface FieldShellProps {
   label: string;
   htmlFor: string;
   required?: boolean;
-  future?: boolean;
   counter?: string;
   helper?: string;
   error?: string | null;
   children: React.ReactNode;
 }
 
-/** Khung chung của Input/Select/Textarea/Date (Figma): nhãn body/strong (+ * + Future), hộp 32px, message body/small. */
-const FieldShell: React.FC<FieldShellProps> = ({ label, htmlFor, required, future, counter, helper, error, children }) => {
+/** Khung chung của Input/Select/Textarea/Date (Figma): nhãn body/strong (+ *), hộp 32px, message body/small. */
+const FieldShell: React.FC<FieldShellProps> = ({ label, htmlFor, required, counter, helper, error, children }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   useShakeOnError(rootRef, error);
   return (
@@ -45,7 +43,6 @@ const FieldShell: React.FC<FieldShellProps> = ({ label, htmlFor, required, futur
           {label}
         </label>
         {required && <span className="adm-type-body-strong text-(--admin-status-danger)">*</span>}
-        {future && <FutureTag />}
         {counter && <span className="adm-type-body-small ml-auto text-(--admin-text-secondary)">{counter}</span>}
       </div>
       {children}
@@ -86,15 +83,14 @@ interface TextFieldProps {
   readOnly?: boolean;
   disabled?: boolean;
   maxLength?: number;
-  future?: boolean;
   suffix?: string;
 }
 
 /** Shell/Input – Default / Focus / Error / Disabled / Read-only. */
-export const TextField: React.FC<TextFieldProps> = ({ label, value, onChange, required, placeholder, helper, error, type = 'text', readOnly, disabled, maxLength, future, suffix }) => {
+export const TextField: React.FC<TextFieldProps> = ({ label, value, onChange, required, placeholder, helper, error, type = 'text', readOnly, disabled, maxLength, suffix }) => {
   const id = useId();
   return (
-    <FieldShell label={label} htmlFor={id} required={required} helper={helper} error={error} future={future}>
+    <FieldShell label={label} htmlFor={id} required={required} helper={helper} error={error}>
       <div className="relative flex">
         <input
           id={id}

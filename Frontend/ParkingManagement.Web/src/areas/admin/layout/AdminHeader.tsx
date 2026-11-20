@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { AdminSection, AdminTab } from '../navigation';
+import { visibleTabs, type AdminSection, type AdminTab } from '../navigation';
 import type { NotificationDto, NotificationInboxDto } from '@/types/notification';
 import type { AdminQueryResult } from '../hooks/useAdminQuery';
 import { AdminIcon } from '../components/AdminIcon';
@@ -45,9 +45,14 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
           {separator}
           {activeTab && detailLabel ? (
             <>
-              <Link to={activeTab.path} className="hover:underline">
-                {activeTab.label}
-              </Link>
+              {/* Danh sách chưa có nguồn (vd. Bookings) thì breadcrumb chỉ là chữ, không link tới màn trống. */}
+              {activeTab.available ? (
+                <Link to={activeTab.path} className="hover:underline">
+                  {activeTab.label}
+                </Link>
+              ) : (
+                <span>{activeTab.label}</span>
+              )}
               {separator}
               <span key={detailLabel} className="adm-type-breadcrumb-current adm-motion-fade" aria-current="page">
                 {detailLabel}
@@ -98,7 +103,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
       </div>
 
       <nav aria-label={`${section.label} tabs`} className="flex h-10 items-start gap-4 overflow-x-auto border-b border-(--admin-border-default) px-4">
-        {section.tabs.map((tab) => {
+        {visibleTabs(section).map((tab) => {
           const isActive = tab.key === activeTab?.key;
           return (
             <Link

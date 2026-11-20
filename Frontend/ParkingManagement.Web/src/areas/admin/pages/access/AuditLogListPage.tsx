@@ -16,7 +16,7 @@ import { useAdminToast } from '../../hooks/useAdminToast';
 import { DEFAULT_PAGE_SIZE, useListParams } from '../../hooks/useListParams';
 import { formatDateTime, formatDateTimeIct, formatNumber } from '../../utils/format';
 import { saveFile } from '../operations/lot-contracts/lotContractFormat';
-import { AUDIT_LOG_BASE, OWN_SERVICE, auditUserText } from './auditLogFormat';
+import { AUDIT_LOG_BASE, OWN_SERVICE, auditUserText, withSelectedFacet } from './auditLogFormat';
 import { AuditChangesTable, AuditEntryList, AuditOriginNote, AuditRelatedLinks } from './AuditLogDetailParts';
 
 /** Ngày (YYYY-MM-DD) theo giờ ICT → ISO UTC; to = 00:00 ngày kế tiếp vì API coi to là mốc không bao gồm. */
@@ -30,9 +30,9 @@ const ictDayStartUtc = (day: string, addDays = 0): string | null => {
 
 const positiveInt = (value: string): number | null => (/^[1-9]\d*$/.test(value) ? Number(value) : null);
 
-const facetOptions = (facets: AuditLogFacetDto[] | undefined) => [
+const facetOptions = (facets: AuditLogFacetDto[] | undefined, selected: string | null | undefined) => [
   { value: '', label: 'All' },
-  ...(facets ?? []).map((f) => ({ value: f.value, label: `${f.value} (${formatNumber(f.count)})` })),
+  ...withSelectedFacet(facets, selected).map((f) => ({ value: f.value, label: `${f.value} (${formatNumber(f.count)})` })),
 ];
 
 /** Tham số URL do màn khác truyền sang (user, KYB, đối tác…): không có ô nhập riêng nên hiện thành chip gỡ được. */
@@ -194,7 +194,7 @@ export const AuditLogListPage: React.FC = () => {
       subtitle={
         total === null
           ? 'AuditLogs · append-only'
-          : `${formatNumber(total)} entries · AdminService + events from other services · append-only · newest first`
+          : `${formatNumber(total)} entries · newest first · cannot be edited`
       }
       actions={
         <AdminButton variant="onNavy" icon="download" onClick={exportCsv} disabled={exporting || query.status !== 'ready'}>
@@ -209,7 +209,7 @@ export const AuditLogListPage: React.FC = () => {
             onChange={(v) => params.set({ service: v || null })}
             options={[
               { value: '', label: 'All', count: facets?.totalCount },
-              ...(facets?.sourceServices ?? []).map((f) => ({ value: f.value, label: f.value, count: f.count })),
+              ...withSelectedFacet(facets?.sourceServices, filter.sourceService).map((f) => ({ value: f.value, label: f.value, count: f.count })),
             ]}
           />
         </FilterColumn>
@@ -226,14 +226,14 @@ export const AuditLogListPage: React.FC = () => {
             label="Action"
             width={230}
             value={filter.action ?? ''}
-            options={facetOptions(facets?.actions)}
+            options={facetOptions(facets?.actions, filter.action)}
             onChange={(v) => params.set({ action: v || null })}
           />
           <ToolbarSelect
             label="Entity"
             width={190}
             value={filter.entityName ?? ''}
-            options={facetOptions(facets?.entityNames)}
+            options={facetOptions(facets?.entityNames, filter.entityName)}
             onChange={(v) => params.set({ entity: v || null })}
           />
           <DayBox label="From" value={fromDay} onChange={(v) => params.set({ from: v || null })} />

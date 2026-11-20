@@ -5,10 +5,11 @@ import { setToken } from '@/store/slices/authSlice';
 import { adminUsersApi } from '@/api/adminUsersApi';
 import { adminCommunicationsApi } from '@/api/adminCommunicationsApi';
 import type { NotificationDto } from '@/types/notification';
-import { ADMIN_HOME_PATH, resolveAdminLocation } from '../navigation';
+import { ADMIN_HOME_PATH, firstTabPath, resolveAdminLocation } from '../navigation';
 import type { AdminOutletContext } from '../hooks/useAdminBreadcrumb';
 import { useAdminQuery } from '../hooks/useAdminQuery';
 import { usePageEnter } from '../hooks/usePageEnter';
+import { useAdminSessionExpiry } from '../hooks/useAdminSessionExpiry';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { AdminToastProvider } from '../components/AdminToastProvider';
@@ -32,13 +33,15 @@ export const AdminLayout: React.FC = () => {
   // Chuyển trang: nội dung chính fade + dịch lên, shell đứng yên (WAAPI, không remount màn).
   usePageEnter(mainRef, pathname);
 
+  useAdminSessionExpiry();
+
   const me = useAdminQuery(() => adminUsersApi.getCurrentUser(), []);
   const userId = me.data?.id ?? storeUser?.id ?? null;
   const inbox = useAdminQuery(userId ? () => adminCommunicationsApi.getInbox(userId) : null, [userId]);
 
   const location = resolveAdminLocation(pathname);
   if (!location) return <Navigate to={ADMIN_HOME_PATH} replace />;
-  if (!location.tab) return <Navigate to={location.section.tabs[0].path} replace />;
+  if (!location.tab) return <Navigate to={firstTabPath(location.section)} replace />;
 
   const outletContext: AdminOutletContext = { setDetailLabel };
   const name = me.data?.fullName ?? storeUser?.fullName ?? '';

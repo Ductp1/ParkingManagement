@@ -135,7 +135,7 @@ export const CreateAdjustmentDialog: React.FC<{
           type="number"
           value={sanction}
           onChange={setSanction}
-          helper="Link a penalty to an SLA sanction (US-097)."
+          helper="Link a penalty to an SLA sanction."
           error={submitted ? errors.sanction : null}
         />
       )}
@@ -194,7 +194,7 @@ export const AdjustmentsPage: React.FC = () => {
         return (
           <CellTwoLine
             primary={link ? <CellLink to={link}>{ownerLabel(r.ownerProfileId, account)}</CellLink> : ownerLabel(r.ownerProfileId, account)}
-            secondary={`OwnerProfile #${r.ownerProfileId}`}
+            secondary={`Owner #${r.ownerProfileId}`}
           />
         );
       },
@@ -263,7 +263,7 @@ export const AdjustmentsPage: React.FC = () => {
   return (
     <ListScreen
       title="Adjustments"
-      subtitle={list.data ? `${formatNumber(list.data.totalCount)} adjustments · positive = credit to owner, negative = debit` : 'FinancialAdjustments'}
+      subtitle={list.data ? `${formatNumber(list.data.totalCount)} adjustments · positive = credit to owner, negative = debit` : undefined}
       actions={
         <AdminButton variant="onNavy" icon="plus" onClick={() => setCreating(null)}>
           Create adjustment
@@ -271,7 +271,7 @@ export const AdjustmentsPage: React.FC = () => {
       }
       top={
         <Banner tone="info">
-          Append-only: adjustments are never edited or deleted. Each needs a reason and approval by a different admin; approved adjustments are attached to the
+          Adjustments are never edited or deleted. Each needs a reason and approval by a different admin; approved adjustments are attached to the
           owner&apos;s next Draft settlement when it is generated or regenerated.
         </Banner>
       }
