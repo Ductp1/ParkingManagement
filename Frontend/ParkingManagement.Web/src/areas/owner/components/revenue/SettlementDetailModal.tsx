@@ -121,7 +121,7 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kỳ từ {settlement?.periodStart} đến {settlement?.periodEnd} (US-080)
+                Kỳ từ {settlement?.periodStart} đến {settlement?.periodEnd}
               </p>
             </div>
           </div>
@@ -149,10 +149,10 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
             </div>
           ) : detail && settlement ? (
             <>
-              {/* Card Thực nhận lớn */}
+              {/* Card Lợi nhuận thực nhận */}
               <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 text-white shadow-md space-y-1">
                 <span className="text-xs text-blue-100 uppercase tracking-wider font-semibold">
-                  Số tiền thực nhận về tài khoản (Net Payout)
+                  Lợi nhuận thực nhận về tài khoản (Net Payout)
                 </span>
                 <div className="text-3xl sm:text-4xl font-black tracking-tight">
                   {formatVnd(settlement.netPayout)}
@@ -176,7 +176,7 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
 
                 <div className="space-y-2 text-slate-600">
                   <div className="flex justify-between items-center">
-                    <span>Tổng doanh thu gộp phát sinh:</span>
+                    <span>Tổng doanh thu phát sinh:</span>
                     <strong className="text-slate-900 font-semibold">{formatVnd(settlement.grossAmount)}</strong>
                   </div>
 
@@ -191,7 +191,7 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
                   </div>
 
                   <div className="flex justify-between items-center text-amber-700">
-                    <span>(-) Phí dịch vụ hoa hồng nền tảng:</span>
+                    <span>(-) Chi phí (Nền tảng, thuế & phát sinh):</span>
                     <strong className="font-semibold">-{formatVnd(settlement.commissionAmount)}</strong>
                   </div>
 
@@ -220,7 +220,7 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
                   )}
 
                   <div className="pt-2 border-t border-slate-200 flex justify-between items-center font-bold text-slate-900 text-sm">
-                    <span>Số tiền thực nhận quyết toán:</span>
+                    <span>Lợi nhuận thực nhận quyết toán:</span>
                     <span className="text-blue-600">{formatVnd(settlement.netPayout)}</span>
                   </div>
                 </div>
@@ -239,8 +239,8 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
                         <tr>
                           <th className="py-2.5 px-4">Loại giao dịch</th>
                           <th className="py-2.5 px-4 text-center">Số lượt</th>
-                          <th className="py-2.5 px-4 text-right">Doanh thu gộp</th>
-                          <th className="py-2.5 px-4 text-right">Hoa hồng</th>
+                          <th className="py-2.5 px-4 text-right">Doanh thu</th>
+                          <th className="py-2.5 px-4 text-right">Chi phí</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -300,7 +300,7 @@ export const SettlementDetailModal: React.FC<SettlementDetailModalProps> = ({
                   ) : (
                     <>
                       <Download size={14} />
-                      Tải file đối soát CSV (US-080)
+                      Tải file đối soát CSV
                     </>
                   )}
                 </button>

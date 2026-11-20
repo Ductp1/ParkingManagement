@@ -525,5 +525,19 @@ lerna-debug.log*
 *.p12
 *.pfx
 
+# Docker local configuration (17/11/2026)
+docker-compose*.yml
+docker-compose*.yaml
+compose*.override.yml
+compose*.override.yaml
+compose*.local.yml
+.docker/
+*.dockerfile
+database/init-docker-databases.sql
+Frontend/ParkingManagement.Web/Dockerfile
+Frontend/ParkingManagement.Web/nginx.conf
+Frontend/ParkingManagement.Web/.dockerignore
+infrastructure/rabbitmq/definitions.docker.json
+
 # Backup cua appsettings.Local (tranh leak password RabbitMQ local)
 **/appsettings.*.bak

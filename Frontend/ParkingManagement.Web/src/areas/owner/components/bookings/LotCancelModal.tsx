@@ -68,7 +68,7 @@ export const LotCancelModal: React.FC<LotCancelModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Hủy do sự cố tại bãi (Lot Cancel)</h3>
-              <p className="text-xs text-amber-700 font-medium">Bồi hoàn 100% tiền cọc (UI-23 / US-042)</p>
+              <p className="text-xs text-amber-700 font-medium">Bồi hoàn 100% tiền cọc</p>
             </div>
           </div>
           <button

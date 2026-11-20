@@ -163,7 +163,7 @@ export const ExitPlatformModal: React.FC<ExitPlatformModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">Thủ tục xin rời nền tảng</h3>
-              <p className="text-xs text-rose-700 font-medium">Hợp đồng đối tác ParkMaster (UI-21 / US-057)</p>
+              <p className="text-xs text-rose-700 font-medium">Hợp đồng đối tác ParkMaster</p>
             </div>
           </div>
           <button
@@ -290,7 +290,7 @@ export const ExitPlatformModal: React.FC<ExitPlatformModalProps> = ({
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
                   <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                     <Building2 size={14} className="text-blue-600" />
-                    Đánh giá quy mô ảnh hưởng (US-057)
+                    Đánh giá quy mô ảnh hưởng
                   </span>
                   <div className="grid grid-cols-3 gap-2 pt-1 text-center">
                     <div className="bg-white p-2 rounded-xl border border-slate-200">
