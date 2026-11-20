@@ -26,10 +26,12 @@ import { bankText, percentText } from '../lot-contracts/lotContractFormat';
 import { IssueAccountDialog } from './PartnerAccountDialog';
 import { PartnerDocumentsPanel } from './PartnerDocumentsPanel';
 import { PartnerEditLinkDialog } from './PartnerEditLinkDialog';
+import { DiscardApplicationDialog } from './DiscardApplicationDialog';
+import { RequestInfoDialog } from './RequestInfoDialog';
 import { AuditTrailLink } from '../../../components/AuditTrailLink';
 import { auditLogListLink } from '../../access/auditLogFormat';
 
-type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | 'editLink' | null;
+type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'resendInfo' | 'createAccount' | 'editLink' | null;
 
 const FLOW: Array<{ status: string; title: string }> = [
   { status: S.Submitted, title: 'Submitted' },
@@ -38,26 +40,47 @@ const FLOW: Array<{ status: string; title: string }> = [
   { status: S.Activated, title: 'Activated' },
 ];
 
+/** Mục timeline cho vòng yêu cầu bổ sung (T3 / T4): chỉ hiện khi đã có. */
+const infoEntries = (app: PartnerApplicationDetailDto): TimelineEntry[] => [
+  ...(app.infoRequestedAtUtc
+    ? [
+        {
+          key: 'info-requested',
+          title: 'More info requested',
+          meta: `${formatDate(app.infoRequestedAtUtc)}${app.infoRequestDueAtUtc ? ` · respond by ${formatDate(app.infoRequestDueAtUtc)}` : ''}`,
+          state: 'done' as const,
+        },
+      ]
+    : []),
+  ...(app.infoProvidedAtUtc
+    ? [{ key: 'info-provided', title: 'Info provided', meta: formatDate(app.infoProvidedAtUtc), state: 'done' as const }]
+    : []),
+];
+
 const timeline = (app: PartnerApplicationDetailDto): TimelineEntry[] => {
   if (app.status === S.Rejected || app.status === S.Cancelled) {
+    const cancelled = app.status === S.Cancelled;
     return [
       { key: 'submitted', title: 'Submitted', meta: formatDate(app.createdAtUtc), state: 'done' },
+      ...infoEntries(app),
       {
         key: 'end',
-        title: app.status === S.Rejected ? 'Rejected' : 'Cancelled',
-        meta: `${formatDate(app.updatedAtUtc)} · ${orEmpty(app.status === S.Rejected ? app.rejectReason : app.cancelReason)}`,
+        title: cancelled ? 'Discarded' : 'Rejected',
+        meta: `${formatDate(cancelled ? app.cancelledAtUtc ?? app.updatedAtUtc : app.updatedAtUtc)} · ${orEmpty(cancelled ? app.cancelReason : app.rejectReason)}`,
         state: 'danger',
       },
     ];
   }
   const effective = app.status === S.NeedsMoreInfo ? S.UnderReview : app.status;
   const current = FLOW.findIndex((f) => f.status === effective);
-  return FLOW.map((f, i) => ({
+  const flow: TimelineEntry[] = FLOW.map((f, i) => ({
     key: f.status,
     title: app.status === S.NeedsMoreInfo && i === current ? 'Needs more info' : f.title,
     meta: i === 0 ? formatDate(app.createdAtUtc) : i === current ? formatDate(app.updatedAtUtc) : undefined,
     state: i < current || (i === current && app.status === S.Activated) ? 'done' : i === current ? 'current' : 'upcoming',
   }));
+  // Các mục yêu cầu bổ sung chèn ngay sau "Submitted".
+  return [flow[0], ...infoEntries(app), ...flow.slice(1)];
 };
 
 const lotColumns: DataTableColumn<LotContractSummaryDto>[] = [
@@ -127,6 +150,14 @@ export const PartnerDetailPage: React.FC = () => {
     query.refetch();
   };
   const close = () => setDialog(null);
+  const retryCleanup = async () => {
+    try {
+      await adminPartnerOnboardingApi.retryCleanup(app.id);
+      done('Owner account removed');
+    } catch (err: unknown) {
+      toast.show({ type: 'error', title: 'Cleanup failed', message: err instanceof Error ? err.message : String(err) });
+    }
+  };
   const summary = <DialogSummary title={`${app.code} · ${app.businessName}`} subtitle={`MST ${app.taxCode} · ${app.fullName} · ${app.email}`} />;
   const can = (status: string) => app.nextStatuses.includes(status);
 
@@ -141,7 +172,12 @@ export const PartnerDetailPage: React.FC = () => {
         <AdminButton onClick={() => setDialog('createAccount')}>Create owner account</AdminButton>
       </>
     ) : app.status === S.NeedsMoreInfo ? (
-      <AdminButton onClick={() => setDialog('editLink')}>Link for applicant</AdminButton>
+      <>
+        <AdminButton variant="onNavy" onClick={() => setDialog('editLink')}>
+          Link for applicant
+        </AdminButton>
+        <AdminButton onClick={() => setDialog('resendInfo')}>Resend request email</AdminButton>
+      </>
     ) : app.status === S.AccountIssued ? (
       <AdminButton onClick={() => setDialog('resend')}>Resend activation</AdminButton>
     ) : undefined;
@@ -160,12 +196,29 @@ export const PartnerDetailPage: React.FC = () => {
       />
       {app.status === S.NeedsMoreInfo && (
         <Banner tone="warning">
-          More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant. Send them a link with “Link for applicant”; their
-          update moves the application back to Under review.
+          More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant
+          {app.infoRequestDueAtUtc ? ` (respond by ${formatDateTimeIct(app.infoRequestDueAtUtc)} ICT)` : ''}. Their update moves the application back to
+          Under review.
         </Banner>
       )}
+      {app.status === S.NeedsMoreInfo && app.infoRequestEmailStatus === 'Failed' && (
+        <Banner tone="danger">
+          The request email could not be queued: {orEmpty(app.infoRequestEmailError)}. Use “Resend request email”, or copy “Link for applicant”.
+        </Banner>
+      )}
+      {app.status === S.UnderReview && app.infoProvidedAtUtc && app.infoRequestedAtUtc && (
+        <Banner tone="info">The applicant provided the requested information on {formatDateTimeIct(app.infoProvidedAtUtc)} ICT · Updated.</Banner>
+      )}
       {app.status === S.Rejected && <Banner tone="danger">Rejected: {orEmpty(app.rejectReason)}</Banner>}
-      {app.status === S.Cancelled && <Banner tone="danger">Cancelled: {orEmpty(app.cancelReason)}</Banner>}
+      {app.status === S.Cancelled && <Banner tone="danger">Discarded: {orEmpty(app.cancelReason)}</Banner>}
+      {app.status === S.Cancelled && app.cleanupSyncStatus === 'Failed' && (
+        <Banner tone="danger">
+          The application is discarded, but the owner account has not been removed yet: {orEmpty(app.cleanupError)}.{' '}
+          <AdminButton variant="secondary" onClick={() => void retryCleanup()}>
+            Retry cleanup
+          </AdminButton>
+        </Banner>
+      )}
       {app.status === S.AccountIssued && (
         <Banner tone="info">Owner account issued (Owner #{orEmpty(app.createdOwnerProfileId)}) · waiting for the owner to activate.</Banner>
       )}
@@ -178,12 +231,12 @@ export const PartnerDetailPage: React.FC = () => {
           (can(S.Cancelled) || can(S.Rejected)) && (
             <>
               {can(S.Cancelled) && (
-                <AdminButton variant="secondary" onClick={() => setDialog('cancel')}>
-                  Cancel application
+                <AdminButton variant="destructive" onClick={() => setDialog('cancel')}>
+                  Discard application
                 </AdminButton>
               )}
               {can(S.Rejected) && (
-                <AdminButton variant="destructive" onClick={() => setDialog('reject')}>
+                <AdminButton variant="secondary" onClick={() => setDialog('reject')}>
                   Reject
                 </AdminButton>
               )}
@@ -275,19 +328,16 @@ export const PartnerDetailPage: React.FC = () => {
       >
         {summary}
       </ActionDialog>
+      <RequestInfoDialog open={dialog === 'requestInfo'} app={app} onClose={close} onDone={() => done('Info requested')} />
       <ActionDialog
-        open={dialog === 'requestInfo'}
-        title="Request more information"
-        description="Status changes to Needs more info. The note is stored on the application."
-        confirmLabel="Send request"
-        field={{ label: 'Note to applicant', required: true, requiredMessage: 'A note is required.', placeholder: 'What should the applicant fix or add?', maxLength: 1000 }}
-        // Gửi xong ActionDialog tự gọi onClose: giữ dialog "Link for applicant" vừa mở thay vì đóng hết.
-        onClose={() => setDialog((d) => (d === 'requestInfo' ? null : d))}
-        onSubmit={async (note) => {
-          await adminPartnerOnboardingApi.requestInfo(app.id, { note });
-          done('Info requested');
-          // Bước tiếp theo luôn là gửi link bổ sung cho đối tác.
-          setDialog('editLink');
+        open={dialog === 'resendInfo'}
+        title="Resend request email"
+        description={`A new link is emailed to ${app.email}; the previous link stops working.`}
+        confirmLabel="Resend email"
+        onClose={close}
+        onSubmit={async () => {
+          await adminPartnerOnboardingApi.resendInfoRequest(app.id, { rowVersion: app.rowVersion ?? null });
+          done('Request email resent');
         }}
       >
         {summary}
@@ -307,22 +357,7 @@ export const PartnerDetailPage: React.FC = () => {
       >
         {summary}
       </ActionDialog>
-      <ActionDialog
-        open={dialog === 'cancel'}
-        title="Cancel application"
-        description="Use when the applicant withdraws. Not allowed after Account issued."
-        confirmLabel="Cancel application"
-        cancelLabel="Keep application"
-        destructive
-        field={{ label: 'Reason', required: true, requiredMessage: 'A reason is required.', placeholder: 'Why is this application cancelled?', maxLength: 1000 }}
-        onClose={close}
-        onSubmit={async (reason) => {
-          await adminPartnerOnboardingApi.cancel(app.id, { reason });
-          done('Application cancelled');
-        }}
-      >
-        {summary}
-      </ActionDialog>
+      <DiscardApplicationDialog open={dialog === 'cancel'} app={app} onClose={close} onDone={() => done('Application discarded')} />
       <ActionDialog
         open={dialog === 'resend'}
         title="Resend activation link"

@@ -17,14 +17,15 @@ public class PartnerApplication : BaseEntity
     private static readonly IReadOnlyDictionary<PartnerApplicationStatus, PartnerApplicationStatus[]> Transitions =
         new Dictionary<PartnerApplicationStatus, PartnerApplicationStatus[]>
         {
-            [PartnerApplicationStatus.Submitted] = [PartnerApplicationStatus.UnderReview],
+            [PartnerApplicationStatus.Submitted] = [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled],
             [PartnerApplicationStatus.UnderReview] =
             [
                 PartnerApplicationStatus.NeedsMoreInfo, PartnerApplicationStatus.AccountIssued,
                 PartnerApplicationStatus.Rejected, PartnerApplicationStatus.Cancelled,
             ],
             [PartnerApplicationStatus.NeedsMoreInfo] = [PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled],
-            [PartnerApplicationStatus.AccountIssued] = [PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.Activated],
+            [PartnerApplicationStatus.AccountIssued] =
+                [PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.Activated, PartnerApplicationStatus.Cancelled],
             [PartnerApplicationStatus.Activated] = [],
             [PartnerApplicationStatus.Rejected] = [],
             [PartnerApplicationStatus.Cancelled] = [],
@@ -68,6 +69,26 @@ public class PartnerApplication : BaseEntity
     public string? InfoRequestNote { get; set; }
     public string? RejectReason { get; set; }
     public string? CancelReason { get; set; }
+    /// <summary>Admin hủy hồ sơ và thời điểm hủy (→ UserService, không FK).</summary>
+    public int? CancelledByAdminId { get; private set; }
+    public DateTime? CancelledAtUtc { get; private set; }
+
+    /// <summary>
+    /// Gỡ tài khoản chủ bãi chưa kích hoạt bên UserService sau khi hủy hồ sơ đã cấp tài khoản: Pending → Synced / Failed (có
+    /// <see cref="CleanupError"/> và thử lại được). NotRequired khi hồ sơ chưa từng cấp tài khoản.
+    /// </summary>
+    public PartnerSyncStatus CleanupSyncStatus { get; private set; } = PartnerSyncStatus.NotRequired;
+    public string? CleanupError { get; private set; }
+    public DateTime? CleanupSyncedAtUtc { get; private set; }
+
+    // Yêu cầu bổ sung hồ sơ (T3): các mục cần bổ sung, hạn, thời điểm yêu cầu / đối tác gửi bổ sung, kết quả gửi email.
+    /// <summary>Danh sách khóa mục cần bổ sung (JSON mảng chuỗi), ví dụ ["taxCode","doc:idCardBack"]. Null = Admin không chỉ định mục nào.</summary>
+    public string? InfoRequestItemsJson { get; private set; }
+    public DateTime? InfoRequestedAtUtc { get; private set; }
+    public DateTime? InfoRequestDueAtUtc { get; private set; }
+    public DateTime? InfoProvidedAtUtc { get; private set; }
+    public PartnerSyncStatus InfoRequestEmailStatus { get; private set; } = PartnerSyncStatus.NotRequired;
+    public string? InfoRequestEmailError { get; private set; }
 
     // Tài khoản nhận thanh toán mặc định (nhập ở T6, in vào Phụ lục 02 của hợp đồng từng bãi)
     public string? PayoutBankBin { get; set; }
@@ -130,14 +151,60 @@ public class PartnerApplication : BaseEntity
         ReviewerAdminId = adminUserId;
     }
 
-    /// <summary>T3: UnderReview → NeedsMoreInfo, ghi chú bắt buộc (chưa sinh edit token – form public P3 chưa có).</summary>
-    public void RequestInfo(int adminUserId, string note)
+    /// <summary>T3: UnderReview → NeedsMoreInfo, ghi chú bắt buộc; lưu mục cần bổ sung, hạn và link bổ sung (SHA-256) – cùng một lần.</summary>
+    public void RequestInfo(int adminUserId, string note, IReadOnlyList<string>? items = null, DateTime? dueAtUtc = null,
+        string? editTokenHash = null, DateTime? nowUtc = null)
     {
         EnsureAdmin(adminUserId);
         EnsureCanMove(PartnerApplicationStatus.NeedsMoreInfo);
-        InfoRequestNote = Required(note, "Nội dung cần bổ sung");
+        var text = Required(note, "Nội dung cần bổ sung");
+        var now = nowUtc ?? DateTime.UtcNow;
+        if (editTokenHash is not null) EnsureDueInFuture(dueAtUtc, now);   // kiểm tra TRƯỚC khi đổi trạng thái
+        InfoRequestNote = text;
         ReviewerAdminId ??= adminUserId;
         MoveTo(PartnerApplicationStatus.NeedsMoreInfo);
+        if (editTokenHash is not null) SetInfoRequest(items, dueAtUtc, editTokenHash, now);
+    }
+
+    /// <summary>Gửi lại yêu cầu bổ sung: link cũ hết hiệu lực, hạn bổ sung giữ nguyên hoặc gia hạn.</summary>
+    public void ReissueInfoRequest(int adminUserId, string editTokenHash, DateTime? newDueAtUtc, DateTime nowUtc)
+    {
+        EnsureAdmin(adminUserId);
+        if (Status != PartnerApplicationStatus.NeedsMoreInfo)
+            throw new ConflictException($"Chỉ gửi lại yêu cầu khi hồ sơ {Code} đang chờ bổ sung (hiện tại: {Status}).");
+        SetInfoRequest(InfoRequestItems, newDueAtUtc ?? InfoRequestDueAtUtc, editTokenHash, nowUtc);
+    }
+
+    private void SetInfoRequest(IReadOnlyList<string>? items, DateTime? dueAtUtc, string tokenHash, DateTime nowUtc)
+    {
+        EnsureDueInFuture(dueAtUtc, nowUtc);
+        InfoRequestItemsJson = items is { Count: > 0 } ? System.Text.Json.JsonSerializer.Serialize(items) : null;
+        InfoRequestedAtUtc = nowUtc;
+        InfoRequestDueAtUtc = dueAtUtc;
+        InfoProvidedAtUtc = null;
+        EditTokenHash = tokenHash;
+        // Link hết hạn đúng hạn bổ sung (mặc định do người gọi truyền vào = +7 ngày).
+        EditTokenExpiresAtUtc = dueAtUtc ?? nowUtc.AddDays(7);
+        InfoRequestEmailStatus = PartnerSyncStatus.Pending;
+        InfoRequestEmailError = null;
+    }
+
+    private static void EnsureDueInFuture(DateTime? dueAtUtc, DateTime nowUtc)
+    {
+        if (dueAtUtc is { } due && due <= nowUtc) throw new ValidationException("Hạn bổ sung phải ở tương lai.");
+    }
+
+    /// <summary>Các khóa mục cần bổ sung Admin đã chọn (rỗng = cho sửa mọi mục).</summary>
+    public IReadOnlyList<string> InfoRequestItems => string.IsNullOrEmpty(InfoRequestItemsJson)
+        ? []
+        : System.Text.Json.JsonSerializer.Deserialize<List<string>>(InfoRequestItemsJson) ?? [];
+
+    public void MarkInfoEmailSent() { InfoRequestEmailStatus = PartnerSyncStatus.Synced; InfoRequestEmailError = null; }
+
+    public void MarkInfoEmailFailed(string error)
+    {
+        InfoRequestEmailStatus = PartnerSyncStatus.Failed;
+        InfoRequestEmailError = error.Length > 300 ? error[..300] : error;
     }
 
     /// <summary>Kiểm tra trước khi gọi UserService (T6): chỉ cấp tài khoản khi đang thẩm định.</summary>
@@ -185,13 +252,46 @@ public class PartnerApplication : BaseEntity
         MoveTo(PartnerApplicationStatus.Rejected);
     }
 
-    /// <summary>T10: UnderReview / NeedsMoreInfo → Cancelled khi đối tác rút hồ sơ; không cho hủy sau khi đã cấp tài khoản.</summary>
-    public void Cancel(int adminUserId, string reason)
+    /// <summary>
+    /// T10: Submitted / UnderReview / NeedsMoreInfo / AccountIssued (chủ bãi chưa kích hoạt) → Cancelled. Đã Activated → 409.
+    /// Thu hồi link bổ sung. Hồ sơ đã cấp tài khoản thì đánh dấu cần gỡ tài khoản bên UserService (CleanupSyncStatus = Pending).
+    /// </summary>
+    public void Cancel(int adminUserId, string reason, DateTime? nowUtc = null)
     {
         EnsureAdmin(adminUserId);
+        if (Status == PartnerApplicationStatus.Activated)
+            throw new ConflictException($"Chủ bãi của hồ sơ {Code} đã kích hoạt tài khoản – hãy dùng Đình chỉ hoặc Xóa user thay vì hủy hồ sơ.");
         EnsureCanMove(PartnerApplicationStatus.Cancelled);
+        var hadAccount = Status == PartnerApplicationStatus.AccountIssued && CreatedOwnerProfileId is not null;
         CancelReason = Required(reason, "Lý do hủy");
+        CancelledByAdminId = adminUserId;
+        CancelledAtUtc = nowUtc ?? DateTime.UtcNow;
+        EditTokenHash = null;
+        EditTokenExpiresAtUtc = null;
+        InfoRequestEmailStatus = PartnerSyncStatus.NotRequired;
+        CleanupSyncStatus = hadAccount ? PartnerSyncStatus.Pending : PartnerSyncStatus.NotRequired;
         MoveTo(PartnerApplicationStatus.Cancelled);
+    }
+
+    /// <summary>Hồ sơ đã hủy và còn việc gỡ tài khoản bên UserService (Pending / Failed) → trả OwnerProfileId cần gỡ.</summary>
+    public int EnsureCanRetryCleanup()
+    {
+        if (Status != PartnerApplicationStatus.Cancelled || CleanupSyncStatus is not (PartnerSyncStatus.Pending or PartnerSyncStatus.Failed))
+            throw new ConflictException($"Hồ sơ {Code} không có việc gỡ tài khoản nào cần thử lại.");
+        return CreatedOwnerProfileId ?? throw new ConflictException($"Hồ sơ đối tác {Code} chưa gắn tài khoản chủ bãi.");
+    }
+
+    public void MarkCleanupSynced(DateTime nowUtc)
+    {
+        CleanupSyncStatus = PartnerSyncStatus.Synced;
+        CleanupError = null;
+        CleanupSyncedAtUtc = nowUtc;
+    }
+
+    public void MarkCleanupFailed(string error)
+    {
+        CleanupSyncStatus = PartnerSyncStatus.Failed;
+        CleanupError = error.Length > 300 ? error[..300] : error;
     }
 
     // ===================== Đối tác bổ sung hồ sơ (T3 link / T4) và kích hoạt (T8) =====================
@@ -205,6 +305,11 @@ public class PartnerApplication : BaseEntity
         EditTokenHash = string.IsNullOrWhiteSpace(tokenHash) ? throw new ArgumentException("Thiếu token.", nameof(tokenHash)) : tokenHash;
         EditTokenExpiresAtUtc = expiresAtUtc;
     }
+
+    /// <summary>Đúng token của link bổ sung (so sánh thời gian hằng số), chưa xét hạn / trạng thái.</summary>
+    public bool MatchesEditToken(string tokenHash)
+        => EditTokenHash is not null && System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(
+            System.Text.Encoding.ASCII.GetBytes(EditTokenHash), System.Text.Encoding.ASCII.GetBytes(tokenHash));
 
     /// <summary>Link bổ sung còn dùng được: đúng token, chưa hết hạn, hồ sơ vẫn đang chờ bổ sung.</summary>
     public bool AcceptsEditToken(string tokenHash, DateTime nowUtc)
@@ -221,6 +326,7 @@ public class PartnerApplication : BaseEntity
         ConsentAcceptedAtUtc = consentAcceptedAtUtc;
         EditTokenHash = null;
         EditTokenExpiresAtUtc = null;
+        InfoProvidedAtUtc = consentAcceptedAtUtc;
         MoveTo(PartnerApplicationStatus.UnderReview);
     }
 

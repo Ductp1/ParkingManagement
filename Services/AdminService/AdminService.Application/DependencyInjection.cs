@@ -68,6 +68,9 @@ public static class DependencyInjection
         services.AddScoped<IRequestPartnerInfoUseCase, RequestPartnerInfoUseCase>();
         services.AddScoped<IRejectPartnerApplicationUseCase, RejectPartnerApplicationUseCase>();
         services.AddScoped<ICancelPartnerApplicationUseCase, CancelPartnerApplicationUseCase>();
+        services.AddScoped<IRetryPartnerCleanupUseCase, RetryPartnerCleanupUseCase>();                 // US-116: thử lại gỡ tài khoản sau khi hủy hồ sơ
+        services.AddScoped<IResendPartnerInfoRequestUseCase, ResendPartnerInfoRequestUseCase>();       // US-116: gửi lại email yêu cầu bổ sung
+        services.AddScoped<AdminService.Application.Features.Users.IAdminUserLifecycleUseCase, AdminService.Application.Features.Users.AdminUserLifecycleUseCase>();  // US-096: đình chỉ / xóa user
         // US-116: cấp tài khoản chủ bãi qua UserService (kèm tài khoản nhận tiền), gửi lại link kích hoạt
         services.AddScoped<IIssueOwnerAccountUseCase, IssueOwnerAccountUseCase>();
         services.AddScoped<IResendOwnerActivationUseCase, ResendOwnerActivationUseCase>();

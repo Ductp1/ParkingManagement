@@ -91,6 +91,21 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
             payload = new { message.Id, activation.Destination, Purpose = "OwnerActivation", activation.FullName, activation.BusinessName,
                 activation.ExpiresAtUtc, Link = link };
         }
+        else if (message.EventType == PartnerEmailUseCases.EmailEvent)
+        {
+            var mail = JsonSerializer.Deserialize<PartnerEmailPayload>(message.PayloadJson)!;
+            var link = mail.EncryptedLink is null ? null : cipher.Decrypt(mail.EncryptedLink, PartnerEmailUseCases.CipherPurpose);
+            if (config["Otp:Transport"] == "Smtp")
+            {
+                await new SmtpOtpSender(config).SendPartnerEmailAsync(message.Id, mail.Template, mail.Destination, mail.FullName,
+                    mail.ApplicationCode, mail.Note, mail.Items ?? [], mail.DueAtUtc, link, ct);
+                return;
+            }
+            url = OtpDeliveryConfiguration.Endpoint(config["Otp:DeliveryUrl"], environment);
+            apiKey = config["Otp:ApiKey"];
+            payload = new { message.Id, mail.Destination, Purpose = mail.Template, mail.FullName, mail.ApplicationCode, mail.Note,
+                Items = mail.Items ?? [], mail.DueAtUtc, Link = link };
+        }
         else
         {
             await eventBus.DeliverAsync(message, ct);
@@ -102,6 +117,8 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
         using var response = await clients.CreateClient("IdentityIntegrations").SendAsync(requestMessage, ct);
         response.EnsureSuccessStatusCode();
     }
+    private sealed record PartnerEmailPayload(string Template, string Destination, string FullName, string ApplicationCode, string? Note,
+        List<string>? Items, DateTime? DueAtUtc, string? EncryptedLink);
     private sealed record StaffCredentialsPayload(int UserId, string Destination, string FullName, string OwnerName, string LotName, string EncryptedPassword);
     private sealed record OwnerActivationPayload(int ActivationId, int UserId, string Destination, string FullName, string BusinessName,
         DateTime ExpiresAtUtc, string EncryptedToken);

@@ -62,7 +62,22 @@ public interface IOwnerAccountClient
 
     /// <summary>U3 (T7): thu hồi link cũ, tạo link kích hoạt mới và gửi email. Chủ bãi không tồn tại → NotFoundException.</summary>
     Task ResendActivationAsync(int ownerProfileId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// U6: hủy hồ sơ đã cấp tài khoản – UserService thu hồi link, ẩn danh hóa tài khoản chưa kích hoạt, nhả email / SĐT / MST.
+    /// Idempotent; không còn hồ sơ chủ bãi → coi như đã gỡ. Chủ bãi đã kích hoạt → ConflictException (nguyên văn từ UserService).
+    /// </summary>
+    Task DiscardOwnerAccountAsync(int ownerProfileId, string reason, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    /// <summary>Nhờ UserService gửi email cho người nộp hồ sơ qua outbox + SMTP đang dùng cho email kích hoạt.</summary>
+    Task SendPartnerEmailAsync(PartnerEmailCommand command, CancellationToken cancellationToken) => Task.CompletedTask;
 }
+
+/// <summary>
+/// Template: PartnerInfoRequested (kèm Link, Items, Note, DueAtUtc) hoặc PartnerInfoProvided. Không có MST hay giấy tờ.
+/// </summary>
+public sealed record PartnerEmailCommand(string Template, string Destination, string FullName, string ApplicationCode, string? Note,
+    IReadOnlyList<string> Items, DateTime? DueAtUtc, string? Link);
 
 // ===== Dùng chung =====
 

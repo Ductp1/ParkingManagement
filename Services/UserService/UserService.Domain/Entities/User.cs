@@ -36,6 +36,12 @@ public class User : BaseEntity, ISoftDelete
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
 
+    /// <summary>Optimistic concurrency token (DbContext tự đóng dấu mỗi lần lưu) – Admin đình chỉ / xóa gửi lại giá trị đã đọc.</summary>
+    public byte[] RowVersion { get; set; } = [];
+
+    /// <summary>Đang bị đình chỉ / khóa tại thời điểm <paramref name="nowUtc"/> (khóa vô thời hạn = Locked, khóa có hạn = LockedUntilUtc).</summary>
+    public bool IsSuspendedAt(DateTime nowUtc) => Status == UserStatus.Locked || LockedUntilUtc > nowUtc;
+
     public ICollection<UserRole> Roles { get; set; } = new List<UserRole>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
     public ICollection<SecurityEvent> SecurityEvents { get; set; } = new List<SecurityEvent>();

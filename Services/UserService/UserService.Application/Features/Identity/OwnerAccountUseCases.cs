@@ -66,6 +66,11 @@ public sealed class OwnerAccountUseCases(IIdentityStore store, IOwnerAccountStor
 {
     public const string ActivationEvent = "OwnerActivationDeliveryRequested";
     public const string ActivationCipherPurpose = "owner-activation";
+    /// <summary>ProblemDetails.code của U4 / U5 – FE phân biệt: link sai, hết hạn, đã dùng, tài khoản đã kích hoạt.</summary>
+    public const string ActivationInvalid = "activation_invalid";
+    public const string ActivationExpired = "activation_expired";
+    public const string ActivationUsed = "activation_used";
+    public const string AlreadyActivated = "already_activated";
     private const string InvalidLinkMessage = "Link kích hoạt không hợp lệ, đã được dùng hoặc đã hết hạn. Liên hệ ParkMaster (1900 6868) để nhận link mới.";
     private const string DuplicateMessage = "Email, số điện thoại hoặc mã số thuế đã thuộc một tài khoản khác.";
 
@@ -162,7 +167,7 @@ public sealed class OwnerAccountUseCases(IIdentityStore store, IOwnerAccountStor
         await using var tx = await store.BeginAsync(ct);
         var activation = await OpenActivationAsync(request!.Token, ct);
         var user = await store.FindUserAsync(activation.UserId!.Value, true, ct) ?? throw new ValidationException(InvalidLinkMessage);
-        if (user.Status != UserStatus.PendingVerification) throw new ValidationException(InvalidLinkMessage);
+        if (user.Status != UserStatus.PendingVerification) throw new ValidationException(InvalidLinkMessage, AlreadyActivated);
 
         user.PasswordHash = passwords.Hash(request.Password!);
         user.Status = UserStatus.Active;
@@ -178,12 +183,15 @@ public sealed class OwnerAccountUseCases(IIdentityStore store, IOwnerAccountStor
     private async Task<OtpCode> OpenActivationAsync(string? token, CancellationToken ct)
     {
         token = token?.Trim();
-        if (string.IsNullOrEmpty(token) || token.Length > 128) throw new ValidationException(InvalidLinkMessage);
+        if (string.IsNullOrEmpty(token) || token.Length > 128) throw new ValidationException(InvalidLinkMessage, ActivationInvalid);
         var activation = await owners.FindActivationAsync(HashToken(token), ct);
         var now = clock.GetUtcNow().UtcDateTime;
-        if (activation is null || activation.Purpose != OtpPurpose.OwnerActivation || activation.ConsumedAtUtc is not null
-            || activation.ExpiresAtUtc <= now || activation.User is not { Status: UserStatus.PendingVerification, IsDeleted: false })
-            throw new ValidationException(InvalidLinkMessage);
+        if (activation is null || activation.Purpose != OtpPurpose.OwnerActivation || activation.User is not { IsDeleted: false })
+            throw new ValidationException(InvalidLinkMessage, ActivationInvalid);
+        // Mã lỗi cho FE chọn màn hình; thông báo vẫn dùng chung (không tiết lộ thêm gì cho người lạ có token).
+        if (activation.User.Status != UserStatus.PendingVerification) throw new ValidationException(InvalidLinkMessage, AlreadyActivated);
+        if (activation.ConsumedAtUtc is not null) throw new ValidationException(InvalidLinkMessage, ActivationUsed);
+        if (activation.ExpiresAtUtc <= now) throw new ValidationException(InvalidLinkMessage, ActivationExpired);
         return activation;
     }
 

@@ -27,6 +27,40 @@ export interface AdminUserDto {
   kycStatus: string;
   roles: string[];
   ownerProfile: AdminUserOwnerProfileDto | null;
+  /** base64 – gửi lại khi đình chỉ / mở lại / xóa; người khác vừa sửa user → 409. */
+  rowVersion?: string | null;
+  /** Đình chỉ có hạn (Active + lockedUntilUtc tương lai) hoặc vô thời hạn (status Locked). */
+  lockedUntilUtc?: string | null;
+  lockReason?: string | null;
+  ownerLocked?: boolean;
+}
+
+/** Kết quả POST admin/users/{id}/suspend | reactivate | delete. changed = false khi gọi lại thao tác đã xong. */
+export interface UserLifecycleResultDto {
+  userId: number;
+  status: string;
+  lockedUntilUtc: string | null;
+  rowVersion: string | null;
+  changed: boolean;
+}
+
+export interface SuspendUserRequest {
+  reason: string;
+  /** null = vô thời hạn. */
+  lockedUntilUtc: string | null;
+  rowVersion?: string | null;
+}
+
+export interface ReactivateUserRequest {
+  reason: string;
+  rowVersion?: string | null;
+}
+
+/** confirmEmail = email của user gõ lại để xác nhận xóa (không hoàn tác). */
+export interface DeleteUserRequest {
+  reason: string;
+  confirmEmail: string;
+  rowVersion?: string | null;
 }
 
 /** GET /api/v1/admin/users?role=&page=&pageSize= */

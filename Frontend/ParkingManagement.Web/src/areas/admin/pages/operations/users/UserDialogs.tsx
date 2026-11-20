@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { adminUsersApi } from '@/api/adminUsersApi';
-import type { AdminUserDto, SanctionDto } from '@/types/adminUsers';
+import type { AdminUserDto, SanctionDto, UserLifecycleResultDto } from '@/types/adminUsers';
 import { ActionDialog } from '../../../components/ActionDialog';
+import { LifecycleDialog } from '../../../components/LifecycleDialog';
 import { AdminDialog, DialogSummary } from '../../../components/AdminDialog';
 import { Banner } from '../../../components/Banner';
 import { DateTimeField, TextAreaField } from '../../../components/FormFields';
@@ -134,4 +135,76 @@ export const UnlockOwnerDialog: React.FC<DialogProps & { activeLock: SanctionDto
       </Banner>
     )}
   </ActionDialog>
+);
+
+// ===== Đình chỉ / mở lại / xóa user (US-096) – áp dụng cho mọi vai trò trừ chủ bãi (chủ bãi dùng Lock owner) =====
+
+/** Suspend: lý do bắt buộc; "Until" trống = vô thời hạn. Phiên hiện tại bị vô hiệu, đăng nhập bị từ chối với thông báo rõ. */
+export const SuspendUserDialog: React.FC<DialogProps & { onDone: (result: UserLifecycleResultDto) => void }> = ({ open, user, onClose, onDone }) => {
+  const [until, setUntil] = useState('');
+  const [openedAt] = useState(() => Date.now());   // render phải thuần; server kiểm tra lại thời hạn
+  const untilIso = localInputToUtcIso(until);
+  const untilError = untilIso && new Date(untilIso).getTime() <= openedAt ? 'Must be after the current time.' : null;
+  return (
+    <LifecycleDialog
+      open={open}
+      title="Suspend user"
+      description="Signs the user out everywhere and blocks sign-in until the account is reactivated."
+      confirmLabel="Suspend user"
+      destructive
+      reasonPlaceholder="Why is this user suspended?"
+      reasonHelper="Saved to the audit log and shown to other admins."
+      extraFields={
+        <DateTimeField label="Suspended until" value={until} onChange={setUntil} helper="Empty = indefinitely. With a date, the account reopens by itself." error={untilError} />
+      }
+      extraError={untilError}
+      onClose={() => {
+        setUntil('');
+        onClose();
+      }}
+      onSubmit={async (reason) => {
+        const result = await adminUsersApi.suspendUser(user.id, { reason, lockedUntilUtc: untilIso, rowVersion: user.rowVersion ?? null });
+        onDone(result);
+      }}
+    >
+      <Summary user={user} />
+    </LifecycleDialog>
+  );
+};
+
+export const ReactivateUserDialog: React.FC<DialogProps & { onDone: (result: UserLifecycleResultDto) => void }> = ({ open, user, onClose, onDone }) => (
+  <LifecycleDialog
+    open={open}
+    title="Reactivate user"
+    description="The user can sign in again."
+    confirmLabel="Reactivate user"
+    reasonPlaceholder="Why is this user reactivated?"
+    onClose={onClose}
+    onSubmit={async (reason) => onDone(await adminUsersApi.reactivateUser(user.id, { reason, rowVersion: user.rowVersion ?? null }))}
+  >
+    <Summary user={user} />
+    {user.lockReason && <Banner tone="warning">Suspended because: “{user.lockReason}”.</Banner>}
+  </LifecycleDialog>
+);
+
+/** Delete user: ẩn danh hóa (giữ Id cho lịch sử), không hoàn tác. Gõ lại email để xác nhận; 409 liệt kê nghĩa vụ còn lại nguyên văn. */
+export const DeleteUserDialog: React.FC<DialogProps & { onDone: (result: UserLifecycleResultDto) => void }> = ({ open, user, onClose, onDone }) => (
+  <LifecycleDialog
+    open={open}
+    title="Delete user"
+    description="Anonymizes the account: name, email, phone and KYC are removed and the email can be registered again. This cannot be undone."
+    confirmLabel="Delete user"
+    destructive
+    reasonPlaceholder="Why is this user deleted?"
+    typeToConfirm={{ label: 'Type the user’s email to confirm', expected: user.email ?? '' }}
+    onClose={onClose}
+    onSubmit={async (reason) =>
+      onDone(await adminUsersApi.deleteUser(user.id, { reason, confirmEmail: user.email ?? '', rowVersion: user.rowVersion ?? null }))
+    }
+  >
+    <Summary user={user} />
+    <Banner tone="warning">
+      Refused while the user still has open bookings, signed lot contracts, unpaid settlements or active sanctions. Suspend the user instead.
+    </Banner>
+  </LifecycleDialog>
 );

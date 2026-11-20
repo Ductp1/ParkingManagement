@@ -45,6 +45,7 @@ public sealed class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Ex
                     : ex is Microsoft.EntityFrameworkCore.DbUpdateException ? "Định danh hoặc dữ liệu đã được sử dụng." : ex.Message,
                 Instance = context.Request.Path
             };
+            if (ex is IHasErrorCode { Code: { } code }) problem.Extensions["code"] = code;
             context.Response.StatusCode = status;
             await context.Response.WriteAsJsonAsync(problem);
         }

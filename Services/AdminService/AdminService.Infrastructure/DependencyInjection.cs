@@ -83,6 +83,15 @@ public static class DependencyInjection
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         services.AddTransient<IUserServiceClient>(sp => sp.GetRequiredService<UserServiceClient>());
+        services.AddScoped<AdminService.Application.Features.Users.IAdminAuditWriter, AdminService.Infrastructure.Persistence.Repositories.AdminAuditWriter>();
+        services.AddSingleton<AdminService.Application.Features.PartnerOnboarding.IPartnerEditLinkBuilder>(new PartnerEditLinkBuilder(configuration));
+        // US-096: nghĩa vụ trước khi xóa user – booking (BookingService) và quyết toán (PaymentService) qua Gateway, JWT Admin chuyển tiếp.
+        services.AddHttpClient<AdminService.Application.Features.Users.IUserObligationSource, UserObligationSource>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         // US-116: tạo / kích hoạt tài khoản chủ bãi (U2 / U3) dùng chung client UserService.
         services.AddTransient<IOwnerAccountClient>(sp => sp.GetRequiredService<UserServiceClient>());
         // US-116: đọc hồ sơ KYB + kích hoạt bãi bên ParkingService qua Gateway (route parking-lots), chuyển tiếp JWT Admin.

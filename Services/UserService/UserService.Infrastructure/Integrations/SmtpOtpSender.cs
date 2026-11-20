@@ -37,6 +37,12 @@ public sealed class SmtpOtpSender(IConfiguration config)
         => DeliverAsync($"owner-activation-{eventId:N}", destination,
             EmailTemplates.OwnerActivation(fullName, businessName, activationLink, expiresAtUtc), ct);
 
+    /// <summary>Email đối tác (US-116): yêu cầu bổ sung hồ sơ / xác nhận đã nhận bổ sung.</summary>
+    public Task SendPartnerEmailAsync(Guid eventId, string template, string destination, string fullName, string applicationCode,
+        string? note, IReadOnlyList<string> items, DateTime? dueAtUtc, string? link, CancellationToken ct)
+        => DeliverAsync($"partner-{eventId:N}", destination, EmailTemplates.PartnerInfoRequested(fullName, applicationCode, note, items,
+            dueAtUtc, link ?? ""), ct);
+
     /// <summary>
     /// Trang kích hoạt (App:OwnerActivationUrl, mặc định frontend local). Token nằm sau "#" nên trình duyệt không gửi lên server,
     /// không xuất hiện trong log truy cập hay header Referer.

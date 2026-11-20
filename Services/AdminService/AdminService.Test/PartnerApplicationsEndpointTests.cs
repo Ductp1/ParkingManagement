@@ -190,7 +190,7 @@ public class PartnerApplicationsEndpointTests
         var read = new HttpRequestMessage(HttpMethod.Get, $"{EditUrl}/{app.Code}");
         read.Headers.Add(PartnerApplicationsController.EditTokenHeader, link.Token);
         var readResponse = await host.Client.SendAsync(read);
-        var put = new HttpRequestMessage(HttpMethod.Put, $"{EditUrl}/{app.Code}/resubmit") { Content = JsonContent.Create(Valid() with { LotCount = 4 }, options: Json) };
+        var put = new HttpRequestMessage(HttpMethod.Put, $"{EditUrl}/{app.Code}/resubmit") { Content = Form(Valid() with { LotCount = 4 }) };
         put.Headers.Add(PartnerApplicationsController.EditTokenHeader, link.Token);
         var putResponse = await host.Client.SendAsync(put);
 
@@ -261,6 +261,7 @@ public class PartnerApplicationsEndpointTests
                          typeof(IRequestPartnerInfoUseCase), typeof(IRejectPartnerApplicationUseCase), typeof(ICancelPartnerApplicationUseCase),
                          typeof(IIssueOwnerAccountUseCase), typeof(IResendOwnerActivationUseCase), typeof(IIssuePartnerEditLinkUseCase),
                          typeof(IListMyPartnerApplicationsUseCase), typeof(IListPartnerDocumentsUseCase), typeof(IGetPartnerDocumentFileUseCase),
+                         typeof(IRetryPartnerCleanupUseCase), typeof(IResendPartnerInfoRequestUseCase),
                      })
                 builder.Services.AddSingleton(type, _ => UnusedProxy.For(type));
 

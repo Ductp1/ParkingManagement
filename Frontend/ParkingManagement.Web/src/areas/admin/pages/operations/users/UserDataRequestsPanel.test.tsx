@@ -6,6 +6,9 @@ import type { AdminDataRequestDto } from '@/types/adminIdentity';
 import type { AdminUserDto } from '@/types/adminUsers';
 import { AdminToastProvider } from '../../../components/AdminToastProvider';
 import { UserDataRequestsPanel } from './UserDataRequestsPanel';
+import { configureStore } from '@reduxjs/toolkit';
+import { Provider } from 'react-redux';
+import authReducer from '@/store/slices/authSlice';
 import { UserDetailPage } from './UserDetailPage';
 import { MAX_PAGES, isOpenRequest, loadUserDataRequests, requestCode } from './userDataRequests';
 
@@ -151,16 +154,20 @@ describe('UserDetailPage data panels', () => {
   it('shows real data requests and no placeholder panels without a source', async () => {
     h.getById.mockResolvedValue(staff());
     h.list.mockResolvedValueOnce([dsr({ id: 77, userId: 7 })]);
+    // Trang chi tiết đọc id Admin đang đăng nhập (ẩn Suspend / Delete với chính mình) từ Redux.
+    const store = configureStore({ reducer: { auth: authReducer } });
     render(
-      <AdminToastProvider>
-        <MemoryRouter initialEntries={['/admin/operations/users/7']}>
-          <Routes>
-            <Route element={<Outlet context={{ setDetailLabel: () => {} }} />}>
-              <Route path="/admin/operations/users/:id" element={<UserDetailPage />} />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </AdminToastProvider>
+      <Provider store={store}>
+        <AdminToastProvider>
+          <MemoryRouter initialEntries={['/admin/operations/users/7']}>
+            <Routes>
+              <Route element={<Outlet context={{ setDetailLabel: () => {} }} />}>
+                <Route path="/admin/operations/users/:id" element={<UserDetailPage />} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </AdminToastProvider>
+      </Provider>
     );
 
     expect(await screen.findByRole('link', { name: 'DSR-00077' })).toBeTruthy();

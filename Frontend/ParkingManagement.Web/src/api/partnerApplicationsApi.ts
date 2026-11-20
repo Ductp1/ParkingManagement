@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import { buildRegistrationForm, type PartnerDocumentFiles, type PartnerRegistrationFields } from './partnerRegistrationApi';
 
 /** Loại hình kinh doanh – khớp AdminService PartnerBusinessType. */
 export type PartnerBusinessType = 'Company' | 'HouseholdBusiness';
@@ -52,6 +53,9 @@ export interface PartnerApplicationEditView {
   estimatedCarSlots: number | null;
   estimatedMotorbikeSlots: number | null;
   operatingHours: string | null;
+  /** Khóa các mục Admin yêu cầu bổ sung (fullName, taxCode, estimatedSlots, doc:idCardBack…); rỗng = được sửa mọi mục. */
+  infoRequestItems?: string[] | null;
+  infoRequestDueAtUtc?: string | null;
 }
 
 const EDIT_TOKEN_HEADER = 'X-Edit-Token';
@@ -63,10 +67,20 @@ export async function getPartnerApplicationForEdit(code: string, token: string):
   return data;
 }
 
-/** P3 (T4): gửi bổ sung → hồ sơ quay lại "đang thẩm định"; link hết hiệu lực. */
-export async function resubmitPartnerApplication(code: string, token: string, request: PartnerApplicationRequest): Promise<PartnerApplicationReceipt> {
-  const { data } = await apiClient.put<PartnerApplicationReceipt>(`/api/v1/partner-applications/${encodeURIComponent(code)}/resubmit`, request, {
-    headers: { [EDIT_TOKEN_HEADER]: token },
-  });
+/**
+ * P3 (T4): gửi bổ sung (multipart: trường chữ như form đăng ký + file của các loại giấy tờ được yêu cầu) → hồ sơ quay lại "đang thẩm định";
+ * link hết hiệu lực. Lỗi link có `code`: edit_link_invalid | edit_link_expired.
+ */
+export async function resubmitPartnerApplication(
+  code: string,
+  token: string,
+  fields: PartnerRegistrationFields,
+  files: PartnerDocumentFiles
+): Promise<PartnerApplicationReceipt> {
+  const { data } = await apiClient.put<PartnerApplicationReceipt>(
+    `/api/v1/partner-applications/${encodeURIComponent(code)}/resubmit`,
+    buildRegistrationForm(fields, files),
+    { headers: { [EDIT_TOKEN_HEADER]: token, 'Content-Type': 'multipart/form-data' }, timeout: 60000 }
+  );
   return data;
 }

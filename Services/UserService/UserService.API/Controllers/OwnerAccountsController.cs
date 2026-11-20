@@ -14,7 +14,8 @@ namespace UserService.API.Controllers;
 [Route("api/v1/users/owner-profiles")]
 [Authorize(Policy = "RequireAdmin")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-public sealed class OwnerAccountsController(OwnerAccountUseCases owners, IGrantLotOwnerRoleUseCase grantLotOwner) : ControllerBase
+public sealed class OwnerAccountsController(OwnerAccountUseCases owners, IGrantLotOwnerRoleUseCase grantLotOwner,
+    UserLifecycleUseCases lifecycle, PartnerEmailUseCases partnerEmails) : ControllerBase
 {
     /// <summary>
     /// POST /api/v1/users/owner-profiles (header Idempotency-Key) – U2, một endpoint cho cả hai cách nộp hồ sơ đối tác:
@@ -48,6 +49,31 @@ public sealed class OwnerAccountsController(OwnerAccountUseCases owners, IGrantL
         await owners.ResendActivationAsync(ownerProfileId, ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// POST /api/v1/users/owner-profiles/partner-emails – AdminService nhờ gửi email cho người nộp hồ sơ (yêu cầu bổ sung / đã nhận bổ sung)
+    /// qua outbox + SMTP của UserService. 202; SMTP chưa cấu hình → 503. Đặt chung controller vì cùng tiền tố và cùng quyền Admin.
+    /// </summary>
+    [HttpPost("partner-emails")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> SendPartnerEmail([FromBody] PartnerEmailRequest request, CancellationToken ct)
+    {
+        await partnerEmails.EnqueueAsync(request, ct);
+        return Accepted();
+    }
+
+    /// <summary>
+    /// POST /api/v1/users/owner-profiles/5/discard { reason } – U6: hủy hồ sơ đối tác đã cấp tài khoản mà chủ bãi chưa kích hoạt.
+    /// Thu hồi link, ẩn danh hóa tài khoản, nhả email / SĐT / mã số thuế. Idempotent; đã kích hoạt → 409; không có hồ sơ → 404.
+    /// </summary>
+    [HttpPost("{ownerProfileId:int}/discard")]
+    [ProducesResponseType<UserLifecycleResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<UserLifecycleResult>> Discard(int ownerProfileId, [FromBody] DiscardOwnerAccountRequest request, CancellationToken ct)
+        => Ok(await lifecycle.DiscardOwnerAccountAsync(ownerProfileId, request, ct));
 }
 
 /// <summary>

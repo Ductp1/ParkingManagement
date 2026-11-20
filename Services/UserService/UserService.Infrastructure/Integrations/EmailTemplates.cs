@@ -92,6 +92,44 @@ public static class EmailTemplates
         return new Email("Kích hoạt tài khoản chủ bãi ParkMaster", Layout(title, body), text);
     }
 
+    /// <summary>
+    /// US-116: Admin yêu cầu người nộp bổ sung hồ sơ. Chỉ có mã hồ sơ, ghi chú của Admin, các mục cần bổ sung, hạn và link sửa –
+    /// không có mã số thuế, giấy tờ hay dữ liệu nhạy cảm.
+    /// </summary>
+    public static Email PartnerInfoRequested(string fullName, string applicationCode, string? note, IReadOnlyList<string> items,
+        DateTime? dueAtUtc, string editLink)
+    {
+        var title = $"Hồ sơ {applicationCode} cần bổ sung thông tin";
+        var due = dueAtUtc is { } d ? Vn(d) : null;
+        var itemsHtml = items.Count == 0 ? "" : $"""
+            <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#0f172a;">Các mục cần bổ sung</p>
+            <ul style="margin:0 0 18px;padding-left:20px;font-size:14px;line-height:1.7;color:#334155;">{string.Concat(items.Select(i => $"<li>{E(i)}</li>"))}</ul>
+            """;
+        var noteHtml = string.IsNullOrWhiteSpace(note) ? "" : $"""
+            <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#0f172a;">Ghi chú của ParkMaster</p>
+            <p style="margin:0 0 18px;padding:12px 14px;border-left:3px solid #d97706;background:#fff7ed;font-size:14px;line-height:1.6;color:#334155;white-space:pre-line;">{E(note)}</p>
+            """;
+        var dueHtml = due is null ? "Link" : "Vui lòng bổ sung trước <strong style=\"color:#0f172a;\">" + E(due) + "</strong>. Link";
+        var body = $"""
+            <p style="margin:0 0 6px;font-size:15px;line-height:1.6;color:#0f172a;">Xin chào <strong>{E(fullName)}</strong>,</p>
+            <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#475569;">ParkMaster cần Bạn bổ sung một số thông tin cho hồ sơ <strong style="color:#0f172a;">{E(applicationCode)}</strong> để tiếp tục thẩm định.</p>
+            {noteHtml}{itemsHtml}
+            <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+              <tr><td style="border-radius:10px;background:#2563eb;">
+                <a href="{E(editLink)}" style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Bổ sung hồ sơ</a>
+              </td></tr>
+            </table>
+            <p style="margin:0 0 12px;font-size:13px;line-height:1.6;color:#64748b;">{dueHtml} dùng cho hồ sơ này và hết hiệu lực sau khi Bạn gửi bổ sung.</p>
+            <p style="margin:0;font-size:13px;line-height:1.6;color:#64748b;">Nếu Bạn không nộp hồ sơ đối tác ParkMaster, hãy bỏ qua email này.</p>
+            """;
+        var text = $"{title}\n\nXin chào {fullName},\n\nParkMaster cần Bạn bổ sung thông tin cho hồ sơ {applicationCode}.\n"
+            + (string.IsNullOrWhiteSpace(note) ? "" : $"\nGhi chú của ParkMaster:\n{note}\n")
+            + (items.Count == 0 ? "" : $"\nCác mục cần bổ sung:\n{string.Join("\n", items.Select(i => $"- {i}"))}\n")
+            + (due is null ? "" : $"\nHạn bổ sung: {due}\n")
+            + $"\nMở link để bổ sung hồ sơ:\n{editLink}\n\nNếu Bạn không nộp hồ sơ đối tác ParkMaster, hãy bỏ qua email này.";
+        return new Email(title, Layout(title, body), text);
+    }
+
     /// <summary>Khung chung: logo P xanh, tiêu đề, thẻ nội dung trắng, chân trang hỗ trợ.</summary>
     private static string Layout(string title, string body) => $"""
         <!doctype html>

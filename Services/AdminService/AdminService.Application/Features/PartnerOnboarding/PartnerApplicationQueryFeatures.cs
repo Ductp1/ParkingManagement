@@ -24,7 +24,11 @@ public sealed record PartnerApplicationDetailDto(
     string? BusinessLicenseUrl, int LotCount, string PrimaryLotAddress, int? EstimatedCarSlots, int? EstimatedMotorbikeSlots,
     string? OperatingHours, DateTime ConsentAcceptedAtUtc, int? ReviewerAdminId, string? InfoRequestNote, string? RejectReason,
     string? CancelReason, PartnerBankAccountDto? PayoutBank, int? CreatedUserId, int? CreatedOwnerProfileId, DateTime CreatedAtUtc,
-    DateTime? UpdatedAtUtc, IReadOnlyList<string> NextStatuses);
+    DateTime? UpdatedAtUtc, IReadOnlyList<string> NextStatuses,
+    // Vòng đời hồ sơ: RowVersion (base64) Admin gửi lại khi hủy / thao tác; gỡ tài khoản chủ bãi sau khi hủy; yêu cầu bổ sung.
+    string? RowVersion = null, DateTime? CancelledAtUtc = null, string? CleanupSyncStatus = null, string? CleanupError = null,
+    IReadOnlyList<string>? InfoRequestItems = null, DateTime? InfoRequestedAtUtc = null, DateTime? InfoRequestDueAtUtc = null,
+    DateTime? InfoProvidedAtUtc = null, string? InfoRequestEmailStatus = null, string? InfoRequestEmailError = null);
 
 // ===== PORT (đọc) =====
 

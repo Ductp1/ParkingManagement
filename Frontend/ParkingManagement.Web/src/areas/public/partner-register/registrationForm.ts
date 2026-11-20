@@ -213,6 +213,35 @@ export const checkFile = (spec: DocumentSpec, file: File, files: PartnerDocument
   return null;
 };
 
+/**
+ * Áp một lần chọn file cho một ô giấy tờ: trả bộ file mới và (nếu có) lỗi đầu tiên. CCCD chọn lại = thay ảnh cũ; ô nhiều file thì thêm vào
+ * hoặc thay đúng file `replacing`.
+ */
+export const applyPick = (
+  files: PartnerDocumentFiles,
+  spec: DocumentSpec,
+  picked: File[],
+  replacing?: File
+): { files: PartnerDocumentFiles; problem: string | null } => {
+  const next: PartnerDocumentFiles = { ...files, [spec.kind]: [...files[spec.kind]] };
+  let problem: string | null = null;
+  let target = replacing;
+  picked.forEach((file) => {
+    const err = checkFile(spec, file, next, target);
+    if (err) {
+      problem ??= picked.length > 1 ? `${file.name}: ${err}` : err;
+      return;
+    }
+    if (spec.imageOnly) next[spec.kind] = [file];
+    else if (target) {
+      const replaced = target;
+      next[spec.kind] = next[spec.kind].map((f) => (f === replaced ? file : f));
+      target = undefined;
+    } else next[spec.kind] = [...next[spec.kind], file];
+  });
+  return { files: next, problem };
+};
+
 // ---------- Chuẩn hoá & ghép payload ----------
 
 const PHONE = /^(\+84|0)\d{9,10}$/;

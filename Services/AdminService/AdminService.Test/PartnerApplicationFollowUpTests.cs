@@ -58,7 +58,7 @@ public class PartnerApplicationFollowUpTests
 
     private IssuePartnerEditLinkUseCase EditLink => new(store, PartnerEditLinkOptions.Default, Time);
     private GetPartnerApplicationForEditUseCase ForEdit => new(store, Time);
-    private ResubmitPartnerApplicationUseCase Resubmit => new(store, store, Time);
+    private ResubmitPartnerApplicationUseCase Resubmit => new(store, store, new NoStorage(), Time);
 
     // ==================== T3 ====================
 
@@ -145,7 +145,7 @@ public class PartnerApplicationFollowUpTests
         Assert.Equal((app.Code, "UnderReview"), (receipt.Code, receipt.Status));
         Assert.Equal((PartnerApplicationStatus.UnderReview, 55, 3, null), (app.Status, app.EstimatedCarSlots, app.LotCount, app.EditTokenHash));
         var audit = Assert.Single(store.Audits);
-        Assert.Equal(("PartnerApplication.Resubmitted", (int?)null), (audit.Action, audit.UserId));
+        Assert.Equal(("PartnerApplication.InfoProvided", (int?)null), (audit.Action, audit.UserId));
         await Assert.ThrowsAsync<ValidationException>(() => Resubmit.ExecuteAsync(app.Code, link.Token, Valid()));
     }
 
@@ -234,5 +234,66 @@ public class PartnerApplicationFollowUpTests
                 a.Id, a.Code, a.BusinessName, a.TaxCode, a.FullName, a.Email, a.Phone, a.LotCount, a.Status.ToString(), a.ReviewerAdminId,
                 a.CreatedOwnerProfileId, a.CreatedAtUtc, a.UpdatedAtUtc)).ToList(), page, pageSize, store.Applications.Count));
         public Task<PartnerApplicationDetailDto?> GetDetailAsync(int id, CancellationToken ct) => store.GetDetailAsync(id, ct);
+    }
+
+    // ==================== Yêu cầu bổ sung theo mục + giấy tờ ====================
+
+    /// <summary>Admin chỉ yêu cầu mã số thuế và CCCD mặt sau; link bổ sung đã cấp.</summary>
+    private async Task<(PartnerApplication App, string Token)> NeedsOnlyTaxCodeAndIdBack()
+    {
+        await Seed(Valid());
+        var app = store.Applications[^1];
+        app.StartReview(AdminId);
+        app.RequestInfo(AdminId, "Cập nhật MST và chụp lại CCCD mặt sau", ["taxCode", "doc:idCardBack"], Now.AddDays(7), new string('a', 64), Now);
+        var link = await EditLink.ExecuteAsync(app.Id, AdminId);
+        store.Audits.Clear();
+        return (app, link.Token);
+    }
+
+    [Fact]
+    public async Task Resubmit_only_allows_requested_items_and_requires_the_requested_documents()
+    {
+        var (app, token) = await NeedsOnlyTaxCodeAndIdBack();
+        var idBack = new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.IdCardBack, new UploadedFile("sau.png", Png.Length, Png));
+
+        var tax = Valid() with { TaxCode = "0311111111" };
+        var lot = await Assert.ThrowsAsync<ValidationException>(() => Resubmit.ExecuteAsync(app.Code, token, tax with { LotCount = 3 }, [idBack]));
+        Assert.Contains("Số bãi", lot.Message);
+        var email = await Assert.ThrowsAsync<ValidationException>(() => Resubmit.ExecuteAsync(app.Code, token, tax with { Email = "khac@example.vn" }, [idBack]));
+        Assert.Contains("Email không được thay đổi", email.Message);
+        var missing = await Assert.ThrowsAsync<ValidationException>(() => Resubmit.ExecuteAsync(app.Code, token, tax, []));
+        Assert.Contains("ảnh CCCD mặt sau", missing.Message);
+        var extra = await Assert.ThrowsAsync<ValidationException>(() => Resubmit.ExecuteAsync(app.Code, token, tax,
+            [idBack, new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.BusinessLicense, new UploadedFile("dk.pdf", Pdf.Length, Pdf))]));
+        Assert.Contains("không nằm trong yêu cầu", extra.Message);
+        Assert.Equal(AdminService.Domain.Enums.PartnerApplicationStatus.NeedsMoreInfo, app.Status);
+
+        var receipt = await Resubmit.ExecuteAsync(app.Code, token, tax, [idBack]);
+
+        Assert.Equal("UnderReview", receipt.Status);
+        Assert.Equal(("0311111111", Now), (app.TaxCode, app.InfoProvidedAtUtc));
+        Assert.Null(app.EditTokenHash);
+        Assert.Contains("1 giấy tờ mới", Assert.Single(store.Audits).Reason);
+    }
+
+    [Fact]
+    public async Task Edit_link_errors_carry_codes_for_invalid_expired_and_cancelled()
+    {
+        var (app, token) = await NeedsOnlyTaxCodeAndIdBack();
+
+        var wrong = await Assert.ThrowsAsync<ValidationException>(() => ForEdit.ExecuteAsync(app.Code, "sai-token", default));
+        Assert.Equal("edit_link_invalid", wrong.Code);
+
+        var view = await ForEdit.ExecuteAsync(app.Code, token, default);
+        Assert.Equal(["taxCode", "doc:idCardBack"], view.InfoRequestItems);
+
+        clockNow = Now.AddDays(8);
+        var expired = await Assert.ThrowsAsync<ValidationException>(() => ForEdit.ExecuteAsync(app.Code, token, default));
+        Assert.Equal("edit_link_expired", expired.Code);
+
+        clockNow = Now;
+        app.Cancel(AdminId, "Đối tác rút", Now);
+        var closed = await Assert.ThrowsAsync<ValidationException>(() => ForEdit.ExecuteAsync(app.Code, token, default));
+        Assert.Equal("edit_link_invalid", closed.Code);   // hủy hồ sơ đã thu hồi link
     }
 }

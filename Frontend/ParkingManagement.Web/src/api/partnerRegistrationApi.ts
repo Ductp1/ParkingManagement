@@ -55,20 +55,26 @@ const FILE_FIELDS: Record<PartnerDocumentKind, string> = {
   other: 'otherFiles',
 };
 
+/** multipart của POST partner-registrations và PUT partner-applications/{code}/resubmit: cùng tên trường chữ + các trường file. */
+export const buildRegistrationForm = (fields: PartnerRegistrationFields, files: PartnerDocumentFiles): FormData => {
+  const form = new FormData();
+  Object.entries(fields).forEach(([key, value]) => {
+    const text = typeof value === 'boolean' ? String(value) : value.trim();
+    if (text !== '') form.append(key, text);
+  });
+  (Object.keys(FILE_FIELDS) as PartnerDocumentKind[]).forEach((kind) => {
+    files[kind].forEach((file) => form.append(FILE_FIELDS[kind], file, file.name));
+  });
+  return form;
+};
+
 export const partnerRegistrationApi = {
   submit: async (
     fields: PartnerRegistrationFields,
     files: PartnerDocumentFiles,
     options: { onUploadProgress?: (percent: number) => void } = {}
   ): Promise<PartnerApplicationReceipt> => {
-    const form = new FormData();
-    Object.entries(fields).forEach(([key, value]) => {
-      const text = typeof value === 'boolean' ? String(value) : value.trim();
-      if (text !== '') form.append(key, text);
-    });
-    (Object.keys(FILE_FIELDS) as PartnerDocumentKind[]).forEach((kind) => {
-      files[kind].forEach((file) => form.append(FILE_FIELDS[kind], file, file.name));
-    });
+    const form = buildRegistrationForm(fields, files);
     // Ghi đè Content-Type JSON mặc định của apiClient để axios gửi multipart (trình duyệt tự thêm boundary).
     const res = await apiClient.post<PartnerApplicationReceipt>('/api/v1/admin/partner-registrations', form, {
       headers: { 'Content-Type': 'multipart/form-data' },

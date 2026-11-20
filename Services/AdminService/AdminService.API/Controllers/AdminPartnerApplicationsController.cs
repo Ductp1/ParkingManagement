@@ -23,6 +23,8 @@ public sealed class AdminPartnerApplicationsController(
     IRequestPartnerInfoUseCase requestInfo,
     IRejectPartnerApplicationUseCase reject,
     ICancelPartnerApplicationUseCase cancel,
+    IRetryPartnerCleanupUseCase retryCleanup,
+    IResendPartnerInfoRequestUseCase resendInfoRequest,
     IIssueOwnerAccountUseCase issueAccount,
     IResendOwnerActivationUseCase resendActivation,
     IListPartnerDocumentsUseCase listDocuments,
@@ -92,7 +94,7 @@ public sealed class AdminPartnerApplicationsController(
     public Task<ActionResult<PartnerApplicationDetailDto>> StartReview(int id, CancellationToken cancellationToken)
         => AsAdmin(adminId => startReview.ExecuteAsync(id, adminId, cancellationToken));
 
-    /// <summary>POST /api/v1/admin/partner-applications/12/request-info { note } (A4, T3).</summary>
+    /// <summary>POST /api/v1/admin/partner-applications/12/request-info { note, items[], dueAtUtc?, rowVersion } (A4, T3) – ghi chú + mục cần bổ sung + hạn; gửi email kèm link bổ sung cho người nộp.</summary>
     [HttpPost("{id:int}/request-info")]
     [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -126,7 +128,11 @@ public sealed class AdminPartnerApplicationsController(
         CancellationToken cancellationToken)
         => AsAdmin(adminId => reject.ExecuteAsync(id, request, adminId, cancellationToken));
 
-    /// <summary>POST /api/v1/admin/partner-applications/12/cancel { reason } (A12, T10).</summary>
+    /// <summary>
+    /// POST /api/v1/admin/partner-applications/12/cancel { reason, rowVersion, confirmCode } (A12, T10) – hủy / bỏ hồ sơ ở mọi trạng thái chưa kết thúc.
+    /// Hồ sơ đã cấp tài khoản (chủ bãi chưa kích hoạt): confirmCode = mã hồ sơ; UserService gỡ tài khoản để email dùng lại được.
+    /// Chủ bãi đã kích hoạt → 409. Gọi lại hồ sơ đã hủy → 200 (idempotent).
+    /// </summary>
     [HttpPost("{id:int}/cancel")]
     [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -135,6 +141,23 @@ public sealed class AdminPartnerApplicationsController(
     public Task<ActionResult<PartnerApplicationDetailDto>> Cancel(int id, [FromBody] PartnerReasonRequest request,
         CancellationToken cancellationToken)
         => AsAdmin(adminId => cancel.ExecuteAsync(id, request, adminId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/partner-applications/12/retry-cleanup – thử lại gỡ tài khoản chủ bãi sau khi hủy hồ sơ (cleanup Pending / Failed).</summary>
+    [HttpPost("{id:int}/retry-cleanup")]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<PartnerApplicationDetailDto>> RetryCleanup(int id, CancellationToken cancellationToken)
+        => AsAdmin(adminId => retryCleanup.ExecuteAsync(id, adminId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/partner-applications/12/resend-info-request { dueAtUtc?, rowVersion } – gửi lại email yêu cầu bổ sung (link mới, link cũ hết hiệu lực).</summary>
+    [HttpPost("{id:int}/resend-info-request")]
+    [ProducesResponseType<PartnerApplicationDetailDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<PartnerApplicationDetailDto>> ResendInfoRequest(int id, [FromBody] PartnerResendInfoRequest request,
+        CancellationToken cancellationToken)
+        => AsAdmin(adminId => resendInfoRequest.ExecuteAsync(id, request ?? new PartnerResendInfoRequest(), adminId, cancellationToken));
 
     /// <summary>
     /// POST /api/v1/admin/partner-applications/12/issue-account { bank: { bin, name, accountNumber, accountName } } (A9, T6).

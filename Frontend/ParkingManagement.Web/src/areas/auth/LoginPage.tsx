@@ -14,7 +14,8 @@ export function LoginPage() {
   const location = useLocation();
   const { user, isAuthenticated, isLoading } = useAppSelector((s) => s.auth);
 
-  const [identifier, setIdentifier] = useState('');
+  // Sau khi kích hoạt tài khoản chủ bãi, trang kích hoạt chuyển email qua router state (không đưa email lên URL).
+  const [identifier, setIdentifier] = useState(() => (location.state as { email?: string } | null)?.email ?? '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');

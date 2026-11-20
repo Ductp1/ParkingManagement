@@ -18,7 +18,8 @@ public sealed record PartnerApplicationEditDto(
     string FullName, string Email, string Phone, string? Position,
     string BusinessType, string BusinessName, string TaxCode, string BusinessAddress,
     string LegalRepresentativeName, string? LegalRepresentativePosition,
-    int LotCount, string PrimaryLotAddress, int? EstimatedCarSlots, int? EstimatedMotorbikeSlots, string? OperatingHours);
+    int LotCount, string PrimaryLotAddress, int? EstimatedCarSlots, int? EstimatedMotorbikeSlots, string? OperatingHours,
+    IReadOnlyList<string>? InfoRequestItems = null, DateTime? InfoRequestDueAtUtc = null);
 
 /// <summary>Thời hạn link bổ sung (PARTNER_EDIT_TOKEN_TTL_HOURS của US-116), mặc định 7 ngày.</summary>
 public sealed record PartnerEditLinkOptions(TimeSpan Ttl)
@@ -30,6 +31,9 @@ internal static class PartnerEditToken
 {
     public const string InvalidLinkMessage =
         "Link bổ sung hồ sơ không hợp lệ, đã được dùng hoặc đã hết hạn. Liên hệ ParkMaster (1900 6868) để nhận link mới.";
+    /// <summary>ProblemDetails.code của link bổ sung: FE chọn màn hình (không hợp lệ / đã dùng / đã đóng, hoặc hết hạn) mà thông báo vẫn chung.</summary>
+    public const string LinkInvalid = "edit_link_invalid";
+    public const string LinkExpired = "edit_link_expired";
 
     public static string New() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
@@ -42,16 +46,20 @@ internal static class PartnerEditToken
         code = code?.Trim().ToUpperInvariant();
         token = token?.Trim();
         if (string.IsNullOrEmpty(code) || code.Length > 20 || string.IsNullOrEmpty(token) || token.Length > 128)
-            throw new ValidationException(InvalidLinkMessage);
+            throw new ValidationException(InvalidLinkMessage, LinkInvalid);
         var app = await repository.FindByCodeTrackedAsync(code, ct);
-        if (app is null || !app.AcceptsEditToken(Hash(token), nowUtc)) throw new ValidationException(InvalidLinkMessage);
+        // Chỉ khi ĐÚNG token mới phân biệt hết hạn / đã đóng (người lạ đoán mã không biết được hồ sơ nào tồn tại).
+        if (app is null || !app.MatchesEditToken(Hash(token))) throw new ValidationException(InvalidLinkMessage, LinkInvalid);
+        if (app.Status != PartnerApplicationStatus.NeedsMoreInfo) throw new ValidationException(InvalidLinkMessage, LinkInvalid);
+        if (app.EditTokenExpiresAtUtc <= nowUtc) throw new ValidationException(InvalidLinkMessage, LinkExpired);
         return app;
     }
 
     public static PartnerApplicationEditDto ToDto(PartnerApplication a) => new(
         a.Code, a.Status.ToString(), a.InfoRequestNote, a.EditTokenExpiresAtUtc, a.FullName, a.Email, a.Phone, a.Position,
         a.BusinessType.ToString(), a.BusinessName, a.TaxCode, a.BusinessAddress, a.LegalRepresentativeName, a.LegalRepresentativePosition,
-        a.LotCount, a.PrimaryLotAddress, a.EstimatedCarSlots, a.EstimatedMotorbikeSlots, a.OperatingHours);
+        a.LotCount, a.PrimaryLotAddress, a.EstimatedCarSlots, a.EstimatedMotorbikeSlots, a.OperatingHours,
+        a.InfoRequestItems, a.InfoRequestDueAtUtc);
 }
 
 // ===== T3: Admin cấp link bổ sung =====
@@ -99,18 +107,29 @@ public sealed class GetPartnerApplicationForEditUseCase(IPartnerApplicationIntak
 public interface IResubmitPartnerApplicationUseCase
 {
     Task<PartnerApplicationReceiptDto> ExecuteAsync(string? code, string? token, SubmitPartnerApplicationRequest request,
-        CancellationToken cancellationToken = default);
+        IReadOnlyList<PartnerDocumentUpload>? documents = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// US-116 P3 / T4: đối tác gửi lại hồ sơ đã sửa → NeedsMoreInfo → UnderReview (Admin thẩm định tiếp), link hết hiệu lực.
-/// Kiểm tra như form T1 (trừ trùng với chính hồ sơ này). AuditLog không có người thao tác (đối tác chưa có tài khoản).
+/// US-116 P3 / T4: đối tác gửi bổ sung → NeedsMoreInfo → UnderReview, link hết hiệu lực. Kiểm tra như form T1 (trừ trùng với chính hồ sơ này).
+/// Chỉ được thay đổi các mục Admin yêu cầu (InfoRequestItems; rỗng = mọi mục): đổi mục khác → 400. Giấy tờ: chỉ các loại được yêu cầu,
+/// bắt buộc tải lại đúng các loại đó; bản cũ cùng loại chuyển Superseded (giữ lịch sử, Admin chỉ thấy bản mới). Giấy tờ hợp lệ theo
+/// <see cref="PartnerDocumentRules"/> (magic bytes). File lưu trước; lưu database lỗi thì xóa file vừa ghi. AuditLog không có người thao tác.
 /// </summary>
 public sealed class ResubmitPartnerApplicationUseCase(IPartnerApplicationIntakeRepository intake, IPartnerApplicationRepository repository,
-    TimeProvider clock) : IResubmitPartnerApplicationUseCase
+    IFileStorage storage, TimeProvider clock) : IResubmitPartnerApplicationUseCase
 {
+    private static readonly Dictionary<string, PartnerDocumentType> DocumentKeys = new()
+    {
+        ["doc:businessLicense"] = PartnerDocumentType.BusinessLicense,
+        ["doc:lotLegalProof"] = PartnerDocumentType.LotLegalProof,
+        ["doc:idCardFront"] = PartnerDocumentType.IdCardFront,
+        ["doc:idCardBack"] = PartnerDocumentType.IdCardBack,
+        ["doc:other"] = PartnerDocumentType.Other,
+    };
+
     public async Task<PartnerApplicationReceiptDto> ExecuteAsync(string? code, string? token, SubmitPartnerApplicationRequest request,
-        CancellationToken cancellationToken = default)
+        IReadOnlyList<PartnerDocumentUpload>? documents = null, CancellationToken cancellationToken = default)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var app = await PartnerEditToken.LoadAsync(intake, code, token, now, cancellationToken);
@@ -119,12 +138,110 @@ public sealed class ResubmitPartnerApplicationUseCase(IPartnerApplicationIntakeR
             throw new ConflictException(
                 $"Đã có hồ sơ đối tác khác đang được xử lý với {PartnerIntake.Fields(match)} này. Vui lòng liên hệ hotline 1900 6868.");
 
-        var before = PartnerApplicationAudit.Snapshot(app);
-        input.ApplyTo(app);
-        app.Resubmit(now);
-        await repository.SaveWithAuditAsync(PartnerApplicationAudit.Build(app, "Resubmitted", null, before, "Đối tác gửi bổ sung qua link"),
-            cancellationToken);
-        return new PartnerApplicationReceiptDto(app.Code, app.Status.ToString(), now);
+        var requested = app.InfoRequestItems;
+        EnsureOnlyRequestedChanged(app, input, requested);
+
+        var uploads = documents ?? [];
+        var allowedTypes = requested.Count == 0 ? DocumentKeys.Values.ToHashSet() : requested.Where(DocumentKeys.ContainsKey).Select(k => DocumentKeys[k]).ToHashSet();
+        foreach (var upload in uploads)
+        {
+            if (!allowedTypes.Contains(upload.Type))
+                throw new ValidationException($"{PartnerDocumentRules.Label(upload.Type)} không nằm trong yêu cầu bổ sung.");
+        }
+        // Mỗi loại giấy tờ được yêu cầu phải có file mới (trừ khi Admin không chỉ định mục nào).
+        if (requested.Count > 0)
+        {
+            foreach (var type in allowedTypes.Where(t => uploads.All(u => u.Type != t)))
+                throw new ValidationException($"Vui lòng tải lên {char.ToLowerInvariant(PartnerDocumentRules.Label(type)[0])}{PartnerDocumentRules.Label(type)[1..]}.");
+        }
+        foreach (var side in new[] { PartnerDocumentType.IdCardFront, PartnerDocumentType.IdCardBack })
+        {
+            if (uploads.Count(u => u.Type == side) > 1) throw new ValidationException($"{PartnerDocumentRules.Label(side)}: chỉ tải lên 1 ảnh.");
+        }
+        if (uploads.Count > PartnerDocumentRules.MaxFiles) throw new ValidationException($"Tối đa {PartnerDocumentRules.MaxFiles} file giấy tờ cho mỗi hồ sơ.");
+        if (uploads.Sum(u => u.File.Length) > PartnerDocumentRules.MaxTotalBytes) throw new ValidationException("Tổng dung lượng giấy tờ tối đa 25 MB.");
+        var detected = uploads.Select(u => (Upload: u, Kind: PartnerDocumentRules.Detect(u))).ToList();
+
+        var saved = new List<string>();
+        try
+        {
+            var newDocuments = new List<PartnerApplicationDocument>();
+            var folder = $"partner-applications/{Guid.NewGuid():N}";
+            var index = 0;
+            foreach (var (upload, kind) in detected)
+            {
+                index++;
+                var key = $"{folder}/{PartnerDocumentRules.Slug(upload.Type)}-{index}{kind.Extension}";
+                await storage.SaveAsync(key, upload.File.Content, cancellationToken);
+                saved.Add(key);
+                var fileName = PartnerDocumentRules.SafeFileName(upload.File.FileName, $"{PartnerDocumentRules.Slug(upload.Type)}{kind.Extension}");
+                newDocuments.Add(PartnerApplicationDocument.Create(app, upload.Type, key, kind.ContentType, fileName,
+                    upload.File.Content.Length, ContractSupport.Sha256Hex(upload.File.Content)));
+            }
+
+            var before = PartnerApplicationAudit.Snapshot(app);
+            input.ApplyTo(app);
+            if (newDocuments.Count > 0)
+            {
+                var replacedTypes = newDocuments.Select(d => d.DocumentType).ToHashSet();
+                // Loại có nhiều file (giấy đăng ký, giấy tờ khác): file mới thay toàn bộ file cũ cùng loại.
+                foreach (var old in await repository.FindActiveDocumentsTrackedAsync(app.Id, cancellationToken))
+                    if (replacedTypes.Contains(old.DocumentType)) old.Supersede(now);
+                repository.AddDocuments(newDocuments);
+            }
+            app.Resubmit(now);
+            await repository.SaveWithAuditAsync(PartnerApplicationAudit.Build(app, "InfoProvided", null, before,
+                $"Đối tác gửi bổ sung qua link ({newDocuments.Count} giấy tờ mới)"), cancellationToken);
+            return new PartnerApplicationReceiptDto(app.Code, app.Status.ToString(), now);
+        }
+        catch
+        {
+            foreach (var key in saved)
+            {
+                try { await storage.DeleteAsync(key, CancellationToken.None); }
+                catch (IOException) { /* dọn file thất bại không che lỗi gốc */ }
+            }
+            throw;
+        }
+    }
+
+    private static string Compact(string value) => new(value.Where(c => !char.IsWhiteSpace(c)).ToArray());
+
+    /// <summary>Cùng một số điện thoại dù lưu "+84901234567" hay "0901234567" (hai đường nộp hồ sơ chuẩn hóa khác nhau).</summary>
+    private static bool SamePhone(string a, string b)
+    {
+        static string Norm(string v)
+        {
+            var d = new string(v.Where(c => char.IsDigit(c) || c == '+').ToArray());
+            return d.StartsWith("+84", StringComparison.Ordinal) ? "0" + d[3..] : d;
+        }
+        return Norm(a) == Norm(b);
+    }
+
+    /// <summary>Có yêu cầu cụ thể: mục nào không nằm trong danh sách mà bị đổi giá trị → 400 (không cho sửa tuỳ tiện ngoài yêu cầu).</summary>
+    private static void EnsureOnlyRequestedChanged(PartnerApplication app, PartnerApplicationInput input, IReadOnlyList<string> requested)
+    {
+        if (requested.Count == 0) return;
+        void Guard(string key, bool changed)
+        {
+            if (changed && !requested.Contains(key))
+                throw new ValidationException($"{PartnerInfoItems.Labels[key]} không nằm trong yêu cầu bổ sung nên không được thay đổi.");
+        }
+        Guard("fullName", app.FullName != input.FullName);
+        Guard("phone", SamePhone(app.Phone, input.Phone) is false);
+        Guard("position", (app.Position ?? "") != (input.Position ?? ""));
+        Guard("businessName", app.BusinessName != input.BusinessName);
+        Guard("taxCode", Compact(app.TaxCode) != Compact(input.TaxCode));
+        Guard("businessAddress", app.BusinessAddress != input.BusinessAddress);
+        Guard("legalRepresentativeName", app.LegalRepresentativeName != input.LegalRepresentativeName);
+        Guard("legalRepresentativePosition", (app.LegalRepresentativePosition ?? "") != (input.LegalRepresentativePosition ?? ""));
+        Guard("lotCount", app.LotCount != input.LotCount);
+        Guard("primaryLotAddress", app.PrimaryLotAddress != input.PrimaryLotAddress);
+        Guard("operatingHours", (app.OperatingHours ?? "") != (input.OperatingHours ?? ""));
+        Guard("estimatedSlots", app.EstimatedCarSlots != input.EstimatedCarSlots || app.EstimatedMotorbikeSlots != input.EstimatedMotorbikeSlots);
+        if (!string.Equals(app.Email, input.Email, StringComparison.OrdinalIgnoreCase))
+            throw new ValidationException("Email không được thay đổi qua link bổ sung. Liên hệ ParkMaster (1900 6868) nếu cần đổi.");
+        if (app.BusinessType != input.BusinessType) Guard("businessName", true);
     }
 }
 

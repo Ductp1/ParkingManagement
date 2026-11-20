@@ -60,7 +60,14 @@ export const adminPartnerOnboardingApi = {
   reject: (id: number, data: PartnerReasonRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/reject`, data }),
 
-  /** A12 – hủy hồ sơ. */
+  /** US-116 – gửi lại email yêu cầu bổ sung (link mới, link cũ hết hiệu lực); dueAtUtc = null giữ hạn cũ. */
+  resendInfoRequest: (id: number, data: { dueAtUtc?: string | null; rowVersion?: string | null } = {}) =>
+    adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/resend-info-request`, data }),
+
+  /** US-116 – thử lại gỡ tài khoản chủ bãi bên UserService sau khi hủy hồ sơ (cleanup Failed / Pending). */
+  retryCleanup: (id: number) => adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/retry-cleanup` }),
+
+  /** A12 – hủy / bỏ hồ sơ (kể cả đã cấp tài khoản mà chủ bãi chưa kích hoạt). */
   cancel: (id: number, data: PartnerReasonRequest) =>
     adminRequest<PartnerApplicationDetailDto>({ method: 'POST', url: `${BASE}/${id}/cancel`, data }),
 };

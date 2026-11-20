@@ -26,6 +26,8 @@ public static class DependencyInjection
         services.AddScoped<UserService.Application.Features.Identity.AccountUseCases>();
         services.AddScoped<UserService.Application.Features.Staff.StaffUseCases>();
         services.AddScoped<UserService.Application.Features.Identity.OwnerAccountUseCases>();   // US-116 U2–U5
+        services.AddScoped<UserService.Application.Features.Identity.PartnerEmailUseCases>();  // US-116 email yêu cầu bổ sung hồ sơ
+        services.AddScoped<UserService.Application.Features.Identity.UserLifecycleUseCases>();  // US-096 đình chỉ / xóa user, US-116 U6 gỡ tài khoản chưa kích hoạt
         services.AddScoped<UserService.Application.Features.Privacy.DataRequestUseCases>();
         services.AddScoped<UserService.Application.Features.Kyc.KycUseCases>();
         services.AddScoped<UserService.Application.Features.History.ParkingHistoryUseCases>();
