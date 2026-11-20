@@ -159,7 +159,7 @@ public sealed class ParkingDataSeeder(ILogger<ParkingDataSeeder> logger) : IData
     }
 
     /// <summary>Dữ liệu demo cho các bảng thêm ở migration AddDocumentCoverage – mỗi bảng kiểm tra riêng nên chạy được trên DB cũ.</summary>
-    private static async Task SeedExtrasAsync(ParkingDbContext db, CancellationToken cancellationToken)
+    private async Task SeedExtrasAsync(ParkingDbContext db, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var lots = await db.ParkingLots.IgnoreQueryFilters().OrderBy(l => l.Id).ToListAsync(cancellationToken);
@@ -253,6 +253,63 @@ public sealed class ParkingDataSeeder(ILogger<ParkingDataSeeder> logger) : IData
                 new ExternalParkingLot { Name = "Bãi xe Nhà hát Thành phố", Address = "Công trường Lam Sơn, Q.1, TP.HCM", City = "TP.HCM",
                                          Latitude = 10.7766, Longitude = 106.7031, ReferencePricePerHour = 30000, OpeningHoursText = "24/7",
                                          Source = "Khảo sát thực địa 09/2026", ImportedByUserId = DemoIds.AdminUser });
+        }
+
+        const string saigonCentreName = "Bãi xe Saigon Centre (Takashimaya)";
+        if (!await db.ParkingLots.IgnoreQueryFilters().AnyAsync(l => l.Name == saigonCentreName, cancellationToken))
+        {
+            var scLot = new ParkingLot(
+                id: 0,
+                name: saigonCentreName,
+                address: "65 Lê Lợi, P. Bến Nghé, Q.1, TP.HCM",
+                latitude: 10.7732,
+                longitude: 106.7010,
+                totalSlots: 1,
+                availableSlots: 1,
+                maxHeightCm: 220,
+                openTime: new TimeOnly(6, 0),
+                closeTime: new TimeOnly(23, 30),
+                status: ParkingLotStatus.Active,
+                ownerProfileId: DemoIds.OwnerVincom,
+                integrationTier: IntegrationTier.PmsApi,
+                description: "Hầm gửi xe 2 tầng trung tâm thương mại Saigon Centre – hỗ trợ sơ đồ 2D & dẫn đường 3D động.",
+                hotlinePhone: "02838294888");
+            scLot.SetLocation("TP.HCM", "Quận 1");
+
+            BuildZone(scLot, "SC", "Hầm Saigon Centre", false, [("B1", -1, 8), ("B2", -2, 8)], 8, now);
+            var scSlots = scLot.Zones.SelectMany(z => z.Floors).SelectMany(f => f.Slots).ToList();
+            scLot.SetSlotCounters(scSlots.Count, scSlots.Count(s => s.State == SlotState.Available));
+
+            db.ParkingLots.Add(scLot);
+            db.LotCapacityConfigs.Add(new LotCapacityConfig
+            {
+                ParkingLot = scLot,
+                OnlineQuota = scLot.TotalSlots,
+                WalkInBufferPercent = 0,
+                OnlineLockThreshold = 5,
+                LastHeartbeatAtUtc = now
+            });
+            db.KybApplications.Add(new KybApplication
+            {
+                ParkingLot = scLot,
+                Status = KybStatus.Approved,
+                BusinessLicenseUrl = "/uploads/kyb/giay-phep-kinh-doanh.pdf",
+                FireSafetyCertificateUrl = "/uploads/kyb/chung-nhan-pccc.pdf",
+                SitePhotoUrlsJson = JsonSerializer.Serialize(new[] { "/uploads/kyb/hien-truong-1.jpg" }),
+                PhotoLatitude = scLot.Latitude,
+                PhotoLongitude = scLot.Longitude,
+                FieldSurveyRequired = true,
+                SubmittedAtUtc = now.AddDays(-10),
+                ReviewedByUserId = DemoIds.AdminUser,
+                ReviewedAtUtc = now.AddDays(-9)
+            });
+            await db.SaveChangesAsync(cancellationToken);
+
+            db.LotAmenities.AddRange(
+                new LotAmenity { ParkingLotId = scLot.Id, Code = "COVERED", Name = "Có mái che" },
+                new LotAmenity { ParkingLotId = scLot.Id, Code = "CCTV", Name = "Camera an ninh" },
+                new LotAmenity { ParkingLotId = scLot.Id, Code = "SECURITY_24H", Name = "Bảo vệ 24/7" });
+            logger.LogInformation("Đã seed thêm bãi mới: {Name} (Id={Id}, Slots={Slots}).", scLot.Name, scLot.Id, scSlots.Count);
         }
 
         await db.SaveChangesAsync(cancellationToken);
