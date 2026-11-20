@@ -282,7 +282,7 @@ public class SupportServiceApiTests(SupportApiFixture fixture)
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         var detail = await create.Content.ReadFromJsonAsync<ComplaintDetailJson>();
         Assert.StartsWith("CP-", detail!.Code);
-        Assert.Equal("Open", detail.Status); // ticket mới mở, sau khi chủ bãi phản hồi mới chuyển AwaitingOwner/Resolved
+        Assert.Equal("AwaitingOwner", detail.Status); // Khiếu nại bãi có chủ (Overcharge) -> chờ chủ bãi phản hồi 48h (US-089)
         Assert.Equal("Overcharge", detail.Category);
         Assert.Equal("BK-IT-DONE", detail.BookingCode);
         Assert.Equal(DemoIds.LotVincom, detail.ParkingLotId);

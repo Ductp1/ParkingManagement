@@ -204,7 +204,7 @@ export const AmenitiesSelector: React.FC<AmenitiesSelectorProps> = ({
               <Sparkles size={18} />
             </span>
             <h3 className="text-base font-bold text-slate-900">
-              Tiện Ích & Dịch Vụ Gia Tăng Bãi Đỗ (US-064)
+              Tiện Ích & Dịch Vụ Gia Tăng Bãi Đỗ
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-1">

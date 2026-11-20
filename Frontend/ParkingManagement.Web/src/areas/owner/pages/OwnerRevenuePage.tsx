@@ -4,7 +4,6 @@ import {
   DollarSign,
   Download,
   Calendar,
-  Building2,
   RefreshCw,
   Scale,
   CheckCircle2,
@@ -226,25 +225,25 @@ export const OwnerRevenuePage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
             <TrendingUp size={13} />
-            BÁO CÁO DOANH THU & KỲ QUYẾT TOÁN (UI-25)
+            BÁO CÁO DOANH THU & KỲ QUYẾT TOÁN
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Báo cáo Doanh thu & Quyết toán
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
-            Theo dõi dòng tiền theo thời gian thực (US-078), phân rã doanh thu theo phương thức thanh toán, hoa hồng nền tảng (US-079) và lịch sử các kỳ quyết toán đã chốt (US-080).
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Theo dõi dòng tiền theo thời gian thực, phân rã doanh thu theo phương thức thanh toán, chi phí nền tảng và lịch sử các kỳ quyết toán đã chốt.
           </p>
         </div>
 
         {/* Bộ lọc bãi và nút xuất CSV */}
         <div className="flex flex-wrap items-center gap-3 self-start lg:self-end">
-          <div className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
-            <Building2 size={16} className="text-blue-600 shrink-0" />
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs h-11">
+            <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
             <select
               value={selectedLotId}
               onChange={(e) => setSelectedLotId(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
               disabled={loadingLots}
-              className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer pr-2"
+              className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer"
             >
               <option value="ALL">Tất cả bãi đỗ xe</option>
               {lots.map((lot) => (
@@ -259,7 +258,7 @@ export const OwnerRevenuePage: React.FC = () => {
             type="button"
             onClick={handleExportCsv}
             disabled={exportingCsv || loadingRevenue}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
+            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0 disabled:opacity-50"
           >
             <Download size={14} className={exportingCsv ? 'animate-bounce text-blue-600' : ''} />
             <span>Xuất CSV</span>
@@ -271,7 +270,7 @@ export const OwnerRevenuePage: React.FC = () => {
               if (activeTab === 'overview') void loadRevenueData();
               else void loadSettlementsData();
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 shadow-sm transition-all"
+            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors text-sm font-semibold flex items-center justify-center gap-2 shadow-xs cursor-pointer shrink-0"
             title="Làm mới dữ liệu"
           >
             <RefreshCw size={14} className={loadingRevenue || loadingSettlements ? 'animate-spin text-blue-600' : ''} />
@@ -320,7 +319,7 @@ export const OwnerRevenuePage: React.FC = () => {
             }`}
           >
             <TrendingUp size={15} />
-            Doanh thu & Giao dịch (US-078)
+            Doanh thu & Giao dịch
           </button>
 
           <button
@@ -378,10 +377,10 @@ export const OwnerRevenuePage: React.FC = () => {
         <div className="space-y-8">
           {/* 4 KPI METRIC CARDS */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1: Doanh thu gộp */}
+            {/* Card 1: Doanh thu */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Doanh thu gộp (Gross)</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Doanh thu</p>
                 <p className="text-2xl font-black text-slate-900 mt-1">
                   {formatVnd(summary?.totals?.grossRevenue)}
                 </p>
@@ -410,15 +409,15 @@ export const OwnerRevenuePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Card 3: Doanh thu thuần */}
+            {/* Card 3: Lợi nhuận (Thực nhận) */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Doanh thu thuần (Net)</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lợi nhuận (Thực nhận)</p>
                 <p className="text-2xl font-black text-emerald-600 mt-1">
                   {formatVnd(summary?.totals?.netRevenue)}
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Gross − RefundAmount
+                  Doanh thu − Chi phí & Hoàn trả
                 </p>
               </div>
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center">
@@ -426,10 +425,10 @@ export const OwnerRevenuePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Card 4: Hoa hồng nền tảng (US-079) */}
+            {/* Card 4: Chi phí (Nền tảng, thuế & phát sinh) */}
             <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Hoa hồng nền tảng (US-079)</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chi phí (Nền tảng, thuế & phát sinh)</p>
                 <p className="text-2xl font-black text-amber-600 mt-1">
                   {formatVnd(summary?.commission?.commissionAmount)}
                 </p>
@@ -689,9 +688,9 @@ export const OwnerRevenuePage: React.FC = () => {
                     <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
                       <th className="py-3.5 px-6">Mã kỳ quyết toán</th>
                       <th className="py-3.5 px-6">Chu kỳ quyết toán</th>
-                      <th className="py-3.5 px-6">Doanh thu gộp</th>
-                      <th className="py-3.5 px-6">Hoa hồng</th>
-                      <th className="py-3.5 px-6">Thực nhận (Net Payout)</th>
+                      <th className="py-3.5 px-6">Doanh thu</th>
+                      <th className="py-3.5 px-6">Chi phí (Phí, thuế & phát sinh)</th>
+                      <th className="py-3.5 px-6">Lợi nhuận (Thực nhận)</th>
                       <th className="py-3.5 px-6">Trạng thái</th>
                       <th className="py-3.5 px-6 text-right">Thao tác</th>
                     </tr>

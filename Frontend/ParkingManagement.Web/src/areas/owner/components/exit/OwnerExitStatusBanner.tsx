@@ -35,7 +35,7 @@ export const OwnerExitStatusBanner: React.FC<OwnerExitStatusBannerProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h4 className="font-bold text-amber-950 text-sm">
-              Đang trong thời hạn thông báo rời nền tảng (US-057)
+              Đang trong thời hạn thông báo rời nền tảng
             </h4>
             <span className="text-[11px] font-black bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
               Còn {exitStatus.remainingDays ?? 0} ngày

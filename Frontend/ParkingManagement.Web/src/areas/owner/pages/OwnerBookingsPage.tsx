@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Calendar,
   Clock,
   Car,
   CheckCircle2,
@@ -10,7 +9,6 @@ import {
   Search,
   Filter,
   RefreshCw,
-  Building2,
   Eye,
   History,
 } from 'lucide-react';
@@ -39,8 +37,8 @@ export const OwnerBookingsPage: React.FC = () => {
   const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
   const [loadingLots, setLoadingLots] = useState(true);
 
-  // Tabs: 'pending' (Bãi Mức 0) | 'active' (Gate/Trong ca) | 'logs' (Lịch sử duyệt)
-  const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'logs'>('pending');
+  // Tabs: 'logs' (Lịch sử duyệt checkin/checkout) | 'active' (Gate/Trong ca) | 'pending' (Chờ duyệt)
+  const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'logs'>('logs');
 
   // Tra cứu nhanh theo mã booking (BK-xxxx)
   const [codeSearchQuery, setCodeSearchQuery] = useState('');
@@ -223,21 +221,21 @@ export const OwnerBookingsPage: React.FC = () => {
         <div className="flex flex-col gap-2 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            <Calendar size={13} />
-            QUẢN LÝ ĐẶT CHỖ & PHÊ DUYỆT BÃI MỨC 0 (UI-23, UI-24)
+            <History size={13} />
+            TRA CỨU LỊCH SỬ PHÊ DUYỆT & CHECK-IN
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
-            Quản lý Đặt chỗ & Phê duyệt
+            Tra cứu Lịch sử Phê duyệt
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
-            Phê duyệt hoặc từ chối lượt đặt chỗ thủ công tại bãi Mức 0 (US-031), kiểm soát xe ra vào trong ca trực và xử lý bồi hoàn sự cố bãi xe (Lot Cancel / Hoàn tiền - US-041, US-042).
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Theo dõi nhật ký phê duyệt check-in / check-out của nhân viên trực cổng, tra cứu danh tính nhân viên duyệt và kiểm soát các lượt xe ra vào bãi đỗ.
           </p>
         </div>
 
         {/* Dropdown chọn bãi xe */}
         <div className="flex items-center gap-3 self-start lg:self-end">
-          <div className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
-            <Building2 size={16} className="text-blue-600 shrink-0" />
+          <div className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-xl border border-slate-200 shadow-xs h-11">
+            <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
             <select
               value={selectedLotId || ''}
               onChange={(e) => setSelectedLotId(Number(e.target.value))}
@@ -262,7 +260,7 @@ export const OwnerBookingsPage: React.FC = () => {
               if (activeTab === 'active') void loadGateBookings();
               else void loadApprovalLogs();
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 shadow-sm transition-all"
+            className="h-11 px-4 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer shrink-0"
             title="Làm mới dữ liệu"
           >
             <RefreshCw size={14} className={loadingGate || loadingLogs ? 'animate-spin text-blue-600' : ''} />
@@ -303,20 +301,15 @@ export const OwnerBookingsPage: React.FC = () => {
       <div className="flex border-b border-slate-200 gap-2">
         <button
           type="button"
-          onClick={() => setActiveTab('pending')}
+          onClick={() => setActiveTab('logs')}
           className={`pb-3 px-4 text-xs font-bold transition-colors border-b-2 flex items-center gap-2 ${
-            activeTab === 'pending'
+            activeTab === 'logs'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <Clock size={15} />
-          Duyệt đặt chỗ bãi Mức 0 (US-031)
-          {selectedLot && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-bold">
-              Thủ công
-            </span>
-          )}
+          <History size={15} />
+          Lịch sử phê duyệt ({approvalLogs.length})
         </button>
 
         <button
@@ -334,15 +327,20 @@ export const OwnerBookingsPage: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setActiveTab('logs')}
+          onClick={() => setActiveTab('pending')}
           className={`pb-3 px-4 text-xs font-bold transition-colors border-b-2 flex items-center gap-2 ${
-            activeTab === 'logs'
+            activeTab === 'pending'
               ? 'border-blue-600 text-blue-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
           }`}
         >
-          <History size={15} />
-          Lịch sử phê duyệt (T-303)
+          <Clock size={15} />
+          Duyệt đặt chỗ thủ công
+          {selectedLot && (
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-bold">
+              Thủ công
+            </span>
+          )}
         </button>
       </div>
 
@@ -747,8 +745,20 @@ export const OwnerBookingsPage: React.FC = () => {
                             {log.result === 'Approved' ? 'Đã duyệt' : 'Đã từ chối'}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-slate-600">
-                          {log.reviewedByUserId ? `Tài khoản #${log.reviewedByUserId}` : 'Hệ thống / Chủ bãi'}
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[11px] shrink-0">
+                              {log.reviewedByUserId ? `S${log.reviewedByUserId}` : 'HT'}
+                            </div>
+                            <div>
+                              <span className="font-semibold text-slate-800 text-xs block">
+                                {log.reviewedByUserId ? `Nhân viên trực cổng` : 'Hệ thống tự động'}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono block">
+                                {log.reviewedByUserId ? `Staff ID: #${log.reviewedByUserId}` : 'Auto-gate'}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td className="py-4 px-6 text-slate-600 italic">
                           {log.reason || '--'}

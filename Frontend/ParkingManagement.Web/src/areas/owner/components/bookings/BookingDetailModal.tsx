@@ -372,7 +372,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all"
                     >
                       <DollarSign size={14} />
-                      Hoàn tiền cho khách (UI-24)
+                      Hoàn tiền cho khách
                     </button>
                   )}
 
