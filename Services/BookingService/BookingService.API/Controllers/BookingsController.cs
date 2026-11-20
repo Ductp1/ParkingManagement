@@ -169,8 +169,8 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<BookingDetailDto>> Create([FromBody] CreateBookingCommand command, CancellationToken cancellationToken)
     {
-        // SEC-001/SEC-004: Gắn userId từ JWT để chống giả mạo danh tính và hỗ trợ tự điền khi client không truyền
-        if (currentUser.UserId.HasValue && (!currentUser.Roles.Contains("Admin") || command.UserId <= 0))
+        // SEC-001/SEC-004: Gắn userId từ JWT để chống giả mạo danh tính cho người dùng thường
+        if (currentUser.UserId.HasValue && !currentUser.Roles.Contains("Admin"))
         {
             command = command with { UserId = currentUser.UserId.Value };
         }
@@ -188,7 +188,7 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CancellationResultDto>> Cancel(string code, [FromBody] CancelBookingCommand command, CancellationToken cancellationToken)
     {
-        if (currentUser.UserId.HasValue && (!currentUser.Roles.Contains("Admin") || command.UserId <= 0))
+        if (currentUser.UserId.HasValue && !currentUser.Roles.Contains("Admin"))
         {
             command = command with { UserId = currentUser.UserId.Value };
         }
