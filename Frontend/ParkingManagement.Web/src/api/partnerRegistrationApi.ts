@@ -56,7 +56,11 @@ const FILE_FIELDS: Record<PartnerDocumentKind, string> = {
 };
 
 export const partnerRegistrationApi = {
-  submit: async (fields: PartnerRegistrationFields, files: PartnerDocumentFiles): Promise<PartnerApplicationReceipt> => {
+  submit: async (
+    fields: PartnerRegistrationFields,
+    files: PartnerDocumentFiles,
+    options: { onUploadProgress?: (percent: number) => void } = {}
+  ): Promise<PartnerApplicationReceipt> => {
     const form = new FormData();
     Object.entries(fields).forEach(([key, value]) => {
       const text = typeof value === 'boolean' ? String(value) : value.trim();
@@ -69,6 +73,9 @@ export const partnerRegistrationApi = {
     const res = await apiClient.post<PartnerApplicationReceipt>('/api/v1/admin/partner-registrations', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 60000,
+      onUploadProgress: options.onUploadProgress
+        ? (e) => options.onUploadProgress?.(e.total ? Math.min(100, Math.round((e.loaded / e.total) * 100)) : 0)
+        : undefined,
     });
     return res.data;
   },
