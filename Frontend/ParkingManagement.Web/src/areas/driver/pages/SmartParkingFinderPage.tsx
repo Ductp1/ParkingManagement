@@ -117,7 +117,8 @@ export const SmartParkingFinderPage: React.FC = () => {
 
   // 5. Khung xem bên phải: Tab 'map' hoặc 'layout2d'
   const [activeViewTab, setActiveViewTab] = useState<'map' | 'layout2d'>('map');
-  const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState<boolean>(false);
+  const [isBottomCardCollapsed, setIsBottomCardCollapsed] = useState<boolean>(true);
+  const [mapZoom, setMapZoom] = useState<number>(15);
 
   // Tối ưu Mobile: Chuyển đổi giữa Danh sách bãi và Bản đồ tương tác
   const [mobileTab, setMobileTab] = useState<'list' | 'map'>('list');
@@ -299,23 +300,28 @@ export const SmartParkingFinderPage: React.FC = () => {
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         zoomControl: true,
-        attributionControl: false,
+        attributionControl: true,
+        minZoom: 5,
       }).setView([coords.lat, coords.lng], 15);
 
-      // Nguồn Tile Google Maps đường phố sạch, không watermark, 100% tuân thủ chủ quyền VN
-      L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      // Bổ sung hl=vi&gl=VN để hiển thị tiếng Việt chuẩn (Quần đảo Hoàng Sa, Quần đảo Trường Sa) và ghi nhận bản quyền map
+      L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=vi&gl=VN&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        attribution: '&copy; Google Maps',
       }).addTo(map);
 
       mapInstanceRef.current = map;
       markersLayerRef.current = L.layerGroup().addTo(map);
+      map.on('click', () => setIsBottomCardCollapsed(true));
+      map.on('zoomend', () => setMapZoom(map.getZoom()));
     }
   }, [coords.lat, coords.lng]);
 
-  // Vẽ Marker và Lộ trình đường đi (Cập nhật mượt mà, không bao giờ làm mất bản đồ)
+  // Vẽ Marker (tự động gom cụm theo khoảng cách pixel khi zoom xa, bung tách khi zoom gần) & Lộ trình
   useEffect(() => {
-    if (!mapInstanceRef.current || !markersLayerRef.current) return;
+    const map = mapInstanceRef.current;
+    if (!map || !markersLayerRef.current) return;
 
     markersLayerRef.current.clearLayers();
 
@@ -344,49 +350,124 @@ export const SmartParkingFinderPage: React.FC = () => {
     });
     L.marker([coords.lat, coords.lng], { icon: userIcon, zIndexOffset: 800 }).addTo(markersLayerRef.current);
 
-    // 2. Marker cho các bãi đỗ xe (Thiết kế Card Pin hiện đại kiểu Google Maps)
+    // 2. Gom cụm động theo khoảng cách pixel trên màn hình (< 44px) để ghim không bao giờ đè nhau
+    const CLUSTER_RADIUS_PX = 44;
+    type LotCluster = {
+      lots: typeof rankedLots;
+      centerPx: L.Point;
+    };
+    const clusters: LotCluster[] = [];
+
     rankedLots.forEach((lot) => {
-      const isSelected = lot.id === currentSelectedLot?.id;
-      const isFull = lot.availableSlots === 0;
-      const displayName = formatLotMarkerName(lot.name);
-
-      const pBg = isSelected ? '#2563eb' : isFull ? '#ef4444' : '#0284c7';
-      const borderStyle = isSelected ? 'border: 2px solid #2563eb;' : 'border: 1px solid #cbd5e1;';
-      const shadowStyle = isSelected
-        ? 'box-shadow: 0 0 0 3px rgba(37,99,235,0.25), 0 8px 20px -3px rgba(15,23,42,0.28); transform: scale(1.06);'
-        : 'box-shadow: 0 4px 14px -2px rgba(15,23,42,0.16);';
-
-      const availabilityBadge = isFull
-        ? `<span style="background:#fee2e2;color:#b91c1c;font-size:10px;font-weight:700;padding:2px 7px;border-radius:12px;white-space:nowrap;">Hết chỗ</span>`
-        : `<span style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;font-size:10px;font-weight:700;padding:1.5px 7px;border-radius:12px;display:inline-flex;align-items:center;gap:3.5px;white-space:nowrap;"><span style="width:5px;height:5px;border-radius:50%;background:#10b981;display:inline-block;"></span>${lot.availableSlots} chỗ trống</span>`;
-
-      const lotMarkerHtml = `
-        <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;font-family:'Be Vietnam Pro',Inter,sans-serif;transition:all 0.15s ease;">
-          <div style="padding:4px 8px 4px 5px;border-radius:22px;background:#ffffff;display:flex;align-items:center;gap:6px;white-space:nowrap;${borderStyle}${shadowStyle}">
-            <span style="font-weight:800;font-size:11px;background:${pBg};color:#ffffff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">P</span>
-            <span style="font-size:11.5px;font-weight:700;color:#0f172a;letter-spacing:-0.1px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</span>
-            ${availabilityBadge}
-          </div>
-          <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid ${isSelected ? '#2563eb' : '#ffffff'};margin-top:-1px;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.12));"></div>
-        </div>
-      `;
-      const lotIcon = L.divIcon({
-        className: 'custom-lot-icon',
-        html: lotMarkerHtml,
-        iconSize: [0, 0],
-      });
-
-      const marker = L.marker([lot.latitude, lot.longitude], {
-        icon: lotIcon,
-        zIndexOffset: isSelected ? 1000 : isFull ? 100 : 500,
-      });
-      marker.on('click', () => setSelectedLotId(lot.id));
-      marker.addTo(markersLayerRef.current!);
+      const pt = map.latLngToLayerPoint([lot.latitude, lot.longitude]);
+      const existing = clusters.find((c) => c.centerPx.distanceTo(pt) < CLUSTER_RADIUS_PX);
+      if (existing) {
+        existing.lots.push(lot);
+      } else {
+        clusters.push({ lots: [lot], centerPx: pt });
+      }
     });
 
-    // 3. Xử lý khung nhìn Camera & Lộ trình dẫn đường đa tầng cao cấp
+    clusters.forEach((cluster) => {
+      if (cluster.lots.length === 1) {
+        const lot = cluster.lots[0];
+        const isSelected = lot.id === currentSelectedLot?.id;
+        const isFull = lot.availableSlots === 0;
+        const displayName = formatLotMarkerName(lot.name);
+
+        const pinFill = isSelected ? '#dc2626' : isFull ? '#94a3b8' : '#0284c7';
+        const badgeColor = isFull ? '#dc2626' : '#059669';
+        const pinScale = isSelected ? 'transform:scale(1.18);' : '';
+
+        const lotMarkerHtml = `
+          <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);cursor:pointer;font-family:'Be Vietnam Pro',Inter,sans-serif;transition:transform 0.15s ease;">
+            <div style="position:relative;width:32px;height:40px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 3px 5px rgba(15,23,42,0.32));${pinScale}">
+              <svg width="32" height="40" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M16 1C7.716 1 1 7.716 1 16C1 26.5 16 39 16 39C16 39 31 26.5 31 16C31 7.716 24.284 1 16 1Z" fill="${pinFill}" stroke="#ffffff" stroke-width="2"/>
+                <circle cx="16" cy="15.5" r="8.5" fill="#ffffff"/>
+                <text x="16" y="19.5" text-anchor="middle" fill="${pinFill}" font-size="11.5" font-weight="800" font-family="'Be Vietnam Pro',Inter,sans-serif">P</text>
+              </svg>
+            </div>
+          </div>
+        `;
+        const lotIcon = L.divIcon({
+          className: 'custom-lot-icon',
+          html: lotMarkerHtml,
+          iconSize: [0, 0],
+        });
+
+        const marker = L.marker([lot.latitude, lot.longitude], {
+          icon: lotIcon,
+          zIndexOffset: isSelected ? 1000 : isFull ? 100 : 500,
+        });
+        marker.bindTooltip(
+          `<div style="font-family:'Be Vietnam Pro',Inter,sans-serif;font-size:11.5px;font-weight:700;color:#0f172a;">${displayName} <span style="color:${badgeColor};font-weight:700;">• ${isFull ? 'Hết chỗ' : `${lot.availableSlots} chỗ trống`}</span></div>`,
+          { direction: 'top', offset: [0, -40], opacity: 0.96 },
+        );
+        marker.on('click', () => setSelectedLotId(lot.id));
+        marker.addTo(markersLayerRef.current!);
+      } else {
+        // Cụm nhiều bãi ở gần nhau -> hiện 1 vòng tròn cluster rõ ràng, bấm vào sẽ zoom sát tách từng ghim
+        const avgLat = cluster.lots.reduce((s, l) => s + l.latitude, 0) / cluster.lots.length;
+        const avgLng = cluster.lots.reduce((s, l) => s + l.longitude, 0) / cluster.lots.length;
+        const totalAvail = cluster.lots.reduce((s, l) => s + l.availableSlots, 0);
+        const hasSelected = cluster.lots.some((l) => l.id === currentSelectedLot?.id);
+        const mainColor = hasSelected ? '#dc2626' : '#0284c7';
+        const ringColor = hasSelected ? 'rgba(220,38,38,0.22)' : 'rgba(2,132,199,0.22)';
+
+        const clusterHtml = `
+          <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);cursor:pointer;font-family:'Be Vietnam Pro',Inter,sans-serif;">
+            <div style="position:relative;width:44px;height:44px;border-radius:50%;background:${ringColor};display:flex;align-items:center;justify-content:center;">
+              <div style="width:34px;height:34px;border-radius:50%;background:${mainColor};border:2.5px solid #ffffff;color:#ffffff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(15,23,42,0.3);">
+                ${cluster.lots.length}
+              </div>
+              <span style="position:absolute;bottom:-5px;padding:1px 6px;border-radius:999px;background:#059669;color:#ffffff;font-size:9px;font-weight:800;border:1.5px solid #ffffff;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.25);">
+                ${totalAvail} trống
+              </span>
+            </div>
+          </div>
+        `;
+        const clusterIcon = L.divIcon({
+          className: 'custom-cluster-icon',
+          html: clusterHtml,
+          iconSize: [0, 0],
+        });
+
+        const tooltipRows = cluster.lots
+          .map(
+            (l) =>
+              `<div style="display:flex;justify-content:space-between;gap:10px;padding:1px 0;">
+                <span style="font-weight:${l.id === currentSelectedLot?.id ? 800 : 600};color:${l.id === currentSelectedLot?.id ? '#dc2626' : '#0f172a'};">${formatLotMarkerName(l.name)}</span>
+                <span style="color:#059669;font-weight:700;">${l.availableSlots} trống</span>
+              </div>`,
+          )
+          .join('');
+
+        const marker = L.marker([avgLat, avgLng], {
+          icon: clusterIcon,
+          zIndexOffset: hasSelected ? 1050 : 650,
+        });
+        marker.bindTooltip(
+          `<div style="font-family:'Be Vietnam Pro',Inter,sans-serif;font-size:11px;min-width:170px;">
+            <div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:3px;">${cluster.lots.length} bãi gần nhau (bấm để phóng to)</div>
+            ${tooltipRows}
+          </div>`,
+          { direction: 'top', offset: [0, -24], opacity: 0.98 },
+        );
+        marker.on('click', () => {
+          const clusterBounds = L.latLngBounds(cluster.lots.map((l) => [l.latitude, l.longitude] as [number, number]));
+          map.fitBounds(clusterBounds, {
+            paddingTopLeft: [80, 80],
+            paddingBottomRight: [80, 140],
+            maxZoom: 17,
+          });
+        });
+        marker.addTo(markersLayerRef.current!);
+      }
+    });
+
+    // 3. Vẽ lộ trình dẫn đường từ vị trí người dùng tới bãi đang chọn
     if (currentSelectedLot) {
-      // Lớp 1: Glow aura định hướng mềm mại
       L.polyline([[coords.lat, coords.lng], [currentSelectedLot.latitude, currentSelectedLot.longitude]], {
         color: '#3b82f6',
         weight: 8,
@@ -395,7 +476,6 @@ export const SmartParkingFinderPage: React.FC = () => {
         lineJoin: 'round',
       }).addTo(markersLayerRef.current);
 
-      // Lớp 2: Lộ trình định tuyến sắc nét, nét bo tròn hiện đại
       L.polyline([[coords.lat, coords.lng], [currentSelectedLot.latitude, currentSelectedLot.longitude]], {
         color: '#2563eb',
         weight: 3.5,
@@ -404,17 +484,28 @@ export const SmartParkingFinderPage: React.FC = () => {
         lineCap: 'round',
         lineJoin: 'round',
       }).addTo(markersLayerRef.current);
+    }
+  }, [coords, rankedLots, currentSelectedLot, mapZoom]);
 
+  // Camera fitBounds riêng (không chạy lại khi người dùng tự zoom hoặc bấm mở rộng cụm cluster)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (currentSelectedLot) {
       const bounds = L.latLngBounds([
         [coords.lat, coords.lng],
         [currentSelectedLot.latitude, currentSelectedLot.longitude],
       ]);
-      mapInstanceRef.current.fitBounds(bounds, { padding: [70, 70], maxZoom: 16 });
+      map.fitBounds(bounds, {
+        paddingTopLeft: [60, 80],
+        paddingBottomRight: [60, isBottomCardCollapsed ? 120 : 270],
+        maxZoom: 16,
+      });
     } else {
-      // Khi không có bãi đỗ nào (0 bãi): Vẫn giữ nguyên tâm bản đồ tại vị trí của người dùng
-      mapInstanceRef.current.setView([coords.lat, coords.lng], 14, { animate: true });
+      map.setView([coords.lat, coords.lng], 14, { animate: true });
     }
-  }, [coords, rankedLots, currentSelectedLot]);
+  }, [coords, currentSelectedLot?.id, isBottomCardCollapsed]);
 
   // Cập nhật kích thước bản đồ khi chuyển tab hoặc đổi kích thước cửa sổ
   useEffect(() => {
@@ -1121,7 +1212,6 @@ export const SmartParkingFinderPage: React.FC = () => {
                     key={lot.id}
                     onClick={() => {
                       setSelectedLotId(lot.id);
-                      setIsBottomCardCollapsed(false);
                       setMobileTab('map');
                     }}
                     className={`p-3 rounded-xl border transition-all cursor-pointer relative bg-white ${
@@ -1404,10 +1494,20 @@ export const SmartParkingFinderPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleOpenGoogleMapsDirections(currentSelectedLot.latitude, currentSelectedLot.longitude)}
-                        className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs cursor-pointer active:scale-95"
+                        className="px-2.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold transition-all shadow-xs cursor-pointer active:scale-95 flex items-center gap-1"
                         title="Chỉ đường trên Google Maps"
                       >
-                        <span className="material-symbols-outlined text-[17px]">navigation</span>
+                        <span className="material-symbols-outlined text-[15px]">navigation</span>
+                        <span className="hidden sm:inline">Chỉ đường</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveViewTab('layout2d')}
+                        className="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold transition-all shadow-xs cursor-pointer active:scale-95 flex items-center gap-1"
+                        title="Xem sơ đồ 2D bãi"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">grid_view</span>
+                        <span className="hidden sm:inline">Sơ đồ 2D</span>
                       </button>
                       <button
                         type="button"

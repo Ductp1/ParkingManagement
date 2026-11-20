@@ -1,8 +1,6 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { getLotLayout } from '@/components/parking3d/lotLayouts';
-import { resolveTarget } from '@/components/parking3d/routePlanner';
 
 const ParkingRoute3DViewer = lazy(() => import('@/components/parking3d/ParkingRoute3DViewer'));
 import { bookingApi } from '@/api/bookingApi';
@@ -36,9 +34,7 @@ export const PaymentResultPage: React.FC = () => {
   const [errorText, setErrorText] = useState<string | null>(null);
   const [showRoute3D, setShowRoute3D] = useState(false);
 
-  const route3DLayout = getLotLayout(booking?.parkingLotId);
-  const canShowRoute3D =
-    !!route3DLayout && !!booking?.slotCode && !!resolveTarget(route3DLayout, booking.slotCode);
+  const canShowRoute3D = Boolean(booking?.parkingLotId && booking?.slotCode);
 
   useEffect(() => {
     let active = true;

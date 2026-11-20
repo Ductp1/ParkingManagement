@@ -1,7 +1,5 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getLotLayout } from '@/components/parking3d/lotLayouts';
-import { resolveTarget } from '@/components/parking3d/routePlanner';
 
 // Xem 3D đường đi tới ô đã đặt – tải riêng (three.js) chỉ khi tài xế mở.
 const ParkingRoute3DViewer = lazy(() => import('@/components/parking3d/ParkingRoute3DViewer'));
@@ -312,10 +310,9 @@ export const LotDetailPage: React.FC = () => {
       ? `${selectedFloorLabel} • Loại ô: ${selectedCell.slotType || 'Standard'} • Phù hợp: ${selectedCell.maxVehicleType || 'Mọi xe'}`
       : `${selectedFloorLabel} • Hệ thống tự động phân bổ ô trống phù hợp khi vào cổng`,
   };
-  // Chỉ hiện nút "Xem đường đi 3D" khi bãi có mô hình và tìm được tầng của ô đã đặt trong mô hình.
-  const route3DLayout = getLotLayout(bookingResult?.parkingLotId ?? lot?.id);
-  const canShowRoute3D =
-    !!route3DLayout && !!resolveTarget(route3DLayout, bookingResult?.slotCode || currentSpot.code, activeFloor?.name);
+  // Hiện nút "Xem đường đi 3D" cho mọi bãi có lotId và mã ô hợp lệ (tự động dùng GLB nếu có, hoặc dựng 3D động từ API 2D + A*).
+  const target3DSlotCode = bookingResult?.slotCode || (currentSpot.code !== 'Tự động' ? currentSpot.code : '');
+  const canShowRoute3D = Boolean((bookingResult?.parkingLotId ?? lot?.id) && target3DSlotCode);
 
   // Default vehicle selection (from real user vehicles in Redux or fallback)
   const defaultVehicle = vehicles.find((v) => v.isDefault) || vehicles[0];

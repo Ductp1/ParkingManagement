@@ -1,8 +1,6 @@
 import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { getLotLayout } from '@/components/parking3d/lotLayouts';
-import { resolveTarget } from '@/components/parking3d/routePlanner';
 
 const ParkingRoute3DViewer = lazy(() => import('@/components/parking3d/ParkingRoute3DViewer'));
 import { useAppSelector } from '@/store';
@@ -158,9 +156,7 @@ export const BookingHistoryPage: React.FC = () => {
   const [qrError, setQrError] = useState<string | null>(null);
   const [showRoute3D, setShowRoute3D] = useState<boolean>(false);
 
-  const qr3DLayout = getLotLayout(qrDetail?.parkingLotId);
-  const canShowQrRoute3D =
-    !!qr3DLayout && !!qrDetail?.slotCode && !!resolveTarget(qr3DLayout, qrDetail.slotCode);
+  const canShowQrRoute3D = Boolean(qrDetail?.parkingLotId && qrDetail?.slotCode);
 
   // UI-10: Cancellation & Refund State (preview thật từ GET /{code}/cancellation-preview)
   const [activeCancelBooking, setActiveCancelBooking] = useState<BookingItem | null>(null);
