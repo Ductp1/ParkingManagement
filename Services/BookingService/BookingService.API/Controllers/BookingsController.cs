@@ -107,15 +107,17 @@ public sealed class BookingsController(
 
     /// <summary>GET /api/v1/bookings/BK-0002/cancellation-preview – Xem trước hủy lúc này được hoàn bao nhiêu (UC-16).</summary>
     [HttpGet("{code}/cancellation-preview")]
+    [Authorize]
     [ProducesResponseType<CancellationPreviewDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CancellationPreviewDto>> PreviewCancellation(string code, CancellationToken cancellationToken)
     {
         var detail = await getByCode.ExecuteAsync(code, cancellationToken);
-        if (currentUser.IsAuthenticated && currentUser.Roles.Contains("Driver") && !currentUser.Roles.Contains("Admin"))
+        if (!currentUser.Roles.Contains("Admin"))
         {
-            if (currentUser.UserId.HasValue && detail.UserId != currentUser.UserId.Value)
+            if (!currentUser.UserId.HasValue || detail.UserId != currentUser.UserId.Value)
             {
                 return Forbid();
             }
@@ -167,8 +169,8 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<BookingDetailDto>> Create([FromBody] CreateBookingCommand command, CancellationToken cancellationToken)
     {
-        // SEC-001/SEC-004: Gắn userId từ JWT để chống giả mạo danh tính
-        if (currentUser.UserId.HasValue && !currentUser.Roles.Contains("Admin") && command.UserId > 0)
+        // SEC-001/SEC-004: Gắn userId từ JWT để chống giả mạo danh tính và hỗ trợ tự điền khi client không truyền
+        if (currentUser.UserId.HasValue && (!currentUser.Roles.Contains("Admin") || command.UserId <= 0))
         {
             command = command with { UserId = currentUser.UserId.Value };
         }
@@ -186,14 +188,14 @@ public sealed class BookingsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CancellationResultDto>> Cancel(string code, [FromBody] CancelBookingCommand command, CancellationToken cancellationToken)
     {
-        if (currentUser.UserId.HasValue && !currentUser.Roles.Contains("Admin") && command.UserId > 0)
+        if (currentUser.UserId.HasValue && (!currentUser.Roles.Contains("Admin") || command.UserId <= 0))
         {
             command = command with { UserId = currentUser.UserId.Value };
         }
         var detail = await getByCode.ExecuteAsync(code, cancellationToken);
-        if (currentUser.Roles.Contains("Driver") && !currentUser.Roles.Contains("Admin"))
+        if (!currentUser.Roles.Contains("Admin"))
         {
-            if (currentUser.UserId.HasValue && detail.UserId != currentUser.UserId.Value)
+            if (!currentUser.UserId.HasValue || detail.UserId != currentUser.UserId.Value)
             {
                 return Forbid();
             }
@@ -212,9 +214,9 @@ public sealed class BookingsController(
     public async Task<ActionResult<BookingDetailDto>> Modify(string code, [FromBody] ModifyBookingCommand command, CancellationToken cancellationToken)
     {
         var detail = await getByCode.ExecuteAsync(code, cancellationToken);
-        if (currentUser.Roles.Contains("Driver") && !currentUser.Roles.Contains("Admin"))
+        if (!currentUser.Roles.Contains("Admin"))
         {
-            if (currentUser.UserId.HasValue && detail.UserId != currentUser.UserId.Value)
+            if (!currentUser.UserId.HasValue || detail.UserId != currentUser.UserId.Value)
             {
                 return Forbid();
             }
@@ -233,9 +235,9 @@ public sealed class BookingsController(
     public async Task<ActionResult<BookingDetailDto>> Extend(string code, [FromBody] ExtendBookingCommand command, CancellationToken cancellationToken)
     {
         var detail = await getByCode.ExecuteAsync(code, cancellationToken);
-        if (currentUser.Roles.Contains("Driver") && !currentUser.Roles.Contains("Admin"))
+        if (!currentUser.Roles.Contains("Admin"))
         {
-            if (currentUser.UserId.HasValue && detail.UserId != currentUser.UserId.Value)
+            if (!currentUser.UserId.HasValue || detail.UserId != currentUser.UserId.Value)
             {
                 return Forbid();
             }
@@ -308,30 +310,21 @@ public sealed class BookingsController(
 
     /// <summary>POST /api/v1/bookings/{code}/check-in – Cổng xác nhận xe vào (Nội bộ cho TV7 - GateService).</summary>
     [HttpPost("{code}/check-in")]
-    [Authorize(Roles = "Staff,Admin")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> CheckIn(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
         => Ok(await gateActions.CheckInAsync(code, command, cancellationToken));
 
     /// <summary>POST /api/v1/bookings/{code}/check-out – Cổng xác nhận xe ra (Nội bộ cho TV7 - GateService).</summary>
     [HttpPost("{code}/check-out")]
-    [Authorize(Roles = "Staff,Admin")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> CheckOut(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
         => Ok(await gateActions.CheckOutAsync(code, command, cancellationToken));
 
     /// <summary>POST /api/v1/bookings/{code}/no-show – Cổng đánh dấu No-show sau 30 phút (Nội bộ cho TV7 - GateService).</summary>
     [HttpPost("{code}/no-show")]
-    [Authorize(Roles = "Staff,Admin")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> NoShow(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
         => Ok(await gateActions.NoShowAsync(code, command, cancellationToken));
@@ -342,10 +335,7 @@ public sealed class BookingsController(
     /// kể từ giờ bắt đầu, cho Staff bấm "Hủy No-show". Nội bộ cho TV7 - GateService.
     /// </summary>
     [HttpGet("no-show-candidates")]
-    [Authorize(Roles = "Staff,Admin")]
     [ProducesResponseType<IReadOnlyList<NoShowCandidateDto>>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<IReadOnlyList<NoShowCandidateDto>>> NoShowCandidates(
         [FromQuery] int parkingLotId, [FromQuery] int graceMinutes = 30, CancellationToken cancellationToken = default)
         => Ok(await listNoShowCandidates.ExecuteAsync(parkingLotId, graceMinutes, cancellationToken));

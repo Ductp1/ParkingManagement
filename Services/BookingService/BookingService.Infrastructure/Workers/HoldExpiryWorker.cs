@@ -47,10 +47,10 @@ public sealed class HoldExpiryWorker(
             .Where(b => b.Status == BookingStatus.PendingPayment && b.HoldExpiresAtUtc != null && b.HoldExpiresAtUtc < now)
             .ToListAsync(cancellationToken);
 
-        // Quét thêm các đơn PendingOwnerApproval quá 15 phút (CreatedAtUtc < now - 15p) mà chủ bãi không duyệt
+        // Quét thêm các đơn PendingOwnerApproval quá 15 phút mà chủ bãi không duyệt (tính từ thời điểm thanh toán/cập nhật)
         var approvalCutoff = now.AddMinutes(-15);
         var overdueApprovals = await db.Bookings
-            .Where(b => b.Status == BookingStatus.PendingOwnerApproval && b.CreatedAtUtc < approvalCutoff)
+            .Where(b => b.Status == BookingStatus.PendingOwnerApproval && (b.UpdatedAtUtc ?? b.CreatedAtUtc) < approvalCutoff)
             .ToListAsync(cancellationToken);
 
         if (overdue.Count == 0 && overdueApprovals.Count == 0) return 0;
