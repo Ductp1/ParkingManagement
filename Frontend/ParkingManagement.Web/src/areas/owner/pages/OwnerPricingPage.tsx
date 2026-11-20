@@ -2,10 +2,12 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   DollarSign,
   Plus,
-  Building2,
   RefreshCw,
   CheckCircle2,
   Layers,
+  Eye,
+  RotateCcw,
+  X,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
@@ -31,7 +33,45 @@ export const OwnerPricingPage: React.FC = () => {
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewingRateCard, setViewingRateCard] = useState<RateCardDetailDto | null>(null);
+  const [activatingVersionId, setActivatingVersionId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleReactivateRateCard = async (rc: RateCardDetailDto) => {
+    if (
+      !confirm(
+        `Bạn có chắc chắn muốn kích hoạt lại phiên bản bảng giá "${rc.name}" (RC-#${rc.id}) không? Phiên bản này sẽ trở thành bảng giá áp dụng chính thức cho bãi đỗ.`
+      )
+    ) {
+      return;
+    }
+    setActivatingVersionId(rc.id);
+    try {
+      await ownerPricingApi.updateRateCard(rc.id, {
+        id: rc.id,
+        name: rc.name,
+        overnightSurcharge: rc.overnightSurcharge,
+        weekendMultiplier: rc.weekendMultiplier,
+        holidayMultiplier: rc.holidayMultiplier,
+        oversizedMultiplier: rc.oversizedMultiplier,
+        overstayMultiplier: rc.overstayMultiplier,
+        maxDailyAmount: rc.maxDailyAmount,
+        isActive: true,
+      });
+      setToastMessage({
+        type: 'success',
+        text: `Đã khôi phục và kích hoạt thành công phiên bản bảng giá "${rc.name}"!`,
+      });
+      void loadRateCards();
+    } catch {
+      setToastMessage({
+        type: 'error',
+        text: 'Không thể kích hoạt lại phiên bản này. Vui lòng thử lại sau.',
+      });
+    } finally {
+      setActivatingVersionId(null);
+    }
+  };
 
   // 1. Tải danh sách bãi
   useEffect(() => {
@@ -112,25 +152,25 @@ export const OwnerPricingPage: React.FC = () => {
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 w-fit text-xs font-bold tracking-wider uppercase">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
             <DollarSign size={13} />
-            BIỂU PHÍ & BẢNG GIÁ LŨY TIẾN (UI-22)
+            BIỂU PHÍ & BẢNG GIÁ LŨY TIẾN
           </div>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
             Bảng giá lũy tiến & Phụ thu
           </h1>
-          <p className="text-sm sm:text-base text-slate-500 leading-relaxed">
-            Thiết lập biểu phí theo bậc thang thời gian (US-070), phụ thu ngày lễ, cuối tuần, qua đêm (US-071) và theo dõi toàn bộ lịch sử các phiên bản đổi giá của bãi xe (US-072).
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Thiết lập biểu phí theo bậc thang thời gian, phụ thu ngày lễ, cuối tuần, qua đêm và theo dõi toàn bộ lịch sử các phiên bản đổi giá của bãi xe.
           </p>
         </div>
 
         {/* Dropdown bãi & Action button */}
-        <div className="flex flex-wrap items-center gap-3 self-start lg:self-end">
-          <div className="flex items-center gap-2 bg-white px-3.5 py-2.5 rounded-2xl border border-slate-200 shadow-sm">
-            <Building2 size={16} className="text-blue-600 shrink-0" />
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 shadow-xs h-11">
+            <span className="material-symbols-outlined text-[18px] text-blue-600">domain</span>
             <select
               value={selectedLotId || ''}
               onChange={(e) => setSelectedLotId(Number(e.target.value))}
               disabled={loadingLots || lots.length === 0}
-              className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer pr-2"
+              className="text-xs font-bold text-slate-800 bg-transparent border-none focus:outline-hidden cursor-pointer"
             >
               {lots.map((lot) => (
                 <option key={lot.id} value={lot.id}>
@@ -144,10 +184,10 @@ export const OwnerPricingPage: React.FC = () => {
             type="button"
             onClick={() => setIsModalOpen(true)}
             disabled={!selectedLotId}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-2xl shadow-md shadow-blue-500/10 transition-all disabled:opacity-50"
+            className="h-11 px-5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all shadow-sm font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
           >
-            <Plus size={16} />
-            Thiết lập bảng giá mới
+            <Plus size={18} />
+            <span>Thiết lập bảng giá mới</span>
           </button>
         </div>
       </div>
@@ -346,8 +386,8 @@ export const OwnerPricingPage: React.FC = () => {
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Lịch sử các phiên bản bảng giá (US-072)</h3>
-                <p className="text-xs text-slate-500">Danh sách các biểu phí từng được áp dụng tại bãi xe</p>
+                <h3 className="text-sm font-bold text-slate-900">Lịch sử tất cả các phiên bản bảng giá</h3>
+                <p className="text-xs text-slate-500">Lưu trữ toàn bộ các phiên bản biểu phí từng áp dụng tại bãi đỗ xe. Bạn có thể xem chi tiết hoặc khôi phục lại bất kỳ phiên bản nào.</p>
               </div>
             </div>
 
@@ -355,28 +395,34 @@ export const OwnerPricingPage: React.FC = () => {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
-                    <th className="py-3.5 px-6">Mã phiên bản</th>
+                    <th className="py-3.5 px-6">Phiên bản</th>
                     <th className="py-3.5 px-6">Tên biểu phí</th>
-                    <th className="py-3.5 px-6">Ngày bắt đầu</th>
-                    <th className="py-3.5 px-6">Ngày kết thúc</th>
+                    <th className="py-3.5 px-6">Thời gian áp dụng</th>
                     <th className="py-3.5 px-6">Phụ thu đêm / lễ</th>
                     <th className="py-3.5 px-6">Trạng thái</th>
+                    <th className="py-3.5 px-6 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {rateCards.map((rc) => (
+                  {rateCards.map((rc, idx) => (
                     <tr key={rc.id} className="hover:bg-slate-50/60 transition-colors">
-                      <td className="py-3.5 px-6 font-mono font-bold text-slate-900">
-                        RC-#{rc.id}
+                      <td className="py-3.5 px-6">
+                        <div className="flex items-center gap-1.5 font-mono font-bold text-slate-900">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px]">
+                            v{rateCards.length - idx}.0
+                          </span>
+                          <span className="text-slate-400">RC-#{rc.id}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-6 font-semibold text-slate-800">
                         {rc.name}
                       </td>
                       <td className="py-3.5 px-6 text-slate-600">
-                        {formatDate(rc.effectiveFromUtc)}
-                      </td>
-                      <td className="py-3.5 px-6 text-slate-600">
-                        {formatDate(rc.effectiveToUtc)}
+                        <div className="flex items-center gap-1">
+                          <span>{formatDate(rc.effectiveFromUtc)}</span>
+                          <span className="text-slate-400">→</span>
+                          <span>{rc.effectiveToUtc ? formatDate(rc.effectiveToUtc) : 'Hiện tại'}</span>
+                        </div>
                       </td>
                       <td className="py-3.5 px-6 text-slate-700">
                         +{formatVnd(rc.overnightSurcharge)} / x{rc.holidayMultiplier}
@@ -389,8 +435,33 @@ export const OwnerPricingPage: React.FC = () => {
                               : 'bg-slate-100 text-slate-600 border-slate-200'
                           }`}
                         >
-                          {rc.isActive ? 'Đang hiệu lực' : 'Đã thay thế'}
+                          {rc.isActive ? '✓ Đang hiệu lực' : 'Lưu trữ (Đã thay thế)'}
                         </span>
+                      </td>
+                      <td className="py-3.5 px-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setViewingRateCard(rc)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                            title="Xem chi tiết bảng giá phiên bản này"
+                          >
+                            <Eye size={13} />
+                            <span>Chi tiết</span>
+                          </button>
+                          {!rc.isActive && (
+                            <button
+                              type="button"
+                              disabled={activatingVersionId === rc.id}
+                              onClick={() => handleReactivateRateCard(rc)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                              title="Khôi phục và kích hoạt lại phiên bản này"
+                            >
+                              <RotateCcw size={13} className={activatingVersionId === rc.id ? 'animate-spin' : ''} />
+                              <span>Khôi phục</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -434,6 +505,162 @@ export const OwnerPricingPage: React.FC = () => {
             void loadRateCards();
           }}
         />
+      )}
+
+      {/* Modal xem chi tiết phiên bản bảng giá */}
+      {viewingRateCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <DollarSign size={20} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Chi tiết phiên bản: {viewingRateCard.name}
+                    </h3>
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        viewingRateCard.isActive
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {viewingRateCard.isActive ? 'Đang hiệu lực' : 'Lưu trữ'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Mã biểu phí: RC-#{viewingRateCard.id} • Hiệu lực:{' '}
+                    {formatDate(viewingRateCard.effectiveFromUtc)} →{' '}
+                    {viewingRateCard.effectiveToUtc ? formatDate(viewingRateCard.effectiveToUtc) : 'Hiện tại'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingRateCard(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Thông số phụ thu */}
+            <div>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+                Thông số phụ thu & Giới hạn
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Phụ thu đêm</span>
+                  <span className="text-xs font-bold text-slate-800 mt-0.5 block">
+                    +{formatVnd(viewingRateCard.overnightSurcharge)}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Hệ số cuối tuần</span>
+                  <span className="text-xs font-bold text-blue-600 mt-0.5 block">
+                    x{viewingRateCard.weekendMultiplier?.toFixed(1) || '1.0'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Hệ số ngày lễ</span>
+                  <span className="text-xs font-bold text-amber-600 mt-0.5 block">
+                    x{viewingRateCard.holidayMultiplier?.toFixed(1) || '1.0'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Hệ số quá khổ</span>
+                  <span className="text-xs font-bold text-indigo-600 mt-0.5 block">
+                    x{viewingRateCard.oversizedMultiplier?.toFixed(1) || '1.0'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Phạt quá giờ</span>
+                  <span className="text-xs font-bold text-rose-600 mt-0.5 block">
+                    x{viewingRateCard.overstayMultiplier?.toFixed(1) || '1.0'}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-medium">Trần giá 24h</span>
+                  <span className="text-xs font-bold text-emerald-600 mt-0.5 block">
+                    {viewingRateCard.maxDailyAmount ? formatVnd(viewingRateCard.maxDailyAmount) : 'Không giới hạn'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Biểu phí bậc thang */}
+            <div>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2.5">
+                Các bậc giá lũy tiến (Block Rules)
+              </h4>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px]">
+                    <tr>
+                      <th className="py-2.5 px-4">Bậc</th>
+                      <th className="py-2.5 px-4">Khoảng thời gian</th>
+                      <th className="py-2.5 px-4">Mỗi block</th>
+                      <th className="py-2.5 px-4 text-right">Đơn giá / block</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {viewingRateCard.rules && viewingRateCard.rules.length > 0 ? (
+                      viewingRateCard.rules.map((rule, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="py-2.5 px-4 font-bold text-slate-700">Bậc {idx + 1}</td>
+                          <td className="py-2.5 px-4 font-medium text-slate-900">
+                            Từ {rule.fromMinute} phút → {rule.toMinute ? `${rule.toMinute} phút` : 'trở đi'}
+                          </td>
+                          <td className="py-2.5 px-4 text-slate-600">{rule.blockMinutes} phút</td>
+                          <td className="py-2.5 px-4 font-bold text-blue-600 text-right">
+                            {formatVnd(rule.pricePerBlock)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="py-4 text-center text-slate-400">
+                          Chưa có quy tắc block chi tiết cho phiên bản này
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Actions footer */}
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setViewingRateCard(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all cursor-pointer"
+              >
+                Đóng
+              </button>
+              {!viewingRateCard.isActive && (
+                <button
+                  type="button"
+                  disabled={activatingVersionId === viewingRateCard.id}
+                  onClick={async () => {
+                    const card = viewingRateCard;
+                    setViewingRateCard(null);
+                    await handleReactivateRateCard(card);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  <RotateCcw size={14} className={activatingVersionId === viewingRateCard.id ? 'animate-spin' : ''} />
+                  <span>Áp dụng lại phiên bản này</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -21,7 +21,6 @@ import { OwnerStaffPage } from '@/areas/owner/pages/OwnerStaffPage';
 import { OwnerBookingsPage } from '@/areas/owner/pages/OwnerBookingsPage';
 import { OwnerRevenuePage } from '@/areas/owner/pages/OwnerRevenuePage';
 import { OwnerPricingPage } from '@/areas/owner/pages/OwnerPricingPage';
-import { OwnerIntegrationsPage } from '@/areas/owner/pages/OwnerIntegrationsPage';
 import { GateConsolePage } from '@/areas/gate/pages/GateConsolePage';
 import { AdminRoutes } from '@/areas/admin/AdminRoutes';
 
@@ -76,7 +75,6 @@ export const AppRoutes: React.FC = () => {
           <Route path="/owner/bookings" element={<OwnerBookingsPage />} />
           <Route path="/owner/revenue" element={<OwnerRevenuePage />} />
           <Route path="/owner/pricing" element={<OwnerPricingPage />} />
-          <Route path="/owner/integrations" element={<OwnerIntegrationsPage />} />
           <Route path="/owner/*" element={<OwnerHomePage />} />
         </Route>
 

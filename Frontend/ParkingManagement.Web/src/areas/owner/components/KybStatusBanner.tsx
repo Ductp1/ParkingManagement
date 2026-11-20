@@ -162,21 +162,21 @@ export const KybStatusBanner: React.FC<KybStatusBannerProps> = ({
                 <button
                   type="button"
                   onClick={onEditClick}
-                  className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-emerald-300 text-emerald-900 text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="min-w-[180px] h-10 px-4 rounded-xl bg-white hover:bg-slate-50 border border-emerald-300 text-emerald-900 text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <FileEdit size={14} />
-                  {isEditMode ? 'Đóng Chỉnh sửa' : 'Chỉnh sửa / Tải tài liệu mới'}
+                  <span>{isEditMode ? 'Đóng Chỉnh sửa' : 'Chỉnh sửa / Tải tài liệu'}</span>
                 </button>
               )}
               {onResetToDraftClick && (
                 <button
                   type="button"
                   onClick={onResetToDraftClick}
-                  className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="min-w-[180px] h-10 px-4 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-bold shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   title="Xóa bỏ tài liệu mẫu code cứng để tự chọn tệp từ máy tính"
                 >
                   <RotateCcw size={14} />
-                  Xóa tài liệu mẫu & Tự chọn tệp
+                  <span>Xóa mẫu & Chọn tệp</span>
                 </button>
               )}
             </div>

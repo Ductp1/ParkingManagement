@@ -157,7 +157,7 @@ export const CapacityConfigSection: React.FC<CapacityConfigSectionProps> = ({
                 <Sliders size={18} />
               </span>
               <h3 className="text-base font-bold text-slate-900">
-                Bảng Điều Khiển Hạn Ngạch & Vùng Đệm (UI-26)
+                Bảng Điều Khiển Hạn Ngạch & Vùng Đệm
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">

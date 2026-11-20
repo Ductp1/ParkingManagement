@@ -16,7 +16,7 @@ public sealed record BookingSummaryDto(int Id, string Code, string Status, strin
 public sealed record BookingDetailDto(int Id, string Code, string Status, int UserId, int VehicleId, string PlateNumber, string VehicleType,
     int ParkingLotId, string ParkingLotName, int? ZoneId, int? SlotId, string? SlotCode, DateTime StartAtUtc, DateTime EndAtUtc,
     DateTime? HoldExpiresAtUtc, decimal TotalAmount, decimal DiscountAmount, decimal PaidAmount, string? PromotionCode,
-    PriceSnapshotDto? PriceSnapshot, IReadOnlyList<StatusLogDto> History, string? QrToken = null);
+    PriceSnapshotDto? PriceSnapshot, IReadOnlyList<StatusLogDto> History, string? QrToken = null, int? OwnerProfileId = null);
 
 public sealed record PriceSnapshotDto(int RateCardId, decimal BaseAmount, decimal SurchargeAmount, decimal DiscountAmount,
     decimal FinalAmount, int BillingGracePeriodMinutes, string RateCardJson);
@@ -28,7 +28,7 @@ public sealed record GateBookingListItemDto(string Code, string PlateNumber, str
     DateTime StartAtUtc, DateTime EndAtUtc, string Status, bool IsOverdue, decimal TotalAmount);
 
 /// <summary>Tham số list booking trong ca: grace dùng để tính cờ "Quá giờ" (US-044).</summary>
-public sealed record GateBookingListQuery(int ParkingLotId, DateTime FromUtc, DateTime ToUtc, string? Search, int GracePeriodMinutes = 15);
+public sealed record GateBookingListQuery(int ParkingLotId, DateTime FromUtc, DateTime ToUtc, string? Search, int GracePeriodMinutes = 15, int? OwnerProfileId = null);
 
 public sealed record CancellationPreviewDto(string Code, bool CanCancel, string ResultStatus, int RefundPercent, decimal RefundAmount, string Reason);
 
@@ -81,7 +81,8 @@ public sealed record ApprovalLogDto(
     string Result,
     int? ReviewedByUserId,
     string? Reason,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    int? OwnerProfileId = null);
 
 // ===== US-039: DANH SÁCH BOOKING VƯỢT 30 PHÚT ÂN HẠN CHECK-IN (CHO STAFF HỦY NO-SHOW – UC-24) =====
 public sealed record NoShowCandidateDto(string Code, int UserId, string PlateNumber, int ParkingLotId, string ParkingLotName,
@@ -130,11 +131,11 @@ public interface IBookingQueries
 
     /// <summary>UC-20 (US-076): booking của 1 bãi trong khung giờ ca trực cho Staff App — KHÔNG chứa SĐT/CCCD của khách.</summary>
     Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
-        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken);
+        DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default);
 
     /// <summary>T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.</summary>
     Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default);
 }
 
 public interface IBookingRepository
@@ -469,7 +470,8 @@ public sealed class CreateBookingUseCase(
             booking.HoldExpiresAtUtc, booking.TotalAmount, booking.DiscountAmount, booking.PaidAmount,
             booking.PromotionCode, null,
             booking.StatusLogs.Select(l => new StatusLogDto(l.FromStatus?.ToString(), l.ToStatus.ToString(), l.ChangedByUserId, l.Reason, l.CreatedAtUtc)).ToList(),
-            booking.QrToken);
+            booking.QrToken,
+            booking.OwnerProfileId);
     }
 }
 
@@ -753,7 +755,7 @@ public sealed class ReviewBookingUseCase(
 
         events.Enqueue(new BookingCancelled(
             booking.Id, booking.Code, booking.UserId, booking.ParkingLotId, booking.OwnerProfileId,
-            booking.ParkingLotName, booking.StartAtUtc, 0m, reason));
+            booking.ParkingLotName, booking.StartAtUtc, booking.PaidAmount, reason));
 
         await repository.SaveChangesAsync(cancellationToken);
         return await queries.GetByCodeAsync(code, cancellationToken)
@@ -881,7 +883,7 @@ public sealed class ListGateBookingsUseCase(IBookingQueries queries, TimeProvide
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
         return await queries.ListForGateAsync(query.ParkingLotId, query.FromUtc, query.ToUtc, now,
-            query.GracePeriodMinutes, query.Search, cancellationToken);
+            query.GracePeriodMinutes, query.Search, query.OwnerProfileId, cancellationToken);
     }
 }
 
@@ -982,17 +984,17 @@ public sealed class ProcessPaymentResultUseCase(
 public interface IGetApprovalLogsUseCase
 {
     Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default);
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default);
 }
 
 public sealed class GetApprovalLogsUseCase(IBookingQueries queries) : IGetApprovalLogsUseCase
 {
     public Task<IReadOnlyList<ApprovalLogDto>> ExecuteAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
     {
         if (fromUtc.HasValue && toUtc.HasValue && toUtc < fromUtc)
             throw new ValidationException("Khoảng thời gian tra cứu không hợp lệ (toUtc phải sau fromUtc).");
 
-        return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, cancellationToken);
+        return queries.ListApprovalLogsAsync(parkingLotId, fromUtc, toUtc, result, ownerProfileId, cancellationToken);
     }
 }

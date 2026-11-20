@@ -20,7 +20,8 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
                 b.StatusLogs.OrderBy(l => l.CreatedAtUtc)
                     .Select(l => new StatusLogDto(l.FromStatus.ToString(), l.ToStatus.ToString(), l.ChangedByUserId, l.Reason, l.CreatedAtUtc))
                     .ToList(),
-                b.QrToken))
+                b.QrToken,
+                b.OwnerProfileId))
             .FirstOrDefaultAsync(cancellationToken);
 
     public Task<IReadOnlyList<BookingSummaryDto>> ListByUserAsync(int userId, BookingStatus? status, CancellationToken cancellationToken)
@@ -66,15 +67,20 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
             .ToList();
     }
 
-    // UC-20 (US-076): booking trong ca trực của Staff — IsOverdue tính ở SQL (dịch được sang Postgres).
+    // UC-20 (US-076): booking trong ca trực của Staff / Chủ bãi — IsOverdue tính ở SQL (dịch được sang Postgres).
     public async Task<IReadOnlyList<GateBookingListItemDto>> ListForGateAsync(int parkingLotId, DateTime fromUtc, DateTime toUtc,
-        DateTime nowUtc, int gracePeriodMinutes, string? search, CancellationToken cancellationToken)
+        DateTime nowUtc, int gracePeriodMinutes, string? search, int? ownerProfileId = null, CancellationToken cancellationToken = default)
     {
         // Booking sắp đến trong ca (Confirmed theo khung giờ bắt đầu) + xe đang trong bãi + no-show vừa xảy ra trong ca.
         BookingStatus[] statuses = [BookingStatus.Confirmed, BookingStatus.CheckedIn, BookingStatus.Parking, BookingStatus.NoShow];
         var query = db.Bookings.AsNoTracking()
             .Where(b => b.ParkingLotId == parkingLotId && statuses.Contains(b.Status)
                      && ((b.StartAtUtc >= fromUtc && b.StartAtUtc <= toUtc) || b.Status != BookingStatus.Confirmed));
+
+        if (ownerProfileId.HasValue && ownerProfileId > 0)
+        {
+            query = query.Where(b => b.OwnerProfileId == ownerProfileId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -94,12 +100,17 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
 
     // T-303: Tra cứu lịch sử duyệt/từ chối đơn đặt chỗ bãi Mức 0 từ BookingStatusLogs.
     public async Task<IReadOnlyList<ApprovalLogDto>> ListApprovalLogsAsync(
-        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, CancellationToken cancellationToken = default)
+        int? parkingLotId, DateTime? fromUtc, DateTime? toUtc, string? result, int? ownerProfileId = null, CancellationToken cancellationToken = default)
     {
         var query = db.BookingStatusLogs.AsNoTracking()
             .Include(l => l.Booking)
             .Where(l => l.FromStatus == BookingStatus.PendingOwnerApproval
                      && (l.ToStatus == BookingStatus.Confirmed || l.ToStatus == BookingStatus.Cancelled));
+
+        if (ownerProfileId.HasValue && ownerProfileId > 0)
+        {
+            query = query.Where(l => l.Booking.OwnerProfileId == ownerProfileId.Value);
+        }
 
         if (parkingLotId.HasValue && parkingLotId > 0)
         {
@@ -141,7 +152,8 @@ public sealed class BookingQueries(BookingDbContext db) : IBookingQueries, INoSh
                 l.ToStatus == BookingStatus.Confirmed ? "Approved" : "Rejected",
                 l.ChangedByUserId,
                 l.Reason,
-                l.CreatedAtUtc))
+                l.CreatedAtUtc,
+                l.Booking.OwnerProfileId))
             .ToListAsync(cancellationToken);
     }
 }
