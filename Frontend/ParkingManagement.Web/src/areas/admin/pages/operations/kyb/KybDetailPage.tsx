@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminKybApi } from '@/api/adminKybApi';
 import { adminLotContractsApi } from '@/api/adminLotContractsApi';
+import { adminLotsApi } from '@/api/adminLotsApi';
 import { KybStatus, LotContractStatus } from '@/types/adminEnums';
 import type { AdminKybApplicationDetailDto } from '@/types/adminKyb';
 import type { LotContractSummaryDto } from '@/types/adminLotContracts';
@@ -267,6 +268,19 @@ export const KybDetailPage: React.FC = () => {
   const lotId = query.data?.parkingLot.id ?? null;
   const contracts = useAdminQuery(lotId ? () => adminLotContractsApi.list({ parkingLotId: lotId, page: 1, pageSize: 10 }) : null, [lotId]);
   const lotContract = contracts.data?.items.find((c) => c.status !== LotContractStatus.Cancelled) ?? null;
+  // US-055 AC2: AdminService từ chối ký khi bãi chưa có bảng giá đang hiệu lực – báo trước cho Admin.
+  const priced = useAdminQuery(
+    lotId
+      ? () =>
+          adminLotsApi.rateCards(lotId).then((cards) => {
+            const now = Date.now();
+            return cards.some(
+              (c) => c.isActive && Date.parse(c.effectiveFromUtc) <= now && (!c.effectiveToUtc || Date.parse(c.effectiveToUtc) > now)
+            );
+          })
+      : null,
+    [lotId]
+  );
 
   useAdminBreadcrumb(Number.isInteger(kybId) ? kybCode(kybId) : null);
 
@@ -290,10 +304,15 @@ export const KybDetailPage: React.FC = () => {
     );
   }
 
+  const kyb =
+    priced.data === false
+      ? { ...query.data, approvalBlockers: [...query.data.approvalBlockers, 'Bãi chưa có bảng giá đang hiệu lực.'] }
+      : query.data;
+
   return (
     <>
       <KybDetailBody
-        kyb={query.data}
+        kyb={kyb}
         lotContract={lotContract}
         onAction={setDialog}
         onContractChanged={() => {

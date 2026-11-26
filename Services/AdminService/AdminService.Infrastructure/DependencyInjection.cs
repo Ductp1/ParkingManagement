@@ -101,6 +101,13 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // US-055 AC2: kiểm tra bảng giá của bãi (PaymentService, route rate-cards) trước khi ký hợp đồng.
+        services.AddHttpClient<IRateCardLookup, RateCardLookupClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         // US-097: danh sách bãi của chủ bãi (xác minh bãi được áp chế tài thuộc đúng chủ bãi).
         services.AddHttpClient<IParkingLotDirectory, ParkingLotDirectoryClient>(client =>
             {
