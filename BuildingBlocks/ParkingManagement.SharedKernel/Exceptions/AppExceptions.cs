@@ -8,8 +8,11 @@ public sealed class NotFoundException(string resource, object key)
 public interface IHasErrorCode { string? Code { get; } }
 
 /// <summary>Dữ liệu đầu vào không hợp lệ → API trả 400.</summary>
-public sealed class ValidationException(string message, string? code = null) : Exception(message), IHasErrorCode
+public sealed class ValidationException(string message, string? code) : Exception(message), IHasErrorCode
 {
+    // Giữ constructor một tham số thật: tham số mặc định không dùng được với Activator.CreateInstance (reflection).
+    public ValidationException(string message) : this(message, null) { }
+
     public string? Code { get; } = code;
 }
 
@@ -19,7 +22,10 @@ public sealed class ForbiddenException(string message) : Exception(message);
 public sealed class DependencyUnavailableException(string message) : Exception(message);
 
 /// <summary>Vi phạm quy tắc nghiệp vụ / xung đột trạng thái (slot đã bị giữ, booking đã hủy...) → API trả 409.</summary>
-public sealed class ConflictException(string message, string? code = null) : Exception(message), IHasErrorCode
+public sealed class ConflictException(string message, string? code) : Exception(message), IHasErrorCode
 {
+    // Giữ constructor một tham số thật: tham số mặc định không dùng được với Activator.CreateInstance (reflection).
+    public ConflictException(string message) : this(message, null) { }
+
     public string? Code { get; } = code;
 }
