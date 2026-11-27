@@ -1,8 +1,6 @@
 using Microsoft.Extensions.Logging;
-using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.Application.Abstractions;
-using ParkingService.Application.Features.LotOperations;
 
 namespace ParkingService.Application.Features.ParkingLots;
 
@@ -14,7 +12,6 @@ public interface ISuspendOwnerLotsUseCase
 public sealed class SuspendOwnerLotsUseCase(
     IParkingLotManagementRepository repository,
     TimeProvider timeProvider,
-    ILotEventPublisher events,
     ILogger<SuspendOwnerLotsUseCase> logger) : ISuspendOwnerLotsUseCase
 {
     public async Task<SuspendOwnerLotsResultDto> ExecuteAsync(int ownerProfileId, CancellationToken cancellationToken = default)
@@ -28,7 +25,6 @@ public sealed class SuspendOwnerLotsUseCase(
             {
                 lot.Suspend();
                 suspendedLotIds.Add(lot.Id);
-                events.Enqueue(new ParkingLotSuspended(lot.Id, ownerProfileId, "Chủ bãi rời nền tảng."));
             }
         }
 

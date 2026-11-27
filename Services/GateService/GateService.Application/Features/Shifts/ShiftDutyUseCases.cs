@@ -40,8 +40,10 @@ public sealed class ShiftDutyUseCases(GateAccess access, IShiftRepository shifts
         // Không biết trạng thái bãi thì không cho mở ca.
         var lot = await lotStatus.GetAsync(shift.ParkingLotId, ct)
             ?? throw new DependencyUnavailableException("Chưa kiểm tra được trạng thái bãi, thử lại sau ít phút.");
-        if (lot.EmergencyStopped || !string.Equals(lot.Status, nameof(ParkingLotStatus.Active), StringComparison.OrdinalIgnoreCase))
-            throw new ConflictException("Bãi đang không hoạt động, không thể mở ca.", ShiftErrors.LotNotOperational);
+        // Bãi đình chỉ / dừng khẩn cấp: chỉ mở ca khi còn xe trong bãi cần cho ra (xe vào đã bị chặn ở luật nhận xe).
+        if ((lot.EmergencyStopped || !string.Equals(lot.Status, nameof(ParkingLotStatus.Active), StringComparison.OrdinalIgnoreCase))
+            && await shifts.CountVehiclesInLotAsync(shift.ParkingLotId, ct) == 0)
+            throw new ConflictException("Bãi đang không hoạt động và không còn xe trong bãi, không thể mở ca.", ShiftErrors.LotNotOperational);
 
         var userId = shift.StaffUserId;
         if ((await shifts.WhereAsync(s => s.StaffUserId == userId && s.Status == ShiftStatus.Open, ct)).Count > 0)

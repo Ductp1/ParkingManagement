@@ -21,7 +21,8 @@ public class ShiftRuleTests
     private readonly CurrentShift current = new();
 
     private GateAccess Access => new(user, new Lots(), repo, current);
-    private ShiftDutyUseCases Duty => new(Access, repo, cash, new Status(), ShiftOptions.Default, clock);
+    private readonly Status lotStatus = new();
+    private ShiftDutyUseCases Duty => new(Access, repo, cash, lotStatus, ShiftOptions.Default, clock);
     private ShiftPlanningUseCases Planning => new(Access, repo, new Staff(), new Lots(), clock);
     private ShiftLifecycleUseCases Lifecycle => new(repo, cash, ShiftOptions.Default, clock);
     private CashDrawer Drawer => new(current, repo);
@@ -137,6 +138,17 @@ public class ShiftRuleTests
     }
 
     [Fact]
+    public async Task Suspended_lot_opens_a_shift_only_while_vehicles_remain()
+    {
+        var shift = Add(An, 0, 5);
+        user.Staff(An);
+        lotStatus.Value = "Suspended";
+        Assert.Equal(ShiftErrors.LotNotOperational, (await Assert.ThrowsAsync<ConflictException>(() => Duty.StartAsync(shift.Id, default))).Code);
+        repo.Vehicles = 1;
+        Assert.Equal(ShiftStatus.Open, (await Duty.StartAsync(shift.Id, default)).Status);
+    }
+
+    [Fact]
     public async Task Planning_rejects_overlaps_and_unassigned_staff()
     {
         user.Owner();
@@ -236,8 +248,9 @@ public class ShiftRuleTests
 
     private sealed class Status : ILotOperationalStatusProvider
     {
+        public string Value = "Active";
         public Task<LotOperationalStatusSnapshot?> GetAsync(int parkingLotId, CancellationToken cancellationToken = default)
-            => Task.FromResult<LotOperationalStatusSnapshot?>(new(parkingLotId, "Lot", "Active", false, null));
+            => Task.FromResult<LotOperationalStatusSnapshot?>(new(parkingLotId, "Lot", Value, false, null));
     }
 
     private sealed class Cash : IShiftCashSource
@@ -273,7 +286,8 @@ public class ShiftRuleTests
         public void Add(ShiftTemplate template) => templates.Add(template);
         public void Remove(ShiftTemplate template) => templates.Remove(template);
         public Task<ShiftEventCounts> CountEventsAsync(int shiftId, CancellationToken ct) => Task.FromResult(new ShiftEventCounts(0, 0, 0, 0, 0));
-        public Task<int> CountVehiclesInLotAsync(int parkingLotId, CancellationToken ct) => Task.FromResult(0);
+        public int Vehicles;
+        public Task<int> CountVehiclesInLotAsync(int parkingLotId, CancellationToken ct) => Task.FromResult(Vehicles);
         public Task<int> CountPendingPmsAsync(int parkingLotId, CancellationToken ct) => Task.FromResult(0);
         public void Enqueue(IntegrationEvent integrationEvent) => Events.Add(integrationEvent);
         public Task SaveAsync(CancellationToken ct) => Task.CompletedTask;

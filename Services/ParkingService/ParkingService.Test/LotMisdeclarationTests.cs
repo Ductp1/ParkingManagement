@@ -325,8 +325,7 @@ public class LotMisdeclarationTests
         Assert.Equal(Now.AddHours(24), dto.OpenCase!.DueAtUtc);
         Assert.Equal("Suspended", dto.ParkingLot.Status);
         Assert.False(dto.ParkingLot.IsPubliclyVisible);
-        Assert.IsType<ParkingLotSuspended>(Assert.Single(repo.Events, e => e is not AuditRecorded));
-        var audit = Assert.Single(repo.Events.OfType<AuditRecorded>());
+        var audit = Assert.IsType<AuditRecorded>(Assert.Single(repo.Events));
         Assert.Equal("ParkingLot.MisdeclarationSuspended", audit.Action);
         Assert.Equal("Active", Json(audit.OldValuesJson).GetProperty("lotStatus").GetString());
         Assert.Equal("Suspended", Json(audit.NewValuesJson).GetProperty("lotStatus").GetString());
@@ -602,8 +601,7 @@ public class LotMisdeclarationTests
         Assert.Equal("Banned", result.Lot.Cases[0].Status);
         Assert.Null(result.Lot.OpenCase);
 
-        Assert.NotEmpty(repo.Events.OfType<ParkingLotSuspended>());
-        var audits = repo.Events.OfType<AuditRecorded>().ToList();
+        var audits = repo.Events.Cast<AuditRecorded>().ToList();
         Assert.Equal(3, audits.Count(a => a.Action == "ParkingLot.OwnerBanned"));
         Assert.Equal([LotId.ToString(), "8", "9"], audits.Where(a => a.Action == "ParkingLot.OwnerBanned").Select(a => a.EntityId).Order());
         var kybAudits = audits.Where(a => a.Action == "KybApplication.RejectedByBan").ToList();

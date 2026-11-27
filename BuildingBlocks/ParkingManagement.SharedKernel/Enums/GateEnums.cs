@@ -21,6 +21,6 @@ public enum PmsQuarantineStatus { Pending = 0, Handled = 1, Discarded = 2 }
 /// <summary>Scheduled → Open → HandoverPending → Completed; Missed = không Start; AutoClosed = bị đóng cưỡng bức hoặc quên End.</summary>
 public enum ShiftStatus { Open = 0, Completed = 1, Scheduled = 2, HandoverPending = 3, Missed = 4, AutoClosed = 5 }
 
-public enum ShiftClosedReason { Normal = 0, Forgot = 1, StaffRevoked = 2, StaffSuspended = 3, OwnerLocked = 4, LotSuspended = 5 }
+public enum ShiftClosedReason { Normal = 0, Forgot = 1, StaffRevoked = 2, StaffSuspended = 3, OwnerLocked = 4 }
 
 public enum ShiftDiscrepancyStatus { Open = 0, Resolved = 1 }

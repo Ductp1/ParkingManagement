@@ -8,8 +8,8 @@ using ParkingManagement.SharedKernel.Enums;
 namespace GateService.Infrastructure.Integrations;
 
 /// <summary>
-/// US-076: đóng ngay ca đang mở khi người trực bị gỡ / đình chỉ, chủ bãi bị khóa hoặc bãi bị đình chỉ.
-/// Dừng khẩn cấp (LotEmergencyStopped) KHÔNG đóng ca: cổng vào đã bị chặn ở luật nhận xe, người trực vẫn phải cho xe ra được.
+/// US-076: đóng ngay ca đang mở khi người trực bị gỡ / đình chỉ hoặc chủ bãi bị khóa.
+/// Bãi bị đình chỉ / dừng khẩn cấp KHÔNG đóng ca: cổng vào bị chặn ở luật nhận xe, người trực vẫn phải cho xe ra được.
 /// </summary>
 public sealed class GateIntegrationEventHandler(ShiftLifecycleUseCases lifecycle, ILogger<GateIntegrationEventHandler> logger)
     : IIntegrationEventHandler
@@ -40,13 +40,6 @@ public sealed class GateIntegrationEventHandler(ShiftLifecycleUseCases lifecycle
                 var e = Deserialize<OwnerProfileLocked>(envelope);
                 closed = await lifecycle.AutoCloseAsync(s => s.Status == ShiftStatus.Open && s.OwnerProfileId == e.OwnerProfileId,
                     ShiftClosedReason.OwnerLocked, cancellationToken);
-                break;
-            }
-            case nameof(ParkingLotSuspended):
-            {
-                var e = Deserialize<ParkingLotSuspended>(envelope);
-                closed = await lifecycle.AutoCloseAsync(s => s.Status == ShiftStatus.Open && s.ParkingLotId == e.ParkingLotId,
-                    ShiftClosedReason.LotSuspended, cancellationToken);
                 break;
             }
             default:

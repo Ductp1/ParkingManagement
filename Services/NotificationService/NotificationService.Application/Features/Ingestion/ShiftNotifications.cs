@@ -38,7 +38,6 @@ public sealed class ShiftNotifications(IUserDirectory userDirectory, IUserNotifi
         "StaffRevoked" => "người trực bị gỡ khỏi bãi",
         "StaffSuspended" => "tài khoản người trực bị đình chỉ",
         "OwnerLocked" => "hồ sơ chủ bãi bị khóa",
-        "LotSuspended" => "bãi bị đình chỉ",
         _ => reason,
     };
 

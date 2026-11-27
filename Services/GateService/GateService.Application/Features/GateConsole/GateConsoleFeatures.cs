@@ -125,6 +125,8 @@ public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrT
             {
                 AdmissionRejectReasons.TransientBufferFull =>
                     "Hết vùng đệm vãng lai (V >= B): bãi hiện chỉ nhận xe đặt trước/thuê bao.",
+                AdmissionRejectReasons.LotNotActive =>
+                    "Bãi đang không hoạt động – tạm ngừng nhận xe vào. Xe đang trong bãi vẫn được cho ra.",
                 AdmissionRejectReasons.LotEmergencyStopped =>
                     "Bãi đang TẠM ĐÓNG KHẨN CẤP – tạm ngừng nhận xe vào. Vui lòng liên hệ nhân viên để được hỗ trợ.",
                 _ => "Bãi đã đầy (T >= C): vui lòng chờ có xe ra hoặc liên hệ nhân viên.",

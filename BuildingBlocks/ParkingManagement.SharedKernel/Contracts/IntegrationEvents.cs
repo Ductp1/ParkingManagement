@@ -29,8 +29,6 @@ public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNu
 
 // ===== ParkingService =====
 public sealed record ParkingLotApproved(int ParkingLotId, int OwnerProfileId, string Name) : IntegrationEvent;
-/// <summary>US-056/057: bãi bị đình chỉ (khai sai, cấm chủ bãi, chủ bãi rời nền tảng) → GateService đóng ca đang mở.</summary>
-public sealed record ParkingLotSuspended(int ParkingLotId, int OwnerProfileId, string Reason) : IntegrationEvent;
 public sealed record SlotStateChanged(int ParkingLotId, int SlotId, string SlotCode, string OldState, string NewState) : IntegrationEvent;
 public sealed record LayoutPublished(int ParkingLotId, int FloorId, int VersionNo) : IntegrationEvent;
 // ===== ParkingService – US-068 (heartbeat/stale data) + US-069 (emergency stop) =====

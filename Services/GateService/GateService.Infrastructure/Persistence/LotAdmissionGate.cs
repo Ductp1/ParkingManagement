@@ -23,6 +23,9 @@ public sealed class LotAdmissionGate(GateDbContext db, ILotOperationalStatusProv
             : await statusProvider.GetAsync(parkingLotId, cancellationToken);
         if (lotStatus is { EmergencyStopped: true })
             return (false, AdmissionRejectReasons.LotEmergencyStopped);
+        // Bãi không hoạt động (đình chỉ, chưa duyệt...) → không nhận xe vào; xe đang trong bãi vẫn ra được.
+        if (lotStatus is not null && !string.Equals(lotStatus.Status, nameof(ParkingManagement.SharedKernel.Enums.ParkingLotStatus.Active), StringComparison.OrdinalIgnoreCase))
+            return (false, AdmissionRejectReasons.LotNotActive);
 
         var policy = await db.LotCapacityConfigs.AsNoTracking()
             .SingleOrDefaultAsync(c => c.ParkingLotId == parkingLotId, cancellationToken);
