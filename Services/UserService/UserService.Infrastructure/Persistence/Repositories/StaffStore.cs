@@ -15,7 +15,7 @@ public sealed class StaffStore(UserDbContext db) : IStaffStore
                 && (parkingLotId == null || a.ParkingLotId == parkingLotId)
                 && (staffUserId == null || a.StaffUserId == staffUserId))
             .OrderByDescending(a => a.Id).Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(a => new StaffItem(a.Id, a.StaffUserId, a.StaffUser.FullName, a.ParkingLotId, a.StaffUser.Status.ToString()))
+            .Select(a => new StaffItem(a.Id, a.StaffUserId, a.StaffUser.FullName, a.ParkingLotId, a.StaffUser.Status.ToString(), null, a.StaffUser.Email))
             .ToListAsync(ct);
 
     public Task<OtpCode?> FindActivationAsync(string tokenHash, CancellationToken ct)

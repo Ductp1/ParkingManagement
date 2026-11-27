@@ -35,7 +35,7 @@ describe('navigation – tab chưa có nguồn dữ liệu (P0-10)', () => {
     ['/admin/reports/exports?x=1', false],
     ['/admin/operations/bookings', false],
     ['/admin/operations/bookings/monthly-passes', false],
-    ['/admin/operations/gate-activity/shifts', false],
+    ['/admin/operations/gate-activity/shifts', true],
     ['/admin/access/security-privacy/security-events', false],
     ['/admin/operations/bookings/BK-001', true],
     ['/admin/operations/gate-activity/devices', true],

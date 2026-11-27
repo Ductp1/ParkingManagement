@@ -20,3 +20,13 @@ export async function validateOwnerActivation(token: string): Promise<OwnerActiv
 export async function activateOwnerAccount(token: string, password: string): Promise<void> {
   await apiClient.post('/api/v1/auth/owner-activation', { token, password });
 }
+
+/** US-075: link mời nhân viên (/staff/activate) – cùng hợp đồng, khác đường dẫn. */
+export async function validateStaffActivation(token: string): Promise<OwnerActivationInfo> {
+  const { data } = await apiClient.get<OwnerActivationInfo>('/api/v1/auth/staff-activation', { headers: { [TOKEN_HEADER]: token } });
+  return data;
+}
+
+export async function activateStaffAccount(token: string, password: string): Promise<void> {
+  await apiClient.post('/api/v1/auth/staff-activation', { token, password });
+}

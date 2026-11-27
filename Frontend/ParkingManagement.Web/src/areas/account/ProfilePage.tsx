@@ -27,7 +27,9 @@ export function ProfilePage() {
   const [reload, setReload] = useState(0);
   const [brokenImage, setBrokenImage] = useState(false);
 
-  const identitySelected = hash === '#identity';
+  // Xác minh danh tính chỉ dành cho tài xế (nhân viên / chủ bãi không thuê chỗ).
+  const isDriver = !!profile?.roles?.includes('Driver');
+  const identitySelected = isDriver && hash === '#identity';
 
   useEffect(() => {
     let active = true;
@@ -105,7 +107,7 @@ export function ProfilePage() {
             <span>Thông tin cá nhân</span>
           </Link>
 
-          <Link to="/account/profile#identity"
+          {isDriver && <Link to="/account/profile#identity"
             className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               identitySelected
                 ? 'bg-indigo-600 text-white shadow-sm'
@@ -114,7 +116,7 @@ export function ProfilePage() {
           >
             <IdCard size={16} />
             <span>Xác minh danh tính</span>
-          </Link>
+          </Link>}
 
           <Link to="/account/privacy"
             className="px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-100"

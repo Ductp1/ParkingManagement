@@ -18,7 +18,7 @@ import { UsersListPage } from './pages/operations/users/UsersListPage';
 import { UserDetailPage } from './pages/operations/users/UserDetailPage';
 import { BookingDetailPage } from './pages/operations/bookings/BookingDetailPage';
 import { GateDevicesPage, GateSessionsPage } from './pages/operations/gate/GateActivityPages';
-import { GATE_BASE } from './pages/operations/gate/gateTabs';
+import { GateShiftsPage } from './pages/operations/gate/GateShiftsPage';
 import { FaqListPage } from './pages/communications/FaqListPage';
 import { SendNotificationPage } from './pages/communications/SendNotificationPage';
 import { CommissionPage } from './pages/finance/commission/CommissionPage';
@@ -91,7 +91,7 @@ export const AdminRoutes: React.FC = () => {
         <Route path="operations/capacity-config" element={<CapacityConfigPage />} />
         <Route path="operations/gate-activity" element={<GateSessionsPage />} />
         <Route path="operations/gate-activity/devices" element={<GateDevicesPage />} />
-        <Route path="operations/gate-activity/shifts" element={<ComingSoonScreen title="Gate shifts" backTo={GATE_BASE} backLabel="Back to Gate Activity" />} />
+        <Route path="operations/gate-activity/shifts" element={<GateShiftsPage />} />
 
         {/* Finance */}
         {/* US-080: quyết toán định kỳ – kỳ (chi tiết ?settlement=), chi trả, bút toán điều chỉnh. */}

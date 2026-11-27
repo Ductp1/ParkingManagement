@@ -33,19 +33,19 @@ describe('ComingSoonScreen', () => {
 
   it('màn con: tiêu đề và đích quay lại riêng', () => {
     render(
-      <MemoryRouter initialEntries={['/admin/operations/gate-activity/shifts']}>
+      <MemoryRouter initialEntries={['/admin/access/security-privacy/security-events']}>
         <Routes>
           <Route
-            path="/admin/operations/gate-activity/shifts"
-            element={<ComingSoonScreen title="Gate shifts" backTo="/admin/operations/gate-activity" backLabel="Back to Gate Activity" />}
+            path="/admin/access/security-privacy/security-events"
+            element={<ComingSoonScreen title="Security events" backTo="/admin/access/security-privacy" backLabel="Back to Security & Privacy" />}
           />
           <Route path="*" element={<Probe />} />
         </Routes>
       </MemoryRouter>
     );
-    expect(screen.getByRole('heading', { name: 'Gate shifts' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Back to Gate Activity' }));
-    expect(screen.getByTestId('location').textContent).toBe('/admin/operations/gate-activity');
+    expect(screen.getByRole('heading', { name: 'Security events' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Security & Privacy' }));
+    expect(screen.getByTestId('location').textContent).toBe('/admin/access/security-privacy');
   });
 });
 
@@ -64,7 +64,7 @@ describe('SubTabs', () => {
     expect(container.querySelector('nav')).toBeNull();
   });
 
-  it('Gate Activity chỉ còn Sessions + Devices', () => {
+  it('Gate Activity có đủ Sessions, Devices, Shifts', () => {
     render(
       <MemoryRouter initialEntries={['/admin/operations/gate-activity']}>
         <SubTabs
@@ -76,6 +76,6 @@ describe('SubTabs', () => {
         />
       </MemoryRouter>
     );
-    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Sessions', 'Devices']);
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Sessions', 'Devices', 'Shifts']);
   });
 });

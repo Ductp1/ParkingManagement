@@ -144,7 +144,6 @@ export const ADMIN_SECTIONS: AdminSection[] = [
  */
 export const UNAVAILABLE_SUB_PATHS: readonly string[] = [
   '/admin/operations/bookings/monthly-passes',
-  '/admin/operations/gate-activity/shifts',
   '/admin/access/security-privacy/security-events',
 ];
 

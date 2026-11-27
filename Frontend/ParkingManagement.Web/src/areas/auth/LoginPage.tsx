@@ -69,7 +69,7 @@ export function LoginPage() {
       if (fromPath === '/account/profile') targetRoute = fromPath;
       else if (fromPath.startsWith('/admin') && userRoles.includes('Admin')) targetRoute = fromPath;
       else if (fromPath.startsWith('/owner') && (userRoles.includes('Owner') || userRoles.includes('Admin'))) targetRoute = fromPath;
-      else if (fromPath.startsWith('/gate') && (userRoles.includes('Staff') || userRoles.includes('Admin'))) targetRoute = fromPath;
+      else if (fromPath.startsWith('/gate') && ['Staff', 'Owner', 'Admin'].some((r) => userRoles.includes(r as AuthUser['role']))) targetRoute = fromPath;
       else if (fromPath.startsWith('/driver') && (userRoles.includes('Driver') || userRoles.includes('Admin'))) targetRoute = fromPath;
     }
 

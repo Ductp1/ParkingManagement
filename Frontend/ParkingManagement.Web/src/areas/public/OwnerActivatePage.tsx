@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Check, Circle, Loader2 } from 'lucide-react';
 import '@/areas/admin/theme/admin.css';
-import { activateOwnerAccount, validateOwnerActivation, type OwnerActivationInfo } from '@/api/ownerActivationApi';
+import { activateOwnerAccount, activateStaffAccount, validateOwnerActivation, validateStaffActivation, type OwnerActivationInfo } from '@/api/ownerActivationApi';
+import { errorText } from '@/features/shifts/format';
 import { passwordProblems, takeHashParams } from './partnerApplyForm';
 import { PasswordField } from './partner-register/PasswordField';
 import { PublicTopBar } from './partner-register/PublicTopBar';
@@ -51,8 +52,14 @@ const Rule = ({ met, children }: { met: boolean; children: string }) => (
  * /owner/activate#token=… – chủ bãi mở link trong email "Kích hoạt tài khoản chủ bãi" (US-116 U4/U5), tự đặt mật khẩu rồi đăng nhập.
  * Thiết kế cùng ngôn ngữ với trang Đăng ký đối tác (Figma 221:139): nền phẳng, card trắng 440px. Token chỉ giữ trong bộ nhớ, bị xóa khỏi
  * thanh địa chỉ ngay khi đọc; không ghi log; chống gửi hai lần.
+ *
+ * staff = true: /staff/activate#token=… – cùng luồng cho nhân viên được chủ bãi mời (US-075, Figma Staff & Shifts / Activation).
  */
-export function OwnerActivatePage() {
+export function OwnerActivatePage({ staff = false }: { staff?: boolean }) {
+  const title = staff ? 'Kích hoạt tài khoản' : 'Kích hoạt tài khoản chủ bãi';
+  const read = (err: unknown) => (staff
+    ? { problem: 'invalid' as const, message: errorText(err) }
+    : problemOf(err));
   useNoReferrer();
   const navigate = useNavigate();
   const [token] = useState(() => takeHashParams().get('token') ?? '');
@@ -69,16 +76,18 @@ export function OwnerActivatePage() {
   useEffect(() => {
     if (!token) return undefined;
     let cancelled = false;
-    validateOwnerActivation(token)
+    (staff ? validateStaffActivation : validateOwnerActivation)(token)
       .then((info) => {
         if (!cancelled) setState({ status: 'ready', info });
       })
       .catch((err: unknown) => {
-        if (!cancelled) setState({ status: 'problem', ...problemOf(err) });
+        if (!cancelled) setState({ status: 'problem', ...read(err) });
       });
     return () => {
       cancelled = true;
     };
+    // read() chỉ phụ thuộc prop staff, cố định theo route.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const rules = passwordProblems(password);
@@ -92,14 +101,14 @@ export function OwnerActivatePage() {
     setError('');
     setBusy(true);
     try {
-      await activateOwnerAccount(token, password);
+      await (staff ? activateStaffAccount : activateOwnerAccount)(token, password);
       setPassword('');
       setConfirmation('');
       setState({ status: 'done', info: state.info });
     } catch (err) {
-      const { problem, message } = problemOf(err);
+      const { problem, message } = read(err);
       // Link hỏng / hết hạn giữa chừng → màn hình riêng; lỗi khác (mật khẩu bị từ chối…) → hiện nguyên văn ngay trên form.
-      if (problem !== 'invalid' || (err as { code?: string }).code === 'activation_invalid') setState({ status: 'problem', problem, message });
+      if (problem !== 'invalid' || ['activation_invalid', 'ACTIVATION_TOKEN_INVALID'].includes((err as { code?: string }).code ?? '')) setState({ status: 'problem', problem, message });
       else setError(message);
     } finally {
       setBusy(false);
@@ -119,7 +128,7 @@ export function OwnerActivatePage() {
           {state.status === 'loading' && (
             <>
               <h1 id="activate-title" className="text-xl font-bold text-(--admin-text-primary)">
-                Kích hoạt tài khoản chủ bãi
+                {title}
               </h1>
               <p role="status" className="mt-4 flex items-center gap-2 text-sm text-(--admin-text-secondary)">
                 <Loader2 size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
@@ -131,7 +140,9 @@ export function OwnerActivatePage() {
           {state.status === 'problem' && (
             <div className="flex flex-col gap-4">
               <h1 id="activate-title" className="text-xl font-bold text-(--admin-text-primary)">
-                {state.problem === 'expired'
+                {staff
+                  ? 'Link kích hoạt không còn hiệu lực'
+                  : state.problem === 'expired'
                   ? 'Link kích hoạt đã hết hạn'
                   : state.problem === 'activated'
                     ? 'Tài khoản đã được kích hoạt'
@@ -140,9 +151,9 @@ export function OwnerActivatePage() {
               <div role="alert">
                 <Notice tone={state.problem === 'activated' ? 'info' : 'danger'} title={state.message} />
               </div>
-              {state.problem === 'activated' ? (
+              {staff || state.problem === 'activated' ? (
                 <button type="button" className={buttonClass('primary')} onClick={() => goLogin()}>
-                  Đăng nhập
+                  {staff ? 'Về đăng nhập' : 'Đăng nhập'}
                 </button>
               ) : (
                 <p className="text-sm text-(--admin-text-secondary)">
@@ -163,17 +174,20 @@ export function OwnerActivatePage() {
             <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
               <div>
                 <h1 id="activate-title" className="text-xl font-bold text-(--admin-text-primary)">
-                  Kích hoạt tài khoản chủ bãi
+                  {title}
                 </h1>
-                <p className="mt-2 truncate text-sm font-semibold text-(--admin-text-primary)" title={state.info.businessName}>
-                  {state.info.businessName}
+                {staff && <p className="mt-2 text-sm text-(--admin-text-secondary)">Bạn được mời làm nhân viên vận hành cổng tại ParkMaster.</p>}
+                <p className="mt-2 truncate text-sm font-semibold text-(--admin-text-primary)" title={staff ? state.info.fullName : state.info.businessName}>
+                  {staff ? state.info.fullName : state.info.businessName}
                 </p>
-                <p className="text-sm text-(--admin-text-secondary)">Người đại diện: {state.info.fullName}</p>
+                <p className="text-sm text-(--admin-text-secondary)">
+                  {staff ? `Chủ bãi: ${state.info.businessName}` : `Người đại diện: ${state.info.fullName}`}
+                </p>
               </div>
 
               <TextInput id="activate-email" label="Email đăng nhập" value={state.info.email} readOnly locked />
 
-              <PasswordField label="Mật khẩu" value={password} onChange={setPassword} disabled={busy} describedBy="activate-rules" autoFocus />
+              <PasswordField label={staff ? 'Mật khẩu mới' : 'Mật khẩu'} value={password} onChange={setPassword} disabled={busy} describedBy="activate-rules" autoFocus />
               <ul id="activate-rules" aria-label="Điều kiện mật khẩu" aria-live="polite" className="-mt-2 flex flex-col gap-1">
                 {rules.map((r) => (
                   <Rule key={r.label} met={r.met}>
@@ -182,7 +196,7 @@ export function OwnerActivatePage() {
                 ))}
               </ul>
 
-              <PasswordField label="Xác nhận mật khẩu" value={confirmation} onChange={setConfirmation} disabled={busy} describedBy="activate-match" invalid={confirmation.length > 0 && !matches} />
+              <PasswordField label={staff ? 'Nhập lại mật khẩu' : 'Xác nhận mật khẩu'} value={confirmation} onChange={setConfirmation} disabled={busy} describedBy="activate-match" invalid={confirmation.length > 0 && !matches} />
               <ul id="activate-match" aria-live="polite" className="-mt-2">
                 <Rule met={matches}>Mật khẩu khớp</Rule>
               </ul>
@@ -192,6 +206,8 @@ export function OwnerActivatePage() {
                   <Notice tone="danger" title={error} />
                 </div>
               )}
+
+              {staff && <p className="text-xs text-(--admin-text-secondary)">Tự đặt mật khẩu để kích hoạt tài khoản. ParkMaster không gửi mật khẩu qua email.</p>}
 
               <button type="submit" disabled={!canSubmit} aria-busy={busy || undefined} className={`${buttonClass('primary')} h-11 w-full`}>
                 {busy ? (
@@ -212,10 +228,10 @@ export function OwnerActivatePage() {
                 <Check size={22} />
               </span>
               <h1 id="activate-title" tabIndex={-1} className="text-xl font-bold text-(--admin-text-primary)">
-                Tài khoản đã sẵn sàng
+                {staff ? 'Tài khoản đã được kích hoạt' : 'Tài khoản đã sẵn sàng'}
               </h1>
               <p className="text-sm text-(--admin-text-secondary)">
-                Đăng nhập bằng <strong className="text-(--admin-text-primary)">{state.info.email}</strong> và mật khẩu vừa đặt để khai báo bãi và nộp hồ sơ KYB.
+                Đăng nhập bằng <strong className="text-(--admin-text-primary)">{state.info.email}</strong> và mật khẩu vừa đặt để {staff ? 'xem ca và vận hành tại bãi được phân công' : 'khai báo bãi và nộp hồ sơ KYB'}.
               </p>
               <button type="button" className={`${buttonClass('primary')} h-11 w-full`} onClick={() => goLogin(state.info.email)}>
                 Đăng nhập

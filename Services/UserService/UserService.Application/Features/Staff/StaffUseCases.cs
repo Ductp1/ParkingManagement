@@ -11,7 +11,8 @@ namespace UserService.Application.Features.Staff;
 // ===== DTO =====
 public sealed record CreateStaffRequest(string FullName, string Contact, int ParkingLotId);
 /// <summary>LotStatus = null khi ParkingService không trả lời.</summary>
-public sealed record StaffItem(int Id, int UserId, string FullName, int ParkingLotId, string Status, string? LotStatus = null)
+public sealed record StaffItem(int Id, int UserId, string FullName, int ParkingLotId, string Status, string? LotStatus = null,
+    string? Email = null)
 {
     public string ActivationStatus => Status == nameof(UserStatus.PendingVerification) ? "Invited" : "Active";
 }
@@ -145,7 +146,7 @@ public sealed class StaffUseCases(IIdentityStore store, IStaffStore staff, IOwne
         }
 
         await tx.CommitAsync(ct);
-        return new StaffItem(assignment.Id, user.Id, user.FullName, assignment.ParkingLotId, user.Status.ToString(), lot.Status);
+        return new StaffItem(assignment.Id, user.Id, user.FullName, assignment.ParkingLotId, user.Status.ToString(), lot.Status, user.Email);
     }
 
     /// <summary>Thu hồi link cũ và gửi link mới cho nhân viên chưa kích hoạt.</summary>
