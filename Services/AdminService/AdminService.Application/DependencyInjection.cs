@@ -4,6 +4,7 @@ using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
+using AdminService.Application.Features.Notifications;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.RiskFlags;
@@ -114,6 +115,7 @@ public static class DependencyInjection
         services.AddScoped<IGetOwnerPayoutAccountUseCase, GetOwnerPayoutAccountUseCase>();
         services.AddScoped<IListOwnerPayoutAccountsUseCase, ListOwnerPayoutAccountsUseCase>();
         // US-077: cảnh báo Staff hủy No-show bất thường (GateService đẩy sang qua endpoint nội bộ).
+        services.AddScoped<AdminAlerts>();
         services.AddScoped<IRaiseStaffCancellationAlertUseCase, RaiseStaffCancellationAlertUseCase>();
         return services;
     }

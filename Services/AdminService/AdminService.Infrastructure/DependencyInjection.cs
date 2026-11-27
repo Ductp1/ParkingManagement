@@ -4,6 +4,7 @@ using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
+using AdminService.Application.Features.Notifications;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.RiskFlags;
@@ -128,6 +129,9 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // Admin nhận thông báo in-app (hồ sơ đối tác mới / bổ sung, cảnh báo rủi ro).
+        var adminIds = configuration.GetSection("Notifications:AdminUserIds").Get<int[]>();
+        services.AddSingleton(adminIds is { Length: > 0 } ? new AdminAlertSettings(adminIds) : AdminAlertSettings.Default);
         // US-097: job đóng chế tài tới hạn ("Sanctions:ExpiryJob:Enabled" = false để tắt, ví dụ khi chạy nhiều instance thử nghiệm).
         var expiryJob = SanctionExpiryJobSettingsFrom(configuration);
         services.AddSingleton(expiryJob);

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/store';
 import { setToken } from '@/store/slices/authSlice';
@@ -38,6 +38,12 @@ export const AdminLayout: React.FC = () => {
   const me = useAdminQuery(() => adminUsersApi.getCurrentUser(), []);
   const userId = me.data?.id ?? storeUser?.id ?? null;
   const inbox = useAdminQuery(userId ? () => adminCommunicationsApi.getInbox(userId) : null, [userId]);
+  // Không có kênh đẩy realtime cho InApp: hỏi lại hộp thư mỗi phút để chuông tự cập nhật.
+  const refetchInbox = inbox.refetch;
+  useEffect(() => {
+    const timer = window.setInterval(refetchInbox, 60_000);
+    return () => window.clearInterval(timer);
+  }, [refetchInbox]);
 
   const location = resolveAdminLocation(pathname);
   if (!location) return <Navigate to={ADMIN_HOME_PATH} replace />;

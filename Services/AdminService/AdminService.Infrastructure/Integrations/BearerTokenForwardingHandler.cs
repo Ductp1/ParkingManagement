@@ -5,6 +5,7 @@ namespace AdminService.Infrastructure.Integrations;
 /// <summary>
 /// Chuyển tiếp header Authorization (Bearer) của request đang xử lý sang lời gọi UserService,
 /// để UserService kiểm tra quyền Admin trên chính token của người thao tác. Không có header thì bỏ qua.
+/// Request vào /internal/… mang khóa nội bộ của service gọi (không phải JWT người dùng) nên không chuyển đi nơi khác.
 /// </summary>
 public sealed class BearerTokenForwardingHandler(IHttpContextAccessor httpContextAccessor) : DelegatingHandler
 {
@@ -12,7 +13,8 @@ public sealed class BearerTokenForwardingHandler(IHttpContextAccessor httpContex
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        var authorization = httpContextAccessor.HttpContext?.Request.Headers.Authorization.ToString();
+        var incoming = httpContextAccessor.HttpContext?.Request;
+        var authorization = incoming?.Path.StartsWithSegments("/internal") == true ? null : incoming?.Headers.Authorization.ToString();
         if (request.Headers.Authorization is null
             && authorization is not null
             && authorization.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase)

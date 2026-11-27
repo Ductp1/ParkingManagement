@@ -88,7 +88,9 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ section, activeTab, de
           >
             <AdminIcon icon={{ src: avatarUser, width: 12, height: 12 }} />
           </button>
-          {open === 'bell' && <NotificationPanel inbox={inbox} onRead={onReadNotification} onReadAll={onReadAll} />}
+          {open === 'bell' && (
+            <NotificationPanel inbox={inbox} onRead={onReadNotification} onReadAll={onReadAll} onClose={() => setOpen(null)} />
+          )}
           {open === 'profile' && (
             <ProfileMenu
               {...profile}

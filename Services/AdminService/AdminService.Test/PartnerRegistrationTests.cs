@@ -74,11 +74,28 @@ public class PartnerRegistrationTests
     }
 
     private static SubmitPartnerApplicationUseCase UseCase(FakeRepository repository, FakeStorage storage)
-        => new(repository, storage, new FixedClock());
+        => new(repository, storage, new FixedClock(), TestAdminAlerts.Create());
 
     private sealed class FixedClock : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(Now);
+    }
+
+    [Fact] // Admin được báo sau khi hồ sơ đã lưu; NotificationService lỗi thì hồ sơ vẫn nộp thành công.
+    public async Task Submit_notifies_admin_and_survives_notification_failure()
+    {
+        var notifications = new FakeNotificationClient();
+        await new SubmitPartnerApplicationUseCase(new FakeRepository(), new FakeStorage(), new FixedClock(),
+            TestAdminAlerts.Create(notifications)).ExecuteAsync(Applicant, Valid(), ValidDocs());
+        var sent = Assert.Single(notifications.Sent);
+        Assert.Equal("PARTNER_APPLICATION_SUBMITTED", sent.TemplateKey);
+        Assert.Contains("/admin/operations/partner-onboarding/13", sent.DataJson);
+
+        notifications.Failure = new InvalidOperationException("down");
+        var storage = new FakeStorage();
+        var receipt = await new SubmitPartnerApplicationUseCase(new FakeRepository(), storage, new FixedClock(),
+            TestAdminAlerts.Create(notifications)).ExecuteAsync(Applicant, Valid(), ValidDocs());
+        Assert.Equal("PA-2026-0013", receipt.Code);
     }
 
     [Fact] // AC: nộp đủ thông tin + giấy tờ → hồ sơ Submitted chờ Admin thẩm định, file lưu bằng khóa do server sinh.

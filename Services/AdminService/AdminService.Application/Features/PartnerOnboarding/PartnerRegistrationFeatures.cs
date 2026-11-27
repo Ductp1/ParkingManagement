@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using AdminService.Application.Features.Notifications;
 using AdminService.Domain.Entities;
 using AdminService.Domain.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
@@ -174,7 +175,8 @@ public interface ISubmitPartnerApplicationUseCase
 public sealed partial class SubmitPartnerApplicationUseCase(
     IPartnerRegistrationRepository repository,
     IFileStorage storage,
-    TimeProvider timeProvider) : ISubmitPartnerApplicationUseCase
+    TimeProvider timeProvider,
+    AdminAlerts alerts) : ISubmitPartnerApplicationUseCase
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -236,6 +238,7 @@ public sealed partial class SubmitPartnerApplicationUseCase(
         var folder = $"partner-applications/{Guid.NewGuid():N}";
         var saved = new List<string>();
         var entities = new List<PartnerApplicationDocument>();
+        string code;
         try
         {
             var index = 0;
@@ -250,7 +253,7 @@ public sealed partial class SubmitPartnerApplicationUseCase(
                     upload.File.Content.Length, ContractSupport.Sha256Hex(upload.File.Content)));
             }
 
-            var code = await repository.AddWithNewCodeAsync(app, entities, now.Year, cancellationToken, saved => new AuditLog
+            code = await repository.AddWithNewCodeAsync(app, entities, now.Year, cancellationToken, saved => new AuditLog
             {
                 SourceService = "AdminService",
                 UserId = applicant?.UserId,
@@ -268,7 +271,6 @@ public sealed partial class SubmitPartnerApplicationUseCase(
                 }, Json),
                 Reason = applicant is null ? "Đối tác tự nộp qua form đăng ký" : "Đối tác tự nộp qua form đăng ký (đã đăng nhập)",
             });
-            return new PartnerApplicationReceiptDto(code, app.Status.ToString(), now);
         }
         catch
         {
@@ -279,6 +281,10 @@ public sealed partial class SubmitPartnerApplicationUseCase(
             }
             throw;
         }
+
+        await alerts.RaiseAsync("PARTNER_APPLICATION_SUBMITTED", "Hồ sơ đối tác mới",
+            $"{app.BusinessName} ({code}) vừa nộp hồ sơ đăng ký đối tác.", $"/admin/operations/partner-onboarding/{app.Id}");
+        return new PartnerApplicationReceiptDto(code, app.Status.ToString(), now);
     }
 
     private static string Text(string? value, string field, int max)

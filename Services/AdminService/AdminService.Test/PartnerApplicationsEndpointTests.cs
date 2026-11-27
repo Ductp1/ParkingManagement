@@ -250,6 +250,7 @@ public class PartnerApplicationsEndpointTests
             builder.Services.AddSingleton<IPartnerApplicationQueries>(host.Store);
             builder.Services.AddSingleton<IPartnerRegistrationRepository>(host.Store);
             builder.Services.AddSingleton<IFileStorage, MemoryFileStorage>();
+            builder.Services.AddSingleton(TestAdminAlerts.Create());
             builder.Services.AddScoped<ISubmitPartnerApplicationUseCase, SubmitPartnerApplicationUseCase>();
             builder.Services.AddScoped<ICreatePartnerApplicationUseCase, CreatePartnerApplicationUseCase>();
             builder.Services.AddSingleton<IPartnerApplicationRepository>(host.Store);

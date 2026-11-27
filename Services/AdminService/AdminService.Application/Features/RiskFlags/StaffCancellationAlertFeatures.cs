@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AdminService.Application.Features.Notifications;
 using AdminService.Domain.Entities;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
@@ -46,7 +47,8 @@ public interface IRaiseStaffCancellationAlertUseCase
 ///  - Chống trùng: Staff đã có cờ Open/Investigating cùng RuleCode → cập nhật bằng chứng, nâng mức nếu nặng hơn
 ///    (không hạ mức, không tạo dòng mới) – GateService gọi lại nhiều lần vẫn an toàn.
 /// </summary>
-public sealed class RaiseStaffCancellationAlertUseCase(IRiskFlagStore store, TimeProvider timeProvider) : IRaiseStaffCancellationAlertUseCase
+public sealed class RaiseStaffCancellationAlertUseCase(IRiskFlagStore store, TimeProvider timeProvider, AdminAlerts alerts)
+    : IRaiseStaffCancellationAlertUseCase
 {
     public const string AllowedCaller = "GateService";
     public const string RuleCode = "STAFF_ABNORMAL_CANCEL";
@@ -78,6 +80,8 @@ public sealed class RaiseStaffCancellationAlertUseCase(IRiskFlagStore store, Tim
             existing.Description = description;
             existing.EvidenceJson = evidence;
             await store.SaveChangesAsync(cancellationToken);
+            // Cập nhật bằng chứng mà không nâng mức thì không báo lại (GateService gọi nhiều lần).
+            if (escalated) await NotifyAsync(existing);
             return ToDto(existing, created: false, escalated);
         }
 
@@ -94,8 +98,12 @@ public sealed class RaiseStaffCancellationAlertUseCase(IRiskFlagStore store, Tim
         };
         await store.AddAsync(flag, cancellationToken);
         await store.SaveChangesAsync(cancellationToken);
+        await NotifyAsync(flag);
         return ToDto(flag, created: true, escalated: false);
     }
+
+    private Task NotifyAsync(RiskFlag flag) => alerts.RaiseAsync("RISK_FLAG_RAISED",
+        $"Cảnh báo rủi ro {flag.Severity}: Staff hủy No-show bất thường", flag.Description, "/admin/overview/dashboard");
 
     /// <summary>Alert tiers (RiskFlag): Info 24 giờ, Warning 4 giờ, Critical 15 phút.</summary>
     public static TimeSpan ResponseTime(RiskSeverity severity) => severity switch

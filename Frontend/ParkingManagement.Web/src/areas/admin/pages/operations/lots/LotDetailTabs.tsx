@@ -1,7 +1,5 @@
 import React from 'react';
 import { adminLotsApi } from '@/api/adminLotsApi';
-import { adminOperationsApi } from '@/api/adminOperationsApi';
-import type { ParkingLotHierarchyDto } from '@/types/adminOperations';
 import type { AdminApiError } from '@/api/adminClientApi';
 import type { AdminQueryStatus } from '@/types/adminCommon';
 import type { RateCardDto } from '@/types/adminLots';
@@ -9,12 +7,12 @@ import { Panel } from '../../../components/Panel';
 import { DetailList, DetailRow } from '../../../components/DetailRow';
 import { StateBlock } from '../../../components/StateBlock';
 import { StatusIndicator } from '../../../components/StatusIndicator';
-import { CellMono, CellMuted, CellStatus, CellText, CellTwoLine, DataTable } from '../../../components/DataTable';
+import { CellMuted, CellText, CellTwoLine, DataTable } from '../../../components/DataTable';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
 import { formatDate, formatDateTimeIct, formatNumber, formatVnd } from '../../../utils/format';
 import { CLOSURE_LABEL, band, hoursText, mondayFirst, multiplier, sortClosures } from './lotDetailFormat';
-import { DetailColumns, QueryState, QueryIssueState } from '../../../components/PageLayout';
+import { DetailColumns, QueryIssueState } from '../../../components/PageLayout';
 
 /**
  * Operations / Parking Lots / Detail – 4 sub-tab chỉ đọc (P0-4, US-081): Capacity, Hours & Closures, Amenities & Photos, Pricing.
@@ -59,46 +57,8 @@ const TabState: React.FC<TabStateProps> = ({ status, error, onRetry, emptyTitle,
 };
 
 // ===== Layout =====
-
-/** Cây Zone / Floor / Slot của bãi (ParkingService hierarchy) – chuyển nguyên văn từ ParkingLotDetailPage. */
-export const LayoutTab: React.FC<{ lotId: number }> = ({ lotId }) => {
-  const query = useAdminQuery(() => adminOperationsApi.getParkingLotHierarchy(lotId), [lotId], (d) => d.zones.length === 0);
-  const tree: ParkingLotHierarchyDto | null = query.data;
-  if (!tree || query.status !== 'ready') {
-    return (
-      <QueryState
-        status={query.status}
-        error={query.error}
-        onRetry={query.refetch}
-        bare={false}
-        copy={{ emptyTitle: 'No layout yet', emptyMessage: 'The owner has not created zones, floors and slots.', errorTitle: 'Could not load the layout', service: 'ParkingService' }}
-      />
-    );
-  }
-  const floors = tree.zones.flatMap((z) => z.floors.map((f) => ({ zone: z, floor: f })));
-  return (
-    <Panel title="Zones & floors" description="Zones, floors and slots" padded={false}>
-      <DataTable
-        bare
-        rows={floors}
-        rowKey={(r) => r.floor.id}
-        columns={[
-          { key: 'zone', header: 'Zone', render: (r) => <CellText>{`${r.zone.code} · ${r.zone.name}`}</CellText> },
-          { key: 'floor', header: 'Floor', render: (r) => <CellText>{`${r.floor.name} (level ${r.floor.level})`}</CellText> },
-          { key: 'grid', header: 'Grid', render: (r) => <CellMono>{`${r.floor.gridColumns}×${r.floor.gridRows}`}</CellMono> },
-          { key: 'slots', header: 'Slots', render: (r) => <CellText>{r.floor.slots.length}</CellText> },
-          {
-            key: 'available',
-            header: 'Available',
-            render: (r) => <CellText>{r.floor.slots.filter((s) => s.isActive && s.state === 'Available').length}</CellText>,
-          },
-          { key: 'max', header: 'Max height', render: (r) => <CellText>{r.floor.maxHeightCm ? `${r.floor.maxHeightCm} cm` : '—'}</CellText> },
-          { key: 'state', header: 'State', render: (r) => <CellStatus value={r.zone.isClosed || r.floor.isClosed ? 'Closed' : 'Active'} label={r.zone.isClosed || r.floor.isClosed ? 'Closed' : 'Open'} /> },
-        ]}
-      />
-    </Panel>
-  );
-};
+// Sơ đồ 2D / 3D và trình thiết kế nằm ở ./layout.
+export { LayoutTab } from './layout/LotLayoutTab';
 
 // ===== Capacity =====
 

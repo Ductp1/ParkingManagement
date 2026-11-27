@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using AdminService.Application.Features.Notifications;
 using AdminService.Application.Features.Users;
 using AdminService.Domain.Entities;
 using AdminService.Domain.Enums;
@@ -117,7 +118,7 @@ public interface IResubmitPartnerApplicationUseCase
 /// <see cref="PartnerDocumentRules"/> (magic bytes). File lưu trước; lưu database lỗi thì xóa file vừa ghi. AuditLog không có người thao tác.
 /// </summary>
 public sealed class ResubmitPartnerApplicationUseCase(IPartnerApplicationIntakeRepository intake, IPartnerApplicationRepository repository,
-    IFileStorage storage, TimeProvider clock) : IResubmitPartnerApplicationUseCase
+    IFileStorage storage, TimeProvider clock, AdminAlerts alerts) : IResubmitPartnerApplicationUseCase
 {
     private static readonly Dictionary<string, PartnerDocumentType> DocumentKeys = new()
     {
@@ -192,7 +193,6 @@ public sealed class ResubmitPartnerApplicationUseCase(IPartnerApplicationIntakeR
             app.Resubmit(now);
             await repository.SaveWithAuditAsync(PartnerApplicationAudit.Build(app, "InfoProvided", null, before,
                 $"Đối tác gửi bổ sung qua link ({newDocuments.Count} giấy tờ mới)"), cancellationToken);
-            return new PartnerApplicationReceiptDto(app.Code, app.Status.ToString(), now);
         }
         catch
         {
@@ -203,6 +203,10 @@ public sealed class ResubmitPartnerApplicationUseCase(IPartnerApplicationIntakeR
             }
             throw;
         }
+
+        await alerts.RaiseAsync("PARTNER_APPLICATION_RESUBMITTED", "Đối tác đã bổ sung hồ sơ",
+            $"{app.BusinessName} ({app.Code}) vừa gửi bổ sung hồ sơ, chờ thẩm định lại.", $"/admin/operations/partner-onboarding/{app.Id}");
+        return new PartnerApplicationReceiptDto(app.Code, app.Status.ToString(), now);
     }
 
     private static string Compact(string value) => new(value.Where(c => !char.IsWhiteSpace(c)).ToArray());

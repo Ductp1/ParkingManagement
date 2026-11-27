@@ -24,6 +24,7 @@ public class PartnerApplicationFollowUpTests
     }
 
     private TimeProvider Time => new Clock(() => clockNow);
+    private readonly FakeNotificationClient notifications = new();
 
     private sealed class NoStorage : IFileStorage
     {
@@ -37,7 +38,7 @@ public class PartnerApplicationFollowUpTests
 
     /// <summary>Đối tác tự nộp qua form public (không đăng nhập, đủ 4 giấy tờ bắt buộc).</summary>
     private Task<PartnerApplicationReceiptDto> Seed(SubmitPartnerApplicationRequest request)
-        => new SubmitPartnerApplicationUseCase(store, new NoStorage(), Time).ExecuteAsync(null, request,
+        => new SubmitPartnerApplicationUseCase(store, new NoStorage(), Time, TestAdminAlerts.Create()).ExecuteAsync(null, request,
         [
             new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.BusinessLicense, new UploadedFile("dkkd.pdf", Pdf.Length, Pdf)),
             new PartnerDocumentUpload(AdminService.Domain.Enums.PartnerDocumentType.LotLegalProof, new UploadedFile("mb.pdf", Pdf.Length, Pdf)),
@@ -58,7 +59,7 @@ public class PartnerApplicationFollowUpTests
 
     private IssuePartnerEditLinkUseCase EditLink => new(store, PartnerEditLinkOptions.Default, Time);
     private GetPartnerApplicationForEditUseCase ForEdit => new(store, Time);
-    private ResubmitPartnerApplicationUseCase Resubmit => new(store, store, new NoStorage(), Time);
+    private ResubmitPartnerApplicationUseCase Resubmit => new(store, store, new NoStorage(), Time, TestAdminAlerts.Create(notifications));
 
     // ==================== T3 ====================
 
@@ -146,6 +147,7 @@ public class PartnerApplicationFollowUpTests
         Assert.Equal((PartnerApplicationStatus.UnderReview, 55, 3, null), (app.Status, app.EstimatedCarSlots, app.LotCount, app.EditTokenHash));
         var audit = Assert.Single(store.Audits);
         Assert.Equal(("PartnerApplication.InfoProvided", (int?)null), (audit.Action, audit.UserId));
+        Assert.Equal("PARTNER_APPLICATION_RESUBMITTED", Assert.Single(notifications.Sent).TemplateKey);
         await Assert.ThrowsAsync<ValidationException>(() => Resubmit.ExecuteAsync(app.Code, link.Token, Valid()));
     }
 

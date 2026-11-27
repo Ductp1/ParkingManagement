@@ -267,7 +267,7 @@ public class ParkingLotTests
         var lotFull = new ParkingLot(3, "Bãi hết chỗ", "Đ/c 3", 10.7783, 106.7017, 100, 0, 210, new TimeOnly(0, 0), new TimeOnly(23, 59), ParkingLotStatus.Active);
 
         var repo = new FakeRepo([lotOpenWithSlots, lotClosed, lotFull]);
-        var useCase = new SearchParkingLotsUseCase(repo, TimeProvider.System);
+        var useCase = new SearchParkingLotsUseCase(repo, new FixedVnOpenClock());
 
         // Lọc chỉ bãi còn chỗ
         var resAvailable = await useCase.ExecuteAsync(new SearchParkingLotsQuery(10.7770, 106.7010, RadiusKm: 5, HasAvailableSlotsOnly: true));
