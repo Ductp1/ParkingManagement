@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
+using GateService.Application.Features.Shifts;
 using GateService.Application.Features.GateConsole;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,8 +10,10 @@ namespace GateService.API.Controllers;
 /// Controller chỉ điều hướng HTTP → Use case, không chứa nghiệp vụ.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/gate/no-show")]
-public sealed class NoShowController(IListNoShowCandidatesUseCase listCandidates, ICancelNoShowUseCase cancelNoShow) : ControllerBase
+public sealed class NoShowController(IListNoShowCandidatesUseCase listCandidates, ICancelNoShowUseCase cancelNoShow,
+    GateAccess access) : ControllerBase
 {
     /// <summary>
     /// GET /api/v1/gate/no-show/candidates?parkingLotId=2&amp;graceMinutes=30 – UC-24 bước 1:
@@ -20,11 +24,14 @@ public sealed class NoShowController(IListNoShowCandidatesUseCase listCandidates
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyList<GateNoShowCandidate>>> Candidates(
         [FromQuery] int parkingLotId, [FromQuery] int graceMinutes = 0, CancellationToken cancellationToken = default)
-        => Ok(await listCandidates.ExecuteAsync(parkingLotId, graceMinutes, cancellationToken));
+    {
+        await access.RequireReadAsync(parkingLotId, cancellationToken);
+        return Ok(await listCandidates.ExecuteAsync(parkingLotId, graceMinutes, cancellationToken));
+    }
 
     /// <summary>
     /// POST /api/v1/gate/no-show/{bookingCode}/cancel – UC-24 bước 3–5.
-    /// Body: { parkingLotId, staffUserId, reason? }. Trước mốc 30 phút → 400; đã check-in / sai trạng thái → 409.
+    /// Body: { parkingLotId, reason? } (người thao tác lấy từ JWT). Trước mốc 30 phút → 400; đã check-in / sai trạng thái → 409.
     /// Thành công: booking → NoShow, nhả slot đã giữ, ghi GateEvents (NoShowCancel) + bộ đếm ca trực.
     /// </summary>
     [HttpPost("{bookingCode}/cancel")]
@@ -34,5 +41,8 @@ public sealed class NoShowController(IListNoShowCandidatesUseCase listCandidates
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<NoShowCancelResultDto>> Cancel(
         string bookingCode, [FromBody] CancelNoShowCommand command, CancellationToken cancellationToken)
-        => Ok(await cancelNoShow.ExecuteAsync(bookingCode, command, cancellationToken));
+    {
+        await access.RequireActiveShiftAsync(command.ParkingLotId, cancellationToken);
+        return Ok(await cancelNoShow.ExecuteAsync(bookingCode, command with { StaffUserId = access.UserId }, cancellationToken));
+    }
 }

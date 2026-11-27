@@ -57,6 +57,57 @@ public sealed class SlotRepository(ParkingDbContext db) : ISlotRepository
         return Task.CompletedTask;
     }
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
-        => db.SaveChangesAsync(cancellationToken);
+    /// <summary>
+    /// Chỉ mục unique (FloorId, GridX, GridY) kiểm ngay trên từng dòng: xuất bản / khôi phục sơ đồ mà ô này dời vào chỗ ô kia
+    /// đang giữ (kể cả ô đã tắt) sẽ bị PostgreSQL từ chối. Khi có đụng chỗ, ghi hai bước trong một transaction: đưa các ô
+    /// sắp đổi ra ngoài lưới (-Id), rồi ghi vị trí thật. Ô đã tắt bị ô khác lấy chỗ thì ở lại ngoài lưới.
+    /// </summary>
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var changed = db.ChangeTracker.Entries<Slot>()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified)
+            .Select(e => e.Entity)
+            .ToList();
+        // Vị trí mà các ô đang bật muốn nhận.
+        var targets = changed.Where(s => s.IsActive)
+            .GroupBy(s => (s.FloorId, s.GridX, s.GridY))
+            .ToDictionary(g => g.Key, g => g.First().Id);
+        var floorIds = targets.Keys.Select(k => k.FloorId).Distinct().ToList();
+        var stored = await db.Slots.AsNoTracking()
+            .Where(s => floorIds.Contains(s.FloorId))
+            .Select(s => new { s.Id, s.FloorId, s.GridX, s.GridY })
+            .ToListAsync(cancellationToken);
+        var blockers = stored
+            .Where(r => targets.TryGetValue((r.FloorId, r.GridX, r.GridY), out var taker) && taker != r.Id)
+            .Select(r => r.Id)
+            .ToList();
+        if (blockers.Count == 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            return;
+        }
+
+        // Ô đang bật giữ chỗ mà không nằm trong lần lưu này là trùng thật → để database từ chối.
+        var changedIds = changed.Select(s => s.Id).ToList();
+        var idle = await db.Slots
+            .Where(s => blockers.Contains(s.Id) && !s.IsActive && !changedIds.Contains(s.Id))
+            .ToListAsync(cancellationToken);
+        var moving = changed.Concat(idle).Select(s => (Slot: s, s.GridX, s.GridY)).ToList();
+
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        for (var i = 0; i < moving.Count; i++)
+        {
+            var slot = moving[i].Slot;
+            // Ngoài lưới và không trùng nhau: ô đã có dùng -Id, ô mới (chưa có Id) dùng hàng riêng.
+            (slot.GridX, slot.GridY) = slot.Id > 0 ? (-slot.Id, -1) : (-(i + 1), -2);
+        }
+        await db.SaveChangesAsync(cancellationToken);
+
+        foreach (var (slot, x, y) in moving)
+        {
+            if (slot.IsActive || !targets.ContainsKey((slot.FloorId, x, y))) (slot.GridX, slot.GridY) = (x, y);
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
 }

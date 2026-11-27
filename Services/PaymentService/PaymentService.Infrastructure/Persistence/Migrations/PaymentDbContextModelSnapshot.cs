@@ -582,6 +582,9 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                     b.Property<int>("RetryCount")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("ShiftId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)
@@ -608,6 +611,8 @@ namespace PaymentService.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("ParkingSessionId");
+
+                    b.HasIndex("ShiftId");
 
                     b.HasIndex("Method", "ProviderTransactionId")
                         .IsUnique()

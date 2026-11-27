@@ -69,14 +69,12 @@ export interface CheckInCommandDto {
   plate: string;
   bookingCode?: string;
   qrToken?: string;
-  staffUserId?: number;
 }
 
 export interface CheckOutCommandDto {
   parkingLotId: number;
   plate: string;
   method?: 'Qr' | 'Manual';
-  staffUserId?: number;
   confirmFee?: boolean;
 }
 
@@ -124,7 +122,6 @@ export const gateApi = {
   /** UC-20 (US-076): booking trong ca trực + khách vãng lai đang đỗ, tìm theo mã booking/biển số. */
   shiftBookings: async (params: {
     parkingLotId?: number;
-    staffUserId?: number;
     fromUtc?: string;
     toUtc?: string;
     search?: string;

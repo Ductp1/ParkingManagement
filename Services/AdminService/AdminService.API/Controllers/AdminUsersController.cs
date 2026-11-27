@@ -10,7 +10,8 @@ namespace AdminService.API.Controllers;
 [ApiController]
 [Route("api/v1/admin/users")]
 [Authorize(Policy = "RequireAdmin")]
-public sealed class AdminUsersController(IListAdminUsersUseCase listUsers, IGetAdminUserByIdUseCase getUser) : ControllerBase
+public sealed class AdminUsersController(IListAdminUsersUseCase listUsers, IGetAdminUserByIdUseCase getUser,
+    IAdminUserLifecycleUseCase lifecycle, ICurrentUser currentUser) : ControllerBase
 {
     /// <summary>GET /api/v1/admin/users?role=LotOwner&amp;page=1&amp;pageSize=20 – Danh sách người dùng.</summary>
     [HttpGet]
@@ -22,4 +23,32 @@ public sealed class AdminUsersController(IListAdminUsersUseCase listUsers, IGetA
     [HttpGet("{userId:int}")]
     public async Task<ActionResult<AdminUserDto>> GetById(int userId, CancellationToken cancellationToken)
         => Ok(await getUser.ExecuteAsync(userId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/users/7/suspend { reason, lockedUntilUtc?, rowVersion } – đình chỉ (null = vô thời hạn). Lý do bắt buộc; RowVersion sai / tự khóa / Admin cuối → 409.</summary>
+    [HttpPost("{userId:int}/suspend")]
+    [ProducesResponseType<UserLifecycleResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<UserLifecycleResultDto>> Suspend(int userId, [FromBody] SuspendAdminUserRequest request, CancellationToken cancellationToken)
+        => AsAdmin(adminId => lifecycle.SuspendAsync(userId, request, adminId, cancellationToken));
+
+    /// <summary>POST /api/v1/admin/users/7/reactivate { reason, rowVersion } – mở lại tài khoản đang bị đình chỉ.</summary>
+    [HttpPost("{userId:int}/reactivate")]
+    [ProducesResponseType<UserLifecycleResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public Task<ActionResult<UserLifecycleResultDto>> Reactivate(int userId, [FromBody] ReactivateAdminUserRequest request, CancellationToken cancellationToken)
+        => AsAdmin(adminId => lifecycle.ReactivateAsync(userId, request, adminId, cancellationToken));
+
+    /// <summary>
+    /// POST /api/v1/admin/users/7/delete { reason, confirmEmail, rowVersion } – xóa = ẩn danh hóa, không hoàn tác. Còn booking mở, hợp đồng Signed,
+    /// quyết toán chưa chi trả hoặc chế tài hiệu lực → 409 liệt kê lý do; không kiểm tra được → 503.
+    /// </summary>
+    [HttpPost("{userId:int}/delete")]
+    [ProducesResponseType<UserLifecycleResultDto>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public Task<ActionResult<UserLifecycleResultDto>> Delete(int userId, [FromBody] DeleteAdminUserRequest request, CancellationToken cancellationToken)
+        => AsAdmin(adminId => lifecycle.DeleteAsync(userId, request, adminId, cancellationToken));
+
+    private async Task<ActionResult<UserLifecycleResultDto>> AsAdmin(Func<int, Task<UserLifecycleResultDto>> action)
+        => currentUser.UserId is { } adminUserId ? Ok(await action(adminUserId)) : Unauthorized();
 }

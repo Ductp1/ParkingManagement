@@ -114,10 +114,10 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
       icon: 'tune',
       children: [
         {
-          label: 'Nhân viên trực cổng',
+          label: 'Nhân sự & Ca trực',
           path: '/owner/staff',
           icon: 'badge',
-          description: 'Cấp tài khoản & phân quyền ca trực',
+          description: 'Mời nhân viên, xếp ca và bàn giao tiền',
         },
         {
           label: 'Khiếu nại & Đánh giá',
@@ -135,8 +135,10 @@ const PORTAL_SUB_NAVS: Record<UserRole, SubNavItem[]> = {
     },
   ],
 
-  // Gate Console gói gọn trong 1 trang duy nhất (/gate) – không cần thanh menu con.
-  Staff: [],
+  Staff: [
+    { label: 'Vận hành cổng', path: '/gate', icon: 'fence' },
+    { label: 'Ca của tôi', path: '/gate/shifts', icon: 'schedule' },
+  ],
 
   Admin: [
     { label: 'Tổng quan Dashboard', path: '/admin', icon: 'grid_view' },
@@ -183,11 +185,15 @@ export const MainNavbar: React.FC = () => {
     setIsMoreMenuOpen(false);
   }, [location.pathname]);
 
-  // Xác định phân hệ đang active từ URL
+  // Xác định phân hệ đang active từ URL; trang dùng chung (/account/*) theo vai trò của tài khoản.
   const getActiveRole = (pathname: string): UserRole => {
     if (pathname.startsWith('/admin')) return 'Admin';
     if (pathname.startsWith('/owner')) return 'Owner';
     if (pathname.startsWith('/gate')) return 'Staff';
+    const roles = user?.roles?.length ? user.roles : user ? [user.role] : [];
+    if (pathname.startsWith('/account') && roles.length && !roles.includes('Driver')) {
+      return roles.includes('Owner') ? 'Owner' : roles.includes('Staff') ? 'Staff' : roles[0];
+    }
     return 'Driver';
   };
 
@@ -197,7 +203,9 @@ export const MainNavbar: React.FC = () => {
 
   const userRoles: UserRole[] = user?.roles && user.roles.length > 0 ? user.roles : (user ? [user.role] : ['Driver', 'Owner']);
   const authorizedPortals = ROLE_PORTALS.filter(
+    // Chủ bãi đang tự trực: hiện thêm cổng "Trực cổng" để có đường quay về trang chủ bãi.
     (portal) => !user || userRoles.includes('Admin') || userRoles.includes(portal.id)
+      || (portal.id === 'Staff' && activeRole === 'Staff' && userRoles.includes('Owner'))
   );
 
   // ===== Hộp thông báo (NotificationService) =====

@@ -6,9 +6,9 @@ export type BannerTone = 'info' | 'warning' | 'danger' | 'success';
 
 const TONE: Record<BannerTone, { box: string; text: string }> = {
   info: { box: 'border-(--admin-brand-navy-800) bg-(--admin-surface-selected)', text: 'text-(--admin-text-primary)' },
-  warning: { box: 'border-(--admin-status-warning) bg-(--admin-surface-selected)', text: 'text-(--admin-status-warning)' },
+  warning: { box: 'border-(--admin-status-warning) bg-(--admin-surface-selected)', text: 'text-(--admin-status-warning-text)' },
   danger: { box: 'border-(--admin-status-danger) bg-(--admin-surface-danger)', text: 'text-(--admin-status-danger)' },
-  success: { box: 'border-(--admin-status-success) bg-(--admin-surface-selected)', text: 'text-(--admin-status-success)' },
+  success: { box: 'border-(--admin-status-success) bg-(--admin-surface-selected)', text: 'text-(--admin-status-success-text)' },
 };
 
 interface BannerProps {

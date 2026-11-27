@@ -8,7 +8,7 @@ using UserService.Infrastructure.Persistence;
 namespace ParkingManagement.IntegrationTests.PerService;
 
 /// <summary>
-/// US-053: form public đăng ký đối tác chủ bãi + giấy tờ pháp lý trên AdminService thật (pm_admin + kho file local).
+/// US-053 / US-116: form public đăng ký đối tác chủ bãi + giấy tờ pháp lý trên AdminService thật (pm_admin + kho file local).
 /// Kiểm tra: nộp không cần đăng nhập → Submitted; chỉ Admin xem được giấy tờ (không token 401, chủ bãi / tài xế 403);
 /// phải bắt đầu thẩm định rồi mới cấp tài khoản được.
 /// </summary>
@@ -59,14 +59,18 @@ public class PartnerRegistrationApiTests(AdminApiFixture fixture)
     private static string UniqueTaxCode() => $"09{Random.Shared.NextInt64(10_000_000, 99_999_999)}";
 
     [Fact]
-    public async Task Logged_in_registration_keeps_legal_documents_admin_only_until_reviewed()
+    public async Task Registration_without_or_with_login_keeps_legal_documents_admin_only_until_reviewed()
     {
         var taxCode = UniqueTaxCode();
         using var anonymous = fixture.AdminFactory.CreateClient();
         using var applicant = fixture.CreateClientWithRole(ApplicantUserId, "Driver");
 
-        // 1. Chưa đăng nhập không nộp được (401); tài khoản đã đăng nhập nộp → 201 + mã hồ sơ, trạng thái Submitted
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf))).StatusCode);
+        // 1. Chủ bãi chưa có tài khoản nộp được KHÔNG cần đăng nhập (US-116) → 201, hồ sơ không gắn tài khoản.
+        var anonymousTax = UniqueTaxCode();
+        var anonymousSubmit = await anonymous.PostAsync(RegisterUrl, Form(anonymousTax, $"anon.{anonymousTax}@baixe.test", Pdf));
+        Assert.Equal(HttpStatusCode.Created, anonymousSubmit.StatusCode);
+        Assert.Equal("Submitted", (await anonymousSubmit.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("status").GetString());
+        // Tài khoản đã đăng nhập nộp → 201 + mã hồ sơ, trạng thái Submitted, hồ sơ gắn với tài khoản đó
         var submit = await applicant.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf));
         Assert.Equal(HttpStatusCode.Created, submit.StatusCode);
         var receipt = await submit.Content.ReadFromJsonAsync<JsonElement>();

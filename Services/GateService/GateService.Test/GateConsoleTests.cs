@@ -196,7 +196,7 @@ public class GateConsoleTests
             EntryAtUtc = now.AddHours(-1).UtcDateTime, CheckInMethod = GateMethod.Manual, Status = ParkingSessionStatus.Active
         });
         var useCase = new CheckOutUseCase(new FakeRecognizer(), new FakeBookings(), new FakeExitFees(), new FakeSettlements(),
-            writer, events, new FixedTimeProvider(now), new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher());
+            writer, events, new FixedTimeProvider(now), new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher(), new FakeDrawer());
 
         var result = await useCase.ExecuteAsync(new CheckOutCommand(2, "51F12345", StaffUserId: 9));
 
@@ -214,7 +214,7 @@ public class GateConsoleTests
     public async Task CheckOut_unknown_plate_is_not_found()
         => await Assert.ThrowsAsync<NotFoundException>(() => new CheckOutUseCase(
             new FakeRecognizer(), new FakeBookings(), new FakeExitFees(), new FakeSettlements(), new FakeWriter(),
-            new FakeGateEvents(), TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher())
+            new FakeGateEvents(), TimeProvider.System, new GateConsoleOptions(), new AlwaysAdmitGate(), new SilentCapacityPublisher(), new FakeDrawer())
             .ExecuteAsync(new CheckOutCommand(2, "51F-123.45")));
 
     /// <summary>US-066: gate luon cho vao - test T-702 goc khong quan tam quota.</summary>

@@ -376,6 +376,21 @@ namespace GateService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)");
 
+                    b.Property<decimal?>("QuotedAdditionalDue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime?>("QuotedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("QuotedPrepaidAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("QuotedSessionFee")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("SlotCode")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -506,7 +521,22 @@ namespace GateService.Infrastructure.Persistence.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
                     b.Property<decimal>("CashCollected")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("CashCounted")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("CashReceived")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("CashSystem")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
@@ -516,15 +546,45 @@ namespace GateService.Infrastructure.Persistence.Migrations
                     b.Property<int>("CheckOutCount")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ClosedReason")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DiscrepancyNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DiscrepancyStatus")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
 
                     b.Property<DateTime?>("EndedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("HandoverAcceptedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("HandoverAcceptedByUserId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("HandoverNote")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("HandoverToShiftId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsCashHolder")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFlagged")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("ManualExceptionCount")
                         .HasColumnType("integer");
@@ -538,10 +598,16 @@ namespace GateService.Infrastructure.Persistence.Migrations
                     b.Property<int>("ParkingLotId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("ScheduledEndUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ScheduledStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("StaffUserId")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime>("StartedAtUtc")
+                    b.Property<DateTime?>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Status")
@@ -549,18 +615,76 @@ namespace GateService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<int?>("TemplateId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("HandoverToShiftId");
 
                     b.HasIndex("StaffUserId")
                         .IsUnique()
                         .HasFilter("\"Status\" = 'Open'");
 
-                    b.HasIndex("ParkingLotId", "StartedAtUtc");
+                    b.HasIndex("ParkingLotId", "ScheduledStartUtc");
+
+                    b.HasIndex("StaffUserId", "ScheduledStartUtc");
 
                     b.ToTable("Shifts", (string)null);
+                });
+
+            modelBuilder.Entity("GateService.Domain.Entities.ShiftTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsCashHolder")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("OwnerProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ParkingLotId")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParkingLotId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("ShiftTemplates", (string)null);
                 });
 
             modelBuilder.Entity("ParkingManagement.ServiceDefaults.Messaging.InboxReceipt", b =>
@@ -594,6 +718,9 @@ namespace GateService.Infrastructure.Persistence.Migrations
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone");

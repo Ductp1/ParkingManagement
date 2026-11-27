@@ -55,7 +55,7 @@ export const NewTemplateDialog: React.FC<NewProps> = ({ templates, sourceId, onC
       error={apiError}
     >
       <TextField label="Name" required value={name} onChange={setName} maxLength={TEMPLATE_NAME_MAX}
-        placeholder="e.g. Hợp đồng bãi trung tâm thương mại" error={submitted ? nameError : null} />
+        placeholder="e.g. Shopping mall lot contract" error={submitted ? nameError : null} />
       <RadioField
         name="new-template-mode"
         value={mode}

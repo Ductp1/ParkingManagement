@@ -417,7 +417,7 @@ public interface ISignLotContractUseCase
 /// 3. Hợp đồng Signed + AuditLog trong 1 SaveChanges; lưu lỗi → xóa bản scan, thử lại an toàn vì approve idempotent.
 /// </summary>
 public sealed class SignLotContractUseCase(ILotContractRepository repository, ILotContractQueries queries, IParkingServiceClient parking,
-    IFileStorage storage, TimeProvider timeProvider) : ISignLotContractUseCase
+    IRateCardLookup rateCards, IFileStorage storage, TimeProvider timeProvider) : ISignLotContractUseCase
 {
     public async Task<LotContractDetailDto> ExecuteAsync(int id, SignLotContractRequest request, int performedByUserId,
         CancellationToken cancellationToken = default)
@@ -430,6 +430,9 @@ public sealed class SignLotContractUseCase(ILotContractRepository repository, IL
         if (note is { Length: > 1000 }) throw new ValidationException("Ghi chú duyệt tối đa 1000 ký tự.");
         var (contentType, extension) = SignedScanRules.Detect(request.SignedFile);
         var scan = request.SignedFile!.Content;
+        // US-055 AC2: bãi không có bảng giá thì tài xế không đặt được → chặn trước khi lưu scan / gọi ParkingService.
+        if (!await rateCards.HasActiveRateCardAsync(contract.ParkingLotId, timeProvider.GetUtcNow().UtcDateTime, cancellationToken))
+            throw new ConflictException("Bãi chưa có bảng giá đang hiệu lực, chưa thể duyệt. Chủ bãi tạo ở mục Bảng giá rồi ký lại.");
 
         var key = LotContractSupport.SignedScanKey(contract.ContractNumber, current.Version, extension);
         await storage.SaveAsync(key, scan, cancellationToken);

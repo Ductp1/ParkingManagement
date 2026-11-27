@@ -1,6 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { gateApi, type ExitFeeQuoteDto, type ShiftBookingItemDto } from '@/api/gateApi';
+import { Link } from 'react-router-dom';
+import { gateApi, type CheckOutResultDto, type ExitFeeQuoteDto, type ShiftBookingItemDto } from '@/api/gateApi';
+import { ownerStaffApi } from '@/api/ownerStaffApi';
+import { parkingApi } from '@/api/parkingApi';
+import { shiftApi } from '@/api/shiftApi';
+import { CheckoutModal } from '@/areas/gate/components/CheckoutModal';
+import { EndShiftModal } from '@/areas/gate/components/EndShiftModal';
+import { HandoverBanner } from '@/areas/gate/components/HandoverBanner';
 import { LaneCameraIdle, LaneCameraScanner } from '@/areas/gate/components/LaneCameraScanner';
+import { MyShiftsPanel, type LotInfo } from '@/areas/gate/components/MyShiftsPanel';
+import { dayLabel, errorCode, errorText, ictDate, ictTime, money, staffName, timeRange, tokenLotIds } from '@/features/shifts/format';
+import { Banner, Button, LoadError, Page, Placeholder, cardClass, inputClass, useLoad } from '@/features/shifts/ui';
+import { useAppSelector } from '@/store';
 
 interface GateEvent {
   id: string;
@@ -11,11 +22,6 @@ interface GateEvent {
   status: string;
   statusColor: string;
 }
-
-const LOTS = [
-  { id: 1, name: 'Bãi xe Vincom Đồng Khởi' },
-  { id: 2, name: 'Bãi xe Sân bay Tân Sơn Nhất (P2)' },
-];
 
 const formatVnd = (v: number | null | undefined) => `${(v ?? 0).toLocaleString('vi-VN')}đ`;
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour12: false });
@@ -37,9 +43,40 @@ const bookingBadge = (b: ShiftBookingItemDto): { label: string; cls: string } =>
   }
 };
 
-export const GateConsolePage: React.FC = () => {
-  const [lotId, setLotId] = useState(LOTS[0].id);
-  const [staffUserId, setStaffUserId] = useState('4');
+export const GateConsolePage: React.FC<{ view?: 'console' | 'shifts' }> = ({ view = 'console' }) => {
+  const user = useAppSelector((s) => s.auth.user);
+  const token = useAppSelector((s) => s.auth.token);
+  const roles = user?.roles?.length ? user.roles : user ? [user.role] : [];
+  const isOwner = roles.includes('Owner');
+  const canHaveShift = isOwner || roles.includes('Staff');
+
+  const mine = useLoad(`mine:${user?.id}`, async () => (canHaveShift ? shiftApi.mine() : { shifts: [], incomingHandovers: [] }));
+  const ownerLots = useLoad(`ownerLots:${isOwner}`, async () => (isOwner ? ownerStaffApi.getOwnerLots() : []));
+  const active = mine.data?.shifts.find((s) => s.status === 'Open');
+  const lotIds = [...new Set([
+    ...(active ? [active.parkingLotId] : []),
+    ...(mine.data?.shifts.map((s) => s.parkingLotId) ?? []),
+    ...tokenLotIds(token),
+    ...(ownerLots.data?.map((l) => l.id) ?? []),
+  ])];
+  const lotDetails = useLoad(`lots:${lotIds.join()}`, async () => new Map(await Promise.all(lotIds.map(async (id) => {
+    const info: LotInfo = await parkingApi.getById(id).then((l) => ({ name: l.name, status: l.status }), () => ({ name: `Bãi #${id}` }));
+    return [id, info] as const;
+  }))));
+  const lot = (id: number): LotInfo => lotDetails.data?.get(id) ?? { name: `Bãi #${id}` };
+  const [pickedLot, setPickedLot] = useState(0);
+  // Đang trực thì khóa theo bãi của ca; chưa trực thì chọn trong các bãi được phép để xem.
+  const lotId = active?.parkingLotId ?? (pickedLot || lotIds[0] || 0);
+  const duty = useLoad(`duty:${active?.id ?? 0}`, async () => (active ? shiftApi.summary(active.id) : null));
+  const canOperate = !!active;
+  const who = (id: number) => (id === user?.id ? user.fullName : staffName(id, new Map()));
+  const [ending, setEnding] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
   const [search, setSearch] = useState('');
   const [bookings, setBookings] = useState<ShiftBookingItemDto[]>([]);
   const [inboundPlate, setInboundPlate] = useState('');
@@ -71,20 +108,22 @@ export const GateConsolePage: React.FC = () => {
     setTimeout(() => setAlertNotice(null), 4500);
   };
 
+  /** Lỗi thao tác cổng: hiện tiếng Việt; ca không còn mở (bị đóng ở nơi khác) thì tải lại ca. */
+  const fail = (e: unknown) => {
+    setError(errorText(e));
+    if (errorCode(e) === 'SHIFT_NOT_ACTIVE') mine.reload();
+  };
+
   // UC-20 (US-076): booking trong ca trực của bãi được gán.
   const loadBookings = useCallback(async () => {
+    if (!lotId) return;
     try {
-      const data = await gateApi.shiftBookings({
-        parkingLotId: lotId,
-        staffUserId: Number(staffUserId) || undefined,
-        search: search.trim() || undefined,
-      });
+      const data = await gateApi.shiftBookings({ parkingLotId: lotId, search: search.trim() || undefined });
       setBookings(data);
-      setError(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorText(e));
     }
-  }, [lotId, staffUserId, search]);
+  }, [lotId, search]);
 
   useEffect(() => {
     void loadBookings();
@@ -120,7 +159,6 @@ export const GateConsolePage: React.FC = () => {
         plate,
         bookingCode,
         qrToken,
-        staffUserId: Number(staffUserId) || undefined,
       });
       const methodLabel = qrToken ? 'QR vé đặt chỗ' : bookingCode ? `Booking ${bookingCode}` : 'Vãng lai';
       pushEvent(session.plateDisplay, 'Làn vào #1', 'Check-in',
@@ -131,8 +169,9 @@ export const GateConsolePage: React.FC = () => {
       setInboundBookingCode('');
       setInboundQrToken('');
       void loadBookings();
+      duty.reload();
     } catch (e) {
-      setError((e as Error).message);
+      fail(e);
     } finally {
       setBusy(false);
     }
@@ -148,109 +187,113 @@ export const GateConsolePage: React.FC = () => {
     setBusy(true);
     setQuote(null);
     try {
-      const q = await gateApi.exitQuote(lotId, plate);
-      setQuote(q);
+      setQuote(await gateApi.exitQuote(lotId, plate));
     } catch (e) {
-      setError((e as Error).message);
+      fail(e);
     } finally {
       setBusy(false);
     }
   };
 
-  const handleConfirmCheckOut = async () => {
-    if (busy || !quote) return;
-    setBusy(true);
-    try {
-      const result = await gateApi.checkOut({
-        parkingLotId: lotId,
-        plate: outboundPlate.trim(),
-        method: 'Manual',
-        staffUserId: Number(staffUserId) || undefined,
-        confirmFee: true,
-      });
-      const fee = result.fee;
-      pushEvent(result.session.plateDisplay, 'Làn ra #2', 'Check-out',
-        fee && fee.additionalDue > 0 ? `Đã thu ${formatVnd(fee.additionalDue)}` : 'Không thu thêm',
-        fee && fee.additionalDue > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200');
-      showAlert(`Làn ra #2: Xe ${result.session.plateDisplay} đã ra, tổng phí ${formatVnd(fee?.sessionFee)} (thu thêm ${formatVnd(fee?.additionalDue)}).`);
-      if (result.warning) setError(result.warning);
-      setQuote(null);
-      setOutboundPlate('');
-      void loadBookings();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  const handleCheckedOut = (result: CheckOutResultDto) => {
+    const due = result.fee?.additionalDue ?? 0;
+    pushEvent(result.session.plateDisplay, 'Làn ra #2', 'Check-out',
+      due > 0 ? `Đã thu ${money(due)}` : 'Không thu thêm',
+      due > 0 ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200');
+    showAlert(due > 0
+      ? `Đã thu ${money(due)} · Xe ${result.session.plateDisplay} đã check-out.`
+      : `Xe ${result.session.plateDisplay} đã check-out, không còn phí phải thu.`);
+    if (result.warning) setError(result.warning);
+    setQuote(null);
+    setOutboundPlate('');
+    void loadBookings();
+    duty.reload();
   };
+
+  const subtitle = `${lotId ? `${lot(lotId).name} · ` : ''}${dayLabel(ictDate(now))} · ${ictTime(now)} ICT`;
+
+  if (!canHaveShift) {
+    return (
+      <Page title="Trạm vận hành cổng" subtitle={subtitle}>
+        <Banner tone="info" title="Admin chỉ xem">
+          Vận hành cổng dành cho nhân viên và chủ bãi đang có ca. Xem lượt xe và ca trực tại{' '}
+          <Link to="/admin/operations/gate-activity" className="font-semibold text-[#2c5cf2] underline">Admin Portal › Gate Activity</Link>.
+        </Banner>
+      </Page>
+    );
+  }
+  if (mine.error != null && !mine.data) {
+    return <Page title="Trạm vận hành cổng" subtitle={subtitle}><LoadError title="Không tải được ca trực" error={mine.error} onRetry={mine.reload} /></Page>;
+  }
+  if (!mine.data) {
+    return <Page title="Trạm vận hành cổng" subtitle={subtitle}><Placeholder kind="loading" title="Đang tải ca trực" /></Page>;
+  }
+
+  const handovers = (
+    <HandoverBanner incoming={mine.data.incomingHandovers} activeShiftId={active?.id} lotName={(id) => lot(id).name} who={who}
+      onAccepted={() => { mine.reload(); duty.reload(); }} />
+  );
+
+  if (view === 'shifts') {
+    return (
+      <Page title="Ca của tôi" subtitle={`${user?.fullName ?? ''} · ${dayLabel(ictDate(now))} · ${ictTime(now)} ICT`}>
+        {handovers}
+        <MyShiftsPanel shifts={mine.data.shifts} now={now} fullName={user?.fullName ?? ''} isOwner={isOwner} lot={lot} onStarted={mine.reload} />
+      </Page>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Toast Notice */}
       {alertNotice && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-xl text-sm font-semibold animate-bounce">
+        <div role="status" className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white rounded-xl shadow-xl text-sm font-semibold">
           <span className="material-symbols-outlined text-emerald-400 text-[20px]">check_circle</span>
           <span>{alertNotice}</span>
         </div>
       )}
 
-      {/* Error Banner */}
-      {error && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-semibold">
-          <span className="material-symbols-outlined text-[20px]">error</span>
-          <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="text-xs font-bold hover:text-red-900 cursor-pointer">ĐÓNG</button>
-        </div>
-      )}
+      <header>
+        <h1 className="text-[28px] sm:text-[32px] font-bold text-[#10172a]">Trạm vận hành cổng</h1>
+        <p className="mt-2 text-sm text-[#65738c]">{subtitle}</p>
+      </header>
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200">
-        <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-semibold uppercase tracking-wider mb-2">
-            🚧 Bàn Điều Khiển Cổng & Barie Tự Động (Gate Console)
+      {error && <Banner tone="danger" title="Chưa thực hiện được" onClose={() => setError(null)}>{error}</Banner>}
+
+      {active ? (
+        <section className={`${cardClass} flex flex-wrap items-center justify-between gap-4`}>
+          <div className="text-[13px] text-[#65738c]">
+            <p className="font-bold text-[#15803d]">ĐANG TRỰC · {user?.fullName}</p>
+            <p className="mt-1">
+              Ca {timeRange(active.scheduledStartUtc, active.scheduledEndUtc)}
+              {active.startedAtUtc ? ` · Bắt đầu thực tế ${ictTime(active.startedAtUtc)}` : ''}{active.isCashHolder ? ' · Giữ két' : ' · Không giữ két'}
+            </p>
+            {duty.data && <p className="mt-1">{duty.data.vehiclesInLot} xe đang trong bãi · {duty.data.entries} xe vào · {duty.data.exits} xe ra</p>}
           </div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Điều khiển Cổng Barie & Giám sát ANPR
-          </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Trực ban soát vé: quét QR/mã booking (ân hạn đến trễ 15 phút), chốt phí quá giờ và điều khiển barie thời gian thực.
-          </p>
-        </div>
-        <div className="flex flex-col items-start md:items-end gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-              BARIE CONTROLLER: ONLINE (0.3s LATENCY)
-            </span>
+          <div className="flex gap-2.5">
+            <Link to="/gate/shifts" className="inline-flex min-h-11 items-center rounded-[10px] border border-[#e3e8f0] px-4 text-sm font-semibold text-[#10172a] hover:bg-[#f2f5f9]">Ca của tôi</Link>
+            <Button onClick={() => setEnding(true)}>Kết thúc ca</Button>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={lotId}
-              onChange={(e) => setLotId(Number(e.target.value))}
-              className="px-3 py-2 text-xs border border-slate-300 rounded-xl bg-white font-semibold text-slate-700 focus:outline-hidden focus:border-blue-500 cursor-pointer"
-            >
-              {LOTS.map((l) => (
-                <option key={l.id} value={l.id}>{l.id} · {l.name}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={staffUserId}
-              onChange={(e) => setStaffUserId(e.target.value.replace(/\D/g, ''))}
-              placeholder="Mã NV"
-              title="StaffUserId (dữ liệu demo: 4 = Staff Vincom)"
-              className="w-24 px-3 py-2 text-xs border border-slate-300 rounded-xl font-mono focus:outline-hidden focus:border-blue-500"
-            />
-            <button
-              onClick={() => void loadBookings()}
-              className="px-3 py-2 text-xs font-bold text-slate-600 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 cursor-pointer flex items-center gap-1"
-            >
-              <span className="material-symbols-outlined text-[16px]">refresh</span>
-              Làm mới
-            </button>
-          </div>
-        </div>
-      </div>
+        </section>
+      ) : (
+        <>
+          <Banner tone="warning" title="Chưa có ca đang hoạt động · Chỉ xem">
+            Bạn có thể xem booking và lượt xe. <Link to="/gate/shifts" className="font-semibold text-[#2c5cf2] underline">Bắt đầu ca</Link> để check-in/out, thu tiền và vận hành cổng.
+          </Banner>
+          {lotIds.length > 1 && (
+            <label className="flex max-w-md flex-col gap-1.5 text-[13px] font-semibold">
+              Bãi đang xem
+              <select className={inputClass} value={lotId} onChange={(e) => { setPickedLot(Number(e.target.value)); setBookings([]); }}>
+                {lotIds.map((id) => <option key={id} value={id}>{lot(id).name}</option>)}
+              </select>
+            </label>
+          )}
+        </>
+      )}
+      {active && lot(lotId).status && lot(lotId).status !== 'Active' && (
+        <Banner tone="danger" title="Bãi hiện không hoạt động">Không nhận xe vào. Vẫn cho xe ra, thu tiền và bàn giao như bình thường.</Banner>
+      )}
+      {handovers}
 
       {/* UC-20 (US-076): Danh sách booking trong ca trực */}
       <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
@@ -321,8 +364,9 @@ export const GateConsolePage: React.FC = () => {
                     <td className="px-4 py-3 text-right">
                       {b.status !== 'NoShow' && (
                         <button
+                          disabled={!canOperate}
                           onClick={() => { setOutboundPlate(b.plateDisplay); setQuote(null); }}
-                          className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 cursor-pointer"
+                          className="px-3 py-1.5 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 cursor-pointer disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           CHỐT RA
                         </button>
@@ -336,8 +380,8 @@ export const GateConsolePage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2-Column Console Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 2-Column Console Layout – fieldset khóa toàn bộ thao tác ghi khi chưa có ca (API cũng trả 409 SHIFT_NOT_ACTIVE). */}
+      <fieldset disabled={!canOperate} aria-label="Làn vào và làn ra" className="grid min-w-0 grid-cols-1 lg:grid-cols-2 gap-6 disabled:opacity-55">
         {/* Left: Check-in */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
@@ -473,67 +517,8 @@ export const GateConsolePage: React.FC = () => {
             </button>
           </div>
 
-          {/* UC-22: Bảng chốt phí trước khi mở barie */}
-          {quote && (
-            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[16px]">receipt_long</span>
-                  Chốt phí lượt {quote.sessionCode}
-                </span>
-                <span className="text-[10px] font-mono text-slate-500">
-                  {quote.bookingCode ? `Booking ${quote.bookingCode} · ` : ''}Vào {formatTime(quote.entryAtUtc)} · {quote.minutesParked} phút
-                </span>
-              </div>
-
-              {quote.isWithinBillingGrace && (
-                <div className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                  Trong ân hạn 15 phút (US-046) → phí 0đ, miễn phí mở barie.
-                </div>
-              )}
-
-              <div className="space-y-1">
-                {quote.lines.map((line, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs text-slate-600">
-                    <span>{line.description}</span>
-                    <span className="font-mono">{formatVnd(line.amount)}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t border-amber-200 pt-2 space-y-1">
-                <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span>Tổng phí lượt gửi</span>
-                  <span className="font-mono font-bold">{formatVnd(quote.sessionFee)}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-slate-600">
-                  <span>Đã trả trước (Price Lock)</span>
-                  <span className="font-mono">−{formatVnd(quote.prepaidAmount)}</span>
-                </div>
-                {quote.overstayMinutes > 0 && (
-                  <div className="flex items-center justify-between text-xs text-red-600 font-semibold">
-                    <span>Quá giờ {quote.overstayMinutes} phút (× hệ số)</span>
-                    <span className="font-mono">{formatVnd(quote.overstayAmount)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-sm font-extrabold text-slate-900 pt-1">
-                  <span>Cần thu thêm (tiền mặt)</span>
-                  <span className="font-mono text-amber-700">{formatVnd(quote.additionalDue)}</span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => void handleConfirmCheckOut()}
-                disabled={busy}
-                className="w-full px-5 py-2.5 bg-amber-600 text-white rounded-xl text-xs font-bold hover:bg-amber-700 shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="material-symbols-outlined text-[18px]">task_alt</span>
-                XÁC NHẬN ĐÃ THU TIỀN & MỞ BARIE RA
-              </button>
-            </div>
-          )}
         </div>
-      </div>
+      </fieldset>
 
       {/* Live Event Passage Feed */}
       <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-4">
@@ -545,7 +530,7 @@ export const GateConsolePage: React.FC = () => {
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">Tự động ghi nhận nhật ký vào/ra, trạng thái đối soát vé và lệnh relay Barie</p>
           </div>
-          <span className="text-xs font-semibold text-slate-400 font-mono">Cổng trạm Vincom Mega Mall</span>
+          <span className="text-xs font-semibold text-slate-400 font-mono">{lotId ? lot(lotId).name : ''}</span>
         </div>
 
         <div className="overflow-x-auto border border-slate-200 rounded-xl">
@@ -589,6 +574,16 @@ export const GateConsolePage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {quote && active && (
+        <CheckoutModal quote={quote} plate={outboundPlate.trim()} shift={active} operator={user?.fullName ?? ''}
+          onClose={() => setQuote(null)} onDone={handleCheckedOut}
+          onError={(e) => { if (errorCode(e) === 'SHIFT_NOT_ACTIVE') mine.reload(); }} />
+      )}
+      {ending && active && (
+        <EndShiftModal shift={active} subtitle={`${user?.fullName ?? ''} · ${lot(active.parkingLotId).name}`} who={who} onClose={() => setEnding(false)}
+          onEnded={() => { setEnding(false); showAlert('Đã kết thúc ca.'); mine.reload(); }} />
+      )}
     </div>
   );
 };

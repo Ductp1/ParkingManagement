@@ -11,6 +11,13 @@ public sealed class PartnerApplicationRepository(AdminDbContext db) : IPartnerAp
     public Task<PartnerApplication?> FindTrackedAsync(int id, CancellationToken cancellationToken)
         => db.PartnerApplications.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<PartnerApplicationDocument>> FindActiveDocumentsTrackedAsync(int applicationId, CancellationToken cancellationToken)
+        => await db.PartnerApplicationDocuments
+            .Where(d => d.PartnerApplicationId == applicationId && d.SupersededAtUtc == null)
+            .ToListAsync(cancellationToken);
+
+    public void AddDocuments(IEnumerable<PartnerApplicationDocument> documents) => db.PartnerApplicationDocuments.AddRange(documents);
+
     public async Task SaveWithAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
     {
         db.AuditLogs.Add(auditLog);

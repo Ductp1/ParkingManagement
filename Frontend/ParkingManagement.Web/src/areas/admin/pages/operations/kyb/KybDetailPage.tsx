@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminKybApi } from '@/api/adminKybApi';
 import { adminLotContractsApi } from '@/api/adminLotContractsApi';
+import { adminLotsApi } from '@/api/adminLotsApi';
 import { KybStatus, LotContractStatus } from '@/types/adminEnums';
 import type { AdminKybApplicationDetailDto } from '@/types/adminKyb';
 import type { LotContractSummaryDto } from '@/types/adminLotContracts';
@@ -177,7 +178,7 @@ const KybDetailBody: React.FC<{
 
             {kyb.status === KybStatus.Approved && <MisdeclarationPanel lotId={lot.id} onChanged={onLotChanged} />}
 
-            <Panel title="Documents" description="KybApplications.BusinessLicenseUrl · FireSafetyCertificateUrl · SitePhotoUrlsJson">
+            <Panel title="Documents" description="Business licence, fire safety certificate and site photos">
               <DetailList>
                 <DetailRow label="Business licence">
                   <DocLink url={kyb.businessLicenseUrl} />
@@ -199,7 +200,7 @@ const KybDetailBody: React.FC<{
               )}
             </Panel>
 
-            <Panel title="Location check" description="PhotoLatitude / PhotoLongitude vs ParkingLots.Latitude / Longitude (warning above 100 m)">
+            <Panel title="Location check" description="Photo location compared with the lot address (warning above 100 m)">
               <DetailList>
                 <DetailRow label="Photo coordinates">{hasGps ? `${kyb.photoLatitude!.toFixed(4)}, ${kyb.photoLongitude!.toFixed(4)}` : '—'}</DetailRow>
                 <DetailRow label="Lot coordinates">{`${lot.latitude.toFixed(4)}, ${lot.longitude.toFixed(4)}`}</DetailRow>
@@ -215,7 +216,7 @@ const KybDetailBody: React.FC<{
               </DetailList>
             </Panel>
 
-            <Panel title="Field survey" description="FieldSurveyRequired · FieldSurveyAtUtc · FieldSurveyCompletedAtUtc · FieldSurveyNote">
+            <Panel title="Field survey" description="Whether a site visit is needed, when it is scheduled and its result">
               <DetailList>
                 <DetailRow label="Required">
                   {kyb.fieldSurveyRequired ? 'Yes' : 'No'}
@@ -227,15 +228,6 @@ const KybDetailBody: React.FC<{
               </DetailList>
             </Panel>
 
-            <Panel title="Per-check results" description="Not stored — only the overall Status exists">
-              <DetailList>
-                {['Legal documents', 'Location & GPS', 'Fire safety', 'Field survey'].map((label) => (
-                  <DetailRow key={label} label={label} future>
-                    —
-                  </DetailRow>
-                ))}
-              </DetailList>
-            </Panel>
           </>
         }
         side={
@@ -255,7 +247,7 @@ const KybDetailBody: React.FC<{
                 <DetailRow label="Owner">{ownerLabel(lot.ownerProfileId)}</DetailRow>
               </DetailList>
             </Panel>
-            <Panel title="Status timeline" description="CreatedAtUtc · SubmittedAtUtc · FieldSurvey · ReviewedAtUtc">
+            <Panel title="Status timeline" description="Created, submitted, site visit and review dates">
               <Timeline entries={buildTimeline(kyb)} />
             </Panel>
           </>
@@ -276,13 +268,26 @@ export const KybDetailPage: React.FC = () => {
   const lotId = query.data?.parkingLot.id ?? null;
   const contracts = useAdminQuery(lotId ? () => adminLotContractsApi.list({ parkingLotId: lotId, page: 1, pageSize: 10 }) : null, [lotId]);
   const lotContract = contracts.data?.items.find((c) => c.status !== LotContractStatus.Cancelled) ?? null;
+  // US-055 AC2: AdminService từ chối ký khi bãi chưa có bảng giá đang hiệu lực – báo trước cho Admin.
+  const priced = useAdminQuery(
+    lotId
+      ? () =>
+          adminLotsApi.rateCards(lotId).then((cards) => {
+            const now = Date.now();
+            return cards.some(
+              (c) => c.isActive && Date.parse(c.effectiveFromUtc) <= now && (!c.effectiveToUtc || Date.parse(c.effectiveToUtc) > now)
+            );
+          })
+      : null,
+    [lotId]
+  );
 
   useAdminBreadcrumb(Number.isInteger(kybId) ? kybCode(kybId) : null);
 
   if (!query.data) {
     return (
       <>
-        <AdminTitleBar title="KYB Review" subtitle="—" />
+        <AdminTitleBar title="KYB Review" />
         <QueryState
           status={Number.isInteger(kybId) && kybId > 0 ? query.status : 'empty'}
           error={query.error}
@@ -299,10 +304,15 @@ export const KybDetailPage: React.FC = () => {
     );
   }
 
+  const kyb =
+    priced.data === false
+      ? { ...query.data, approvalBlockers: [...query.data.approvalBlockers, 'Bãi chưa có bảng giá đang hiệu lực.'] }
+      : query.data;
+
   return (
     <>
       <KybDetailBody
-        kyb={query.data}
+        kyb={kyb}
         lotContract={lotContract}
         onAction={setDialog}
         onContractChanged={() => {

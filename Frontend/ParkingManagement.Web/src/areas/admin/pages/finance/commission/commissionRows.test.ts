@@ -28,10 +28,10 @@ describe('commissionPeriod', () => {
   });
 
   it.each([
-    ['2026-11-05', '2026-11-01', 'trước hoặc bằng'],
-    ['2026-02-30', '2026-03-01', 'hợp lệ'],
-    ['', '2026-03-01', 'hợp lệ'],
-    ['2025-01-01', '2026-01-02', '366 ngày'],
+    ['2026-11-05', '2026-11-01', 'on or before'],
+    ['2026-02-30', '2026-03-01', 'valid'],
+    ['', '2026-03-01', 'valid'],
+    ['2025-01-01', '2026-01-02', '366 days'],
   ])('Tùy chọn sai (%s → %s) → lỗi, không gọi API', (from, to, message) => {
     const r = resolveRange('custom', from, to, new Date('2026-11-06T03:00:00Z'));
     expect(r.ok).toBe(false);
@@ -75,13 +75,13 @@ describe('commissionRows', () => {
     expect(rows.map((r) => r.parkingLotId)).toEqual([1, 2, 9]);
     expect(rows[0].money).toMatchObject({ commission: 0, pendingCount: 0 });                // có tỷ lệ, chưa có giao dịch
     expect(rows[1]).toMatchObject({ ownerProfileId: 8, money: { commission: 500 } });       // chủ bãi bù từ sổ hoa hồng
-    expect(rows[2]).toMatchObject({ lotName: 'Bãi #9', known: false, source: 'LotContract', ownerName: 'Công ty A' });
+    expect(rows[2]).toMatchObject({ lotName: 'Lot #9', known: false, source: 'LotContract', ownerName: 'Công ty A' });
   });
 
   it('một nguồn chưa có → cột của nguồn đó null, phần còn lại vẫn có', () => {
     expect(buildLotRows(rates, null, { search: '', source: null }).every((r) => r.money === null)).toBe(true);
     const ledgerOnly = buildLotRows(null, summary, { search: '', source: null });
-    expect(ledgerOnly.map((r) => r.lotName)).toEqual(['Bãi #2', 'Bãi #9']);
+    expect(ledgerOnly.map((r) => r.lotName)).toEqual(['Lot #2', 'Lot #9']);
   });
 
   it('có lọc: bãi ngoài danh sách tỷ lệ chỉ hiện khi tự khớp', () => {
@@ -103,7 +103,7 @@ describe('commissionRows', () => {
   it('sắp xếp theo hoa hồng, tên (vi-VN)', () => {
     const rows = buildLotRows(rates, summary, { search: '', source: null });
     expect(sortLotRows(rows, 'commission').map((r) => r.parkingLotId)).toEqual([2, 9, 1]);
-    expect(sortLotRows(rows, 'name').map((r) => r.lotName)).toEqual(['An Bình', 'Bãi #9', 'Bãi Đống Đa']);
+    expect(sortLotRows(rows, 'name').map((r) => r.lotName)).toEqual(['An Bình', 'Bãi Đống Đa', 'Lot #9']);
   });
 
   it('bỏ dấu khi tìm: "Đ" → "d"', () => expect(fold('Bãi Đống Đa')).toBe('bai dong da'));

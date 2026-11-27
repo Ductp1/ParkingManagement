@@ -37,6 +37,15 @@ interface DataTableProps<T> {
 
 const MAX_STAGGER_ROWS = 8;
 
+/** Enter/Space trên chính hàng (không phải nút/link/ô nhập bên trong) → mở như click. */
+const openRowFromKeyboard = (e: React.KeyboardEvent<HTMLTableRowElement>, open: () => void) => {
+  if (e.target !== e.currentTarget) return;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    open();
+  }
+};
+
 /**
  * Shell/Table (Figma): header nền table/header chữ trắng, dòng 44px (52 khi two-line), xen kẽ row-alt,
  * dòng chọn surface/selected + viền trái navy-800 2px. Không có cột trống ở đầu bảng.
@@ -102,6 +111,10 @@ export const DataTable = <T,>({
                   <tr
                     key={key}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    // Hàng mở chi tiết dùng được bằng bàn phím: Tab tới hàng, Enter/Space để mở.
+                    tabIndex={onRowClick ? 0 : undefined}
+                    data-row-link={onRowClick ? '' : undefined}
+                    onKeyDown={onRowClick ? (e) => openRowFromKeyboard(e, () => onRowClick(row)) : undefined}
                     style={rise ? ({ '--adm-delay': `calc(var(--stagger-step) * ${index})` } as React.CSSProperties) : undefined}
                     className={`h-11 border-b border-(--admin-border-default) ${animateRows ? 'adm-motion-row' : ''} ${rise ? 'adm-motion-rise' : ''} ${
                       highlightKey !== undefined && highlightKey !== null && highlightKey === key ? 'adm-row-highlight' : ''

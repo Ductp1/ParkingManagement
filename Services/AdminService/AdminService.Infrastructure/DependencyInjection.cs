@@ -4,6 +4,7 @@ using AdminService.Application.Features.Commission;
 using AdminService.Application.Features.ContractTemplates;
 using AdminService.Application.Features.Dashboard;
 using AdminService.Application.Features.LotContracts;
+using AdminService.Application.Features.Notifications;
 using AdminService.Application.Features.Owners;
 using AdminService.Application.Features.PartnerOnboarding;
 using AdminService.Application.Features.RiskFlags;
@@ -45,6 +46,7 @@ public static class DependencyInjection
         services.AddSingleton(SanctionSettingsFrom(configuration));
         services.AddScoped<IAuditEventInboxRepository, AuditEventInboxRepository>();         // T-802: nhận AuditRecorded
         services.AddScoped<IPartnerApplicationRepository, PartnerApplicationRepository>();   // US-116
+        services.AddScoped<IPartnerApplicationIntakeRepository, PartnerApplicationIntakeRepository>();   // US-116 T1: Admin nhập hồ sơ, T4
         services.AddScoped<IPartnerRegistrationRepository, PartnerRegistrationRepository>(); // US-053: form public đăng ký đối tác
         services.AddScoped<IPartnerDocumentQueries, PartnerDocumentQueries>();               // US-053: giấy tờ pháp lý (chỉ Admin)
         services.AddScoped<ILotContractQueries, LotContractQueries>();                       // US-116
@@ -82,10 +84,26 @@ public static class DependencyInjection
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         services.AddTransient<IUserServiceClient>(sp => sp.GetRequiredService<UserServiceClient>());
+        services.AddScoped<AdminService.Application.Features.Users.IAdminAuditWriter, AdminService.Infrastructure.Persistence.Repositories.AdminAuditWriter>();
+        services.AddSingleton<AdminService.Application.Features.PartnerOnboarding.IPartnerEditLinkBuilder>(new PartnerEditLinkBuilder(configuration));
+        // US-096: nghĩa vụ trước khi xóa user – booking (BookingService) và quyết toán (PaymentService) qua Gateway, JWT Admin chuyển tiếp.
+        services.AddHttpClient<AdminService.Application.Features.Users.IUserObligationSource, UserObligationSource>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
         // US-116: tạo / kích hoạt tài khoản chủ bãi (U2 / U3) dùng chung client UserService.
         services.AddTransient<IOwnerAccountClient>(sp => sp.GetRequiredService<UserServiceClient>());
         // US-116: đọc hồ sơ KYB + kích hoạt bãi bên ParkingService qua Gateway (route parking-lots), chuyển tiếp JWT Admin.
         services.AddHttpClient<IParkingServiceClient, ParkingServiceClient>(client =>
+            {
+                client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(10);
+            })
+            .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // US-055 AC2: kiểm tra bảng giá của bãi (PaymentService, route rate-cards) trước khi ký hợp đồng.
+        services.AddHttpClient<IRateCardLookup, RateCardLookupClient>(client =>
             {
                 client.BaseAddress = new Uri(gatewayUri.AbsoluteUri.TrimEnd('/') + "/");
                 client.Timeout = TimeSpan.FromSeconds(10);
@@ -111,6 +129,9 @@ public static class DependencyInjection
                 client.Timeout = TimeSpan.FromSeconds(10);
             })
             .AddHttpMessageHandler<BearerTokenForwardingHandler>();
+        // Admin nhận thông báo in-app (hồ sơ đối tác mới / bổ sung, cảnh báo rủi ro).
+        var adminIds = configuration.GetSection("Notifications:AdminUserIds").Get<int[]>();
+        services.AddSingleton(adminIds is { Length: > 0 } ? new AdminAlertSettings(adminIds) : AdminAlertSettings.Default);
         // US-097: job đóng chế tài tới hạn ("Sanctions:ExpiryJob:Enabled" = false để tắt, ví dụ khi chạy nhiều instance thử nghiệm).
         var expiryJob = SanctionExpiryJobSettingsFrom(configuration);
         services.AddSingleton(expiryJob);

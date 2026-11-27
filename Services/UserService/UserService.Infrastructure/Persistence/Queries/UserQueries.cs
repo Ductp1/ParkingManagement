@@ -8,16 +8,25 @@ namespace UserService.Infrastructure.Persistence.Queries;
 /// <summary>Cài đặt IUserQueries bằng LINQ to Entities – Select thẳng sang DTO, không trả Entity ra ngoài.</summary>
 public sealed class UserQueries(UserDbContext db) : IUserQueries
 {
-    public Task<UserDto?> GetByIdAsync(int id, CancellationToken cancellationToken)
-        => db.Users.AsNoTracking()
+    public async Task<UserDto?> GetByIdAsync(int id, CancellationToken cancellationToken)
+    {
+        var row = await db.Users.AsNoTracking()
             .Where(u => u.Id == id)
-            .Select(u => new UserDto(
-                u.Id, u.FullName, u.Email, u.PhoneNumber, u.Status.ToString(), u.KycStatus.ToString(),
-                u.Roles.Select(r => r.Role.ToString()).ToList(),
-                u.OwnerProfile == null ? null : new OwnerProfileDto(
-                    u.OwnerProfile.Id, u.OwnerProfile.BusinessName, u.OwnerProfile.TaxCode,
-                    u.OwnerProfile.BankName, u.OwnerProfile.BankAccountNumber), u.AvatarUrl))
+            .Select(u => new
+            {
+                Dto = new UserDto(
+                    u.Id, u.FullName, u.Email, u.PhoneNumber, u.Status.ToString(), u.KycStatus.ToString(),
+                    u.Roles.Select(r => r.Role.ToString()).ToList(),
+                    u.OwnerProfile == null ? null : new OwnerProfileDto(
+                        u.OwnerProfile.Id, u.OwnerProfile.BusinessName, u.OwnerProfile.TaxCode,
+                        u.OwnerProfile.BankName, u.OwnerProfile.BankAccountNumber), u.AvatarUrl,
+                    null, u.LockedUntilUtc, u.LockReason, u.OwnerProfile != null && u.OwnerProfile.IsLocked),
+                u.RowVersion,
+            })
             .FirstOrDefaultAsync(cancellationToken);
+        // RowVersion là byte[]: đổi sang base64 ở bộ nhớ (không dịch được sang SQL).
+        return row is null ? null : row.Dto with { RowVersion = Convert.ToBase64String(row.RowVersion) };
+    }
 
     public async Task<PagedResult<UserSummaryDto>> ListAsync(UserRoleType? role, int page, int pageSize, CancellationToken cancellationToken)
     {

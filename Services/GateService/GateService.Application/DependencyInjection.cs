@@ -47,6 +47,13 @@ public static class DependencyInjection
         // US-077: thống kê hủy No-show theo Staff.
         services.AddScoped<IGetStaffCancellationStatsUseCase, GetStaffCancellationStatsUseCase>();
         services.AddScoped<IStaffCancellationMonitor, StaffCancellationMonitor>();
+        // US-076: ca trực, phân quyền theo bãi và két tiền mặt.
+        services.AddScoped<Features.Shifts.CurrentShift>();
+        services.AddScoped<Features.Shifts.GateAccess>();
+        services.AddScoped<Features.Shifts.ICashDrawer, Features.Shifts.CashDrawer>();
+        services.AddScoped<Features.Shifts.ShiftPlanningUseCases>();
+        services.AddScoped<Features.Shifts.ShiftDutyUseCases>();
+        services.AddScoped<Features.Shifts.ShiftLifecycleUseCases>();
         // US-066: cau hinh suc chua & vung dem vang lai.
         services.AddScoped<IGetLotCapacityConfigUseCase, GetLotCapacityConfigUseCase>();
         services.AddScoped<IUpdateLotCapacityConfigUseCase, UpdateLotCapacityConfigUseCase>();

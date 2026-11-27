@@ -12,6 +12,8 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddE
 builder.AddServiceDefaults("BookingService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
 builder.Services.AddJwtAuth(Path.GetFullPath(
     builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
+// Endpoint cổng chỉ nhận khóa nội bộ của GateService ("InternalEvents:ApiKeys:GateService").
+builder.Services.AddSingleton<ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator>();
 builder.Services.AddBookingApplication();                                  // Application: Use Case
 builder.Services.AddBookingInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 

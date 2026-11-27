@@ -11,6 +11,7 @@ import type {
   ParkingLotHierarchyDto,
 } from '@/types/adminOperations';
 import type { ParkingSessionStatus } from '@/types/adminEnums';
+import type { ShiftStatus, ShiftSummary, ShiftView } from './shiftApi';
 
 /** API đang có của các service khác, dùng ở tab Operations của Admin Portal (đều đi qua Gateway). */
 export const adminOperationsApi = {
@@ -60,6 +61,12 @@ export const adminOperationsApi = {
       url: '/api/v1/parking-sessions',
       params: cleanParams({ parkingLotId, status }),
     }),
+
+  /** GateService US-076 – Admin chỉ đọc ca trực. */
+  getShifts: (query: { status?: ShiftStatus; parkingLotId?: number; fromUtc?: string; toUtc?: string; page: number; pageSize: number }) =>
+    adminRequest<{ items: ShiftView[]; total: number; page: number; pageSize: number }>({ method: 'GET', url: '/api/v1/gate/admin/shifts', params: cleanParams(query) }),
+
+  getShiftSummary: (id: number) => adminRequest<ShiftSummary>({ method: 'GET', url: `/api/v1/gate/shifts/${id}/summary` }),
 
   /** GateService – thiết bị cổng (Gateway hiện chưa có route /api/v1/gate-devices/**). */
   getGateDevices: () => adminRequest<AdminGateDeviceDto[]>({ method: 'GET', url: '/api/v1/gate-devices' }),

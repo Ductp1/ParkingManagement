@@ -35,7 +35,8 @@ public class OwnerProfileUseCaseTests
         SetId(profile, 5);
 
         var repo = new FakeOwnerRepo(profile);
-        var useCase = new LockOwnerProfileUseCase(repo);
+        var events = new EventSink();
+        var useCase = new LockOwnerProfileUseCase(repo, events);
 
         var lockTime = DateTime.UtcNow.AddDays(7);
         var result = await useCase.ExecuteAsync(5, new LockOwnerProfileRequest("Vi phạm chính sách", lockTime, 1));
@@ -62,6 +63,8 @@ public class OwnerProfileUseCaseTests
         Assert.True(repeatResult.IsLocked);
         Assert.Equal("Suspended", repeatResult.OwnerStatus);
         Assert.Null(user.LockedUntilUtc); // null = vô thời hạn
+        // Chỉ lần khóa đầu phát sự kiện.
+        Assert.Equal(5, Assert.IsType<ParkingManagement.SharedKernel.Contracts.OwnerProfileLocked>(Assert.Single(events.Events)).OwnerProfileId);
     }
 
     [Fact]
@@ -114,7 +117,7 @@ public class OwnerProfileUseCaseTests
     public async Task Lock_or_unlock_missing_owner_returns_null()
     {
         var repo = new FakeOwnerRepo(null);
-        var lockUseCase = new LockOwnerProfileUseCase(repo);
+        var lockUseCase = new LockOwnerProfileUseCase(repo, new EventSink());
         var unlockUseCase = new UnlockOwnerProfileUseCase(repo);
 
         var lockResult = await lockUseCase.ExecuteAsync(999, new LockOwnerProfileRequest("Lý do", null, 1));

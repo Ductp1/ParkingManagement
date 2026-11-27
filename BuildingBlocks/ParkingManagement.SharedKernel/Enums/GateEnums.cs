@@ -18,4 +18,9 @@ public enum PmsEventType { VehicleEntry = 1, VehicleExit = 2 }
 /// <summary>UC-51 E1: sự kiện PMS không khớp booking được đưa vào hàng chờ xử lý tay cho Staff.</summary>
 public enum PmsQuarantineStatus { Pending = 0, Handled = 1, Discarded = 2 }
 
-public enum ShiftStatus { Open = 0, Closed = 1, Flagged = 2 }
+/// <summary>Scheduled → Open → HandoverPending → Completed; Missed = không Start; AutoClosed = bị đóng cưỡng bức hoặc quên End.</summary>
+public enum ShiftStatus { Open = 0, Completed = 1, Scheduled = 2, HandoverPending = 3, Missed = 4, AutoClosed = 5 }
+
+public enum ShiftClosedReason { Normal = 0, Forgot = 1, StaffRevoked = 2, StaffSuspended = 3, OwnerLocked = 4 }
+
+public enum ShiftDiscrepancyStatus { Open = 0, Resolved = 1 }

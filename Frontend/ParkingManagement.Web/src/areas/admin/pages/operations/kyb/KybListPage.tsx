@@ -100,7 +100,7 @@ export const KybListPage: React.FC = () => {
             onRetry={query.refetch}
             copy={{
               emptyTitle: 'No KYB applications',
-              emptyMessage: 'Applications appear when an owner submits a lot for verification (US-054).',
+              emptyMessage: 'Applications appear when an owner submits a lot for verification.',
               errorTitle: 'Could not load KYB applications',
               service: 'ParkingService',
             }}

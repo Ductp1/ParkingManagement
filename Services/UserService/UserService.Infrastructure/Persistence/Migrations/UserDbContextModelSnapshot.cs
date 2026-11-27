@@ -479,6 +479,11 @@ namespace UserService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(40)

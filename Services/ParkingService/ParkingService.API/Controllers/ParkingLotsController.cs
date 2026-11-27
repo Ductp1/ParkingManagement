@@ -126,7 +126,17 @@ public sealed class ParkingLotsController(
     [HttpGet("owner/{ownerProfileId:int}")]
     [ProducesResponseType<IReadOnlyList<OwnerParkingLotItemDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<OwnerParkingLotItemDto>>> GetByOwner(int ownerProfileId, CancellationToken cancellationToken)
-        => Ok(await getOwnerParkingLots.ExecuteAsync(ownerProfileId, cancellationToken));
+    {
+        // SupportService / GateService gọi bằng khóa nội bộ; người dùng: Admin mọi chủ bãi, LotOwner chỉ của mình.
+        var keys = HttpContext.RequestServices.GetRequiredService<ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator>();
+        if (!keys.IsFrom(Request.Headers.Authorization, "SupportService", "GateService"))
+        {
+            if (User.Identity?.IsAuthenticated != true) return Unauthorized();
+            if (!User.IsInRole("Admin") && !(User.IsInRole("LotOwner") && User.FindFirst("OwnerProfileId")?.Value == ownerProfileId.ToString()))
+                return Forbid();
+        }
+        return Ok(await getOwnerParkingLots.ExecuteAsync(ownerProfileId, cancellationToken));
+    }
 
     /// <summary>
     /// GET /api/v1/parking-lots/{id}/hierarchy – Toàn bộ cây cấu trúc Lot → Zone → Floor → Slot.

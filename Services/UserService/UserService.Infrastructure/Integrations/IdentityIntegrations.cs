@@ -57,21 +57,56 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
             apiKey = config["Otp:ApiKey"];
             payload = new { message.Id, otp.Destination, otp.Purpose, otp.ExpiresAtUtc, Code = cipher.Decrypt(otp.EncryptedCode, "otp-delivery") };
         }
-        else if (message.EventType == StaffUseCases.CredentialsEvent)
+        else if (message.EventType == StaffUseCases.ActivationEvent)
         {
-            var staff = JsonSerializer.Deserialize<StaffCredentialsPayload>(message.PayloadJson)!;
-            // Tài khoản đã bị xóa/khóa trước khi kịp gửi → không gửi mật khẩu nữa.
-            if (!await db.Users.AnyAsync(u => u.Id == staff.UserId && !u.IsDeleted && u.Status == UserStatus.Active, ct)) return;
-            var password = cipher.Decrypt(staff.EncryptedPassword, StaffUseCases.CredentialsCipherPurpose);
+            var invite = JsonSerializer.Deserialize<StaffActivationPayload>(message.PayloadJson)!;
+            var now = clock.GetUtcNow().UtcDateTime;
+            // Link đã bị thu hồi (gửi lại / đã kích hoạt / xóa tài khoản) hoặc hết hạn trước khi kịp gửi → không gửi nữa.
+            if (!await db.OtpCodes.AnyAsync(o => o.Id == invite.ActivationId && o.ConsumedAtUtc == null && o.ExpiresAtUtc > now, ct)) return;
+            var link = SmtpOtpSender.StaffActivationLink(config, cipher.Decrypt(invite.EncryptedToken, StaffUseCases.ActivationCipherPurpose));
             if (config["Otp:Transport"] == "Smtp")
             {
-                await new SmtpOtpSender(config).SendStaffCredentialsAsync(message.Id, staff.Destination, staff.FullName, password,
-                    staff.OwnerName, staff.LotName, ct);
+                await new SmtpOtpSender(config).SendStaffActivationAsync(message.Id, invite.Destination, invite.FullName,
+                    invite.OwnerName, invite.LotName, link, invite.ExpiresAtUtc, ct);
                 return;
             }
             url = OtpDeliveryConfiguration.Endpoint(config["Otp:DeliveryUrl"], environment);
             apiKey = config["Otp:ApiKey"];
-            payload = new { message.Id, staff.Destination, Purpose = "StaffCredentials", staff.FullName, staff.OwnerName, staff.LotName, Code = password };
+            payload = new { message.Id, invite.Destination, Purpose = "StaffActivation", invite.FullName, invite.OwnerName, invite.LotName,
+                invite.ExpiresAtUtc, Link = link };
+        }
+        else if (message.EventType == OwnerAccountUseCases.ActivationEvent)
+        {
+            var activation = JsonSerializer.Deserialize<OwnerActivationPayload>(message.PayloadJson)!;
+            var now = clock.GetUtcNow().UtcDateTime;
+            // Link đã bị thu hồi (gửi lại link mới / đã kích hoạt) hoặc hết hạn trước khi kịp gửi → không gửi nữa.
+            if (!await db.OtpCodes.AnyAsync(o => o.Id == activation.ActivationId && o.ConsumedAtUtc == null && o.ExpiresAtUtc > now, ct)) return;
+            var link = SmtpOtpSender.OwnerActivationLink(config, cipher.Decrypt(activation.EncryptedToken, OwnerAccountUseCases.ActivationCipherPurpose));
+            if (config["Otp:Transport"] == "Smtp")
+            {
+                await new SmtpOtpSender(config).SendOwnerActivationAsync(message.Id, activation.Destination, activation.FullName,
+                    activation.BusinessName, link, activation.ExpiresAtUtc, ct);
+                return;
+            }
+            url = OtpDeliveryConfiguration.Endpoint(config["Otp:DeliveryUrl"], environment);
+            apiKey = config["Otp:ApiKey"];
+            payload = new { message.Id, activation.Destination, Purpose = "OwnerActivation", activation.FullName, activation.BusinessName,
+                activation.ExpiresAtUtc, Link = link };
+        }
+        else if (message.EventType == PartnerEmailUseCases.EmailEvent)
+        {
+            var mail = JsonSerializer.Deserialize<PartnerEmailPayload>(message.PayloadJson)!;
+            var link = mail.EncryptedLink is null ? null : cipher.Decrypt(mail.EncryptedLink, PartnerEmailUseCases.CipherPurpose);
+            if (config["Otp:Transport"] == "Smtp")
+            {
+                await new SmtpOtpSender(config).SendPartnerEmailAsync(message.Id, mail.Template, mail.Destination, mail.FullName,
+                    mail.ApplicationCode, mail.Note, mail.Items ?? [], mail.DueAtUtc, link, ct);
+                return;
+            }
+            url = OtpDeliveryConfiguration.Endpoint(config["Otp:DeliveryUrl"], environment);
+            apiKey = config["Otp:ApiKey"];
+            payload = new { message.Id, mail.Destination, Purpose = mail.Template, mail.FullName, mail.ApplicationCode, mail.Note,
+                Items = mail.Items ?? [], mail.DueAtUtc, Link = link };
         }
         else
         {
@@ -84,7 +119,12 @@ public sealed class IdentityOutboxTransport(IHttpClientFactory clients, IConfigu
         using var response = await clients.CreateClient("IdentityIntegrations").SendAsync(requestMessage, ct);
         response.EnsureSuccessStatusCode();
     }
-    private sealed record StaffCredentialsPayload(int UserId, string Destination, string FullName, string OwnerName, string LotName, string EncryptedPassword);
+    private sealed record PartnerEmailPayload(string Template, string Destination, string FullName, string ApplicationCode, string? Note,
+        List<string>? Items, DateTime? DueAtUtc, string? EncryptedLink);
+    private sealed record StaffActivationPayload(int ActivationId, int UserId, string Destination, string FullName, string OwnerName,
+        string LotName, DateTime ExpiresAtUtc, string EncryptedToken);
+    private sealed record OwnerActivationPayload(int ActivationId, int UserId, string Destination, string FullName, string BusinessName,
+        DateTime ExpiresAtUtc, string EncryptedToken);
     private sealed record OtpPayload(int OtpId, int UserId, string Destination, string Purpose, DateTime ExpiresAtUtc, string EncryptedCode);
 }
 

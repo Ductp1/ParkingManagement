@@ -107,6 +107,7 @@ public class LotContractTests
         public FakeQueries Queries { get; }
         public FakeParking Parking { get; } = new();
         public FakeStorage Storage { get; } = new();
+        public FakeRateCards RateCards { get; } = new();
         public FixedTimeProvider Time { get; } = new(new DateTimeOffset(Now));
         public HtmlContractRenderer Renderer { get; } = new();
         public DocxDocumentService Docx { get; } = new();
@@ -123,7 +124,7 @@ public class LotContractTests
         public PreviewLotContractRevisionUseCase PreviewRevision() => new(Repository, Builder, Time);
         public ReviseLotContractUseCase Revise() => new(Repository, Queries, Builder, Storage, Time);
         public GetLotContractFileUseCase File() => new(Queries, Storage);
-        public SignLotContractUseCase Sign() => new(Repository, Queries, Parking, Storage, Time);
+        public SignLotContractUseCase Sign() => new(Repository, Queries, Parking, RateCards, Storage, Time);
         public CancelLotContractUseCase Cancel() => new(Repository, Queries);
     }
 
@@ -562,6 +563,22 @@ public class LotContractTests
     }
 
     [Fact]
+    public async Task Sign_without_active_rate_card_is_conflict_before_approving()
+    {
+        var c = Contract(versions: 2);
+        var fx = new Fixture(c);
+        fx.RateCards.HasActive = false;
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => fx.Sign().ExecuteAsync(5, SignRequest(), AdminId));
+
+        Assert.Contains("bảng giá", ex.Message);
+        Assert.Equal([(c.ParkingLotId, Now)], fx.RateCards.Calls);
+        Assert.Empty(fx.Parking.Approvals);
+        Assert.Empty(fx.Storage.Files);
+        Assert.Equal(LotContractStatus.Pending, c.Status);
+    }
+
+    [Fact]
     public async Task Sign_with_too_long_note_is_bad_request_before_approving()
     {
         var fx = new Fixture(Contract(versions: 2));
@@ -877,6 +894,18 @@ public class LotContractTests
 
         public Task<int> CountKybApplicationsAsync(string status, CancellationToken cancellationToken)
             => throw new NotSupportedException("Hợp đồng bãi không đếm hồ sơ KYB.");
+    }
+
+    private sealed class FakeRateCards : IRateCardLookup
+    {
+        public bool HasActive { get; set; } = true;
+        public List<(int LotId, DateTime AtUtc)> Calls { get; } = [];
+
+        public Task<bool> HasActiveRateCardAsync(int parkingLotId, DateTime atUtc, CancellationToken cancellationToken)
+        {
+            Calls.Add((parkingLotId, atUtc));
+            return Task.FromResult(HasActive);
+        }
     }
 
     private sealed class FakeStorage : IFileStorage

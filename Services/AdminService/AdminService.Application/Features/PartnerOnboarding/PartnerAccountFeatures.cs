@@ -41,8 +41,8 @@ public sealed class IssueOwnerAccountUseCase(IPartnerApplicationRepository repos
 
         app.IssueAccount(performedByUserId, bank, account.UserId, account.OwnerProfileId);
         // US-053: hồ sơ do tài khoản đã đăng nhập nộp → UserService đã thêm role chủ bãi cho chính tài khoản đó (đang hoạt động sẵn,
-        // không cần link kích hoạt) → hồ sơ kết thúc ở Activated. Hồ sơ cũ / seed không có người nộp: UserService từ chối (409) nên
-        // không tới được dòng này – các hồ sơ đó không duyệt được nữa.
+        // không cần link kích hoạt) → hồ sơ kết thúc ở Activated. Hồ sơ nộp không cần tài khoản / Admin nhập (US-116): UserService tạo
+        // tài khoản mới + gửi link kích hoạt → hồ sơ ở AccountIssued tới khi chủ bãi kích hoạt (đồng bộ khi Admin mở hồ sơ – T8).
         string? reason = null;
         if (app.ApplicantUserId is { } applicantUserId)
         {

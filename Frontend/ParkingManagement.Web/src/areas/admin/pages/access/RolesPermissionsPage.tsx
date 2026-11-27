@@ -5,9 +5,7 @@ import { AdminTitleBar } from '../../layout/AdminTitleBar';
 import { KpiStrip, KpiTile } from '../../components/KpiTile';
 import { DetailColumns, QueryState } from '../../components/PageLayout';
 import { Panel } from '../../components/Panel';
-import { DetailList, DetailRow } from '../../components/DetailRow';
 import { CellLink, CellStatus, CellText, CellTwoLine, DataTable } from '../../components/DataTable';
-import { FutureTag } from '../../components/FutureTag';
 import { useAdminQuery } from '../../hooks/useAdminQuery';
 import { humanizeEnum } from '../../utils/enumLabels';
 import { formatNumber } from '../../utils/format';
@@ -33,7 +31,7 @@ export const RolesPermissionsPage: React.FC = () => {
 
   return (
     <>
-      <AdminTitleBar title="Roles & Permissions" subtitle="UserRoles · roles Driver, Lot owner, Staff, Admin (UserRoleType)" />
+      <AdminTitleBar title="Roles & Permissions" subtitle="Driver, Lot owner, Staff and Admin" />
       {counts.status === 'ready' || counts.status === 'loading' ? (
         <KpiStrip>
           {ROLES.map((r) => (
@@ -58,7 +56,7 @@ export const RolesPermissionsPage: React.FC = () => {
       )}
       <DetailColumns
         main={
-          <Panel title="Role members (Admin)" description="UserRoles (UserId, Role)" padded={false}>
+          <Panel title="Role members (Admin)" padded={false}>
             <DataTable
               bare
               rows={admins.status === 'ready' ? admins.data?.items ?? [] : []}
@@ -81,21 +79,6 @@ export const RolesPermissionsPage: React.FC = () => {
                 />
               }
             />
-          </Panel>
-        }
-        side={
-          <Panel title="Permission matrix" description="Future — RBAC is role-based only (US-102); no permission table">
-            <div className="mb-3 flex items-center gap-2">
-              <FutureTag />
-              <span className="adm-type-body-regular-12 text-(--admin-text-secondary)">Fine-grained permissions per action</span>
-            </div>
-            <DetailList>
-              {['Approve KYB', 'Lock owner', 'Approve settlement', 'Edit system settings'].map((a) => (
-                <DetailRow key={a} label={a} future>
-                  Admin
-                </DetailRow>
-              ))}
-            </DetailList>
           </Panel>
         }
       />

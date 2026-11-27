@@ -14,6 +14,7 @@ import { Banner } from '../../../components/Banner';
 import { DetailList, DetailRow } from '../../../components/DetailRow';
 import { DateTimeField, SelectField, TextAreaField, TextField, ToggleField, UploadZone } from '../../../components/FormFields';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
+import { ContractViewer } from './ContractViewer';
 import { percentText, saveFile, templateKindLabel, termsErrors, termText } from './lotContractFormat';
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -38,7 +39,7 @@ interface TermsDialogProps {
 
 /**
  * Lập / sửa hợp đồng bãi: Admin chọn loại hợp đồng (mẫu Active), nhập phí nền tảng, ngày hiệu lực, thời hạn, thỏa thuận riêng
- * → Preview (HTML trong iframe sandbox, không chạy script) → lưu. Loại "DOCX file" chỉ cần phí nền tảng (ngày, thời hạn nằm trong file);
+ * → Preview toàn màn hình (ContractViewer, lưu được PDF) → lưu. Loại "DOCX file" chỉ cần phí nền tảng (ngày, thời hạn nằm trong file);
  * xem trước loại này tải file DOCX về. Sửa hợp đồng điền sẵn điều khoản + loại hợp đồng của phiên bản đang chờ ký và bắt buộc lý do.
  */
 export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClose, onDone }) => {
@@ -80,12 +81,6 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
           specialTerms: specialTerms.trim() === '' ? undefined : specialTerms,
           templateId: Number(chosenId),
         };
-
-  // Đổi điều khoản / loại hợp đồng thì bản xem trước cũ không còn đúng.
-  const edit = (setter: (v: string) => void) => (v: string) => {
-    setter(v);
-    setPreviewHtml(null);
-  };
 
   const preview = async () => {
     setSubmitted(true);
@@ -159,7 +154,7 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
         label="Contract type"
         required
         value={chosenId}
-        onChange={edit(setTemplateId)}
+        onChange={setTemplateId}
         options={templateOptions}
         placeholder={templates.data ? (active.length === 0 ? 'No active contract type' : 'Choose…') : 'Loading…'}
         helper="Active contract templates (Operations → Contract Templates)."
@@ -171,14 +166,14 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
           type="number"
           required
           value={rate}
-          onChange={edit(setRate)}
+          onChange={setRate}
           helper="Percent of GMV per settlement period, e.g. 7.5"
           error={show(errors.rate)}
         />
         {!isDocument && (
           <>
-            <DateTimeField label="Effective from" mode="date" required value={effectiveFrom} onChange={edit(setEffectiveFrom)} error={show(errors.effectiveFrom)} />
-            <SelectField label="Term" required value={termMonths} onChange={edit(setTermMonths)} options={TERM_OPTIONS} error={show(errors.termMonths)} />
+            <DateTimeField label="Effective from" mode="date" required value={effectiveFrom} onChange={setEffectiveFrom} error={show(errors.effectiveFrom)} />
+            <SelectField label="Term" required value={termMonths} onChange={setTermMonths} options={TERM_OPTIONS} error={show(errors.termMonths)} />
           </>
         )}
       </div>
@@ -191,7 +186,7 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
         <TextAreaField
           label="Special terms"
           value={specialTerms}
-          onChange={edit(setSpecialTerms)}
+          onChange={setSpecialTerms}
           maxLength={SPECIAL_TERMS_MAX_LENGTH}
           rows={4}
           placeholder={'The owner pays no platform fee for the first month.\n…'}
@@ -218,14 +213,7 @@ export const ContractTermsDialog: React.FC<TermsDialogProps> = ({ target, onClos
           {isDocument ? 'Nothing is saved.' : 'Preview is watermarked and nothing is saved.'}
         </span>
       </div>
-      {previewHtml !== null && (
-        <iframe
-          title="Contract preview"
-          sandbox=""
-          srcDoc={previewHtml}
-          className="h-[520px] w-full border border-(--admin-border-default) bg-(--admin-surface-card)"
-        />
-      )}
+      {previewHtml !== null && <ContractViewer title="Contract preview" html={previewHtml} onClose={() => setPreviewHtml(null)} />}
     </AdminDialog>
   );
 };
@@ -276,7 +264,7 @@ export const SignContractDialog: React.FC<SignDialogProps> = ({ contract, blocke
       open
       size={640}
       title="Upload signed contract & approve KYB"
-      description="Contract Pending → Signed, KYB Under review → Approved, lot Pending approval → Active (bookable)."
+      description="The contract becomes signed, the KYB review is approved and the lot goes live (bookable)."
       confirmLabel="Sign & approve"
       onClose={onClose}
       onConfirm={confirm}

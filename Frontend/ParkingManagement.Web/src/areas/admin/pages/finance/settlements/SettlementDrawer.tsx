@@ -265,7 +265,7 @@ export const SettlementDrawer: React.FC<{
                   width: 120,
                   render: (l) =>
                     l.blockedReason ? (
-                      <span className="adm-type-body-small text-(--admin-status-warning)" title={blockReasonLabel(l.blockedReason)}>{l.blockedReason}</span>
+                      <span className="adm-type-body-small text-(--admin-status-warning-text)" title={blockReasonLabel(l.blockedReason)}>{l.blockedReason}</span>
                     ) : l.isOwnerCollected ? (
                       <CellMuted>Owner collected</CellMuted>
                     ) : null,

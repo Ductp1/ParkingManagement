@@ -52,7 +52,8 @@ public class JwtAuthenticationSetupTests
         var controllers = typeof(PaymentsController).Assembly.GetTypes()
             .Where(t => typeof(ControllerBase).IsAssignableFrom(t) && !t.IsAbstract && t != typeof(OwnerRevenueReportsController)
                         && t != typeof(AdminCommissionController) && t != typeof(AdminSettlementsController)
-                        && t != typeof(AdminFinancialAdjustmentsController) && t != typeof(OwnerSettlementsController))
+                        && t != typeof(AdminFinancialAdjustmentsController) && t != typeof(OwnerSettlementsController)
+                        && t != typeof(HolidaysController))
             .ToList();
 
         Assert.Contains(typeof(PaymentsController), controllers);
@@ -74,6 +75,19 @@ public class JwtAuthenticationSetupTests
         Assert.Equal("RequireOwner", authorize?.Policy);
         Assert.Null(typeof(OwnerRevenueReportsController).GetCustomAttribute<AllowAnonymousAttribute>());
         Assert.DoesNotContain(typeof(OwnerRevenueReportsController).GetMethods(), m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null);
+    }
+
+    /// <summary>US-071: đọc danh sách ngày lễ vẫn công khai; thêm / xóa chỉ Admin (không có attribute ở cấp class).</summary>
+    [Theory]
+    [InlineData(nameof(HolidaysController.GetAll), null)]
+    [InlineData(nameof(HolidaysController.Create), "RequireAdmin")]
+    [InlineData(nameof(HolidaysController.Delete), "RequireAdmin")]
+    public void HolidaysController_WriteActionsRequireAdmin_ReadStaysPublic(string action, string? expectedPolicy)
+    {
+        Assert.Null(typeof(HolidaysController).GetCustomAttribute<AuthorizeAttribute>(inherit: true));
+        var method = typeof(HolidaysController).GetMethod(action)!;
+        Assert.Equal(expectedPolicy, method.GetCustomAttribute<AuthorizeAttribute>(inherit: true)?.Policy);
+        Assert.Null(method.GetCustomAttribute<AllowAnonymousAttribute>());
     }
 
     [Fact]

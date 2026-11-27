@@ -35,48 +35,32 @@ export const fileUploadApi = {
       throw new Error(`Dung lượng tệp (${formatFileSize(file.size)}) vượt quá giới hạn 10 MB cho phép.`);
     }
 
-    // 2. Thử gọi API upload multipart lên Backend nếu đã sẵn sàng
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('lotId', lotId.toString());
+    // 2. Upload multipart lên ParkingService. BE trả { fileId, documentUrl, originalFileName, sizeBytes, contentType }
+    //    (UploadKybDocumentUseCase). Không còn fallback đọc file thành data URL: chuỗi base64 dài hàng triệu ký tự
+    //    làm BusinessLicenseUrl / FireSafetyCertificateUrl (varchar 512) tràn → nộp hồ sơ lỗi 500 (US-054).
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('lotId', lotId.toString());
 
-      const res = await apiClient.post<{ url: string }>(
-        `/api/v1/parking-lots/${lotId}/kyb/documents/upload`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
-
-      if (res.data?.url) {
-        return {
-          url: res.data.url,
-          fileName: file.name,
-          fileSizeFormatted: formatFileSize(file.size),
-          mimeType: file.type,
-        };
+    const res = await apiClient.post<{ documentUrl?: string; url?: string; contentType?: string }>(
+      `/api/v1/parking-lots/${lotId}/kyb/documents/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       }
-    } catch {
-      // Backend chưa có endpoint upload -> Chuyển sang fallback client-side an toàn
-    }
+    );
 
-    // 3. Fallback Client-Side: Đọc file sang DataURL hoặc Blob URL và chuẩn hóa đường dẫn
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target?.result as string;
-        resolve({
-          url: dataUrl,
-          fileName: file.name,
-          fileSizeFormatted: formatFileSize(file.size),
-          mimeType: file.type,
-        });
-      };
-      reader.onerror = () => reject(new Error('Không thể đọc tệp từ thiết bị.'));
-      reader.readAsDataURL(file);
-    });
+    const url = res.data?.documentUrl ?? res.data?.url;
+    if (!url) {
+      throw new Error('Máy chủ không trả về đường dẫn tài liệu. Vui lòng tải lại tệp.');
+    }
+    return {
+      url,
+      fileName: file.name,
+      fileSizeFormatted: formatFileSize(file.size),
+      mimeType: res.data?.contentType ?? file.type,
+    };
   },
 };

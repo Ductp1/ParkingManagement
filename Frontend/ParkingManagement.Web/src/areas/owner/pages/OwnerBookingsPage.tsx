@@ -29,7 +29,8 @@ import { LotCancelModal } from '../components/bookings/LotCancelModal';
 export const OwnerBookingsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAppSelector((s) => s.auth);
-  const ownerProfileId = user?.id || 2;
+  // OwnerProfile.Id của chủ bãi đang đăng nhập (KHÔNG phải User.Id); 0 = tài khoản không có hồ sơ chủ bãi → API trả lỗi thay vì đọc nhầm tenant khác.
+  const ownerProfileId = user?.ownerProfileId ?? 0;
 
   // Danh sách bãi đỗ
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);

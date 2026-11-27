@@ -845,6 +845,50 @@ namespace NotificationService.Infrastructure.Persistence.Migrations
                             Key = "LOT_REOPENED",
                             Language = "en",
                             TitleTemplate = "Lot {LotName} reopened"
+                        },
+                        new
+                        {
+                            Id = 50,
+                            BodyTemplate = "Nhân viên #{StaffId} chưa bắt đầu ca {StartAt} → {EndAt} tại bãi #{LotId}.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "SHIFT_MISSED",
+                            Language = "vi",
+                            TitleTemplate = "Ca trực chưa bắt đầu"
+                        },
+                        new
+                        {
+                            Id = 51,
+                            BodyTemplate = "Ca #{ShiftId} của nhân viên #{StaffId} tại bãi #{LotId} đã tự đóng: {Reason}.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "SHIFT_AUTO_CLOSED",
+                            Language = "vi",
+                            TitleTemplate = "Ca trực bị đóng tự động"
+                        },
+                        new
+                        {
+                            Id = 52,
+                            BodyTemplate = "Ca #{ShiftId} tại bãi #{LotId} đã kết thúc, chờ đếm tiền và nhận bàn giao.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "SHIFT_HANDOVER_PENDING",
+                            Language = "vi",
+                            TitleTemplate = "Có bàn giao ca chờ nhận"
+                        },
+                        new
+                        {
+                            Id = 53,
+                            BodyTemplate = "Ca #{ShiftId} tại bãi #{LotId} lệch {Amount}. Vui lòng kiểm tra.",
+                            Channel = "InApp",
+                            CreatedAtUtc = new DateTime(2026, 10, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Key = "SHIFT_CASH_DISCREPANCY",
+                            Language = "vi",
+                            TitleTemplate = "Lệch tiền mặt"
                         });
                 });
 

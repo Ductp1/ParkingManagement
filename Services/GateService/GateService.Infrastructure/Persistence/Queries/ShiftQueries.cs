@@ -11,6 +11,6 @@ public sealed class ShiftQueries(GateDbContext db) : IShiftQueries
         => await db.Shifts.AsNoTracking()
             .Where(s => s.StaffUserId == staffUserId && s.Status == ShiftStatus.Open)
             .OrderByDescending(s => s.StartedAtUtc)
-            .Select(s => new ShiftDto(s.Id, s.ParkingLotId, s.StaffUserId, s.StartedAtUtc, s.EndedAtUtc, s.Status.ToString()))
+            .Select(s => new ShiftDto(s.Id, s.ParkingLotId, s.StaffUserId, s.StartedAtUtc ?? s.ScheduledStartUtc, s.EndedAtUtc, s.Status.ToString()))
             .FirstOrDefaultAsync(cancellationToken);
 }

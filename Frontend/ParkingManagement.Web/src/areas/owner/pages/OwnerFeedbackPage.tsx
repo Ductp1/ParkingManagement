@@ -25,7 +25,8 @@ import { ReportReviewModal } from '../components/feedback/ReportReviewModal';
 export const OwnerFeedbackPage: React.FC = () => {
   const { user } = useAppSelector((s) => s.auth);
   // Sử dụng ownerProfileId từ user, nếu không có thì fallback 1 cho môi trường dev test
-  const ownerProfileId = user?.ownerProfileId || user?.id || 1;
+  // OwnerProfile.Id của chủ bãi đang đăng nhập (KHÔNG phải User.Id).
+  const ownerProfileId = user?.ownerProfileId ?? 0;
 
   const [mainTab, setMainTab] = useState<'disputes' | 'reviews'>('disputes');
 

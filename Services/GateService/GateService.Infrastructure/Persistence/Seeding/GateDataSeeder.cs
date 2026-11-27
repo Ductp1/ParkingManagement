@@ -26,7 +26,8 @@ public sealed class GateDataSeeder(ILogger<GateDataSeeder> logger) : IDataSeeder
         var shift = new Shift
         {
             ParkingLotId = DemoIds.LotVincom, OwnerProfileId = DemoIds.OwnerVincom, StaffUserId = DemoIds.StaffVincomUser,
-            StartedAtUtc = yesterday, EndedAtUtc = yesterday.AddHours(8), Status = ShiftStatus.Closed,
+            ScheduledStartUtc = yesterday, ScheduledEndUtc = yesterday.AddHours(8), BusinessDate = Shift.BusinessDateOf(yesterday),
+            StartedAtUtc = yesterday, EndedAtUtc = yesterday.AddHours(8), Status = ShiftStatus.Completed, ClosedReason = ShiftClosedReason.Normal,
             CheckInCount = 1, CheckOutCount = 1, HandoverNote = "Ca sáng bình thường."
         };
         var entry = yesterday.AddHours(1).AddMinutes(5);

@@ -50,7 +50,7 @@ export const IssueAccountDialog: React.FC<IssueAccountDialogProps> = ({ app, onC
       open
       size={640}
       title="Create owner account"
-      description="Under review → Account issued. UserService creates the owner and emails the activation link. Each lot gets its own contract after its KYB is approved."
+      description="The owner account is created and the activation link is emailed. Each lot gets its own contract after its KYB is approved."
       confirmLabel="Create owner account"
       onClose={onClose}
       onConfirm={confirm}

@@ -21,7 +21,7 @@ const isStatus = (v: string): v is LotContractStatus => (STATUSES as string[]).i
 const columns: DataTableColumn<LotContractSummaryDto>[] = [
   { key: 'number', header: 'Contract', width: 150, render: (r) => <CellMono>{r.contractNumber}</CellMono> },
   { key: 'lot', header: 'Lot', render: (r) => <CellTwoLine primary={r.lotName} secondary={`Lot #${r.parkingLotId} · ${r.lotCity}`} /> },
-  { key: 'owner', header: 'Owner', render: (r) => <CellTwoLine primary={r.businessName} secondary={`OwnerProfile #${r.ownerProfileId}`} /> },
+  { key: 'owner', header: 'Owner', render: (r) => <CellTwoLine primary={r.businessName} secondary={`Owner #${r.ownerProfileId}`} /> },
   {
     key: 'terms',
     header: 'Fee / term',
@@ -61,7 +61,7 @@ export const LotContractListPage: React.FC = () => {
   return (
     <ListScreen
       title="Lot Contracts"
-      subtitle={total === null ? '—' : `${formatNumber(total)} contracts`}
+      subtitle={total === null ? undefined : `${formatNumber(total)} contracts`}
       filters={
         <FilterColumn>
           <FilterPanel

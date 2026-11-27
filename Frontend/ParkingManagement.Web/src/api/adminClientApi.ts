@@ -3,20 +3,30 @@ import { apiClient } from './client';
 import type { ProblemDetails } from '@/types/common';
 
 /**
- * Lỗi API của Admin Portal: giữ lại HTTP status để màn hình phân biệt 403 (No permission),
- * 404/405/501 (endpoint chưa có) và lỗi khác. status = 0 khi không kết nối được Gateway.
+ * Lỗi API của Admin Portal: giữ lại HTTP status để màn hình phân biệt 401 (hết phiên), 403 (No permission),
+ * 404 (không tìm thấy / endpoint chưa có) và lỗi khác. status = 0 + network = true khi không kết nối được.
  */
 export class AdminApiError extends Error {
   readonly status: number;
   readonly problem: ProblemDetails | null;
+  /** true khi request không tới được server (mất mạng, Gateway không chạy). */
+  readonly network: boolean;
 
-  constructor(status: number, message: string, problem: ProblemDetails | null = null) {
+  constructor(status: number, message: string, problem: ProblemDetails | null = null, network = false) {
     super(message);
     this.name = 'AdminApiError';
     this.status = status;
     this.problem = problem;
+    this.network = network;
   }
 }
+
+/** Nơi Admin Portal đăng ký xử lý 401 (xóa phiên + về trang đăng nhập); null = không làm gì (test, ngoài admin). */
+let unauthorizedHandler: (() => void) | null = null;
+
+export const setAdminUnauthorizedHandler = (handler: (() => void) | null): void => {
+  unauthorizedHandler = handler;
+};
 
 const isProblemDetails = (data: unknown): data is ProblemDetails =>
   typeof data === 'object' && data !== null && ('title' in data || 'detail' in data || 'errors' in data);
@@ -41,10 +51,11 @@ export const adminRequest = async <T>(config: AxiosRequestConfig): Promise<T> =>
   try {
     response = await apiClient.request<unknown>({ ...config, validateStatus: () => true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Không thể kết nối đến API Gateway.';
-    throw new AdminApiError(0, message);
+    const message = err instanceof Error ? err.message : 'Could not reach the server.';
+    throw new AdminApiError(0, message, null, true);
   }
   if (response.status >= 200 && response.status < 300) return response.data as T;
+  if (response.status === 401) unauthorizedHandler?.();
   const problem = isProblemDetails(response.data) ? response.data : null;
   throw new AdminApiError(response.status, messageFrom(problem, response.status), problem);
 };
@@ -66,7 +77,7 @@ export const adminFileRequest = async (config: AxiosRequestConfig): Promise<{ bl
   try {
     response = await apiClient.request<Blob>({ ...config, responseType: 'blob', validateStatus: () => true });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Không thể kết nối đến API Gateway.';
+    const message = err instanceof Error ? err.message : 'Could not reach the server.';
     throw new AdminApiError(0, message);
   }
   if (response.status >= 200 && response.status < 300) {

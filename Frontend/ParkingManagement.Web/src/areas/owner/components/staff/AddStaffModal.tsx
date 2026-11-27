@@ -1,215 +1,83 @@
-import React, { useState } from 'react';
-import { X, UserPlus, Mail, User, Building2, AlertCircle, Info, Loader2 } from 'lucide-react';
-import type { OwnerLotOptionDto, CreateStaffRequest } from '@/api/ownerStaffApi';
+import { useState, type FormEvent } from 'react';
+import { ownerStaffApi, type OwnerLotOptionDto, type StaffItemDto } from '@/api/ownerStaffApi';
+import { errorCode, errorStatus, errorText, lotStatusLabel } from '@/features/shifts/format';
+import { Banner, Button, Field, Modal, ModalActions, inputClass } from '@/features/shifts/ui';
 
 interface AddStaffModalProps {
-  isOpen: boolean;
-  onClose: () => void;
   lots: OwnerLotOptionDto[];
-  onSubmit: (data: CreateStaffRequest) => Promise<void>;
+  defaultLotId?: number;
+  onClose: () => void;
+  onInvited: (item: StaffItemDto) => void;
 }
 
-export const AddStaffModal: React.FC<AddStaffModalProps> = ({
-  isOpen,
-  onClose,
-  lots,
-  onSubmit,
-}) => {
+/** Lỗi thuộc về email (Figma Owner 03, 07, 08, 09) – hiện ngay dưới ô email. */
+const EMAIL_CODES = ['STAFF_EMAIL_HAS_ACCOUNT', 'STAFF_EMAIL_OTHER_OWNER', 'STAFF_ALREADY_ASSIGNED', 'STAFF_EMAIL_REQUIRED'];
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function AddStaffModal({ lots, defaultLotId, onClose, onInvited }: AddStaffModalProps) {
   const [fullName, setFullName] = useState('');
-  const [contact, setContact] = useState('');
-  const [parkingLotId, setParkingLotId] = useState<number | ''>(lots[0]?.id ?? '');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState('');
+  const [lotId, setLotId] = useState(defaultLotId ?? lots[0]?.id ?? 0);
+  const [busy, setBusy] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const [failure, setFailure] = useState<unknown>(null);
 
-  if (!isOpen) return null;
+  const nameError = touched && !fullName.trim() ? 'Hãy nhập họ và tên nhân viên.' : null;
+  const emailInvalid = touched && !EMAIL.test(email.trim()) ? 'Hãy nhập email hợp lệ của nhân viên.' : null;
+  const emailApiError = failure && EMAIL_CODES.includes(errorCode(failure) ?? '') ? errorText(failure) : null;
+  const unavailable = errorStatus(failure) === 503;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fullName.trim()) {
-      setError('Vui lòng nhập họ và tên nhân viên.');
-      return;
-    }
-    if (!contact.trim()) {
-      setError('Vui lòng nhập địa chỉ email của nhân viên.');
-      return;
-    }
-    if (!parkingLotId) {
-      setError('Vui lòng chọn bãi đỗ xe để phân công.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setTouched(true);
+    if (busy || !fullName.trim() || !EMAIL.test(email.trim()) || !lotId) return;
+    setBusy(true);
+    setFailure(null);
     try {
-      await onSubmit({
-        fullName: fullName.trim(),
-        contact: contact.trim(),
-        parkingLotId: Number(parkingLotId),
-      });
-      setFullName('');
-      setContact('');
-      onClose();
-    } catch (err: unknown) {
-      const apiErr = err as { response?: { data?: { detail?: string; message?: string } }; message?: string };
-      setError(
-        apiErr?.response?.data?.detail ||
-        apiErr?.response?.data?.message ||
-        apiErr?.message ||
-        'Không thể thêm nhân viên. Vui lòng thử lại.'
-      );
-    } finally {
-      setLoading(false);
+      onInvited(await ownerStaffApi.createStaff({ fullName: fullName.trim(), contact: email.trim(), parkingLotId: lotId }));
+    } catch (error) {
+      setFailure(error);
+      setBusy(false);
     }
-  };
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fade-in">
-      <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
-              <UserPlus size={18} />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Thêm nhân viên trực cổng</h3>
-              <p className="text-xs text-slate-500">Cấp quyền vận hành barie và soát vé tại bãi</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {error && (
-            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5">
-              <AlertCircle size={16} className="shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-100 text-blue-900 text-xs flex items-start gap-2.5 leading-relaxed">
-            <Info size={16} className="shrink-0 mt-0.5 text-blue-600" />
-            <div>
-              <strong>Quy trình cấp tài khoản:</strong> Nhân viên mới sẽ nhận được email hướng dẫn kích hoạt kèm mật khẩu tạm thời. Nếu nhân viên đã từng làm việc tại bãi khác của bạn, họ sẽ nhận thêm quyền tại bãi này sau khi đăng nhập lại.
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Họ và tên nhân viên <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                required
-                maxLength={150}
-                disabled={loading}
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Ví dụ: Nguyễn Văn An"
-                className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all text-slate-900 placeholder:text-slate-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Email nhân viên <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="email"
-                required
-                maxLength={256}
-                disabled={loading}
-                value={contact}
-                onChange={(e) => setContact(e.target.value)}
-                placeholder="nhanvien@example.com"
-                className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all text-slate-900 placeholder:text-slate-400"
-              />
-            </div>
-            <p className="text-[11px] text-slate-400 mt-1">Thông tin tài khoản đăng nhập sẽ được gửi tới địa chỉ email này.</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Bãi đỗ xe phân công <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <Building2 size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              {lots.length > 0 ? (
-                <select
-                  required
-                  disabled={loading}
-                  value={parkingLotId}
-                  onChange={(e) => setParkingLotId(Number(e.target.value))}
-                  className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all text-slate-900 bg-white"
-                >
-                  <option value="" disabled>-- Chọn bãi đỗ xe --</option>
-                  {lots.map((lot) => (
-                    <option key={lot.id} value={lot.id}>
-                      {lot.name ? `${lot.name} (Mã bãi: #${lot.id})` : `Bãi đỗ #${lot.id}`}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  disabled={loading}
-                  value={parkingLotId}
-                  onChange={(e) => setParkingLotId(e.target.value ? Number(e.target.value) : '')}
-                  placeholder="Nhập mã ID bãi xe"
-                  className="w-full pl-10 pr-3 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all text-slate-900 placeholder:text-slate-400"
-                />
-              )}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
-            >
-              Hủy bỏ
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-sm transition-all disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  Đang thêm...
-                </>
-              ) : (
-                <>
-                  <UserPlus size={15} />
-                  Thêm & Phân công
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal busy={busy} onClose={onClose}
+      title={!failure ? 'Mời nhân viên' : unavailable ? 'Chưa thể gửi lời mời' : 'Không thể gửi lời mời'}
+      subtitle={!failure ? 'Nhân viên nhận link kích hoạt để tự đặt mật khẩu. Link có hiệu lực 72 giờ.'
+        : unavailable ? 'Không tạo tài khoản mới khi hệ thống chưa thể gửi email.'
+          : 'Thông tin nhân viên được giữ lại để bạn chỉnh sửa.'}>
+      <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+        {failure != null && !emailApiError && (
+          <Banner tone="danger" title={unavailable ? 'Dịch vụ chưa sẵn sàng' : 'Chưa gửi được lời mời'}>
+            {errorText(failure)} Thông tin nhân viên được giữ lại để bạn không cần nhập lại.
+          </Banner>
+        )}
+        <Field label="Họ và tên" required error={nameError}>
+          <input className={inputClass} value={fullName} maxLength={150} disabled={busy} aria-invalid={!!nameError}
+            placeholder="Ví dụ: Nguyễn Văn Bình" onChange={(e) => setFullName(e.target.value)} />
+        </Field>
+        <Field label="Email nhân viên" required error={emailInvalid ?? emailApiError}
+          hint="Dùng email riêng chưa thuộc tài khoản Tài xế hoặc Chủ bãi.">
+          <input className={inputClass} type="email" value={email} maxLength={256} disabled={busy}
+            aria-invalid={!!(emailInvalid ?? emailApiError)} placeholder="nhanvien@example.com"
+            onChange={(e) => { setEmail(e.target.value); setFailure(null); }} />
+        </Field>
+        <Field label="Phân công tại bãi" required>
+          <select className={inputClass} value={lotId} disabled={busy} onChange={(e) => { setLotId(Number(e.target.value)); setFailure(null); }}>
+            {lots.map((lot) => (
+              <option key={lot.id} value={lot.id}>{lot.name ?? `Bãi #${lot.id}`} · {lotStatusLabel(lot.status)}</option>
+            ))}
+          </select>
+        </Field>
+        <Banner tone="info" title="Một nhân viên — một chủ bãi">
+          Có thể gán thêm bãi cho nhân viên đã thuộc chủ bãi của bạn.
+        </Banner>
+        <ModalActions>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>{unavailable ? 'Đóng' : 'Hủy'}</Button>
+          <Button type="submit" busy={busy}>{!failure ? 'Gửi lời mời' : unavailable ? 'Thử lại' : 'Gửi lại'}</Button>
+        </ModalActions>
+      </form>
+    </Modal>
   );
-};
+}

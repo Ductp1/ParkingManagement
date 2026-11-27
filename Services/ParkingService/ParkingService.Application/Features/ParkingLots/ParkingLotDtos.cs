@@ -45,7 +45,11 @@ public sealed record ParkingLotSearchItemDto(
     int RatingCount = 0,
     IReadOnlyList<string>? Amenities = null);
 
-/// <summary>DTO bãi đỗ xe hiển thị trên danh sách của chủ bãi (Owner Portal) – US-068 thêm độ tươi dữ liệu.</summary>
+/// <summary>
+/// DTO bãi đỗ xe hiển thị trên danh sách của chủ bãi (Owner Portal) – US-068 thêm độ tươi dữ liệu.
+/// US-054: Latitude / Longitude là tọa độ đã đăng ký của bãi, Owner Portal dùng làm mốc kiểm tra GPS ảnh KYB (≤ 500 m)
+/// giống <c>SubmitKybApplicationUseCase</c>. Đặt cuối, có mặc định để không làm vỡ chỗ gọi khác.
+/// </summary>
 public sealed record OwnerParkingLotItemDto(
     int Id,
     string Name,
@@ -59,7 +63,9 @@ public sealed record OwnerParkingLotItemDto(
     string OpeningHours,
     DateTime CreatedAtUtc,
     DateTime? LastHeartbeatAtUtc = null,
-    bool IsDataStale = false);
+    bool IsDataStale = false,
+    double Latitude = 0,
+    double Longitude = 0);
 
 /// <summary>Lệnh đăng ký bãi đỗ xe mới (US-053).</summary>
 public sealed record CreateParkingLotCommand(
@@ -177,7 +183,9 @@ public static class ParkingLotMapper
         lot.OpenTime == lot.CloseTime ? "24/7" : $"{lot.OpenTime:HH\\:mm} - {lot.CloseTime:HH\\:mm}",
         lot.CreatedAtUtc,
         lot.LastHeartbeatAtUtc,
-        lot.IsDataStale);
+        lot.IsDataStale,
+        lot.Latitude,
+        lot.Longitude);
 
     public static ParkingLotHierarchyDto ToHierarchyDto(this ParkingLot lot) => new(
         lot.Id,

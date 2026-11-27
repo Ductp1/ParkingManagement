@@ -35,6 +35,7 @@ public static class DependencyInjection
         {
             c.BaseAddress = new Uri(configuration["Services:ParkingService"] ?? "http://localhost:5103/");
             c.Timeout = TimeSpan.FromSeconds(10);
+            UseInternalKey(c, configuration["Services:ParkingService:ApiKey"]);
         });
         // US-091: bãi hết chỗ – lưu sự cố + Outbox; tìm bãi thay thế bằng API có sẵn của ParkingService (chỉ đọc).
         services.AddScoped<ILotFullIncidentRepository, LotFullIncidentRepository>();
@@ -54,8 +55,15 @@ public static class DependencyInjection
         {
             c.BaseAddress = new Uri(configuration["Services:GateService"] ?? "http://localhost:5107/");
             c.Timeout = TimeSpan.FromSeconds(10);
+            UseInternalKey(c, configuration["Services:GateService:ApiKey"]);
         });
         services.AddScoped<IDataSeeder<SupportDbContext>, SupportDataSeeder>();
         return services;
+    }
+
+    /// <summary>Khóa nội bộ của SupportService (bằng InternalEvents:ApiKeys:SupportService bên nhận), chỉ đặt qua biến môi trường.</summary>
+    private static void UseInternalKey(HttpClient client, string? key)
+    {
+        if (!string.IsNullOrWhiteSpace(key)) client.DefaultRequestHeaders.Authorization = new("Bearer", key);
     }
 }

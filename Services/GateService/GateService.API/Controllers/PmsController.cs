@@ -1,3 +1,6 @@
+using ParkingManagement.SharedKernel.Exceptions;
+using Microsoft.AspNetCore.Authorization;
+using GateService.Application.Features.Shifts;
 using GateService.Application.Features.PmsIntegration;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,11 +11,14 @@ namespace GateService.API.Controllers;
 /// Controller chỉ điều hướng HTTP → Use case, không chứa nghiệp vụ.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/gate/pms")]
 public sealed class PmsController(
     IProcessPmsEventUseCase processEvent,
     IListQuarantinedPmsEventsUseCase listQuarantined,
-    IResolveQuarantinedPmsEventUseCase resolveQuarantined) : ControllerBase
+    IResolveQuarantinedPmsEventUseCase resolveQuarantined,
+    IPmsQuarantineStore quarantine,
+    GateAccess access) : ControllerBase
 {
     public const string ApiKeyHeader = "X-Api-Key";
 
@@ -24,6 +30,7 @@ public sealed class PmsController(
     /// 401 = key sai; 403 = key không thuộc bãi; 503 = lỗi tạm thời → PMS retry cùng eventId.
     /// </summary>
     [HttpPost("events")]
+    [AllowAnonymous] // PMS xác thực bằng X-Api-Key, không phải JWT.
     [ProducesResponseType<PmsEventResultDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -38,10 +45,14 @@ public sealed class PmsController(
     [ProducesResponseType<IReadOnlyList<PmsUnmatchedEventDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<PmsUnmatchedEventDto>>> ListQuarantine(
         [FromQuery] int? parkingLotId, CancellationToken cancellationToken)
-        => Ok(await listQuarantined.ExecuteAsync(parkingLotId, cancellationToken));
+    {
+        if (parkingLotId is { } lotId) await access.RequireReadAsync(lotId, cancellationToken);
+        else if (!access.IsAdmin) return BadRequest(new ProblemDetails { Title = "Dữ liệu không hợp lệ", Detail = "parkingLotId là bắt buộc." });
+        return Ok(await listQuarantined.ExecuteAsync(parkingLotId, cancellationToken));
+    }
 
     /// <summary>
-    /// POST /api/v1/gate/pms/quarantine/{id}/resolve – Body: { staffUserId, note?, discard? }.
+    /// POST /api/v1/gate/pms/quarantine/{id}/resolve – Body: { note?, discard? }.
     /// Staff đánh dấu đã xử lý tay (Handled) hoặc bỏ qua (Discarded); xử lý rồi → 409.
     /// </summary>
     [HttpPost("quarantine/{id:int}/resolve")]
@@ -50,5 +61,9 @@ public sealed class PmsController(
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<PmsUnmatchedEventDto>> ResolveQuarantine(
         int id, [FromBody] ResolveQuarantinedPmsEventCommand command, CancellationToken cancellationToken)
-        => Ok(await resolveQuarantined.ExecuteAsync(id, command, cancellationToken));
+    {
+        var item = await quarantine.FindByIdAsync(id, cancellationToken) ?? throw new NotFoundException("Sự kiện PMS hàng chờ", id);
+        await access.RequireActiveShiftAsync(item.ParkingLotId, cancellationToken);
+        return Ok(await resolveQuarantined.ExecuteAsync(id, command with { StaffUserId = access.UserId }, cancellationToken));
+    }
 }

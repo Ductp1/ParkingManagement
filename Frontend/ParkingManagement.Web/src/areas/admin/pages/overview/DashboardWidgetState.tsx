@@ -6,65 +6,41 @@ import { KpiTile } from '../../components/KpiTile';
 import { formatClockIct, formatNumber } from '../../utils/format';
 import { DashboardRetryContext } from './dashboardRetry';
 import type { DashboardWidget } from './dashboardTypes';
+import { isHiddenWidget } from './dashboardFormat';
 
-/** Widget lỗi nguồn: nút "Thử lại" (dùng cho ghi chú dòng / KPI / bảng). */
-const RetryButton: React.FC<{ source: string }> = ({ source }) => {
+/** Nút "Retry" của widget lỗi nguồn – gọi lại toàn bộ overview. */
+const RetryButton: React.FC<{ label: string }> = ({ label }) => {
   const retry = useContext(DashboardRetryContext);
   return (
     <button
       type="button"
       onClick={retry}
-      aria-label={`Thử lại – tải lại số liệu từ ${source}`}
-      className="adm-type-link-small adm-tr-colors rounded-[2px] px-1 text-(--admin-brand-navy-900) underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--admin-brand-navy-900)"
+      aria-label={`Retry loading ${label}`}
+      className="adm-type-link-small adm-tr-colors rounded-[2px] px-1 text-(--admin-brand-navy-900) underline-offset-2 hover:underline"
     >
-      Thử lại
+      Retry
     </button>
   );
 };
 
-/**
- * Ghi chú cho widget không có số. no_source: "Chưa có nguồn dữ liệu · {Source}" (màu phụ); source_error: "{Source} không phản hồi"
- * (màu lỗi) + "Thử lại". Lý do chi tiết (Detail) ở tooltip và mở rộng được bằng bàn phím ("Chi tiết").
- */
-export const WidgetUnavailableNote: React.FC<{ widget: DashboardWidget<unknown> }> = ({ widget }) => {
-  const isError = widget.reason === 'source_error';
-  return (
-    <span className="adm-motion-fade flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5" data-widget-state={widget.reason ?? 'unavailable'}>
-      <span
-        title={widget.detail ?? undefined}
-        className={`adm-type-body-small ${isError ? 'text-(--admin-status-danger)' : 'text-(--admin-text-secondary)'}`}
-      >
-        {isError ? `${widget.source} không phản hồi` : `Chưa có nguồn dữ liệu · ${widget.source}`}
-      </span>
-      {widget.detail && (
-        <details className="adm-type-body-small text-(--admin-text-secondary)">
-          <summary className="cursor-pointer rounded-[2px] focus-visible:outline-2 focus-visible:outline-(--admin-brand-navy-900)">Chi tiết</summary>
-          <span className="block max-w-[420px]">{widget.detail}</span>
-        </details>
-      )}
-      {isError && <RetryButton source={widget.source} />}
-    </span>
-  );
-};
+/** Ghi chú cho widget nguồn lỗi: "Couldn't load" (màu lỗi) + "Retry". Widget chưa có nguồn đã bị ẩn trước khi tới đây. */
+export const WidgetUnavailableNote: React.FC<{ widget: DashboardWidget<unknown>; label: string }> = ({ widget, label }) => (
+  <span className="adm-motion-fade flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5" data-widget-state={widget.reason ?? 'unavailable'}>
+    <span className="adm-type-body-small text-(--admin-status-danger)">Couldn&apos;t load</span>
+    <RetryButton label={label} />
+  </span>
+);
 
-/** "Cập nhật 14:02" theo giờ ICT của số liệu (AsOfUtc của nguồn). */
+/** "Updated 14:02" theo giờ ICT của số liệu (AsOfUtc của nguồn). */
 export const AsOfNote: React.FC<{ asOfUtc: string | null }> = ({ asOfUtc }) =>
-  asOfUtc ? <span className="adm-type-body-small text-(--admin-text-secondary)">Cập nhật {formatClockIct(asOfUtc)}</span> : null;
+  asOfUtc ? <span className="adm-type-body-small text-(--admin-text-secondary)">Updated {formatClockIct(asOfUtc)}</span> : null;
 
-/** Thân bảng / panel cho widget chưa có nguồn hoặc nguồn lỗi (không vẽ dữ liệu mẫu, không hiện 0). */
-export const WidgetTablePlaceholder: React.FC<{ widget: DashboardWidget<unknown> }> = ({ widget }) => {
+/** Thân bảng / panel khi nguồn lỗi: ErrorState + Retry (không vẽ dữ liệu mẫu, không hiện 0). */
+export const WidgetTablePlaceholder: React.FC<{ widget: DashboardWidget<unknown>; label: string }> = ({ widget, label }) => {
   const retry = useContext(DashboardRetryContext);
-  const isError = widget.reason === 'source_error';
   return (
     <div data-widget-state={widget.reason ?? 'unavailable'}>
-      <StateBlock
-        type={isError ? 'error' : 'unavailable'}
-        bare
-        title={isError ? `${widget.source} không phản hồi` : `Chưa có nguồn dữ liệu · ${widget.source}`}
-        message={widget.detail ?? undefined}
-        onRetry={isError ? retry : undefined}
-        retryLabel="Thử lại"
-      />
+      <StateBlock type="error" bare title={`Couldn't load ${label.toLowerCase()}`} message="The data source did not respond. Try again." onRetry={retry} />
     </div>
   );
 };
@@ -81,8 +57,9 @@ interface KpiWidgetProps<T> {
   to?: string;
 }
 
-/** KPI tile theo 3 trạng thái: có số (count-up + "Cập nhật HH:mm") / chưa có nguồn / lỗi nguồn (muted "—", không bao giờ 0). */
+/** KPI tile: có số (count-up + "Updated HH:mm") / lỗi nguồn (muted "—" + Retry, không bao giờ 0) / chưa có nguồn (ẩn). */
 export const KpiWidget = <T,>({ label, widget, count, format = formatNumber, detail, to }: KpiWidgetProps<T>) => {
+  if (isHiddenWidget(widget)) return null;
   const value = widget?.status === 'available' ? widget.value : null;
   const number = value !== null ? count(value) : null;
   const note =
@@ -93,13 +70,13 @@ export const KpiWidget = <T,>({ label, widget, count, format = formatNumber, det
           <AsOfNote asOfUtc={widget.asOfUtc} />
           {to && (
             <Link to={to} className="adm-type-link-small text-(--admin-brand-navy-900) hover:underline focus-visible:outline-2 focus-visible:outline-(--admin-brand-navy-900)">
-              Xem chi tiết →
+              View details →
             </Link>
           )}
         </span>
       </span>
     ) : (
-      <WidgetUnavailableNote widget={widget} />
+      <WidgetUnavailableNote widget={widget} label={label} />
     );
   return (
     <div className="flex min-w-[220px] flex-1" data-testid={`kpi-${label}`}>
@@ -129,10 +106,11 @@ interface QueueRowProps<T> {
 }
 
 /**
- * Một dòng hàng đợi / governance (Figma "Work queues"). Có số → count-up lần đầu + giờ cập nhật; chưa có nguồn / lỗi → "—" + ghi chú
- * nguồn (+ "Thử lại" khi lỗi), KHÔNG hiện 0 giả. widget = null khi cả dashboard đang tải lần đầu.
+ * Một dòng hàng đợi / governance (Figma "Work queues"). Có số → count-up lần đầu + giờ cập nhật; nguồn lỗi → "—" + "Retry",
+ * KHÔNG hiện 0 giả; chưa có nguồn → ẩn dòng. widget = null khi cả dashboard đang tải lần đầu.
  */
 export const QueueRow = <T,>({ label, to, widget, count, detail, urgent }: QueueRowProps<T>) => {
+  if (isHiddenWidget(widget)) return null;
   const value = widget?.status === 'available' ? widget.value : null;
   const sub = value !== null && detail ? detail(value) : null;
   const isUrgent = value !== null && urgent?.(value) === true;
@@ -160,7 +138,7 @@ export const QueueRow = <T,>({ label, to, widget, count, detail, urgent }: Queue
             <AsOfNote asOfUtc={widget.asOfUtc} />
           </span>
         ) : (
-          <WidgetUnavailableNote widget={widget} />
+          <WidgetUnavailableNote widget={widget} label={label} />
         )}
       </span>
       <span

@@ -61,6 +61,15 @@ public interface IParkingServiceClient
     Task<int> CountKybApplicationsAsync(string status, CancellationToken cancellationToken);
 }
 
+// ===== PORT: PaymentService (qua Gateway) =====
+
+/// <summary>US-055 AC2: bãi chỉ được duyệt khi có bảng giá. Không gọi được PaymentService → DependencyUnavailableException (503).</summary>
+public interface IRateCardLookup
+{
+    /// <summary>True khi bãi có bảng giá đang hiệu lực tại <paramref name="atUtc"/> (cùng điều kiện PaymentService dùng để báo giá).</summary>
+    Task<bool> HasActiveRateCardAsync(int parkingLotId, DateTime atUtc, CancellationToken cancellationToken);
+}
+
 // ===== PORT (ghi) =====
 
 public interface ILotContractRepository

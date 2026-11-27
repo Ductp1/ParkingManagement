@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { NotificationDto, NotificationInboxDto } from '@/types/notification';
 import type { AdminQueryResult } from '../hooks/useAdminQuery';
 import { QueryState } from '../components/PageLayout';
@@ -8,10 +9,29 @@ interface NotificationPanelProps {
   inbox: AdminQueryResult<NotificationInboxDto>;
   onRead: (n: NotificationDto) => void;
   onReadAll: () => void;
+  onClose: () => void;
 }
 
+/** Màn Admin mà thông báo trỏ tới (dataJson.adminPath). Chỉ nhận đường dẫn trong /admin/. */
+const adminPathOf = (n: NotificationDto): string | null => {
+  try {
+    const path = (JSON.parse(n.dataJson ?? '') as { adminPath?: unknown } | null)?.adminPath;
+    return typeof path === 'string' && path.startsWith('/admin/') ? path : null;
+  } catch {
+    return null;
+  }
+};
+
 /** Shell/Notification panel (Figma 142:334): dropdown 360 dưới chuông – InApp Notifications của admin. */
-export const NotificationPanel: React.FC<NotificationPanelProps> = ({ inbox, onRead, onReadAll }) => {
+export const NotificationPanel: React.FC<NotificationPanelProps> = ({ inbox, onRead, onReadAll, onClose }) => {
+  const navigate = useNavigate();
+  const open = (n: NotificationDto) => {
+    onRead(n);
+    const path = adminPathOf(n);
+    if (!path) return;
+    onClose();
+    navigate(path);
+  };
   const items = inbox.data?.items.items ?? [];
   return (
     <div className="adm-dropdown absolute top-10 right-0 z-40 flex w-[360px] flex-col rounded-[4px] border border-(--admin-border-default) bg-(--admin-surface-card) shadow-[0_4px_12px_rgb(0_0_0/0.12)]">
@@ -29,7 +49,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({ inbox, onR
             <button
               key={n.id}
               type="button"
-              onClick={() => onRead(n)}
+              onClick={() => open(n)}
               className={`flex w-full gap-2.5 border-b border-(--admin-border-default) px-3 py-2.5 text-left last:border-b-0 ${n.isRead ? '' : 'bg-(--admin-surface-selected)'}`}
             >
               <span className={`mt-1.5 size-2 shrink-0 rounded-full ${n.isRead ? 'bg-(--admin-border-default)' : 'bg-(--admin-brand-navy-900)'}`} />

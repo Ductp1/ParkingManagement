@@ -5,7 +5,11 @@ import type {
   AdminUserDto,
   AdminUserListQuery,
   AdminUserSummaryDto,
+  DeleteUserRequest,
   LockOwnerRequest,
+  ReactivateUserRequest,
+  SuspendUserRequest,
+  UserLifecycleResultDto,
   SanctionDto,
   UnlockOwnerRequest,
 } from '@/types/adminUsers';
@@ -36,6 +40,18 @@ export const adminUsersApi = {
       url: `/api/v1/admin/owners/${ownerProfileId}/sanctions`,
       params: { page, pageSize },
     }),
+
+  /** Đình chỉ user (US-096): lý do bắt buộc; lockedUntilUtc = null là vô thời hạn. Chủ bãi dùng lockOwner. */
+  suspendUser: (userId: number, data: SuspendUserRequest) =>
+    adminRequest<UserLifecycleResultDto>({ method: 'POST', url: `/api/v1/admin/users/${userId}/suspend`, data }),
+
+  /** Mở lại user đang bị đình chỉ. */
+  reactivateUser: (userId: number, data: ReactivateUserRequest) =>
+    adminRequest<UserLifecycleResultDto>({ method: 'POST', url: `/api/v1/admin/users/${userId}/reactivate`, data }),
+
+  /** Xóa (ẩn danh hóa) user – không hoàn tác; còn nghĩa vụ → 409 liệt kê lý do. */
+  deleteUser: (userId: number, data: DeleteUserRequest) =>
+    adminRequest<UserLifecycleResultDto>({ method: 'POST', url: `/api/v1/admin/users/${userId}/delete`, data }),
 
   /**
    * Khóa chủ bãi (US-096): lưu Sanction + AuditLog rồi yêu cầu UserService khóa.

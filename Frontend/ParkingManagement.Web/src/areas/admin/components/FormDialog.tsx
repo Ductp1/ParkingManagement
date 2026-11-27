@@ -36,9 +36,7 @@ interface FormDialogProps {
   spec: FormDialogSpec;
   open: boolean;
   onClose: () => void;
-  /** Không truyền = chưa có endpoint: form vẫn kiểm tra dữ liệu nhưng nút gửi bị khóa. */
-  onSubmit?: (values: FormValues) => Promise<void>;
-  unavailableNote?: string;
+  onSubmit: (values: FormValues) => Promise<void>;
 }
 
 const initialValue = (f: FormFieldSpec): FieldValue => (f.kind === 'toggle' ? false : f.kind === 'upload' ? null : '');
@@ -59,8 +57,8 @@ const validateFields = (fields: FormFieldSpec[], values: FormValues): Record<str
   return errors;
 };
 
-/** Dialog tạo/sửa dựng từ cấu hình field – dùng cho các màn mà backend chưa có endpoint ghi. */
-export const FormDialog: React.FC<FormDialogProps> = ({ spec, open, onClose, onSubmit, unavailableNote }) => {
+/** Dialog tạo/sửa dựng từ cấu hình field (luôn có thao tác gửi thật – không còn form khóa nút gửi). */
+export const FormDialog: React.FC<FormDialogProps> = ({ spec, open, onClose, onSubmit }) => {
   const [values, setValues] = useState<FormValues>(() => Object.fromEntries(spec.fields.map((f) => [f.key, initialValue(f)])));
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
@@ -137,10 +135,8 @@ export const FormDialog: React.FC<FormDialogProps> = ({ spec, open, onClose, onS
       onConfirm={confirm}
       confirmLabel={spec.confirmLabel}
       destructive={spec.destructive}
-      confirmDisabled={!onSubmit}
       submitting={submitting}
       error={apiError}
-      footerNote={onSubmit ? undefined : unavailableNote ?? 'No backend endpoint yet — changes cannot be saved.'}
     >
       {rows.map((row) => (
         <div key={row.map((f) => f.key).join('-')} className={row.length > 1 ? 'grid grid-cols-2 gap-3' : ''}>

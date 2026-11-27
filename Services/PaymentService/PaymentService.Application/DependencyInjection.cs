@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<IGetPaymentsByBookingUseCase, GetPaymentsByBookingUseCase>();
         // UC-22: chốt phí lượt gửi tại cổng ra + ghi thanh toán tiền mặt do staff xác nhận.
         services.AddScoped<IComputeSessionFeeUseCase, ComputeSessionFeeUseCase>();
+        services.AddScoped<PaymentService.Application.Features.IGateSettlementQueries, PaymentService.Application.Features.GateSettlementQueries>();
         services.AddScoped<IRecordGateSettlementUseCase, RecordGateSettlementUseCase>();
         // US-047: Tính phí phụ thu quá giờ độc lập
         services.AddScoped<ICalculateOverstayPenaltyUseCase, CalculateOverstayPenaltyUseCase>();

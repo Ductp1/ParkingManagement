@@ -39,6 +39,8 @@ public sealed class PartnerApplicationQueries(AdminDbContext db) : IPartnerAppli
             .Select(a => new
             {
                 a.Status,
+                a.RowVersion,
+                a.InfoRequestItemsJson,
                 Dto = new PartnerApplicationDetailDto(a.Id, a.Code, a.Status.ToString(), a.FullName, a.Email, a.Phone, a.Position,
                     a.BusinessType.ToString(), a.BusinessName, a.TaxCode, a.BusinessAddress, a.LegalRepresentativeName,
                     a.LegalRepresentativePosition, a.BusinessLicenseUrl, a.LotCount, a.PrimaryLotAddress, a.EstimatedCarSlots,
@@ -47,12 +49,22 @@ public sealed class PartnerApplicationQueries(AdminDbContext db) : IPartnerAppli
                     a.PayoutBankBin == null
                         ? null
                         : new PartnerBankAccountDto(a.PayoutBankBin, a.PayoutBankName!, a.PayoutBankAccountNumber!, a.PayoutBankAccountName!),
-                    a.CreatedUserId, a.CreatedOwnerProfileId, a.CreatedAtUtc, a.UpdatedAtUtc, new List<string>()),
+                    a.CreatedUserId, a.CreatedOwnerProfileId, a.CreatedAtUtc, a.UpdatedAtUtc, new List<string>(),
+                    null, a.CancelledAtUtc, a.CleanupSyncStatus.ToString(), a.CleanupError, null, a.InfoRequestedAtUtc,
+                    a.InfoRequestDueAtUtc, a.InfoProvidedAtUtc, a.InfoRequestEmailStatus.ToString(), a.InfoRequestEmailError),
             })
             .FirstOrDefaultAsync(cancellationToken);
 
         return row is null
             ? null
-            : row.Dto with { NextStatuses = PartnerApplication.NextStatuses(row.Status).Select(s => s.ToString()).ToList() };
+            : row.Dto with
+            {
+                NextStatuses = PartnerApplication.NextStatuses(row.Status).Select(s => s.ToString()).ToList(),
+                // byte[] / JSON không dịch được sang SQL → đổi ở bộ nhớ.
+                RowVersion = Convert.ToBase64String(row.RowVersion),
+                InfoRequestItems = string.IsNullOrEmpty(row.InfoRequestItemsJson)
+                    ? []
+                    : System.Text.Json.JsonSerializer.Deserialize<List<string>>(row.InfoRequestItemsJson) ?? [],
+            };
     }
 }

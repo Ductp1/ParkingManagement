@@ -1,7 +1,10 @@
+using GateService.Application.Features.Shifts;
 using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.PlateRecognition;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ParkingManagement.SharedKernel.Exceptions;
 
 namespace GateService.API.Controllers;
 
@@ -10,9 +13,10 @@ namespace GateService.API.Controllers;
 /// Controller chỉ điều hướng HTTP → Use case, không chứa nghiệp vụ.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/gate")]
 public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase checkOut,
-    IQuoteExitFeeUseCase quoteExitFee, IListShiftBookingsUseCase listShiftBookings) : ControllerBase
+    IQuoteExitFeeUseCase quoteExitFee, IListShiftBookingsUseCase listShiftBookings, GateAccess access) : ControllerBase
 {
     /// <summary>
     /// POST /api/v1/gate/check-in – Check-in tại cổng vào (UC-21, US-043/044).
@@ -22,7 +26,10 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
     /// </summary>
     [HttpPost("check-in")]
     public async Task<ActionResult<ParkingSessionDto>> CheckIn([FromBody] CheckInCommand command, CancellationToken cancellationToken)
-        => Ok(await checkIn.ExecuteAsync(command, cancellationToken));
+    {
+        await access.RequireActiveShiftAsync(command.ParkingLotId, cancellationToken);
+        return Ok(await checkIn.ExecuteAsync(command with { StaffUserId = access.UserId }, cancellationToken));
+    }
 
     /// <summary>
     /// GET /api/v1/gate/exit-quote?parkingLotId=1&amp;plate=51F-123.45 – UC-22 bước 1–3 (US-045).
@@ -34,7 +41,10 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ExitFeeQuoteDto>> ExitQuote(
         [FromQuery] int parkingLotId, [FromQuery] string plate, CancellationToken cancellationToken)
-        => Ok(await quoteExitFee.ExecuteAsync(parkingLotId, plate, cancellationToken));
+    {
+        await access.RequireReadAsync(parkingLotId, cancellationToken);
+        return Ok(await quoteExitFee.ExecuteAsync(parkingLotId, plate, cancellationToken));
+    }
 
     /// <summary>
     /// POST /api/v1/gate/check-out – Check-out tại cổng ra (T-702 + UC-22).
@@ -44,7 +54,10 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
     /// </summary>
     [HttpPost("check-out")]
     public async Task<ActionResult<CheckOutResultDto>> CheckOut([FromBody] CheckOutCommand command, CancellationToken cancellationToken)
-        => Ok(await checkOut.ExecuteAsync(command, cancellationToken));
+    {
+        await access.RequireActiveShiftAsync(command.ParkingLotId, cancellationToken);
+        return Ok(await checkOut.ExecuteAsync(command with { StaffUserId = access.UserId }, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/gate/plate-scan (multipart, field "image") – đọc biển số từ ảnh camera/tải lên qua Plate Recognizer.</summary>
     [HttpPost("plate-scan")]
@@ -56,6 +69,7 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
     public async Task<ActionResult<PlateScanResultDto>> PlateScan(
         IFormFile image, [FromServices] IScanPlateImageUseCase scanPlate, CancellationToken cancellationToken)
     {
+        await access.RequireActiveShiftAsync(null, cancellationToken);
         if (image.Length == 0 || !image.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new ProblemDetails { Title = "Dữ liệu không hợp lệ", Detail = "Vui lòng gửi một file ảnh." });
         await using var stream = image.OpenReadStream();
@@ -63,15 +77,20 @@ public sealed class GateController(ICheckInUseCase checkIn, ICheckOutUseCase che
     }
 
     /// <summary>
-    /// GET /api/v1/gate/console/bookings?parkingLotId=1&amp;staffUserId=4&amp;search=BK-0002 – UC-20 (US-076).
+    /// GET /api/v1/gate/console/bookings?parkingLotId=1&amp;search=BK-0002 – UC-20 (US-076); người trực lấy từ JWT.
     /// Booking trong ca trực của staff (khung giờ theo ca đang mở), kèm khách vãng lai đang đỗ; không trả SĐT/CCCD.
     /// </summary>
     [HttpGet("console/bookings")]
     [ProducesResponseType<IReadOnlyList<ShiftBookingItemDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyList<ShiftBookingItemDto>>> ConsoleBookings(
-        [FromQuery] int? parkingLotId, [FromQuery] int? staffUserId, [FromQuery] DateTime? fromUtc,
+        [FromQuery] int? parkingLotId, [FromServices] IShiftQueries shifts, [FromQuery] DateTime? fromUtc,
         [FromQuery] DateTime? toUtc, [FromQuery] string? search, CancellationToken cancellationToken)
-        => Ok(await listShiftBookings.ExecuteAsync(
-            new ShiftBookingsQuery(parkingLotId, staffUserId, fromUtc, toUtc, search), cancellationToken));
+    {
+        var userId = access.UserId;
+        var lotId = parkingLotId ?? (await shifts.FindOpenByStaffAsync(userId, cancellationToken))?.ParkingLotId
+            ?? throw new ValidationException("parkingLotId bắt buộc khi chưa mở ca trực.");
+        await access.RequireReadAsync(lotId, cancellationToken);
+        return Ok(await listShiftBookings.ExecuteAsync(new ShiftBookingsQuery(lotId, userId, fromUtc, toUtc, search), cancellationToken));
+    }
 }

@@ -39,7 +39,7 @@ describe('settlementFormat (US-080)', () => {
   it('owner, bank and links', () => {
     const a = account(1, 'Công ty Bãi Xanh');
     expect(ownerLabel(1, a)).toBe('Công ty Bãi Xanh');
-    expect(ownerLabel(2, undefined)).toBe('OwnerProfile #2');
+    expect(ownerLabel(2, undefined)).toBe('Owner #2');
     expect(ownerLink(a)).toBe('/admin/operations/partner-onboarding/41');
     expect(ownerLink(undefined)).toBeNull();
     expect(bankLabel(a)).toBe('MB Bank · ****6789');

@@ -45,6 +45,8 @@ public class PartnerApplicationTests
         { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Rejected },             // T9
         { PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled },            // T10
         { PartnerApplicationStatus.NeedsMoreInfo, PartnerApplicationStatus.Cancelled },          // T10
+        { PartnerApplicationStatus.Submitted, PartnerApplicationStatus.Cancelled },              // T10 (Admin bỏ hồ sơ chưa thẩm định)
+        { PartnerApplicationStatus.AccountIssued, PartnerApplicationStatus.Cancelled },          // T10 (chủ bãi chưa kích hoạt: gỡ tài khoản)
     };
 
     [Theory]
@@ -77,10 +79,24 @@ public class PartnerApplicationTests
     }
 
     [Theory]
-    [InlineData(PartnerApplicationStatus.AccountIssued)]   // đã cấp tài khoản: dừng hợp tác dùng Owners - Lock (US-096)
-    [InlineData(PartnerApplicationStatus.Submitted)]       // chưa thẩm định: phải bắt đầu xem xét trước
+    [InlineData(PartnerApplicationStatus.Activated)]   // chủ bãi đã kích hoạt: dùng Đình chỉ / Xóa user (hoặc Owners - Lock, US-096)
+    [InlineData(PartnerApplicationStatus.Rejected)]
     public void Cancel_is_not_allowed(PartnerApplicationStatus from)
         => Assert.Throws<ConflictException>(() => Application(from).MoveTo(PartnerApplicationStatus.Cancelled));
+
+    [Fact]
+    public void Cancel_after_account_issued_marks_cleanup_pending_and_activated_is_409_with_hint()
+    {
+        var app = Application(PartnerApplicationStatus.AccountIssued);
+        app.CreatedOwnerProfileId = 7;
+        app.Cancel(1, "Không liên lạc được", Now);
+        Assert.Equal((PartnerApplicationStatus.Cancelled, PartnerSyncStatus.Pending, 1, Now),
+            (app.Status, app.CleanupSyncStatus, app.CancelledByAdminId, app.CancelledAtUtc));
+        Assert.Equal(7, app.EnsureCanRetryCleanup());
+
+        var activated = Assert.Throws<ConflictException>(() => Application(PartnerApplicationStatus.Activated).Cancel(1, "Hủy"));
+        Assert.Contains("Đình chỉ hoặc Xóa user", activated.Message);
+    }
 
     [Theory]
     [InlineData(PartnerApplicationStatus.Activated)]
@@ -101,7 +117,7 @@ public class PartnerApplicationTests
         Assert.Equal("PA-2026-0001", app.Code);
         Assert.Equal(Now, app.ConsentAcceptedAtUtc);
         Assert.False(app.IsTerminal);
-        Assert.Equal([PartnerApplicationStatus.UnderReview], PartnerApplication.NextStatuses(PartnerApplicationStatus.Submitted));
+        Assert.Equal([PartnerApplicationStatus.UnderReview, PartnerApplicationStatus.Cancelled], PartnerApplication.NextStatuses(PartnerApplicationStatus.Submitted));
     }
 
     // ==================== A1 – danh sách ====================

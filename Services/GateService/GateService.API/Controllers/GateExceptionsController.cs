@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
+using GateService.Application.Features.Shifts;
 using GateService.Application.Features.GateEvents;
 using GateService.Application.Features.GateExceptions;
 using Microsoft.AspNetCore.Mvc;
@@ -10,10 +12,12 @@ namespace GateService.API.Controllers;
 /// Controller chỉ điều hướng HTTP → Use case, không chứa nghiệp vụ.
 /// </summary>
 [ApiController]
+[Authorize]
 [Route("api/v1/gate/exceptions")]
 public sealed class GateExceptionsController(
     IRecordGateExceptionUseCase recordException,
-    IListGateExceptionsUseCase listExceptions) : ControllerBase
+    IListGateExceptionsUseCase listExceptions,
+    GateAccess access) : ControllerBase
 {
     /// <summary>
     /// POST /api/v1/gate/exceptions – Staff ghi nhận + xử lý ngoại lệ.
@@ -28,7 +32,10 @@ public sealed class GateExceptionsController(
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<GateExceptionResultDto>> Record([FromBody] GateExceptionCommand command, CancellationToken cancellationToken)
-        => Ok(await recordException.ExecuteAsync(command, cancellationToken));
+    {
+        await access.RequireActiveShiftAsync(command.ParkingLotId, cancellationToken);
+        return Ok(await recordException.ExecuteAsync(command with { StaffUserId = access.UserId }, cancellationToken));
+    }
 
     /// <summary>
     /// GET /api/v1/gate/exceptions?parkingLotId=2&amp;exceptionType=PaymentFailed&amp;fromUtc=...&amp;toUtc=...&amp;limit=100 –
@@ -40,6 +47,9 @@ public sealed class GateExceptionsController(
     public async Task<ActionResult<IReadOnlyList<GateEventDto>>> List(
         [FromQuery] int parkingLotId, [FromQuery] GateEventType? exceptionType, [FromQuery] DateTime? fromUtc,
         [FromQuery] DateTime? toUtc, [FromQuery] int limit = 100, CancellationToken cancellationToken = default)
-        => Ok(await listExceptions.ExecuteAsync(
+    {
+        await access.RequireReadAsync(parkingLotId, cancellationToken);
+        return Ok(await listExceptions.ExecuteAsync(
             new GateExceptionLogQuery(parkingLotId, exceptionType, fromUtc, toUtc, limit), cancellationToken));
+    }
 }

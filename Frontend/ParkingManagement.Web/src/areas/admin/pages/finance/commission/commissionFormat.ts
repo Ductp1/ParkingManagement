@@ -75,4 +75,4 @@ export const downloadCsv = (fileName: string, csv: string) => {
 };
 
 export const pendingText = (count: number | null | undefined) =>
-  count === null || count === undefined ? EMPTY : count > 0 ? `${formatNumber(count)} chờ tính` : '0';
+  count === null || count === undefined ? EMPTY : count > 0 ? `${formatNumber(count)} pending` : '0';

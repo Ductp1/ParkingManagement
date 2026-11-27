@@ -36,7 +36,7 @@ public sealed class PartnerRegistrationRepository(AdminDbContext db) : IPartnerR
             .ToListAsync(cancellationToken);
 
     public async Task<string> AddWithNewCodeAsync(PartnerApplication application, IReadOnlyList<PartnerApplicationDocument> documents,
-        int year, CancellationToken cancellationToken)
+        int year, CancellationToken cancellationToken, Func<PartnerApplication, AuditLog>? buildAuditLog = null)
     {
         db.PartnerApplications.Add(application);
         db.AddRange(documents);
@@ -44,9 +44,17 @@ public sealed class PartnerRegistrationRepository(AdminDbContext db) : IPartnerR
         for (var attempt = 1; ; attempt++)
         {
             application.Code = prefix + (await LastSequenceAsync(prefix, cancellationToken) + 1).ToString("0000", CultureInfo.InvariantCulture);
+            // Hồ sơ + giấy tờ + audit log (cần Id hồ sơ) trong một transaction: audit lỗi thì hồ sơ cũng không được lưu.
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                if (buildAuditLog is not null)
+                {
+                    db.AuditLogs.Add(buildAuditLog(application));
+                    await db.SaveChangesAsync(cancellationToken);
+                }
+                await transaction.CommitAsync(cancellationToken);
                 return application.Code;
             }
             catch (DbUpdateException ex) when (attempt < MaxAttempts
@@ -55,15 +63,18 @@ public sealed class PartnerRegistrationRepository(AdminDbContext db) : IPartnerR
                                                    SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: CodeIndex,
                                                })
             {
-                // Người khác vừa lấy số này: giữ entity trong change tracker (vẫn Added) và thử số kế tiếp.
+                // Người khác vừa lấy số này: hủy transaction, giữ entity trong change tracker (vẫn Added) và thử số kế tiếp.
+                await transaction.RollbackAsync(cancellationToken);
             }
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
             {
+                await transaction.RollbackAsync(CancellationToken.None);
                 Detach(application, documents);
                 throw new ConflictException("Hệ thống đang bận, vui lòng gửi lại hồ sơ.");
             }
             catch
             {
+                await transaction.RollbackAsync(CancellationToken.None);
                 Detach(application, documents);
                 throw;
             }

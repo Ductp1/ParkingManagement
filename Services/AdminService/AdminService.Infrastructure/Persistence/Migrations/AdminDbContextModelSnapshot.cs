@@ -607,6 +607,24 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CancelledByAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CleanupError")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("CleanupSyncStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("CleanupSyncedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -624,6 +642,13 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                     b.Property<int?>("CreatedUserId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("EditTokenExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EditTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(254)
@@ -640,9 +665,31 @@ namespace AdminService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<DateTime?>("InfoProvidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("InfoRequestDueAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InfoRequestEmailError")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("InfoRequestEmailStatus")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("InfoRequestItemsJson")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("InfoRequestNote")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("InfoRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LegalRepresentativeName")
                         .IsRequired()
@@ -772,6 +819,9 @@ namespace AdminService.Infrastructure.Persistence.Migrations
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("SupersededAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");

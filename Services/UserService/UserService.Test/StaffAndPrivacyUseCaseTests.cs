@@ -32,52 +32,133 @@ public class StaffAndPrivacyUseCaseTests
         store.Users.Add(owner);
     }
 
-    private StaffUseCases Staff => new(store, store, lots, current, new Passwords(), new Delivery(), new Cipher(), new Clock());
+    private StaffUseCases Staff => new(store, store, lots, current, new Passwords(), new Delivery(), new Cipher(),
+        OwnerActivationOptions.Default, new Clock());
     private DataRequestUseCases Privacy => new(store, store, current, new Passwords(), files, new Cipher(), new Clock());
 
     // ===== US-075 =====
     [Fact]
-    public async Task Create_staff_makes_active_account_and_emails_temporary_password()
+    public async Task Create_staff_makes_pending_account_and_emails_activation_link()
     {
         var item = await Staff.AssignAsync(new("Nhân viên", "staff@example.com", LotA), default);
         var user = store.Users.Single(u => u.Email == "staff@example.com");
-        Assert.Equal((UserStatus.Active, true), (user.Status, user.EmailConfirmed));
+        Assert.Equal((UserStatus.PendingVerification, false), (user.Status, user.EmailConfirmed));
+        Assert.Equal(("Invited", "Active"), (item.ActivationStatus, item.LotStatus));
         Assert.Equal(UserRoleType.Staff, Assert.Single(user.Roles).Role);
         Assert.Equal(user.Id, item.UserId);
         var assignment = Assert.Single(store.Assignments);
         Assert.Equal((OwnerProfileId, LotA, true), (assignment.OwnerProfileId, assignment.ParkingLotId, assignment.IsActive));
-        Assert.Empty(store.Otps);
         Assert.Contains(store.Events, e => e is UserRegistered r && r.UserId == user.Id);
         Assert.Equal(1, store.Commits);
 
-        // Outbox chứa mật khẩu tạm đã mã hóa; hash của tài khoản khớp đúng mật khẩu đó.
-        var message = Assert.Single(store.Outbox, m => m.EventType == StaffUseCases.CredentialsEvent);
-        using var payload = System.Text.Json.JsonDocument.Parse(message.PayloadJson);
-        var encrypted = payload.RootElement.GetProperty("EncryptedPassword").GetString()!;
-        var password = new Cipher().Decrypt(encrypted, StaffUseCases.CredentialsCipherPurpose);
-        Assert.DoesNotContain(password, message.PayloadJson.Replace(encrypted, ""));
-        Assert.True(new Passwords().Verify(password, user.PasswordHash));
-        Assert.Equal("staff@example.com", payload.RootElement.GetProperty("Destination").GetString());
+        // DB chỉ giữ SHA-256 của token; outbox giữ token đã mã hóa.
+        var otp = Assert.Single(store.Otps);
+        Assert.Equal((OtpPurpose.StaffActivation, Now.AddHours(72)), (otp.Purpose, otp.ExpiresAtUtc));
+        var token = Token();
+        Assert.Equal(OwnerAccountUseCases.HashToken(token), otp.CodeHash);
+        Assert.DoesNotContain(store.Outbox, m => m.PayloadJson.Replace(StaffUseCases.ActivationCipherPurpose + "|" + token, "").Contains(token));
     }
 
     [Fact]
-    public async Task New_staff_needs_email_to_receive_credentials()
+    public async Task New_staff_needs_email_to_receive_the_link()
     {
-        await Assert.ThrowsAsync<ValidationException>(() => Staff.AssignAsync(new("Nhân viên", "0901234567", LotA), default));
+        var error = await Assert.ThrowsAsync<ValidationException>(() => Staff.AssignAsync(new("Nhân viên", "0901234567", LotA), default));
+        Assert.Equal(StaffUseCases.EmailRequired, error.Code);
         Assert.Empty(store.Assignments);
     }
 
     [Fact]
-    public void Temporary_password_meets_password_rules_and_avoids_ambiguous_characters()
+    public async Task Activation_sets_password_once_and_the_link_dies()
     {
-        for (var i = 0; i < 200; i++)
-        {
-            var password = StaffUseCases.TemporaryPassword();
-            Assert.Equal(10, password.Length);
-            Assert.Contains(password, char.IsLetter);
-            Assert.Contains(password, char.IsDigit);
-            Assert.DoesNotContain(password, c => "0O1lI".Contains(c));
-        }
+        await Staff.AssignAsync(new("Nhân viên", "staff@example.com", LotA), default);
+        var token = Token();
+        var info = await Staff.ValidateActivationAsync(token, default);
+        Assert.Equal(("staff@example.com", "Lot"), (info.Email, info.BusinessName));
+
+        await Staff.ActivateAsync(new(token, "Password123"), default);
+        var user = store.Users.Single(u => u.Email == "staff@example.com");
+        Assert.Equal((UserStatus.Active, true, "hash:Password123"), (user.Status, user.EmailConfirmed, user.PasswordHash));
+        Assert.All(store.Otps, o => Assert.Equal(Now, o.ConsumedAtUtc));
+        await AssertInvalidLink(token);
+        await AssertInvalidLink("no-such-token");
+    }
+
+    [Fact]
+    public async Task Expired_or_revoked_invitation_cannot_be_used()
+    {
+        var item = await Staff.AssignAsync(new("Nhân viên", "staff@example.com", LotA), default);
+        var token = Token();
+        store.Otps.Single().ExpiresAtUtc = Now;
+        await AssertInvalidLink(token);
+        store.Otps.Single().ExpiresAtUtc = Now.AddHours(1);
+        await Staff.RevokeAsync(item.Id, default);
+        await AssertInvalidLink(token);
+    }
+
+    [Fact]
+    public async Task Resend_replaces_the_link_and_is_rejected_after_activation_or_across_tenants()
+    {
+        var item = await Staff.AssignAsync(new("Nhân viên", "staff@example.com", LotA), default);
+        var first = Token();
+        await Staff.ResendInviteAsync(item.Id, default);
+        var second = Token();
+        Assert.NotEqual(first, second);
+        await AssertInvalidLink(first);
+
+        current.OwnerProfileId = 77;
+        await Assert.ThrowsAsync<ForbiddenException>(() => Staff.ResendInviteAsync(item.Id, default));
+        current.OwnerProfileId = OwnerProfileId;
+        await Assert.ThrowsAsync<NotFoundException>(() => Staff.ResendInviteAsync(9999, default));
+
+        await Staff.ActivateAsync(new(second, "Password123"), default);
+        var error = await Assert.ThrowsAsync<ConflictException>(() => Staff.ResendInviteAsync(item.Id, default));
+        Assert.Equal(StaffUseCases.AlreadyActive, error.Code);
+    }
+
+    [Fact]
+    public async Task Staff_released_by_another_owner_can_be_invited_again_with_a_new_link()
+    {
+        var foreign = new User { FullName = "Foreign", Email = "foreign@example.com", Status = UserStatus.PendingVerification };
+        foreign.Roles.Add(new UserRole { Role = UserRoleType.Staff });
+        store.Add(foreign);
+        store.Add(new StaffAssignment { StaffUserId = foreign.Id, OwnerProfileId = 77, ParkingLotId = 7, IsActive = false });
+        var stale = new OtpCode { UserId = foreign.Id, Purpose = OtpPurpose.StaffActivation, ExpiresAtUtc = Now.AddHours(1) };
+        store.Add(stale);
+
+        var item = await Staff.AssignAsync(new("X", "foreign@example.com", LotA), default);
+
+        Assert.Equal(foreign.Id, item.UserId);
+        Assert.Equal(Now, stale.ConsumedAtUtc);
+        Assert.Single(store.Otps, o => o.ConsumedAtUtc == null);
+        Assert.Single(store.Outbox, m => m.EventType == StaffUseCases.ActivationEvent);
+    }
+
+    [Fact]
+    public async Task List_filters_by_lot_and_staff_and_survives_lot_directory_outage()
+    {
+        var a = await Staff.AssignAsync(new("A", "a@example.com", LotA), default);
+        var b = await Staff.AssignAsync(new("B", "b@example.com", LotB), default);
+        Assert.Equal(b.Id, Assert.Single(await Staff.ListAsync(1, LotB, null, default)).Id);
+        Assert.Equal(a.Id, Assert.Single(await Staff.ListAsync(1, null, a.UserId, default)).Id);
+        Assert.Empty(await Staff.ListAsync(1, LotB, a.UserId, default));
+        await Assert.ThrowsAsync<ValidationException>(() => Staff.ListAsync(1, 0, null, default));
+
+        lots.Down = true;
+        Assert.All(await Staff.ListAsync(1, null, null, default), i => Assert.Null(i.LotStatus));
+    }
+
+    private string Token()
+    {
+        var message = store.Outbox.Last(m => m.EventType == StaffUseCases.ActivationEvent);
+        using var payload = System.Text.Json.JsonDocument.Parse(message.PayloadJson);
+        return new Cipher().Decrypt(payload.RootElement.GetProperty("EncryptedToken").GetString()!, StaffUseCases.ActivationCipherPurpose);
+    }
+
+    private async Task AssertInvalidLink(string token)
+    {
+        var error = await Assert.ThrowsAsync<ValidationException>(() => Staff.ValidateActivationAsync(token, default));
+        Assert.Equal(StaffUseCases.ActivationInvalid, error.Code);
+        await Assert.ThrowsAsync<ValidationException>(() => Staff.ActivateAsync(new(token, "Password123"), default));
     }
 
     [Fact]
@@ -90,7 +171,8 @@ public class StaffAndPrivacyUseCaseTests
         Assert.Equal(1, store.Users.Count(u => u.Email == "staff@example.com"));
         Assert.Equal(2, store.Assignments.Count(a => a.IsActive && a.StaffUserId == first.UserId));
         Assert.Equal(otps, store.Otps.Count);
-        await Assert.ThrowsAsync<ConflictException>(() => Staff.AssignAsync(new("Nhân viên", "staff@example.com", LotB), default));
+        var error = await Assert.ThrowsAsync<ConflictException>(() => Staff.AssignAsync(new("Nhân viên", "staff@example.com", LotB), default));
+        Assert.Equal(StaffUseCases.AlreadyAssigned, error.Code);
     }
 
     [Fact]
@@ -107,13 +189,15 @@ public class StaffAndPrivacyUseCaseTests
         var driver = new User { FullName = "Driver", Email = "driver@example.com", Status = UserStatus.Active };
         driver.Roles.Add(new UserRole { Role = UserRoleType.Driver });
         store.Add(driver);
-        await Assert.ThrowsAsync<ConflictException>(() => Staff.AssignAsync(new("X", "driver@example.com", LotA), default));
+        var asDriver = await Assert.ThrowsAsync<ConflictException>(() => Staff.AssignAsync(new("X", "driver@example.com", LotA), default));
+        Assert.Equal(StaffUseCases.EmailHasAccount, asDriver.Code);
 
         var foreign = new User { FullName = "Foreign", Email = "foreign@example.com", Status = UserStatus.Active };
         foreign.Roles.Add(new UserRole { Role = UserRoleType.Staff });
         store.Add(foreign);
-        store.Add(new StaffAssignment { StaffUserId = foreign.Id, OwnerProfileId = 77, ParkingLotId = 7, IsActive = false });
-        await Assert.ThrowsAsync<ConflictException>(() => Staff.AssignAsync(new("X", "foreign@example.com", LotA), default));
+        store.Add(new StaffAssignment { StaffUserId = foreign.Id, OwnerProfileId = 77, ParkingLotId = 7 });
+        var elsewhere = await Assert.ThrowsAsync<ConflictException>(() => Staff.AssignAsync(new("X", "foreign@example.com", LotA), default));
+        Assert.Equal(StaffUseCases.EmailOtherOwner, elsewhere.Code);
         Assert.DoesNotContain(store.Assignments, a => a.OwnerProfileId == OwnerProfileId);
     }
 
@@ -129,7 +213,7 @@ public class StaffAndPrivacyUseCaseTests
     public async Task Non_owner_is_forbidden()
     {
         current.OwnerProfileId = null;
-        await Assert.ThrowsAsync<ForbiddenException>(() => Staff.ListAsync(1, default));
+        await Assert.ThrowsAsync<ForbiddenException>(() => Staff.ListAsync(1, null, null, default));
         await Assert.ThrowsAsync<ForbiddenException>(() => Staff.RevokeAsync(1, default));
     }
 
@@ -146,6 +230,8 @@ public class StaffAndPrivacyUseCaseTests
         Assert.False(assignment.IsActive);
         Assert.Equal(Now, assignment.RevokedAtUtc);
         Assert.Contains(item.UserId, store.RevokedSessions);
+        Assert.Contains(store.Events, e => e is StaffAssignmentRevoked r
+            && (r.StaffUserId, r.OwnerProfileId, r.ParkingLotId) == (item.UserId, OwnerProfileId, LotA));
 
         store.RevokedSessions.Clear();
         await Staff.RevokeAsync(item.Id, default);
@@ -245,6 +331,7 @@ public class StaffAndPrivacyUseCaseTests
         Assert.NotEqual("hash:Password123", driver.PasswordHash);
         Assert.Contains(driver.Id, store.RevokedSessions);
         Assert.Contains(driver.Id, store.DeactivatedStaff);
+        Assert.Single(store.Events, e => e is StaffAssignmentRevoked r && r.StaffUserId == driver.Id);
         Assert.All(store.Otps.Where(o => o.UserId == driver.Id), o => Assert.Equal(Now, o.ConsumedAtUtc));
         Assert.Contains("/api/v1/users/avatars/x.png", files.Deleted);
 
@@ -345,7 +432,7 @@ public class StaffAndPrivacyUseCaseTests
         public bool Down;
         public Task<IReadOnlyList<OwnerLot>> GetLotsAsync(int ownerProfileId, CancellationToken ct)
             => Down ? throw new DependencyUnavailableException("down")
-                : Task.FromResult<IReadOnlyList<OwnerLot>>(ownerProfileId == OwnerProfileId ? ids.Select(id => new OwnerLot(id, null)).ToList() : []);
+                : Task.FromResult<IReadOnlyList<OwnerLot>>(ownerProfileId == OwnerProfileId ? ids.Select(id => new OwnerLot(id, null, "Active")).ToList() : []);
     }
     private sealed class Files : IAvatarStorage
     {
@@ -411,9 +498,19 @@ public class StaffAndPrivacyUseCaseTests
         public Task SaveAsync(CancellationToken ct) => Task.CompletedTask;
 
         // IStaffStore
-        public Task<IReadOnlyList<StaffItem>> ListActiveAsync(int ownerProfileId, int page, int pageSize, CancellationToken ct)
-            => Task.FromResult<IReadOnlyList<StaffItem>>(Assignments.Where(a => a.OwnerProfileId == ownerProfileId && a.IsActive)
+        public Task<IReadOnlyList<StaffItem>> ListActiveAsync(int ownerProfileId, int? parkingLotId, int? staffUserId, int page,
+            int pageSize, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<StaffItem>>(Assignments.Where(a => a.OwnerProfileId == ownerProfileId && a.IsActive
+                    && (parkingLotId == null || a.ParkingLotId == parkingLotId) && (staffUserId == null || a.StaffUserId == staffUserId))
                 .Select(a => new StaffItem(a.Id, a.StaffUserId, Users.Single(u => u.Id == a.StaffUserId).FullName, a.ParkingLotId, "Active")).ToList());
+        public Task<OtpCode?> FindActivationAsync(string tokenHash, CancellationToken ct)
+        {
+            var otp = Otps.FirstOrDefault(o => o.CodeHash == tokenHash && o.Purpose == OtpPurpose.StaffActivation);
+            if (otp is not null) otp.User = Users.Single(u => u.Id == otp.UserId);
+            return Task.FromResult(otp);
+        }
+        public Task<string?> ActiveOwnerNameAsync(int staffUserId, CancellationToken ct)
+            => Task.FromResult(Assignments.Any(a => a.StaffUserId == staffUserId && a.IsActive) ? "Lot" : null);
         public Task<IReadOnlyList<StaffAssignment>> AssignmentsOfUserAsync(int staffUserId, CancellationToken ct)
             => Task.FromResult<IReadOnlyList<StaffAssignment>>(Assignments.Where(a => a.StaffUserId == staffUserId).ToList());
         public Task<StaffAssignment?> FindAssignmentAsync(int id, int ownerProfileId, CancellationToken ct)
@@ -429,11 +526,12 @@ public class StaffAndPrivacyUseCaseTests
             => Task.FromResult(Requests.FirstOrDefault(r => r.UserId == userId && r.RequestType == type
                 && r.Status is DataRequestStatus.Submitted or DataRequestStatus.InProgress));
         public Task<DataSubjectRequest?> FindAsync(int id, CancellationToken ct) => Task.FromResult(Requests.FirstOrDefault(r => r.Id == id));
-        public Task DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct)
+        public Task<IReadOnlyList<StaffAssignment>> DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct)
         {
             DeactivatedStaff.Add(userId);
-            foreach (var a in Assignments.Where(a => a.StaffUserId == userId && a.IsActive)) { a.IsActive = false; a.RevokedAtUtc = now; }
-            return Task.CompletedTask;
+            var active = Assignments.Where(a => a.StaffUserId == userId && a.IsActive).ToList();
+            foreach (var a in active) { a.IsActive = false; a.RevokedAtUtc = now; }
+            return Task.FromResult<IReadOnlyList<StaffAssignment>>(active);
         }
 
         public Task<int> ActiveSessionCountAsync(int userId, DateTime now, CancellationToken ct) => Task.FromResult(2);

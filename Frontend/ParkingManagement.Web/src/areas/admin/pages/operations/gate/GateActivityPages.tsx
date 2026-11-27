@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { adminOperationsApi } from '@/api/adminOperationsApi';
 import { GateDeviceStatus, GateDeviceType, ParkingSessionStatus } from '@/types/adminEnums';
 import type { AdminGateDeviceDto, AdminParkingSessionDto } from '@/types/adminOperations';
@@ -8,7 +8,10 @@ import { SearchBox, ToolbarRow, ToolbarSelect } from '../../../components/Toolba
 import { SubTabs } from '../../../components/SubTabs';
 import { CellAmount, CellMono, CellMuted, CellStatus, CellText, DataTable, type DataTableColumn } from '../../../components/DataTable';
 import { Pagination } from '../../../components/Pagination';
+import { LotPicker } from '../../../components/LotPicker';
+import { StateBlock } from '../../../components/StateBlock';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
+import { useLotOptions } from '../../../hooks/useLotOptions';
 import { DEFAULT_PAGE_SIZE, useListParams } from '../../../hooks/useListParams';
 import { humanizeEnum } from '../../../utils/enumLabels';
 import { formatShortDateTime, formatVnd } from '../../../utils/format';
@@ -18,35 +21,20 @@ import { GATE_SUB_TABS } from './gateTabs';
 const SESSION_STATUSES = Object.values(ParkingSessionStatus);
 const isSessionStatus = (v: string): v is ParkingSessionStatus => (SESSION_STATUSES as string[]).includes(v);
 
-/** Ô nhập Lot ID (API parking-sessions bắt buộc parkingLotId). */
-const LotIdBox: React.FC<{ value: string; onChange: (v: string) => void }> = ({ value, onChange }) => {
-  const [text, setText] = useState(value);
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onChange(text.trim());
-      }}
-      className="flex h-8 w-[150px] items-center gap-2 rounded-[2px] border border-(--admin-border-default) bg-(--admin-surface-card) px-2.5 focus-within:border-(--admin-brand-navy-900)"
-    >
-      <span className="adm-type-body-regular-12 text-(--admin-text-primary)">Lot:</span>
-      <input
-        inputMode="numeric"
-        aria-label="Lot ID"
-        placeholder="ID"
-        value={text}
-        onChange={(e) => setText(e.target.value.replace(/\D/g, ''))}
-        onBlur={() => onChange(text.trim())}
-        className="adm-type-body-default min-w-0 flex-1 bg-transparent outline-none placeholder:text-(--admin-text-placeholder)"
-      />
-    </form>
-  );
-};
-
-const sessionColumns: DataTableColumn<AdminParkingSessionDto>[] = [
+/** Cột phiên gửi xe; tên bãi tra từ lots-summary (chưa có thì để trống, không hiện id thô). */
+const sessionColumns = (lotName: (id: number) => string | undefined): DataTableColumn<AdminParkingSessionDto>[] => [
   { key: 'code', header: 'Session', render: (r) => <CellMono>{r.code}</CellMono> },
   { key: 'plate', header: 'Plate', render: (r) => <CellText>{r.plateDisplay || r.plateNumber}</CellText> },
-  { key: 'lot', header: 'Lot', render: (r) => <CellText>#{r.parkingLotId}</CellText> },
+  {
+    key: 'lot',
+    header: 'Lot',
+    // Tên bãi tối thiểu 140px để không xuống dòng từng từ; màn hẹp thì bảng cuộn ngang bên trong.
+    render: (r) => (
+      <span className="inline-block min-w-[140px]">
+        <CellText>{lotName(r.parkingLotId) ?? ''}</CellText>
+      </span>
+    ),
+  },
   { key: 'booking', header: 'Booking', render: (r) => <CellText>{r.bookingCode ?? (r.isWalkIn ? 'Walk-in' : '—')}</CellText> },
   { key: 'entry', header: 'Entry', render: (r) => <CellMuted>{formatShortDateTime(r.entryAtUtc)}</CellMuted> },
   { key: 'exit', header: 'Exit', render: (r) => <CellMuted>{formatShortDateTime(r.exitAtUtc)}</CellMuted> },
@@ -67,6 +55,10 @@ export const GateSessionsPage: React.FC = () => {
   const page = params.page;
 
   const query = useAdminQuery(lotId > 0 ? () => adminOperationsApi.getLotSessions(lotId, status) : null, [lotId, status]);
+  // US-081: bộ chọn bãi + tên bãi trong bảng, cùng nguồn lots-summary với màn Parking Lots.
+  const lotOptions = useLotOptions();
+  const columns = useMemo(() => sessionColumns((id) => lotOptions.byId(id)?.name), [lotOptions]);
+  const lotsFailed = ['error', 'forbidden', 'unavailable'].includes(lotOptions.query.status);
 
   const filtered = useMemo(
     () =>
@@ -83,7 +75,7 @@ export const GateSessionsPage: React.FC = () => {
   return (
     <ListScreen
       title="Gate Activity"
-      subtitle="Read-only · ParkingSessions, GateEvents, GateDevices, Shifts"
+      subtitle="Read-only"
       top={<SubTabs tabs={GATE_SUB_TABS} />}
       filters={
         <FilterColumn>
@@ -98,7 +90,12 @@ export const GateSessionsPage: React.FC = () => {
       toolbar={
         <ToolbarRow>
           <SearchBox placeholder="Search session, plate, booking…" value={params.get('q')} onSearch={(q) => params.set({ q: q || null })} />
-          <LotIdBox value={lot} onChange={(v) => params.set({ lot: v || null })} />
+          <LotPicker
+            value={lot}
+            lots={lotOptions.lots}
+            loading={lotOptions.query.status === 'loading'}
+            onChange={(v) => params.set({ lot: v || null })}
+          />
           <ToolbarSelect
             label="Walk-in"
             value={walkIn}
@@ -113,7 +110,7 @@ export const GateSessionsPage: React.FC = () => {
       }
     >
       <DataTable
-        columns={sessionColumns}
+        columns={columns}
         rows={query.status === 'ready' ? rows : []}
         rowKey={(r) => r.id}
         placeholder={
@@ -124,13 +121,16 @@ export const GateSessionsPage: React.FC = () => {
               onRetry={query.refetch}
               copy={{ emptyTitle: 'No sessions', emptyMessage: 'Vehicles appear here after check-in at a gate.', errorTitle: 'Could not load sessions', service: 'GateService' }}
             />
-          ) : (
-            <QueryState
-              status="empty"
-              error={null}
-              onRetry={query.refetch}
-              copy={{ emptyTitle: 'Choose a lot', emptyMessage: 'GateService lists sessions per lot — enter a Lot ID above.', errorTitle: '', service: 'GateService' }}
+          ) : lotsFailed ? (
+            <StateBlock
+              type="error"
+              title="Could not load parking lots"
+              message={lotOptions.query.error?.problem ? lotOptions.query.error.message : 'The lot list could not be loaded. Try again.'}
+              onRetry={lotOptions.query.refetch}
+              bare
             />
+          ) : (
+            <StateBlock type="empty" title="Choose a lot" message="Pick a parking lot above to see its gate sessions." bare />
           )
         }
         footer={
@@ -174,7 +174,7 @@ export const GateDevicesPage: React.FC = () => {
   return (
     <ListScreen
       title="Gate Activity"
-      subtitle="GateDevices"
+     
       top={<SubTabs tabs={GATE_SUB_TABS} />}
       filters={
         <FilterColumn>
@@ -202,7 +202,7 @@ export const GateDevicesPage: React.FC = () => {
             status={viewStatus}
             error={query.error}
             onRetry={query.refetch}
-            copy={{ emptyTitle: 'No devices', emptyMessage: 'Gate devices registered by owners appear here.', errorTitle: 'Could not load devices', service: 'GateService (route /api/v1/gate-devices missing in Gateway)' }}
+            copy={{ emptyTitle: 'No devices', emptyMessage: 'Gate devices registered by owners appear here.', errorTitle: 'Could not load devices', service: 'GateService' }}
           />
         }
         footer={

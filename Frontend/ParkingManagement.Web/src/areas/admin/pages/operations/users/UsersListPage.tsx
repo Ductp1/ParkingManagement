@@ -1,11 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminUsersApi } from '@/api/adminUsersApi';
-import { UserRoleType, UserStatus } from '@/types/adminEnums';
+import { UserRoleType } from '@/types/adminEnums';
 import type { AdminUserSummaryDto } from '@/types/adminUsers';
 import { ListScreen, QueryState } from '../../../components/PageLayout';
 import { FilterColumn, FilterPanel } from '../../../components/FilterColumn';
-import { SearchBox, ToolbarRow } from '../../../components/Toolbar';
 import { CellMono, CellStatus, CellTwoLine, CellView, DataTable, type DataTableColumn } from '../../../components/DataTable';
 import { Pagination } from '../../../components/Pagination';
 import { useAdminQuery } from '../../../hooks/useAdminQuery';
@@ -50,7 +49,7 @@ export const UsersListPage: React.FC = () => {
   return (
     <ListScreen
       title="Users"
-      subtitle={total === null ? '—' : `${formatNumber(total)} users · Driver, Lot owner, Staff, Admin (UserRoles)`}
+      subtitle={total === null ? undefined : `${formatNumber(total)} ${total === 1 ? 'user' : 'users'}`}
       filters={
         <FilterColumn>
           <FilterPanel
@@ -62,26 +61,7 @@ export const UsersListPage: React.FC = () => {
               ...ROLES.map((r) => ({ value: r, label: humanizeEnum(r), count: role === r ? total : undefined })),
             ]}
           />
-          <FilterPanel
-            title="Account status"
-            value=""
-            disabled
-            disabledReason="GET /api/v1/admin/users does not filter by status yet"
-            options={[{ value: '', label: 'Any' }, ...Object.values(UserStatus).map((s) => ({ value: s, label: humanizeEnum(s) }))]}
-          />
         </FilterColumn>
-      }
-      toolbar={
-        <ToolbarRow>
-          <SearchBox
-            placeholder="Search name, email, phone, ID…"
-            value=""
-            onSearch={() => undefined}
-            width={360}
-            disabled
-            disabledReason="GET /api/v1/admin/users has no search parameter yet"
-          />
-        </ToolbarRow>
       }
     >
       <DataTable
@@ -96,7 +76,7 @@ export const UsersListPage: React.FC = () => {
             onRetry={query.refetch}
             copy={{
               emptyTitle: 'No users found',
-              emptyMessage: 'Try another role or status filter.',
+              emptyMessage: 'Try another role.',
               errorTitle: 'Could not load users',
               service: 'UserService',
             }}

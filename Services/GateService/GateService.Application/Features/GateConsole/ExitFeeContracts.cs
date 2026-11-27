@@ -41,14 +41,17 @@ public sealed record GateSettlementRequest(
     string? BookingCode,
     decimal Amount,
     string Method,
-    int? ConfirmedByStaffId);
+    int? ConfirmedByStaffId,
+    int? ShiftId = null);
 
-public sealed record GateSettlementResult(string PaymentCode, string Status);
+public sealed record GateSettlementResult(string PaymentCode, string Status, decimal Amount = 0);
 
 /// <summary>UC-22 A2 / UC-23: staff xác nhận đã thu tiền → PaymentService ghi Payment Succeeded (idempotent theo SessionCode).</summary>
 public interface IGateSettlementRecorder
 {
     Task<GateSettlementResult> RecordAsync(GateSettlementRequest request, CancellationToken cancellationToken = default);
+    /// <summary>Khoản thu đã ghi của một lượt gửi; null = chưa có.</summary>
+    Task<GateSettlementResult?> FindAsync(string sessionCode, CancellationToken cancellationToken = default);
 }
 
 // ===== Báo giá chốt phí hiển thị cho staff trước khi xác nhận =====

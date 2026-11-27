@@ -66,7 +66,7 @@ const ScheduleSurveyDialog: React.FC<{
     <AdminDialog
       open={open}
       title={reschedule ? 'Reschedule field survey' : 'Schedule field survey'}
-      description="Sets FieldSurveyRequired = true and FieldSurveyAtUtc; a previous survey result is cleared."
+      description="Marks a site visit as required and schedules it. Any previous visit result is cleared."
       onClose={onClose}
       onConfirm={confirm}
       confirmLabel="Save schedule"
@@ -96,7 +96,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
       <ActionDialog
         open={open === 'startReview'}
         title="Start review"
-        description="Status Submitted → Under review; ReviewedByUserId = you."
+        description="The review moves to Under review and you become the reviewer."
         confirmLabel="Start review"
         onClose={onClose}
         onSubmit={async () => {
@@ -110,7 +110,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
       <ActionDialog
         open={open === 'reject'}
         title="Reject KYB"
-        description="Status → Rejected; the lot stays Pending approval."
+        description="The review is rejected; the lot stays pending approval."
         confirmLabel="Reject"
         destructive
         field={{
@@ -133,7 +133,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
       <ActionDialog
         open={open === 'requestInfo'}
         title="Request more information"
-        description="Status → Needs more info; owner can edit and resubmit."
+        description="The owner is asked for more information and can edit and resubmit."
         confirmLabel="Send request"
         field={{
           label: 'What is missing',
@@ -166,7 +166,7 @@ export const KybDialogs: React.FC<KybDialogsProps> = ({ kyb, open, onClose, onDo
       <ActionDialog
         open={open === 'recordSurvey'}
         title="Record field survey result"
-        description="Sets FieldSurveyCompletedAtUtc = now; required before approving lots over 50 slots."
+        description="Records the site visit as done now. Required before approving lots over 50 slots."
         confirmLabel="Save result"
         field={{
           label: 'Survey result',

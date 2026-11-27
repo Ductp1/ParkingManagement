@@ -15,9 +15,9 @@ export const ADJUSTMENTS_PATH = '/admin/finance/adjustments';
 export const BLOCK_REASON_LABEL: Record<string, string> = {
   CommissionPending: 'Commission not calculated yet – wait for the commission job, then regenerate',
   BookingCodeMissing: 'A booking payment has no booking code',
-  BookingNotFound: 'BookingService cannot find a booking of this period',
+  BookingNotFound: 'A booking of this period could not be found',
   BookingUnverifiable: 'A booking ended without a status history',
-  HoldsNotLoaded: 'Dispute holds not loaded – regenerate to load them from SupportService',
+  HoldsNotLoaded: 'Dispute holds are not loaded yet – regenerate to load them',
 };
 export const blockReasonLabel = (code: string) => BLOCK_REASON_LABEL[code] ?? code;
 
@@ -84,7 +84,7 @@ export const commissionLink = (s: Pick<SettlementSummaryDto, 'periodStart' | 'pe
   `/admin/finance/commission?period=custom&from=${s.periodStart}&to=${s.periodEnd}`;
 
 export const ownerLabel = (ownerProfileId: number, account: OwnerPayoutAccountDto | undefined) =>
-  account?.ownerName ?? `OwnerProfile #${ownerProfileId}`;
+  account?.ownerName ?? `Owner #${ownerProfileId}`;
 
 export const bankLabel = (account: OwnerPayoutAccountDto | undefined) =>
   account ? `${account.bankName} · ${account.accountNumberMasked}` : null;

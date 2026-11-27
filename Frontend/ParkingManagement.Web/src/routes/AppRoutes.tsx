@@ -7,6 +7,8 @@ import { HistoryPage } from '@/areas/account/HistoryPage';
 import { PrivacyPage } from '@/areas/account/PrivacyPage';
 import { LandingPage } from '@/areas/public/LandingPage';
 import { PartnerRegisterPage } from '@/areas/public/PartnerRegisterPage';
+import { PartnerApplyEditPage } from '@/areas/public/PartnerApplyEditPage';
+import { OwnerActivatePage } from '@/areas/public/OwnerActivatePage';
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -18,6 +20,8 @@ import { OwnerLotsPage } from '@/areas/owner/pages/OwnerLotsPage';
 import { OwnerKybPage } from '@/areas/owner/pages/OwnerKybPage';
 import { OwnerFeedbackPage } from '@/areas/owner/pages/OwnerFeedbackPage';
 import { OwnerStaffPage } from '@/areas/owner/pages/OwnerStaffPage';
+import { OwnerShiftSchedulePage } from '@/areas/owner/pages/OwnerShiftSchedulePage';
+import { OwnerHandoverListPage } from '@/areas/owner/pages/OwnerHandoverListPage';
 import { OwnerBookingsPage } from '@/areas/owner/pages/OwnerBookingsPage';
 import { OwnerRevenuePage } from '@/areas/owner/pages/OwnerRevenuePage';
 import { OwnerPricingPage } from '@/areas/owner/pages/OwnerPricingPage';
@@ -37,7 +41,14 @@ export const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      {/* US-053 / US-116: đăng ký đối tác chủ bãi – công khai, KHÔNG cần đăng nhập (kèm giấy tờ pháp lý). */}
       <Route path="/partner/register" element={<PartnerRegisterPage />} />
+      {/* Đường dẫn cũ của form đăng ký – giữ cho link đã gửi / bookmark. */}
+      <Route path="/partner/apply" element={<Navigate to="/partner/register" replace />} />
+      {/* Link bổ sung hồ sơ (US-116 T4) và link kích hoạt trong email (U4/U5) – công khai, xếp trước /owner/* cần đăng nhập. */}
+      <Route path="/partner/apply/edit" element={<PartnerApplyEditPage />} />
+      <Route path="/owner/activate" element={<OwnerActivatePage />} />
+      <Route path="/staff/activate" element={<OwnerActivatePage key="staff" staff />} />
       <Route path="/payment/callback" element={<PaymentResultPage />} />
       <Route element={<AppLayout />}>
         <Route element={<ProtectedRoute />}>
@@ -72,6 +83,8 @@ export const AppRoutes: React.FC = () => {
           <Route path="/owner/kyb" element={<OwnerKybPage />} />
           <Route path="/owner/feedback" element={<OwnerFeedbackPage />} />
           <Route path="/owner/staff" element={<OwnerStaffPage />} />
+          <Route path="/owner/staff/shifts" element={<OwnerShiftSchedulePage />} />
+          <Route path="/owner/staff/handovers" element={<OwnerHandoverListPage />} />
           <Route path="/owner/bookings" element={<OwnerBookingsPage />} />
           <Route path="/owner/revenue" element={<OwnerRevenuePage />} />
           <Route path="/owner/pricing" element={<OwnerPricingPage />} />
@@ -79,8 +92,9 @@ export const AppRoutes: React.FC = () => {
         </Route>
 
         {/* 🚪 3. Gate Console Portal (/gate/*) */}
-        <Route element={<ProtectedRoute allowedRoles={['Staff', 'Admin']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['Staff', 'Owner', 'Admin']} />}>
           <Route path="/gate" element={<GateConsolePage />} />
+          <Route path="/gate/shifts" element={<GateConsolePage view="shifts" />} />
           <Route path="/gate/*" element={<GateConsolePage />} />
         </Route>
 

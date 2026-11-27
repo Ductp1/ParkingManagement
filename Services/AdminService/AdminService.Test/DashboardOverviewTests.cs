@@ -612,8 +612,82 @@ public class DashboardOverviewTests
             "/api/v1/bookings/admin/summary?fromUtc=2026-10-26T17%3A00%3A00Z&toUtc=2026-10-27T17%3A00%3A00Z",
             "/api/v1/complaints/admin/summary",
             "/api/v1/parking-lots/admin/lots-summary",
-            "/api/v1/users/admin/data-subject-requests/summary",
+            "/api/v1/users/data-requests?status=Submitted&page=1",   // 404 ở trang đầu → dừng, NoSource
         ], requests);
+    }
+
+    // ----- US-081 / US-007: widget "Yêu cầu dữ liệu cá nhân" đếm từ danh sách admin của UserService -----
+
+    private static readonly DateTimeOffset DsrNow = new(2026, 11, 13, 3, 0, 0, TimeSpan.Zero);
+
+    /// <summary>JSON mảng AdminDataRequestItem với hạn xử lý = DsrNow + offset (giờ).</summary>
+    private static string DsrPage(string status, params double[] dueOffsetsHours)
+        => "[" + string.Join(",", dueOffsetsHours.Select((h, i) =>
+            $$"""{ "id": {{i + 1}}, "userId": 2, "type": "Access", "status": "{{status}}", "createdAtUtc": "2026-11-10T00:00:00Z", "dueAtUtc": "{{DsrNow.AddHours(h).UtcDateTime:yyyy-MM-dd'T'HH:mm:ss'Z'}}", "completedAtUtc": null, "handledByUserId": null, "resultNote": null }""")) + "]";
+
+    [Fact]
+    public async Task Data_request_widget_counts_open_due_soon_and_overdue_across_statuses_and_pages()
+    {
+        var requests = new List<string>();
+        // Submitted: trang 1 đủ 20 mục (3 quá hạn, 2 sắp tới hạn, 15 còn xa) → đọc trang 2 (1 quá hạn); InProgress: 1 sắp tới hạn, 1 còn xa.
+        var submittedPage1 = DsrPage("Submitted", [-5, -1, -0.5, 1, 23, .. Enumerable.Repeat(48.0, 15)]);
+        var handler = new StubHandler(r =>
+        {
+            var pq = r.RequestUri!.PathAndQuery;
+            requests.Add(pq);
+            return pq switch
+            {
+                "/api/v1/users/data-requests?status=Submitted&page=1" => Json(HttpStatusCode.OK, submittedPage1),
+                "/api/v1/users/data-requests?status=Submitted&page=2" => Json(HttpStatusCode.OK, DsrPage("Submitted", -30)),
+                "/api/v1/users/data-requests?status=InProgress&page=1" => Json(HttpStatusCode.OK, DsrPage("InProgress", 2, 72)),
+                _ => new HttpResponseMessage(HttpStatusCode.InternalServerError),
+            };
+        });
+
+        var result = await new UserDataRequestsClient(Http(handler), NullLogger<UserDataRequestsClient>.Instance, new FixedTimeProvider(DsrNow))
+            .GetSummaryAsync(CancellationToken.None);
+
+        Assert.Equal(SourceOutcome.Ok, result.Outcome);
+        Assert.Equal(new DataSubjectRequestsSource(DsrNow.UtcDateTime, Open: 23, DueSoon: 3, Overdue: 4), result.Value);
+        Assert.Equal(
+        [
+            "/api/v1/users/data-requests?status=Submitted&page=1",
+            "/api/v1/users/data-requests?status=Submitted&page=2",
+            "/api/v1/users/data-requests?status=InProgress&page=1",
+        ], requests);
+    }
+
+    [Fact]
+    public async Task Data_request_widget_due_soon_window_is_now_inclusive_to_24h_exclusive()
+    {
+        var handler = new StubHandler(r => Json(HttpStatusCode.OK,
+            r.RequestUri!.Query.Contains("Submitted") ? DsrPage("Submitted", 0, 24) : "[]"));
+
+        var result = await new UserDataRequestsClient(Http(handler), NullLogger<UserDataRequestsClient>.Instance, new FixedTimeProvider(DsrNow))
+            .GetSummaryAsync(CancellationToken.None);
+
+        Assert.Equal(new DataSubjectRequestsSource(DsrNow.UtcDateTime, Open: 2, DueSoon: 1, Overdue: 0), result.Value);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound, SourceOutcome.NoSource)]
+    [InlineData(HttpStatusCode.Forbidden, SourceOutcome.Error)]
+    [InlineData(HttpStatusCode.InternalServerError, SourceOutcome.Error)]
+    public async Task Data_request_widget_maps_list_failures_like_other_sources(HttpStatusCode status, SourceOutcome expected)
+    {
+        var calls = 0;
+        var handler = new StubHandler(_ =>
+        {
+            calls++;
+            return Json(status, """{ "title": "x" }""");
+        });
+
+        var result = await new UserDataRequestsClient(Http(handler), NullLogger<UserDataRequestsClient>.Instance, new FixedTimeProvider(DsrNow))
+            .GetSummaryAsync(CancellationToken.None);
+
+        Assert.Equal(expected, result.Outcome);
+        Assert.Null(result.Value);
+        Assert.Equal(1, calls); // lỗi ở trang đầu → không gọi tiếp
     }
 
     [Theory]

@@ -21,6 +21,7 @@ import { Money } from './SettlementCells';
 import { SettlementDrawer } from './SettlementDrawer';
 import { actionError, formatPeriod, ownerLabel, periodOptionLabel, SKIP_REASON_LABEL } from './settlementFormat';
 import { useOwnerAccounts } from './useOwnerAccounts';
+import { isQueryFailure } from '../../../utils/queryStatus';
 
 const STATUSES = Object.values(SettlementStatus);
 const isStatus = (value: string): value is SettlementStatus => (STATUSES as string[]).includes(value);
@@ -45,7 +46,7 @@ const SettlementKpis: React.FC<{ stats: SettlementStatsDto | null; loading: bool
       {tile('Paid', stats?.paid, formatNumber)}
       <div data-testid="kpi-blocked" data-tone={(stats?.blocked ?? 0) > 0 ? 'warning' : 'default'} className="flex min-w-0">
         {tile('Blocked', stats?.blocked, formatNumber, (stats?.blocked ?? 0) > 0 && (
-          <span className="adm-type-kpi-delta text-(--admin-status-warning)">Need regenerate / fixes</span>
+          <span className="adm-type-kpi-delta text-(--admin-status-warning-text)">Need regenerate / fixes</span>
         ))}
       </div>
       {tile('Net payout in review', stats?.pendingReviewNetPayout, formatVnd)}
@@ -153,7 +154,7 @@ export const SettlementsPage: React.FC = () => {
             Net payout = Gross − Refunds − Collected by owner − Commission − Held + Adjustments + Carry-over. Cash / VietQR is already with the owner, so
             only its commission is deducted; a negative net payout is carried over. Approved periods are closed – correct them with an adjustment.
           </Banner>
-          {(stats.status === 'error' || stats.status === 'unavailable') && (
+          {isQueryFailure(stats.status) && stats.status !== 'forbidden' && (
             <Banner tone="danger" action={<AdminButton variant="secondary" onClick={stats.refetch}>Retry</AdminButton>}>
               Could not load indicators (PaymentService): {stats.error?.message}
             </Banner>

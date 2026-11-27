@@ -109,7 +109,7 @@ export const MisdeclarationPanel: React.FC<{
   const lotActive = view?.parkingLot.status === ParkingLotStatus.Active;
 
   return (
-    <Panel title="Misdeclaration" description="LotMisdeclarationCases · warning with fix deadline, suspension with 24 h explanation, owner ban">
+    <Panel title="Misdeclaration" description="Warning with a fix deadline, suspension with a 24 h explanation, owner ban">
       {!view ? (
         <QueryState
           status={query.status}

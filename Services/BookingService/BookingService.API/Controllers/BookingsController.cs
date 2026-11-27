@@ -1,6 +1,7 @@
 using BookingService.Application.Features.Bookings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ParkingManagement.ServiceDefaults.Security;
 using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 
@@ -32,21 +33,17 @@ public sealed class BookingsController(
     public async Task<ActionResult<BookingDetailDto>> GetByCode(string code, CancellationToken cancellationToken)
     {
         var result = await getByCode.ExecuteAsync(code, cancellationToken);
-        // SEC-003 / UAT-SEC-03: Nếu là tài xế đã đăng nhập, chỉ được xem booking của chính mình
-        if (currentUser.IsAuthenticated && currentUser.Roles.Contains("Driver") && !currentUser.Roles.Contains("Admin"))
+        // GET này vẫn nhận request ẩn danh (SupportService đang gọi không token – việc khóa là task riêng).
+        // Người đã đăng nhập (trừ Admin) có vai trò nào cho phép thì được xem: đúng chủ bãi, nhân viên đúng bãi, hoặc chính tài xế.
+        if (!FromGate && currentUser.IsAuthenticated && !currentUser.Roles.Contains("Admin"))
         {
-            if (currentUser.UserId.HasValue && result.UserId != currentUser.UserId.Value)
-            {
-                return Forbid();
-            }
-        }
-        // Chủ bãi chỉ xem được chi tiết booking của bãi mình sở hữu
-        if (currentUser.IsAuthenticated && currentUser.Roles.Contains("LotOwner") && !currentUser.Roles.Contains("Admin"))
-        {
-            if (currentUser.OwnerProfileId.HasValue && result.OwnerProfileId != currentUser.OwnerProfileId.Value)
-            {
-                return Forbid();
-            }
+            var isOwner = currentUser.Roles.Contains("LotOwner");
+            var isStaff = currentUser.Roles.Contains("Staff");
+            var isDriver = currentUser.Roles.Contains("Driver");
+            var allowed = (isOwner && currentUser.OwnerProfileId == result.OwnerProfileId)
+                || (isStaff && currentUser.ParkingLotIds.Contains(result.ParkingLotId))
+                || (isDriver && (!currentUser.UserId.HasValue || result.UserId == currentUser.UserId.Value));
+            if ((isOwner || isStaff || isDriver) && !allowed) return Forbid();
         }
         return Ok(result);
     }
@@ -57,7 +54,6 @@ public sealed class BookingsController(
     /// Khách vãng lai không nằm ở đây (đó là ParkingSessions của GateService). Không trả SĐT/CCCD.
     /// </summary>
     [HttpGet("gate")]
-    [Authorize(Roles = "LotOwner,Staff,Admin")]
     [ProducesResponseType<IReadOnlyList<GateBookingListItemDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -66,14 +62,23 @@ public sealed class BookingsController(
         [FromQuery] int parkingLotId, [FromQuery] DateTime fromUtc, [FromQuery] DateTime toUtc,
         [FromQuery] string? search, [FromQuery] int gracePeriodMinutes = 15, CancellationToken cancellationToken = default)
     {
+        // GateService (khóa nội bộ, đã tự kiểm bãi + ca) hoặc người dùng LotOwner / Staff / Admin.
         int? ownerProfileId = null;
-        if (currentUser.Roles.Contains("LotOwner") && !currentUser.Roles.Contains("Admin"))
+        if (!FromGate)
         {
-            if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0)
+            if (!currentUser.IsAuthenticated) return Unauthorized();
+            if (!currentUser.Roles.Contains("Admin"))
             {
-                return Forbid();
+                if (currentUser.Roles.Contains("LotOwner"))
+                {
+                    if (!currentUser.OwnerProfileId.HasValue || currentUser.OwnerProfileId.Value <= 0) return Forbid();
+                    ownerProfileId = currentUser.OwnerProfileId.Value;
+                }
+                else if (!currentUser.Roles.Contains("Staff") || !currentUser.ParkingLotIds.Contains(parkingLotId))
+                {
+                    return Forbid();
+                }
             }
-            ownerProfileId = currentUser.OwnerProfileId.Value;
         }
 
         return Ok(await listGateBookings.ExecuteAsync(
@@ -313,21 +318,30 @@ public sealed class BookingsController(
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> CheckIn(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
-        => Ok(await gateActions.CheckInAsync(code, command, cancellationToken));
+    {
+        RequireGate();
+        return Ok(await gateActions.CheckInAsync(code, command, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/bookings/{code}/check-out – Cổng xác nhận xe ra (Nội bộ cho TV7 - GateService).</summary>
     [HttpPost("{code}/check-out")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> CheckOut(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
-        => Ok(await gateActions.CheckOutAsync(code, command, cancellationToken));
+    {
+        RequireGate();
+        return Ok(await gateActions.CheckOutAsync(code, command, cancellationToken));
+    }
 
     /// <summary>POST /api/v1/bookings/{code}/no-show – Cổng đánh dấu No-show sau 30 phút (Nội bộ cho TV7 - GateService).</summary>
     [HttpPost("{code}/no-show")]
     [ProducesResponseType<BookingDetailDto>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<BookingDetailDto>> NoShow(string code, [FromBody] GateActionCommand command, CancellationToken cancellationToken)
-        => Ok(await gateActions.NoShowAsync(code, command, cancellationToken));
+    {
+        RequireGate();
+        return Ok(await gateActions.NoShowAsync(code, command, cancellationToken));
+    }
 
     /// <summary>
     /// GET /api/v1/bookings/no-show-candidates?parkingLotId=2&amp;graceMinutes=30 – US-039 (UC-24 bước 1):
@@ -338,5 +352,13 @@ public sealed class BookingsController(
     [ProducesResponseType<IReadOnlyList<NoShowCandidateDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<NoShowCandidateDto>>> NoShowCandidates(
         [FromQuery] int parkingLotId, [FromQuery] int graceMinutes = 30, CancellationToken cancellationToken = default)
-        => Ok(await listNoShowCandidates.ExecuteAsync(parkingLotId, graceMinutes, cancellationToken));
+    {
+        RequireGate();
+        return Ok(await listNoShowCandidates.ExecuteAsync(parkingLotId, graceMinutes, cancellationToken));
+    }
+
+    private const string GateCaller = "GateService";
+    private InternalApiKeyAuthenticator Keys => HttpContext.RequestServices.GetRequiredService<InternalApiKeyAuthenticator>();
+    private bool FromGate => Keys.IsFrom(Request.Headers.Authorization, GateCaller);
+    private void RequireGate() => Keys.Require(Request.Headers.Authorization, GateCaller);
 }

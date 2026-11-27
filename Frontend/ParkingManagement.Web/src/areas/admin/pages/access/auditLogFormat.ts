@@ -25,22 +25,53 @@ export const auditEntityLink = (entityName: string, entityId: string | null): st
       return `/admin/operations/contract-templates/${id}`;
     case 'SystemConfig':
       return `/admin/access/system-settings/${id}`;
+    // T-803: quyền dữ liệu cá nhân (UserService) – mở người dùng / yêu cầu tương ứng.
+    case 'User':
+      return `/admin/operations/users/${id}`;
+    case 'DataSubjectRequest':
+      return `/admin/access/security-privacy?request=${id}`;
     default:
       return null;
   }
 };
 
-type AuditFilterLink = { entity?: string; entityId?: string | null; userId?: number | null; ownerProfileId?: number | null };
+/**
+ * T-803: EntityName mà UserService sẽ dùng khi phát AuditRecorded (contract đề xuất trong Security Handoff – Lê Quang Trường):
+ * duyệt / từ chối KYC → "User" + EntityId = userId; xử lý yêu cầu dữ liệu cá nhân → "DataSubjectRequest" + EntityId = id yêu cầu.
+ */
+export const KYC_AUDIT_ENTITY = 'User';
+export const DSR_AUDIT_ENTITY = 'DataSubjectRequest';
 
-/** Link sang danh sách Audit Log đã lọc sẵn (dùng ở chi tiết audit và ở các màn khác: user, KYB, đối tác, tham số…). */
+type AuditFilterLink = {
+  /** Service gửi sự kiện (?service=), ví dụ "UserService" cho KYC / yêu cầu dữ liệu cá nhân (T-803). */
+  service?: string;
+  entity?: string;
+  entityId?: string | null;
+  /** Người THỰC HIỆN thao tác (AuditLogs.UserId), không phải người bị tác động. */
+  userId?: number | null;
+  ownerProfileId?: number | null;
+};
+
+/** Link sang danh sách Audit Log đã lọc sẵn (dùng ở chi tiết audit và ở các màn khác: user, KYB, đối tác, tham số, quyền dữ liệu…). */
 export const auditLogListLink = (filter: AuditFilterLink) => {
   const params = new URLSearchParams();
+  if (filter.service) params.set('service', filter.service);
   if (filter.entity) params.set('entity', filter.entity);
   if (filter.entityId) params.set('entityId', filter.entityId);
   if (filter.userId) params.set('userId', String(filter.userId));
   if (filter.ownerProfileId) params.set('ownerProfileId', String(filter.ownerProfileId));
   const query = params.toString();
   return query ? `${AUDIT_LOG_BASE}?${query}` : AUDIT_LOG_BASE;
+};
+
+/**
+ * Bộ lọc đến từ link ở màn khác (vd. ?service=UserService&entity=DataSubjectRequest – T-803) có thể chưa có bản ghi nào,
+ * nên chưa có trong facet của /audit-logs/filters → thêm vào với count 0 để ô lọc hiện đúng giá trị đang lọc thay vì "All".
+ */
+export const withSelectedFacet = (facets: ReadonlyArray<{ value: string; count: number }> | undefined, selected: string | null | undefined) => {
+  const list = [...(facets ?? [])];
+  if (selected && !list.some((f) => f.value === selected)) list.push({ value: selected, count: 0 });
+  return list;
 };
 
 export type AuditChangeTone = 'added' | 'removed' | 'modified';

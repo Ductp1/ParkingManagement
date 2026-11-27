@@ -28,6 +28,11 @@ public class PartnerApplicationDocument : BaseEntity
 
     public string Sha256 { get; private set; } = string.Empty;
 
+    /// <summary>Đối tác thay giấy tờ này bằng bản bổ sung (T4): giữ bản ghi + file làm lịch sử, Admin chỉ thấy bản hiện hành.</summary>
+    public DateTime? SupersededAtUtc { get; private set; }
+
+    public void Supersede(DateTime nowUtc) => SupersededAtUtc ??= nowUtc;
+
     private PartnerApplicationDocument() { }
 
     public static PartnerApplicationDocument Create(PartnerApplication application, PartnerDocumentType type, string fileKey,

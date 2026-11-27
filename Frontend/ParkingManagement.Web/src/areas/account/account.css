@@ -148,7 +148,7 @@
 .acct-dialog::backdrop { background: #13213c73; }
 .acct-dialog h2 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
 
-/* ===== Lớp cũ dùng bởi StaffCard / VneidDemoCard / Hồ sơ — giữ tên, đổi sang token mới ===== */
+/* ===== Lớp cũ dùng bởi VneidDemoCard / Hồ sơ — giữ tên, đổi sang token mới ===== */
 .account-page { max-width: none; }
 .account-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding-bottom: 24px; border-bottom: 1px solid #e2e8f0; margin-bottom: 28px; }
 .account-kicker { display: inline-flex; border-radius: 999px; padding: 5px 12px; background: #eef2ff; color: #4338ca; font-size: 11px; font-weight: 700; letter-spacing: .07em; margin-bottom: 10px; }
@@ -229,14 +229,6 @@
 .vneid-sim-spin { color: var(--signal); }
 @media (prefers-reduced-motion: no-preference) { .vneid-sim-spin { animation: vneid-spin 0.9s linear infinite; } }
 @keyframes vneid-spin { to { transform: rotate(360deg); } }
-
-/* ===== Danh sách nhân viên (StaffCard) ===== */
-.staff-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.staff-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 14px; }
-.staff-list li + li { border-top: 1px solid var(--line); }
-.staff-list strong { display: block; font-size: 14.5px; font-weight: 600; }
-.staff-list small { display: block; font-size: 13px; color: var(--ink-faint); }
-.staff-avatar { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--signal-wash); color: var(--signal); font-weight: 700; }
 
 /* Tailwind preflight đặt margin: 0 cho <dialog> → mất căn giữa mặc định; trả lại để popup luôn nằm giữa màn hình */
 dialog.vneid-sim[open],

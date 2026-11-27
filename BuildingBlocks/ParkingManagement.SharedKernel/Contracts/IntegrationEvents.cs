@@ -16,6 +16,13 @@ public sealed record UserRegistered(int UserId, string FullName, string? Email, 
 public sealed record UserLocked(int UserId, string Reason) : IntegrationEvent;
 public sealed record OwnerProfileCreated(int OwnerProfileId, int UserId, string BusinessName) : IntegrationEvent;
 public sealed record UserPersonalDataErased(int UserId) : IntegrationEvent;
+// US-075/US-076: GateService đóng ca đang mở khi nhận 3 sự kiện dưới. Publish là mandatory: chưa có queue bind thì outbox thử lại rồi dừng.
+/// <summary>Một phân công Staff bị gỡ (chủ bãi gỡ, hoặc tài khoản bị xóa / ẩn danh).</summary>
+public sealed record StaffAssignmentRevoked(int StaffUserId, int OwnerProfileId, int ParkingLotId) : IntegrationEvent;
+/// <summary>Admin đình chỉ tài khoản; LockedUntilUtc = null là vô thời hạn. Khác UserLocked (khóa bảo mật 15 phút).</summary>
+public sealed record UserSuspended(int UserId, string Reason, DateTime? LockedUntilUtc) : IntegrationEvent;
+/// <summary>Chủ bãi bị khóa hoặc chấm dứt hợp tác.</summary>
+public sealed record OwnerProfileLocked(int OwnerProfileId, string Reason) : IntegrationEvent;
 
 // ===== VehicleService =====
 public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNumber, string VehicleType, int HeightCm) : IntegrationEvent;
@@ -38,6 +45,17 @@ public sealed record LotDataMarkedStale(int ParkingLotId, string LotName, int Ow
     DateTime? LastHeartbeatAtUtc, DateTime DetectedAtUtc) : IntegrationEvent;
 /// <summary>US-068: heartbeat resume → tự khỏi trạng thái stale.</summary>
 public sealed record LotDataRecovered(int ParkingLotId, string LotName, int OwnerProfileId, DateTime HeartbeatAtUtc) : IntegrationEvent;
+
+// ===== GateService (US-076): ca trực =====
+public sealed record ShiftMissed(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, DateTime ScheduledStartUtc,
+    DateTime ScheduledEndUtc) : IntegrationEvent;
+public sealed record ShiftAutoClosed(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, string Reason) : IntegrationEvent;
+/// <summary>Ca giữ két đã kết thúc, chờ người nhận đếm tiền. ReceiverStaffUserId = null → chủ bãi nhận.</summary>
+public sealed record HandoverPending(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, int? ReceiverStaffUserId)
+    : IntegrationEvent;
+/// <summary>Lệch tiền mặt: Difference = số đếm − số phải có.</summary>
+public sealed record CashDiscrepancyRaised(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, decimal Difference)
+    : IntegrationEvent;
 
 // ===== BookingService =====
 // US-083/084/085: bổ sung trường theo kiểu additive (OwnerProfileId, ParkingLotName, thời gian, biển số)

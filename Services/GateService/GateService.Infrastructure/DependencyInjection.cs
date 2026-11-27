@@ -1,3 +1,4 @@
+using GateService.Application.Features.Shifts;
 using GateService.Application.Features;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateDevices;
@@ -58,22 +59,26 @@ public static class DependencyInjection
         // Cấu hình BaseUrl trong appsettings ("Services:BookingService:BaseUrl", "Services:PaymentService:BaseUrl").
         services.AddHttpClient<IGateBookingClient, GateBookingClient>((sp, client) =>
         {
+            UseInternalKey(client, configuration, "BookingService");
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:BookingService:BaseUrl"] ?? "http://localhost:5104");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
         // US-039: thao tác No-show cài trên cùng GateBookingClient (cùng BaseUrl BookingService).
         services.AddHttpClient<IGateNoShowClient, GateBookingClient>((sp, client) =>
         {
+            UseInternalKey(client, configuration, "BookingService");
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:BookingService:BaseUrl"] ?? "http://localhost:5104");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
         services.AddHttpClient<IExitFeeCalculator, PaymentServiceClient>((sp, client) =>
         {
+            UseInternalKey(client, configuration, "PaymentService");
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:PaymentService:BaseUrl"] ?? "http://localhost:5105");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
         services.AddHttpClient<IGateSettlementRecorder, PaymentServiceClient>((sp, client) =>
         {
+            UseInternalKey(client, configuration, "PaymentService");
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:PaymentService:BaseUrl"] ?? "http://localhost:5105");
             client.Timeout = TimeSpan.FromSeconds(5);
         });
@@ -109,9 +114,38 @@ public static class DependencyInjection
         // US-039/US-049: gọi ParkingService (TV5) – ghi đè trạng thái slot / nhả chỗ.
         services.AddHttpClient<IParkingSlotClient, ParkingServiceClient>((sp, client) =>
         {
+            UseInternalKey(client, configuration, "ParkingService");
             client.BaseAddress = new Uri(sp.GetRequiredService<IConfiguration>()["Services:ParkingService:BaseUrl"] ?? "http://localhost:5103");
             client.Timeout = TimeSpan.FromSeconds(10);
         });
+        // US-076: ca trực – repository, thông tin bãi, xác minh phân công và tổng tiền mặt.
+        services.AddScoped<IShiftRepository, ShiftRepository>();
+        services.AddSingleton(new ShiftOptions(
+            TimeSpan.FromMinutes(ParsePositiveInt(configuration["Gate:Shift:StartEarlyMinutes"], 15)),
+            TimeSpan.FromMinutes(ParsePositiveInt(configuration["Gate:Shift:GraceMinutes"], 30))));
+        services.AddHttpClient(LotDirectoryClient.ClientName, client =>
+        {
+            client.BaseAddress = new Uri(configuration["Services:ParkingService:BaseUrl"] ?? "http://localhost:5103");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+        services.AddScoped<ILotDirectory, LotDirectoryClient>();
+        services.AddHttpContextAccessor();
+        services.AddTransient<BearerForwardingHandler>();
+        services.AddHttpClient<IStaffDirectory, StaffDirectoryClient>(client =>
+        {
+            client.BaseAddress = new Uri(configuration["Services:UserService:BaseUrl"] ?? "http://localhost:5101");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        }).AddHttpMessageHandler<BearerForwardingHandler>();
+        services.AddHttpClient<IShiftCashSource, PaymentServiceClient>(client =>
+        {
+            UseInternalKey(client, configuration, "PaymentService");
+            client.BaseAddress = new Uri(configuration["Services:PaymentService:BaseUrl"] ?? "http://localhost:5105");
+            client.Timeout = TimeSpan.FromSeconds(5);
+        });
+        // US-076: nhận sự kiện đóng ca, gửi cảnh báo ca qua outbox, job vòng đời ca.
+        services.AddRabbitMqInboxConsumer<GateDbContext, GateIntegrationEventHandler>(configuration);
+        services.AddHostedService<OutboxDispatcher<GateDbContext>>();
+        services.AddHostedService<ShiftLifecycleWorker>();
         // US-048/US-077: đọc audit GateEvents.
         services.AddScoped<IGateEventQueries, GateEventQueries>();
         // US-052: sự kiện PMS – auth qua ParkingService, inbox chống trùng, hàng chờ xử lý tay.
@@ -129,6 +163,12 @@ public static class DependencyInjection
         services.AddScoped<IPmsInbox, PmsInbox>();
         services.AddScoped<IPmsQuarantineStore, PmsQuarantineStore>();
         return services;
+    }
+
+    /// <summary>"Services:{target}:ApiKey" = khóa nội bộ của GateService (InternalEvents:ApiKeys:GateService bên nhận), chỉ đặt qua biến môi trường.</summary>
+    private static void UseInternalKey(HttpClient client, IConfiguration configuration, string target)
+    {
+        if (configuration[$"Services:{target}:ApiKey"] is { Length: > 0 } key) client.DefaultRequestHeaders.Authorization = new("Bearer", key);
     }
 
     private static int ParsePositiveInt(string? raw, int fallback)

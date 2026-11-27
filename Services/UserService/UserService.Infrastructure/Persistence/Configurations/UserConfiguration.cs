@@ -19,6 +19,7 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         e.Property(x => x.KycFrontImageUrl).HasMaxLength(512);
         e.Property(x => x.KycBackImageUrl).HasMaxLength(512);
         e.Property(x => x.AvatarUrl).HasMaxLength(512);
+        e.Property(x => x.RowVersion).IsConcurrencyToken();
 
         // Đăng ký bằng SĐT hoặc Email → mỗi giá trị là duy nhất nếu có.
         e.HasIndex(x => x.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");

@@ -25,10 +25,13 @@ import { KYB_BASE } from '../kyb/kybFormat';
 import { bankText, percentText } from '../lot-contracts/lotContractFormat';
 import { IssueAccountDialog } from './PartnerAccountDialog';
 import { PartnerDocumentsPanel } from './PartnerDocumentsPanel';
+import { PartnerEditLinkDialog } from './PartnerEditLinkDialog';
+import { DiscardApplicationDialog } from './DiscardApplicationDialog';
+import { RequestInfoDialog } from './RequestInfoDialog';
 import { AuditTrailLink } from '../../../components/AuditTrailLink';
 import { auditLogListLink } from '../../access/auditLogFormat';
 
-type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'createAccount' | null;
+type Dialog = 'startReview' | 'requestInfo' | 'reject' | 'cancel' | 'resend' | 'resendInfo' | 'createAccount' | 'editLink' | null;
 
 const FLOW: Array<{ status: string; title: string }> = [
   { status: S.Submitted, title: 'Submitted' },
@@ -37,26 +40,47 @@ const FLOW: Array<{ status: string; title: string }> = [
   { status: S.Activated, title: 'Activated' },
 ];
 
+/** Mục timeline cho vòng yêu cầu bổ sung (T3 / T4): chỉ hiện khi đã có. */
+const infoEntries = (app: PartnerApplicationDetailDto): TimelineEntry[] => [
+  ...(app.infoRequestedAtUtc
+    ? [
+        {
+          key: 'info-requested',
+          title: 'More info requested',
+          meta: `${formatDate(app.infoRequestedAtUtc)}${app.infoRequestDueAtUtc ? ` · respond by ${formatDate(app.infoRequestDueAtUtc)}` : ''}`,
+          state: 'done' as const,
+        },
+      ]
+    : []),
+  ...(app.infoProvidedAtUtc
+    ? [{ key: 'info-provided', title: 'Info provided', meta: formatDate(app.infoProvidedAtUtc), state: 'done' as const }]
+    : []),
+];
+
 const timeline = (app: PartnerApplicationDetailDto): TimelineEntry[] => {
   if (app.status === S.Rejected || app.status === S.Cancelled) {
+    const cancelled = app.status === S.Cancelled;
     return [
       { key: 'submitted', title: 'Submitted', meta: formatDate(app.createdAtUtc), state: 'done' },
+      ...infoEntries(app),
       {
         key: 'end',
-        title: app.status === S.Rejected ? 'Rejected' : 'Cancelled',
-        meta: `${formatDate(app.updatedAtUtc)} · ${orEmpty(app.status === S.Rejected ? app.rejectReason : app.cancelReason)}`,
+        title: cancelled ? 'Discarded' : 'Rejected',
+        meta: `${formatDate(cancelled ? app.cancelledAtUtc ?? app.updatedAtUtc : app.updatedAtUtc)} · ${orEmpty(cancelled ? app.cancelReason : app.rejectReason)}`,
         state: 'danger',
       },
     ];
   }
   const effective = app.status === S.NeedsMoreInfo ? S.UnderReview : app.status;
   const current = FLOW.findIndex((f) => f.status === effective);
-  return FLOW.map((f, i) => ({
+  const flow: TimelineEntry[] = FLOW.map((f, i) => ({
     key: f.status,
     title: app.status === S.NeedsMoreInfo && i === current ? 'Needs more info' : f.title,
     meta: i === 0 ? formatDate(app.createdAtUtc) : i === current ? formatDate(app.updatedAtUtc) : undefined,
     state: i < current || (i === current && app.status === S.Activated) ? 'done' : i === current ? 'current' : 'upcoming',
   }));
+  // Các mục yêu cầu bổ sung chèn ngay sau "Submitted".
+  return [flow[0], ...infoEntries(app), ...flow.slice(1)];
 };
 
 const lotColumns: DataTableColumn<LotContractSummaryDto>[] = [
@@ -109,7 +133,7 @@ export const PartnerDetailPage: React.FC = () => {
   if (!app) {
     return (
       <>
-        <AdminTitleBar title="Partner Onboarding" subtitle="—" />
+        <AdminTitleBar title="Partner Onboarding" />
         <QueryState
           status={valid ? query.status : 'empty'}
           error={query.error}
@@ -126,6 +150,14 @@ export const PartnerDetailPage: React.FC = () => {
     query.refetch();
   };
   const close = () => setDialog(null);
+  const retryCleanup = async () => {
+    try {
+      await adminPartnerOnboardingApi.retryCleanup(app.id);
+      done('Owner account removed');
+    } catch (err: unknown) {
+      toast.show({ type: 'error', title: 'Cleanup failed', message: err instanceof Error ? err.message : String(err) });
+    }
+  };
   const summary = <DialogSummary title={`${app.code} · ${app.businessName}`} subtitle={`MST ${app.taxCode} · ${app.fullName} · ${app.email}`} />;
   const can = (status: string) => app.nextStatuses.includes(status);
 
@@ -138,6 +170,13 @@ export const PartnerDetailPage: React.FC = () => {
           Request info
         </AdminButton>
         <AdminButton onClick={() => setDialog('createAccount')}>Create owner account</AdminButton>
+      </>
+    ) : app.status === S.NeedsMoreInfo ? (
+      <>
+        <AdminButton variant="onNavy" onClick={() => setDialog('editLink')}>
+          Link for applicant
+        </AdminButton>
+        <AdminButton onClick={() => setDialog('resendInfo')}>Resend request email</AdminButton>
       </>
     ) : app.status === S.AccountIssued ? (
       <AdminButton onClick={() => setDialog('resend')}>Resend activation</AdminButton>
@@ -155,11 +194,33 @@ export const PartnerDetailPage: React.FC = () => {
           </>
         }
       />
-      {app.status === S.NeedsMoreInfo && <Banner tone="warning">More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant.</Banner>}
+      {app.status === S.NeedsMoreInfo && (
+        <Banner tone="warning">
+          More info requested: {orEmpty(app.infoRequestNote)} · waiting for the applicant
+          {app.infoRequestDueAtUtc ? ` (respond by ${formatDateTimeIct(app.infoRequestDueAtUtc)} ICT)` : ''}. Their update moves the application back to
+          Under review.
+        </Banner>
+      )}
+      {app.status === S.NeedsMoreInfo && app.infoRequestEmailStatus === 'Failed' && (
+        <Banner tone="danger">
+          The request email could not be queued: {orEmpty(app.infoRequestEmailError)}. Use “Resend request email”, or copy “Link for applicant”.
+        </Banner>
+      )}
+      {app.status === S.UnderReview && app.infoProvidedAtUtc && app.infoRequestedAtUtc && (
+        <Banner tone="info">The applicant provided the requested information on {formatDateTimeIct(app.infoProvidedAtUtc)} ICT · Updated.</Banner>
+      )}
       {app.status === S.Rejected && <Banner tone="danger">Rejected: {orEmpty(app.rejectReason)}</Banner>}
-      {app.status === S.Cancelled && <Banner tone="danger">Cancelled: {orEmpty(app.cancelReason)}</Banner>}
+      {app.status === S.Cancelled && <Banner tone="danger">Discarded: {orEmpty(app.cancelReason)}</Banner>}
+      {app.status === S.Cancelled && app.cleanupSyncStatus === 'Failed' && (
+        <Banner tone="danger">
+          The application is discarded, but the owner account has not been removed yet: {orEmpty(app.cleanupError)}.{' '}
+          <AdminButton variant="secondary" onClick={() => void retryCleanup()}>
+            Retry cleanup
+          </AdminButton>
+        </Banner>
+      )}
       {app.status === S.AccountIssued && (
-        <Banner tone="info">Owner account issued (OwnerProfile #{orEmpty(app.createdOwnerProfileId)}) · waiting for the owner to activate.</Banner>
+        <Banner tone="info">Owner account issued (Owner #{orEmpty(app.createdOwnerProfileId)}) · waiting for the owner to activate.</Banner>
       )}
       <SummaryRow
         items={[
@@ -170,12 +231,12 @@ export const PartnerDetailPage: React.FC = () => {
           (can(S.Cancelled) || can(S.Rejected)) && (
             <>
               {can(S.Cancelled) && (
-                <AdminButton variant="secondary" onClick={() => setDialog('cancel')}>
-                  Cancel application
+                <AdminButton variant="destructive" onClick={() => setDialog('cancel')}>
+                  Discard application
                 </AdminButton>
               )}
               {can(S.Rejected) && (
-                <AdminButton variant="destructive" onClick={() => setDialog('reject')}>
+                <AdminButton variant="secondary" onClick={() => setDialog('reject')}>
                   Reject
                 </AdminButton>
               )}
@@ -231,10 +292,10 @@ export const PartnerDetailPage: React.FC = () => {
         }
         side={
           <>
-            <Panel title="Status timeline" description="AuditLogs · Action = PartnerApplication.<Transition>">
+            <Panel title="Status timeline" description="Every status change on this application">
               <Timeline entries={timeline(app)} />
             </Panel>
-            <Panel title="Allowed next steps" description="From the AdminService transition table">
+            <Panel title="Allowed next steps">
               <p className="adm-type-body-default m-0 text-(--admin-text-primary)">
                 {app.nextStatuses.length > 0 ? app.nextStatuses.map((s) => humanizeEnum(s)).join(' · ') : 'None — terminal'}
               </p>
@@ -243,7 +304,7 @@ export const PartnerDetailPage: React.FC = () => {
               <p className="adm-type-body-default m-0 text-(--admin-text-primary)">{app.payoutBank ? bankText(app.payoutBank) : 'Set when the owner account is issued.'}</p>
             </Panel>
             {app.createdOwnerProfileId !== null && (
-              <Panel title="Owner account" description="Created in UserService at T6">
+              <Panel title="Owner account" description="Created when the account is issued">
                 <DetailList>
                   <DetailRow label="User">#{app.createdUserId}</DetailRow>
                   <DetailRow label="OwnerProfile">#{app.createdOwnerProfileId}</DetailRow>
@@ -257,7 +318,7 @@ export const PartnerDetailPage: React.FC = () => {
       <ActionDialog
         open={dialog === 'startReview'}
         title="Start review"
-        description="Status changes Submitted → Under review. You become the reviewer."
+        description="The application moves to Under review and you become the reviewer."
         confirmLabel="Start review"
         onClose={close}
         onSubmit={async () => {
@@ -267,16 +328,16 @@ export const PartnerDetailPage: React.FC = () => {
       >
         {summary}
       </ActionDialog>
+      <RequestInfoDialog open={dialog === 'requestInfo'} app={app} onClose={close} onDone={() => done('Info requested')} />
       <ActionDialog
-        open={dialog === 'requestInfo'}
-        title="Request more information"
-        description="Status changes to Needs more info. The note is stored on the application."
-        confirmLabel="Send request"
-        field={{ label: 'Note to applicant', required: true, requiredMessage: 'A note is required.', placeholder: 'What should the applicant fix or add?', maxLength: 1000 }}
+        open={dialog === 'resendInfo'}
+        title="Resend request email"
+        description={`A new link is emailed to ${app.email}; the previous link stops working.`}
+        confirmLabel="Resend email"
         onClose={close}
-        onSubmit={async (note) => {
-          await adminPartnerOnboardingApi.requestInfo(app.id, { note });
-          done('Info requested');
+        onSubmit={async () => {
+          await adminPartnerOnboardingApi.resendInfoRequest(app.id, { rowVersion: app.rowVersion ?? null });
+          done('Request email resent');
         }}
       >
         {summary}
@@ -296,26 +357,11 @@ export const PartnerDetailPage: React.FC = () => {
       >
         {summary}
       </ActionDialog>
-      <ActionDialog
-        open={dialog === 'cancel'}
-        title="Cancel application"
-        description="Use when the applicant withdraws. Not allowed after Account issued."
-        confirmLabel="Cancel application"
-        cancelLabel="Keep application"
-        destructive
-        field={{ label: 'Reason', required: true, requiredMessage: 'A reason is required.', placeholder: 'Why is this application cancelled?', maxLength: 1000 }}
-        onClose={close}
-        onSubmit={async (reason) => {
-          await adminPartnerOnboardingApi.cancel(app.id, { reason });
-          done('Application cancelled');
-        }}
-      >
-        {summary}
-      </ActionDialog>
+      <DiscardApplicationDialog open={dialog === 'cancel'} app={app} onClose={close} onDone={() => done('Application discarded')} />
       <ActionDialog
         open={dialog === 'resend'}
         title="Resend activation link"
-        description={`UserService revokes the current link and emails a new one to ${app.email}.`}
+        description={`The current link stops working and a new one is emailed to ${app.email}.`}
         confirmLabel="Resend link"
         onClose={close}
         onSubmit={async () => {
@@ -326,6 +372,7 @@ export const PartnerDetailPage: React.FC = () => {
         {summary}
       </ActionDialog>
       {dialog === 'createAccount' && <IssueAccountDialog app={app} onClose={close} onDone={done} />}
+      {dialog === 'editLink' && <PartnerEditLinkDialog app={app} onClose={close} />}
     </>
   );
 };

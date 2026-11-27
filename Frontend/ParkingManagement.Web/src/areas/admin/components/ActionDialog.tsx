@@ -8,6 +8,8 @@ export interface ActionDialogField {
   requiredMessage?: string;
   placeholder?: string;
   helper?: string;
+  /** Số ký tự tối thiểu sau khi trim (khớp rule phía server, ví dụ lý do 10–500 ký tự). */
+  minLength?: number;
   maxLength?: number;
 }
 
@@ -47,8 +49,13 @@ export const ActionDialog: React.FC<ActionDialogProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  const trimmed = text.trim();
   const fieldError =
-    field?.required && text.trim() === '' ? field.requiredMessage ?? `${field.label} is required.` : null;
+    field?.required && trimmed === ''
+      ? field.requiredMessage ?? `${field.label} is required.`
+      : field?.minLength && trimmed !== '' && trimmed.length < field.minLength
+        ? `Use at least ${field.minLength} characters.`
+        : null;
 
   const close = () => {
     setText('');

@@ -12,7 +12,9 @@ builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddE
 builder.AddServiceDefaults("PaymentService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
 // JWT do UserService phát hành (RS256): kiểm tra chữ ký bằng public key + policy RBAC dùng chung (T-102).
 // Chỉ controller báo cáo doanh thu chủ bãi (US-078) gắn [Authorize]; endpoint thanh toán/báo giá hiện có
-// (VNPAY return/IPN, gate-settlement, pricing) giữ nguyên, không yêu cầu token.
+// (VNPAY return/IPN, pricing) giữ nguyên, không yêu cầu token.
+// Thu tiền tại cổng (/internal/v1/gate-settlements) chỉ nhận khóa nội bộ của GateService.
+builder.Services.AddSingleton<ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator>();
 builder.Services.AddJwtAuth(Path.GetFullPath(
     builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
 builder.Services.AddPaymentApplication();                                  // Application: Use Case

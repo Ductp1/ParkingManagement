@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using ParkingManagement.ServiceDefaults.Security;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.Application.Features.Slots;
 
@@ -20,7 +21,7 @@ public sealed record OverrideSlotStateRequest(
 /// </summary>
 [ApiController]
 [Route("api/v1/parking-lots")]
-public sealed class SlotStatesController(IOverrideSlotStateUseCase overrideSlotState) : ControllerBase
+public sealed class SlotStatesController(IOverrideSlotStateUseCase overrideSlotState, InternalApiKeyAuthenticator authenticator) : ControllerBase
 {
     /// <summary>
     /// POST /api/v1/parking-lots/slots/{slotId}/state-override – đổi trạng thái slot + ghi log (trước/sau, nguồn, người đổi, lý do).
@@ -34,7 +35,10 @@ public sealed class SlotStatesController(IOverrideSlotStateUseCase overrideSlotS
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<SlotStateOverrideResultDto>> OverrideState(
         int slotId, [FromBody] OverrideSlotStateRequest request, CancellationToken cancellationToken)
-        => Ok(await overrideSlotState.ExecuteAsync(new OverrideSlotStateCommand(
+    {
+        authenticator.Require(Request.Headers.Authorization, "GateService");
+        return Ok(await overrideSlotState.ExecuteAsync(new OverrideSlotStateCommand(
             slotId, request.ParkingLotId, request.NewState, request.Source, request.StaffUserId, request.Reason,
             request.BookingId, request.ParkingSessionId), cancellationToken));
+    }
 }

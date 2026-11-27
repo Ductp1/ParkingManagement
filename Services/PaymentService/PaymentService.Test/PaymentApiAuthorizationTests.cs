@@ -70,13 +70,30 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
-    public async Task GateSettlement_WithoutToken_Returns200()
+    [Theory]
+    [InlineData(null, HttpStatusCode.Unauthorized)]
+    [InlineData(GateKey, HttpStatusCode.OK)]
+    [InlineData(OtherKey, HttpStatusCode.Forbidden)]
+    public async Task GateSettlement_OnlyAcceptsTheGateServiceKey(string? key, HttpStatusCode expected)
     {
-        var response = await host.Client.PostAsJsonAsync("/api/v1/payments/gate-settlement",
-            new GateSettlementCommand("SS-0001", 1, LotA1, OwnerA, null, 20_000, "Cash", 5));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/internal/v1/gate-settlements")
+        {
+            Content = JsonContent.Create(new GateSettlementCommand("SS-0001", 1, LotA1, OwnerA, null, 20_000, "Cash", 5)),
+        };
+        if (key is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+        using var response = await host.Client.SendAsync(request);
+        Assert.Equal(expected, response.StatusCode);
     }
+
+    [Fact]
+    public async Task PublicGateSettlementRoute_IsGone()
+    {
+        var response = await host.Client.PostAsJsonAsync("/api/v1/payments/gate-settlement", new { });
+        Assert.False(response.IsSuccessStatusCode);
+    }
+
+    private const string GateKey = "gate-service-test-key-0123456789-abcdef";
+    private const string OtherKey = "support-service-test-key-0123456789-ab";
 
     [Fact]
     public async Task ListPaymentsByBooking_WithoutToken_Returns200()
@@ -269,12 +286,124 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
         Assert.Equal(3, text.Split("\r\n").Length);   // header + 1 dòng của OwnerA + dòng trống cuối
     }
 
+    // ----- US-071: ngày lễ – đọc công khai, thêm / xóa chỉ Admin -----
+
+    private const string HolidaysUrl = "/api/v1/holidays";
+
+    private static object NewHoliday(string date, string name = "Ngày lễ thử") => new { date, name, city = (string?)null };
+
+    [Fact]
+    public async Task ListHolidays_WithoutToken_Returns200()
+    {
+        var response = await host.Client.GetAsync($"{HolidaysUrl}?year=2027");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var items = await response.Content.ReadFromJsonAsync<List<HolidayJson>>(host.Json);
+        Assert.Contains(items!, h => h.Id == ApiHost.ReadOnlyHolidayId);
+    }
+
+    [Fact]
+    public async Task CreateHoliday_WithoutToken_Returns401AndStoresNothing()
+    {
+        var response = await host.Client.PostAsJsonAsync(HolidaysUrl, NewHoliday("2027-12-20"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.DoesNotContain(host.Holidays.Items, h => h.Date == new DateOnly(2027, 12, 20));
+    }
+
+    [Fact]
+    public async Task CreateHoliday_WithInvalidBearerToken_Returns401()
+    {
+        var response = await host.SendAsync(HttpMethod.Post, HolidaysUrl, "not-a-jwt", NewHoliday("2027-12-21"));
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("LotOwner")]
+    [InlineData("Staff")]
+    [InlineData("Driver")]
+    public async Task CreateHoliday_NonAdmin_Returns403AndStoresNothing(string role)
+    {
+        var response = await host.SendAsync(HttpMethod.Post, HolidaysUrl, host.MintToken(role, OwnerA), NewHoliday("2027-12-22"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.DoesNotContain(host.Holidays.Items, h => h.Date == new DateOnly(2027, 12, 22));
+    }
+
+    [Fact]
+    public async Task CreateHoliday_Admin_Returns201WithCreatedHoliday()
+    {
+        var response = await host.SendAsync(HttpMethod.Post, HolidaysUrl, host.MintToken("Admin", null),
+            NewHoliday("2027-12-24", "Giáng sinh"));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<HolidayJson>(host.Json);
+        Assert.Equal((new DateOnly(2027, 12, 24), "Giáng sinh", (string?)null), (created!.Date, created.Name, created.City));
+        Assert.Contains(host.Holidays.Items, h => h.Id == created.Id);
+    }
+
+    [Fact]
+    public async Task CreateHoliday_AdminDuplicateDate_Returns400()
+    {
+        var response = await host.SendAsync(HttpMethod.Post, HolidaysUrl, host.MintToken("Admin", null),
+            NewHoliday(ApiHost.ReadOnlyHolidayDate.ToString("yyyy-MM-dd")));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteHoliday_WithoutToken_Returns401AndKeepsHoliday()
+    {
+        var response = await host.Client.DeleteAsync($"{HolidaysUrl}/{ApiHost.ReadOnlyHolidayId}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains(host.Holidays.Items, h => h.Id == ApiHost.ReadOnlyHolidayId);
+    }
+
+    [Theory]
+    [InlineData("LotOwner")]
+    [InlineData("Staff")]
+    [InlineData("Driver")]
+    public async Task DeleteHoliday_NonAdmin_Returns403AndKeepsHoliday(string role)
+    {
+        var response = await host.SendAsync(HttpMethod.Delete, $"{HolidaysUrl}/{ApiHost.ReadOnlyHolidayId}", host.MintToken(role, OwnerA));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains(host.Holidays.Items, h => h.Id == ApiHost.ReadOnlyHolidayId);
+    }
+
+    [Fact]
+    public async Task DeleteHoliday_Admin_Returns204AndRemovesHoliday()
+    {
+        var response = await host.SendAsync(HttpMethod.Delete, $"{HolidaysUrl}/{ApiHost.DeletableHolidayId}", host.MintToken("Admin", null));
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.DoesNotContain(host.Holidays.Items, h => h.Id == ApiHost.DeletableHolidayId);
+    }
+
+    [Fact]
+    public async Task DeleteHoliday_AdminUnknownId_Returns404()
+    {
+        var response = await host.SendAsync(HttpMethod.Delete, $"{HolidaysUrl}/9999", host.MintToken("Admin", null));
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private sealed record HolidayJson(int Id, DateOnly Date, string Name, string? City);
+
     /// <summary>Host dùng chung cho cả lớp test: cặp khóa RSA test (UserService giả lập) + Kestrel cổng ngẫu nhiên.</summary>
     public sealed class ApiHost : IAsyncLifetime
     {
         private readonly RSA _signingKey = RSA.Create(2048);
         private readonly string _keyDirectory = Path.Combine(Path.GetTempPath(), "pm-payment-keys-" + Guid.NewGuid().ToString("N")[..8]);
         private WebApplication? _app;
+
+        /// <summary>US-071: ngày lễ seed – id 1 chỉ đọc (không test nào được xóa), id 2 dành cho test xóa bằng Admin.</summary>
+        public const int ReadOnlyHolidayId = 1;
+        public const int DeletableHolidayId = 2;
+        public static readonly DateOnly ReadOnlyHolidayDate = new(2027, 1, 1);
+
+        public InMemoryHolidays Holidays { get; } = new(
+            (ReadOnlyHolidayId, ReadOnlyHolidayDate, "Tết Dương lịch"),
+            (DeletableHolidayId, new DateOnly(2027, 5, 1), "Quốc tế Lao động"));
 
         public HttpClient Client { get; private set; } = null!;
         public System.Text.Json.JsonSerializerOptions Json { get; } = new(System.Text.Json.JsonSerializerDefaults.Web)
@@ -299,10 +428,14 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
             builder.Logging.ClearProviders();
 
             builder.AddServiceDefaults("PaymentService");
+            builder.Configuration["InternalEvents:ApiKeys:GateService"] = GateKey;
+            builder.Configuration["InternalEvents:ApiKeys:SupportService"] = OtherKey;
+            builder.Services.AddSingleton<ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator>();
             builder.Services.AddJwtAuth(publicKeyPath);
             builder.Services.AddPaymentApplication();
             builder.Services.AddSingleton<IRateCardRepository, FakeRateCards>();
             builder.Services.AddSingleton<IHolidayRepository, FakeHolidays>();
+            builder.Services.AddSingleton<IHolidayManagementRepository>(Holidays);
             builder.Services.AddSingleton<IPaymentQueries, FakePaymentQueries>();
             builder.Services.AddSingleton<IPaymentWriter, FakePaymentWriter>();
             builder.Services.AddSingleton<IPaymentRepository, FakePaymentRepository>();
@@ -351,6 +484,15 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
             return Client.SendAsync(request);
         }
 
+        /// <summary>Gửi request có Bearer token và body JSON (nếu có) – dùng cho POST / DELETE.</summary>
+        public Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, string token, object? body = null)
+        {
+            var request = new HttpRequestMessage(method, url);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (body is not null) request.Content = JsonContent.Create(body);
+            return Client.SendAsync(request);
+        }
+
         public async Task DisposeAsync()
         {
             Client?.Dispose();
@@ -376,6 +518,50 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
             => Task.FromResult<IReadOnlyCollection<DateOnly>>([]);
     }
 
+    /// <summary>US-071: kho ngày lễ trong bộ nhớ (thread-safe vì các test trong lớp dùng chung host).</summary>
+    public sealed class InMemoryHolidays : IHolidayManagementRepository
+    {
+        private readonly object _gate = new();
+        private readonly List<Holiday> _items = [];
+        private int _nextId = 100;
+
+        public InMemoryHolidays(params (int Id, DateOnly Date, string Name)[] seed)
+        {
+            foreach (var (id, date, name) in seed) _items.Add(new Holiday { Date = date, Name = name }.WithId(id));
+        }
+
+        public IReadOnlyList<Holiday> Items { get { lock (_gate) return [.. _items]; } }
+
+        public Task<IReadOnlyList<Holiday>> GetAllAsync(int? year, CancellationToken cancellationToken)
+        {
+            lock (_gate)
+                return Task.FromResult<IReadOnlyList<Holiday>>(
+                    [.. _items.Where(h => year is null || h.Date.Year == year).OrderBy(h => h.Date)]);
+        }
+
+        public Task<Holiday?> GetByIdAsync(int id, CancellationToken cancellationToken)
+        {
+            lock (_gate) return Task.FromResult(_items.FirstOrDefault(h => h.Id == id));
+        }
+
+        public Task<bool> ExistsAsync(DateOnly date, string? city, CancellationToken cancellationToken)
+        {
+            lock (_gate) return Task.FromResult(_items.Any(h => h.Date == date && h.City == city));
+        }
+
+        public Task AddAsync(Holiday holiday, CancellationToken cancellationToken)
+        {
+            lock (_gate) _items.Add(holiday.WithId(_nextId++));
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(Holiday holiday, CancellationToken cancellationToken)
+        {
+            lock (_gate) _items.Remove(holiday);
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakePaymentQueries : IPaymentQueries
     {
         public Task<IReadOnlyList<PaymentDto>> ListByBookingAsync(int bookingId, CancellationToken cancellationToken)
@@ -386,6 +572,8 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
     {
         public Task<Payment?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken)
             => Task.FromResult<Payment?>(null);
+        public Task<IReadOnlyList<Payment>> ListByShiftAsync(int shiftId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Payment>>([]);
         public Task AddAsync(Payment payment, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task SaveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

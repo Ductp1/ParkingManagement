@@ -131,12 +131,41 @@ public interface IPaymentWriter
 {
     /// <summary>Tìm giao dịch theo khóa chống trừ tiền 2 lần (idempotent cho callback/thao tác lặp).</summary>
     Task<Payment?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken);
+    /// <summary>Giao dịch thu tại cổng của một ca trực.</summary>
+    Task<IReadOnlyList<Payment>> ListByShiftAsync(int shiftId, CancellationToken cancellationToken);
     Task AddAsync(Payment payment, CancellationToken cancellationToken);
     Task SaveAsync(CancellationToken cancellationToken);
 }
 
 public sealed record GateSettlementCommand(string SessionCode, int ParkingSessionId, int ParkingLotId, int OwnerProfileId,
-    string? BookingCode, decimal Amount, string Method, int? ConfirmedByStaffId);
+    string? BookingCode, decimal Amount, string Method, int? ConfirmedByStaffId, int? ShiftId = null);
+
+/// <summary>Tiền thu tại cổng của một ca: CashTotal chỉ cộng giao dịch tiền mặt thành công.</summary>
+public sealed record GateShiftSettlementsDto(int ShiftId, decimal CashTotal, IReadOnlyList<PaymentDto> Payments);
+
+public interface IGateSettlementQueries
+{
+    Task<PaymentDto?> FindBySessionAsync(string sessionCode, CancellationToken cancellationToken = default);
+    Task<GateShiftSettlementsDto> ListByShiftAsync(int shiftId, CancellationToken cancellationToken = default);
+}
+
+public sealed class GateSettlementQueries(IPaymentWriter writer) : IGateSettlementQueries
+{
+    public async Task<PaymentDto?> FindBySessionAsync(string sessionCode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sessionCode)) throw new ValidationException("SessionCode không được để trống.");
+        var payment = await writer.FindByIdempotencyKeyAsync(RecordGateSettlementUseCase.KeyOf(sessionCode), cancellationToken);
+        return payment is null ? null : RecordGateSettlementUseCase.Map(payment);
+    }
+
+    public async Task<GateShiftSettlementsDto> ListByShiftAsync(int shiftId, CancellationToken cancellationToken = default)
+    {
+        if (shiftId <= 0) throw new ValidationException("shiftId phải là số nguyên dương.");
+        var payments = await writer.ListByShiftAsync(shiftId, cancellationToken);
+        var cash = payments.Where(p => p.Method == PaymentMethod.Cash && p.Status == PaymentStatus.Succeeded).Sum(p => p.Amount);
+        return new GateShiftSettlementsDto(shiftId, cash, payments.Select(RecordGateSettlementUseCase.Map).ToList());
+    }
+}
 
 public interface IRecordGateSettlementUseCase
 {
@@ -158,12 +187,14 @@ public sealed class RecordGateSettlementUseCase(IPaymentWriter writer, TimeProvi
             throw new ValidationException($"Phương thức thu tại cổng '{command.Method}' không hợp lệ (Cash hoặc VietQr).");
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
-        var idempotencyKey = $"gate-session:{command.SessionCode.Trim().ToUpperInvariant()}";
+        var idempotencyKey = KeyOf(command.SessionCode);
 
         // Idempotent: thao tác lặp trả lại giao dịch đã ghi, không trừ/tạo lần 2.
         var existing = await writer.FindByIdempotencyKeyAsync(idempotencyKey, cancellationToken);
         if (existing is not null)
-            return Map(existing);
+            return existing.Amount == command.Amount ? Map(existing)
+                // Không trả âm thầm giao dịch cũ khi số tiền khác: bên gọi sẽ tưởng đã ghi đủ.
+                : throw new ConflictException("Lượt gửi này đã ghi một khoản thu khác số tiền.", "GATE_PAYMENT_EXISTS");
 
         var payment = new Payment
         {
@@ -180,6 +211,7 @@ public sealed class RecordGateSettlementUseCase(IPaymentWriter writer, TimeProvi
             TransferContent = command.SessionCode,
             PaidAtUtc = now,
             ConfirmedByStaffId = command.ConfirmedByStaffId,
+            ShiftId = command.ShiftId,
         };
 
         await writer.AddAsync(payment, cancellationToken);
@@ -187,6 +219,8 @@ public sealed class RecordGateSettlementUseCase(IPaymentWriter writer, TimeProvi
         return Map(payment);
     }
 
-    private static PaymentDto Map(Payment p) => new(p.Id, p.Code, p.BookingId, p.BookingCode, p.Method.ToString(),
+    internal static string KeyOf(string sessionCode) => $"gate-session:{sessionCode.Trim().ToUpperInvariant()}";
+
+    internal static PaymentDto Map(Payment p) => new(p.Id, p.Code, p.BookingId, p.BookingCode, p.Method.ToString(),
         p.Status.ToString(), p.Amount, p.RefundedAmount, p.ProviderTransactionId, p.PaidAtUtc, null);
 }

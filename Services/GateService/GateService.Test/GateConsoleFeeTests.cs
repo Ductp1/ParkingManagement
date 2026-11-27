@@ -262,7 +262,7 @@ public class GateConsoleFeeTests
     private static CheckOutUseCase NewCheckOut(FakeWriter writer, FakeGateEvents events, FakeBookings bookings,
         FakeExitFees exitFees, FakeSettlements settlements)
         => new(new FakeRecognizer(), bookings, exitFees, settlements, writer, events, new FixedTimeProvider(Now), Options,
-            new AlwaysAdmitLotCapacityGate(), new NoopCapacityPublisher());
+            new AlwaysAdmitLotCapacityGate(), new NoopCapacityPublisher(), new FakeDrawer());
 
     private sealed class FakeShiftQueries(ShiftDto? openShift) : IShiftQueries
     {

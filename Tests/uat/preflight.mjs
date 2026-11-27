@@ -71,6 +71,24 @@ const owner = await login('owner.vincom@smartparking.vn');
 const staff = await login('staff.vincom@smartparking.vn');
 const admin = await login('admin@smartparking.vn');
 
+// US-076: thao tác ghi ở cổng cần nhân viên đang có ca mở – bắt đầu ca đã xếp, chưa có thì chủ bãi tạo ca nhanh.
+{
+  const mine = await call('GET', '/api/v1/gate/me/shifts', staff);
+  if (mine.status !== 200) throw new Error(`Không đọc được ca trực: HTTP ${mine.status}`);
+  const here = mine.body.shifts.filter((s) => s.parkingLotId === LOT.id);
+  if (!here.some((s) => s.status === 'Open')) {
+    let shift = here.find((s) => s.status === 'Scheduled' && Date.parse(s.scheduledStartUtc) - 15 * 60_000 <= Date.now()
+      && Date.parse(s.scheduledEndUtc) > Date.now());
+    if (!shift) {
+      const created = await call('POST', `/api/v1/gate/lots/${LOT.id}/shifts/ad-hoc`, owner, { staffUserId: USERS.staff, durationMinutes: 480 });
+      if (created.status !== 201) throw new Error(`Không tạo được ca nhanh: HTTP ${created.status} ${created.text.slice(0, 160)}`);
+      shift = created.body;
+    }
+    const started = await call('POST', `/api/v1/gate/shifts/${shift.id}/start`, staff);
+    if (started.status !== 200) throw new Error(`Không bắt đầu được ca: HTTP ${started.status} ${started.text.slice(0, 160)}`);
+  }
+}
+
 const created = async (opts, token = driver1) => {
   const r = await booking(token, opts);
   statusIs(r, 201, 'tạo booking');
@@ -83,9 +101,9 @@ const confirmed = async (opts) => {
   return b;
 };
 const checkIn = (token, b, parkingLotId = LOT.id) => call('POST', '/api/v1/gate/check-in', token,
-  { parkingLotId, method: 'Qr', plate: b.plateNumber, qrToken: b.qrToken, staffUserId: USERS.staff });
+  { parkingLotId, method: 'Qr', plate: b.plateNumber, qrToken: b.qrToken });
 const checkOut = (token, plateNumber) => call('POST', '/api/v1/gate/check-out', token,
-  { parkingLotId: LOT.id, plate: plateNumber, method: 'Manual', staffUserId: USERS.staff, confirmFee: true });
+  { parkingLotId: LOT.id, plate: plateNumber, method: 'Manual', confirmFee: true });
 
 await uatCase('UAT-DRV-05', 'Tạo booking giữ chỗ 15 phút', async () => {
   const b = await created({});
@@ -142,7 +160,7 @@ await uatCase('UAT-GAT-02', 'QR đã dùng / giả / của bãi khác bị từ 
   statusIs(await checkIn(staff, b), 409, 'QR đã dùng');
   statusIs(await checkIn(staff, { plateNumber: plate(), qrToken: 'forged.preflight.token' }), 400, 'QR giả');
   const other = await confirmed({ minutes: 20 });
-  statusIs(await checkIn(staff, other, 2), 400, 'QR của bãi khác');
+  statusIs(await checkIn(staff, other, 2), 403, 'check-in ở bãi ngoài ca trực');
   statusIs(await checkOut(staff, b.plateNumber), 200, 'dọn: check-out');
 });
 await uatCase('UAT-GAT-04+05', 'Ra trong ân hạn: phí 0đ, booking Completed', async () => {
@@ -157,7 +175,7 @@ await uatCase('UAT-GAT-04+05', 'Ra trong ân hạn: phí 0đ, booking Completed'
 });
 await uatCase('UAT-GAT-06', 'Khách vãng lai: vào/ra, chặn trùng biển số', async () => {
   const p = plate();
-  const walkIn = () => call('POST', '/api/v1/gate/check-in', staff, { parkingLotId: LOT.id, method: 'Manual', plate: p, staffUserId: USERS.staff });
+  const walkIn = () => call('POST', '/api/v1/gate/check-in', staff, { parkingLotId: LOT.id, method: 'Manual', plate: p });
   statusIs(await walkIn(), 200, 'vào lần đầu');
   statusIs(await walkIn(), 409, 'vào trùng');
   statusIs(await checkOut(staff, p), 200, 'ra');
@@ -166,7 +184,7 @@ await uatCase('UAT-SEC-01', 'Không token: tạo / duyệt booking, check-in đ�
   const b = await created({});
   const anon = await booking(null);
   const approve = await call('POST', `/api/v1/bookings/${b.code}/approve`, null, { ownerProfileId: LOT.ownerProfileId });
-  const gate = await call('POST', '/api/v1/gate/check-in', null, { parkingLotId: LOT.id, method: 'Manual', plate: plate(), staffUserId: USERS.staff });
+  const gate = await call('POST', '/api/v1/gate/check-in', null, { parkingLotId: LOT.id, method: 'Manual', plate: plate() });
   const got = `tạo ${anon.status}, duyệt ${approve.status}, check-in ${gate.status}`;
   expect(anon.status === 401 && approve.status === 401 && gate.status === 401, got);
 });

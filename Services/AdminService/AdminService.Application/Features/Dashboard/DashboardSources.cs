@@ -59,8 +59,14 @@ public sealed record PaymentMethodSource(string Method, int Count, decimal Gross
 public sealed record BookingSummarySource(DateTime AsOfUtc, int Created, int Confirmed, int Completed, int Cancelled, int CancelledNoRefund,
     int Expired, int Rejected, int? NoShow, int? CancelledByDriver, int? CancelledByLot);
 
-/// <summary>Contract-first – GET /api/v1/users/admin/data-subject-requests/summary (UserService, chưa có). Theo DueAtUtc.</summary>
+/// <summary>
+/// Số yêu cầu dữ liệu cá nhân đang mở theo DueAtUtc. UserService chưa có endpoint summary (contract-first) → client tự đếm từ danh sách
+/// GET /api/v1/users/data-requests (xem UserDataRequestsClient).
+/// </summary>
 public sealed record DataSubjectRequestsSource(DateTime AsOfUtc, int Open, int DueSoon, int Overdue);
+
+/// <summary>Một dòng của GET /api/v1/users/data-requests (UserService AdminDataRequestItem) – chỉ các trường cần đếm.</summary>
+public sealed record DataRequestRowSource(int Id, int UserId, string Status, DateTime DueAtUtc);
 
 // ===== PORT (đọc, qua Gateway với JWT Admin) =====
 

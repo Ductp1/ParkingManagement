@@ -41,6 +41,8 @@ public class Payment : BaseEntity
     public DateTime? ExpiresAtUtc { get; set; }
     /// <summary>Nhân viên xác nhận đã thu tiền mặt.</summary>
     public int? ConfirmedByStaffId { get; set; }
+    /// <summary>→ GateService Shifts (không FK): ca đã thu tiền, dùng đối soát két.</summary>
+    public int? ShiftId { get; set; }
     public int RetryCount { get; set; }
 
 

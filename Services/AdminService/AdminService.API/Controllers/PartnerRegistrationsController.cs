@@ -9,8 +9,9 @@ using ParkingManagement.SharedKernel.Contracts;
 namespace AdminService.API.Controllers;
 
 /// <summary>
-/// US-053 (T1): "Trở thành đối tác chủ bãi". Người dùng phải ĐĂNG NHẬP trước (mọi vai trò trừ người đã là chủ bãi); hồ sơ gắn với
-/// tài khoản trong JWT, chờ Admin thẩm định rồi duyệt. Nằm dưới /api/v1/admin vì Gateway chỉ chuyển tiền tố đó sang AdminService.
+/// US-053 / US-116 (T1): "Trở thành đối tác chủ bãi". KHÔNG bắt buộc đăng nhập: chủ bãi chưa có tài khoản nộp hồ sơ + giấy tờ,
+/// Admin thẩm định rồi mới cấp tài khoản (link kích hoạt qua email). Nếu đang đăng nhập (vd. tài xế muốn làm chủ bãi) thì hồ sơ gắn
+/// với tài khoản trong JWT và khi duyệt chính tài khoản đó được thêm quyền chủ bãi. Nằm dưới /api/v1/admin vì Gateway chỉ chuyển tiền tố đó sang AdminService.
 /// Người nộp chỉ xem được trạng thái hồ sơ của mình (GET mine) – giấy tờ pháp lý chỉ Admin xem qua AdminPartnerApplicationsController.
 /// Giới hạn tần suất theo IP (policy "partner-registration").
 /// </summary>
@@ -32,19 +33,18 @@ public sealed class PartnerRegistrationsController(
     /// Trả mã hồ sơ; hồ sơ ở trạng thái Submitted chờ Admin thẩm định.
     /// </summary>
     [HttpPost]
+    [AllowAnonymous]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(RequestLimit)]
     [RequestFormLimits(MultipartBodyLengthLimit = RequestLimit)]
     [EnableRateLimiting(PartnerRegistrationRateLimit.PolicyName)]
     [ProducesResponseType<PartnerApplicationReceiptDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<PartnerApplicationReceiptDto>> Submit([FromForm] PartnerRegistrationForm form,
         CancellationToken cancellationToken)
     {
-        if (currentUser.UserId is not { } userId) return Unauthorized();
         var documents = new List<PartnerDocumentUpload>();
         await AddAsync(documents, PartnerDocumentType.BusinessLicense, form.BusinessLicenseFiles, cancellationToken);
         await AddAsync(documents, PartnerDocumentType.LotLegalProof, form.LotLegalProofFiles, cancellationToken);
@@ -56,7 +56,8 @@ public sealed class PartnerRegistrationsController(
             form.BusinessName, form.TaxCode, form.BusinessAddress, form.LegalRepresentativeName, form.LegalRepresentativePosition,
             form.LotCount, form.PrimaryLotAddress, form.EstimatedCarSlots, form.EstimatedMotorbikeSlots, form.OperatingHours,
             form.ConsentAccepted);
-        var receipt = await submit.ExecuteAsync(new PartnerApplicant(userId, IsLotOwner()), request, documents, cancellationToken);
+        var applicant = currentUser.UserId is { } userId ? new PartnerApplicant(userId, IsLotOwner()) : null;
+        var receipt = await submit.ExecuteAsync(applicant, request, documents, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, receipt);
     }
 

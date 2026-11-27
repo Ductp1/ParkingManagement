@@ -94,8 +94,8 @@ public sealed class ListGateExceptionsUseCase(IGateEventQueries queries) : IList
 ///  - Support recording exception types and reasons: GateEventType + Reason bắt buộc + ảnh (tuỳ chọn).
 ///  - Record staff actions and audit logs: thực thi hành động qua use case chuẩn (check-in/out) và
 ///    luôn ghi GateEvents kèm staffId + ca trực; tăng ManualExceptionCount của ca.
-///  - Business rule: thao tác thủ công KHÔNG được bỏ qua thanh toán – ConfirmCashPayment chỉ ghi nhận
-///    bằng chứng đã thu tiền mặt để PaymentService đối soát sau.
+///  - Business rule: thao tác thủ công KHÔNG được bỏ qua thanh toán – ConfirmCashPayment ghi Payment tiền mặt
+///    theo phí tính ở server và cho xe ra.
 /// UC-23 E1: xe không có booking hợp lệ và hết vùng đệm vãng lai → luồng check-in/capacity tự chặn.
 /// </summary>
 public sealed class RecordGateExceptionUseCase(
@@ -127,8 +127,8 @@ public sealed class RecordGateExceptionUseCase(
         {
             GateExceptionAction.ManualCheckIn => await DoManualCheckInAsync(command, plate, bookingCode, cancellationToken),
             GateExceptionAction.ManualCheckOut => await DoManualCheckOutAsync(command, plate, cancellationToken),
-            GateExceptionAction.ConfirmCashPayment => await FindSessionDetailAsync(command.ParkingLotId, plate, cancellationToken,
-                " – Xác nhận đã thu tiền mặt tại cổng, chờ PaymentService đối soát."),
+            // Xác nhận thu tiền = check-out thủ công: tính phí, ghi Payment và đóng lượt cùng lúc (mỗi lượt chỉ thu một lần).
+            GateExceptionAction.ConfirmCashPayment => await DoManualCheckOutAsync(command, plate, cancellationToken),
             _ => await FindSessionDetailAsync(command.ParkingLotId, plate, cancellationToken, string.Empty)
         };
 
@@ -172,7 +172,9 @@ public sealed class RecordGateExceptionUseCase(
             new CheckOutCommand(command.ParkingLotId, plate, GateMethod.Manual, command.StaffUserId, ConfirmFee: true),
             cancellationToken);
         var session = result.Session;
-        var feeText = result.Fee is null ? string.Empty : $" Phí: {session.Fee:N0}đ.";
+        var feeText = result.Fee is not { } fee ? string.Empty
+            : fee.AdditionalDue > 0 ? $" Phí: {session.Fee:N0}đ, đã thu {fee.AdditionalDue:N0}đ tiền mặt."
+            : $" Phí: {session.Fee:N0}đ, không còn khoản phải thu.";
         return (session.Id, session.Code, session.Status, $" – Đã chốt phiên check-out {session.Code}.{feeText}");
     }
 

@@ -192,12 +192,14 @@ public class OwnerExitUseCaseTests
         profile.RequestExit("Nghỉ", 30, now.UtcDateTime.AddDays(-30));
         var repo = new FakeExitOwnerRepo(profile);
 
-        var useCase = new TerminateOwnerExitUseCase(repo, timeProvider);
+        var events = new EventSink();
+        var useCase = new TerminateOwnerExitUseCase(repo, events, timeProvider);
 
         var result = await useCase.ExecuteAsync(profile.Id);
 
         Assert.Equal("Terminated", result.Status);
         Assert.Equal(0, result.RemainingDays);
+        Assert.IsType<ParkingManagement.SharedKernel.Contracts.OwnerProfileLocked>(Assert.Single(events.Events));
         Assert.False(result.CanCancel);
 
         Assert.Equal(OwnerStatus.Terminated, profile.Status);

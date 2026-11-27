@@ -61,6 +61,88 @@ public sealed class UserServiceClient(HttpClient http, ILogger<UserServiceClient
             throw new NotFoundException("Tài khoản chủ bãi", ownerProfileId);
     }
 
+    public async Task DiscardOwnerAccountAsync(int ownerProfileId, string reason, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await SendJsonAsync(HttpMethod.Post, $"{OwnerPath(ownerProfileId)}/discard", new { reason }, cancellationToken);
+        }
+        catch (NotFoundException)
+        {
+            // Hồ sơ chủ bãi không còn: đã được gỡ ở lần trước (idempotent).
+        }
+    }
+
+    public Task SendPartnerEmailAsync(PartnerEmailCommand command, CancellationToken cancellationToken)
+        => SendJsonAsync(HttpMethod.Post, "api/v1/users/owner-profiles/partner-emails", command, cancellationToken);
+
+    public Task<UserLifecycleResultDto> SuspendUserAsync(int userId, string reason, DateTime? lockedUntilUtc, string? rowVersion, CancellationToken cancellationToken)
+        => SendLifecycleAsync($"api/v1/users/{userId}/suspend", new { reason, lockedUntilUtc, rowVersion }, cancellationToken);
+
+    public Task<UserLifecycleResultDto> ReactivateUserAsync(int userId, string reason, string? rowVersion, CancellationToken cancellationToken)
+        => SendLifecycleAsync($"api/v1/users/{userId}/reactivate", new { reason, rowVersion }, cancellationToken);
+
+    public Task<UserLifecycleResultDto> EraseUserAsync(int userId, string reason, string? rowVersion, CancellationToken cancellationToken)
+        => SendLifecycleAsync($"api/v1/users/{userId}/erase", new { reason, rowVersion }, cancellationToken);
+
+    private async Task<UserLifecycleResultDto> SendLifecycleAsync(string path, object body, CancellationToken cancellationToken)
+    {
+        var json = await SendJsonAsync(HttpMethod.Post, path, body, cancellationToken);
+        try
+        {
+            return JsonSerializer.Deserialize<UserLifecycleResultDto>(json, JsonOptions)
+                ?? throw Unavailable($"UserService trả nội dung rỗng khi gọi POST {path}.");
+        }
+        catch (JsonException ex)
+        {
+            throw Unavailable($"UserService trả nội dung không hợp lệ khi gọi POST {path}.", ex);
+        }
+    }
+
+    /// <summary>
+    /// POST JSON và trả nội dung phản hồi. Lỗi nghiệp vụ của UserService (400 / 409) được chuyển NGUYÊN VĂN (ProblemDetails.detail) để
+    /// Admin thấy lý do thật; 401 / 403 / 404 chuyển thành lỗi chung; còn lại → 503.
+    /// </summary>
+    private async Task<string> SendJsonAsync(HttpMethod method, string path, object? body, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(method, path);
+            if (body is not null) request.Content = JsonContent.Create(body, options: JsonOptions);
+            using var response = await http.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode) throw await FailureAsync(response, method, path, cancellationToken);
+            return await response.Content.ReadAsStringAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is HttpRequestException
+            || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            throw Unavailable($"Không gọi được UserService ({method} {path}).", ex);
+        }
+    }
+
+    private async Task<Exception> FailureAsync(HttpResponseMessage response, HttpMethod method, string path, CancellationToken cancellationToken)
+    {
+        string? detail = null;
+        if (HasJsonBody(response))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+                if (doc.RootElement.TryGetProperty("detail", out var d) && d.ValueKind == JsonValueKind.String) detail = d.GetString();
+            }
+            catch (JsonException) { /* body không phải ProblemDetails → dùng thông báo chung */ }
+        }
+        return response.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized => new AuthenticationException(UnauthorizedMessage),
+            HttpStatusCode.Forbidden => new ForbiddenException(ForbiddenMessage),
+            HttpStatusCode.Conflict when detail is not null => new ConflictException(detail),
+            HttpStatusCode.BadRequest when detail is not null => new ValidationException(detail),
+            HttpStatusCode.NotFound when HasJsonBody(response) => new NotFoundException("Tài nguyên bên UserService", path),
+            _ => Unavailable($"UserService trả HTTP {(int)response.StatusCode} khi gọi {method} {path}."),
+        };
+    }
+
     private static string OwnerPath(int ownerProfileId) => $"api/v1/users/owner-profiles/{ownerProfileId}";
 
     private Task<T?> GetAsync<T>(string path, CancellationToken cancellationToken) where T : class
