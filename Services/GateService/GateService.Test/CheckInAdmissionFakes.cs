@@ -21,7 +21,7 @@ internal static class CheckInAdmissionFakes
     public static CheckOutUseCase CreateCheckOut(FakeAdmissionGate gate, IParkingSessionWriter writer)
         => new(new FakePlateRecognizer(), new FakeGateBookings(), new FakeExitFeeCalculator(), new FakeSettlementRecorder(),
             writer, new RecordingGateEventWriter(), TimeProvider.System, new GateConsoleOptions(),
-            gate, new RecordingCapacityPublisher());
+            gate, new RecordingCapacityPublisher(), new FakeDrawer());
 }
 
 internal sealed class FakeAdmissionGate(bool admitted, string? reason = null) : ILotAdmissionGate
@@ -81,6 +81,8 @@ internal sealed class FakeSettlementRecorder : IGateSettlementRecorder
 {
     public Task<GateSettlementResult> RecordAsync(GateSettlementRequest request, CancellationToken cancellationToken = default)
         => Task.FromResult(new GateSettlementResult("PAY-TEST", "Succeeded"));
+    public Task<GateSettlementResult?> FindAsync(string sessionCode, CancellationToken cancellationToken = default)
+        => Task.FromResult<GateSettlementResult?>(null);
 }
 
 internal sealed class RecordingSessionWriter : IParkingSessionWriter

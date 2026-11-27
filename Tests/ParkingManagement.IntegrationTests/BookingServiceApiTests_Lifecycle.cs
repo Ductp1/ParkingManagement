@@ -50,6 +50,9 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
     public WebApplicationFactory<BookingsController> BookingFactory { get; private set; } = null!;
     public HttpClient ParkingClient { get; private set; } = null!;
     public HttpClient BookingClient { get; private set; } = null!;
+    /// <summary>Client mang khóa nội bộ của GateService – chỉ nó được gọi các endpoint cổng.</summary>
+    public HttpClient GateClient { get; private set; } = null!;
+    private const string GateKey = "gate-service-it-key-0123456789-abcdef";
     public RsaTestKeys Keys { get; } = RsaTestKeys.Create();
 
     /// <summary>Root DI của ParkingService (resolve DbContext để arrange dữ liệu test).</summary>
@@ -103,6 +106,9 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
             // để bộ test này kiểm vòng đời booking; luật lạm dụng đã có unit test riêng (BookingAbusePolicy).
             services =>
             {
+                services.AddSingleton(new ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator(
+                    new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+                    { ["InternalEvents:ApiKeys:GateService"] = GateKey }).Build()));
                 services.RemoveAll<BookingAbuseOptions>();
                 services.AddSingleton(new BookingAbuseOptions
                 {
@@ -122,6 +128,8 @@ public sealed class BookingLifecycleFixture : IAsyncLifetime
         // lỗi hạ tầng (PostgreSQL không chạy, thiếu secret...) báo ngay tại Initialize thay vì test đầu tiên.
         ParkingClient = ParkingFactory.CreateClient();
         BookingClient = BookingFactory.CreateClient();
+        GateClient = BookingFactory.CreateClient();
+        GateClient.DefaultRequestHeaders.Authorization = new("Bearer", GateKey);
         BookingClient.DefaultRequestHeaders.Authorization = new("Bearer",
             Keys.MintToken(DemoIds.AdminUser, "admin@smartparking.vn", null, "Admin"));
 
@@ -603,8 +611,12 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
     {
         var booking = await fixture.CreateApprovedBookingAsync();
 
+        // JWT người dùng (kể cả Admin) không còn gọi được endpoint cổng.
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, (await fixture.BookingClient.PostAsJsonAsync(
+            $"/api/v1/bookings/{booking.Code}/check-in", new { gateDeviceId = 7 })).StatusCode);
+
         // ----- Check-in (Cổng 7, nhân viên Vincom 4) -----
-        var checkIn = await fixture.BookingClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-in",
+        var checkIn = await fixture.GateClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-in",
             new { gateDeviceId = 7, staffUserId = DemoIds.StaffVincomUser });
         Assert.Equal(HttpStatusCode.OK, checkIn.StatusCode);
         var checkedIn = await checkIn.Content.ReadFromJsonAsync<BookingDetailJson>();
@@ -615,12 +627,12 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
 
         // Check-in lần 2 → 409
         await AssertConflictAsync(
-            await fixture.BookingClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-in",
+            await fixture.GateClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-in",
                 new { gateDeviceId = 7, staffUserId = DemoIds.StaffVincomUser }),
             "không hợp lệ để vào bãi");
 
         // ----- Check-out → Completed -----
-        var checkOut = await fixture.BookingClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-out",
+        var checkOut = await fixture.GateClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-out",
             new { gateDeviceId = 7, staffUserId = DemoIds.StaffVincomUser });
         Assert.Equal(HttpStatusCode.OK, checkOut.StatusCode);
         var completed = await checkOut.Content.ReadFromJsonAsync<BookingDetailJson>();
@@ -629,7 +641,7 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
 
         // Check-out lần 2 → 409
         await AssertConflictAsync(
-            await fixture.BookingClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-out",
+            await fixture.GateClient.PostAsJsonAsync($"/api/v1/bookings/{booking.Code}/check-out",
                 new { gateDeviceId = 7, staffUserId = DemoIds.StaffVincomUser }),
             "chưa vào bãi hoặc đã rời bãi");
 
@@ -645,13 +657,13 @@ public class BookingServiceApiTests_Lifecycle(BookingLifecycleFixture fixture)
         // ----- No-show (US-039): chưa quá 30 phút giờ hẹn → 400; trạng thái không phải Confirmed → 409 -----
         var tooEarly = await fixture.CreateApprovedBookingAsync();
         await AssertBadRequestAsync(
-            await fixture.BookingClient.PostAsJsonAsync($"/api/v1/bookings/{tooEarly.Code}/no-show",
+            await fixture.GateClient.PostAsJsonAsync($"/api/v1/bookings/{tooEarly.Code}/no-show",
                 new { gateDeviceId = 1, staffUserId = DemoIds.StaffVincomUser }),
             "Chưa quá 30 phút");
 
         var neverConfirmed = await fixture.CreateBookingAsync();
         await AssertConflictAsync(
-            await fixture.BookingClient.PostAsJsonAsync($"/api/v1/bookings/{neverConfirmed.Code}/no-show",
+            await fixture.GateClient.PostAsJsonAsync($"/api/v1/bookings/{neverConfirmed.Code}/no-show",
                 new { gateDeviceId = 1, staffUserId = DemoIds.StaffVincomUser }),
             "không thể đánh dấu vắng mặt");
     }

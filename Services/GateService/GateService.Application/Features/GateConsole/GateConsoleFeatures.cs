@@ -1,4 +1,5 @@
-﻿using GateService.Application.Features.GateEvents;
+﻿using GateService.Application.Features.Shifts;
+using GateService.Application.Features.GateEvents;
 using GateService.Application.Features.LotCapacity;
 using GateService.Application.Features.PlateRecognition;
 using GateService.Domain.Entities;
@@ -63,7 +64,7 @@ public interface ICheckInUseCase
 public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrTokenValidator qrTokens,
     IGateBookingClient bookings, IParkingSessionWriter writer, IGateEventWriter gateEvents,
     TimeProvider timeProvider, GateConsoleOptions options,
-    ILotAdmissionGate admissionGate, ILotCapacityRealtimePublisher capacityPublisher) : ICheckInUseCase
+    ILotAdmissionGate admissionGate, ILotCapacityRealtimePublisher capacityPublisher, CurrentShift? shift = null) : ICheckInUseCase
 {
     public async Task<ParkingSessionDto> ExecuteAsync(CheckInCommand command, CancellationToken cancellationToken = default)
     {
@@ -136,6 +137,7 @@ public sealed class CheckInUseCase(IPlateRecognizer plateRecognizer, IBookingQrT
             {
                 Code = $"PS-{now:yyMMddHHmmssfff}{Random.Shared.Next(1000, 9999)}",
                 ParkingLotId = command.ParkingLotId,
+                OwnerProfileId = shift?.Value?.OwnerProfileId ?? 0, // ca trực mang tenant của bãi
                 BookingCode = bookingCode,
                 PlateNumber = recognized.PlateNumber,
                 VehicleType = booking is not null && Enum.TryParse<VehicleType>(booking.VehicleType, out var bookedType)
@@ -206,7 +208,7 @@ public interface ICheckOutUseCase
 public sealed class CheckOutUseCase(IPlateRecognizer plateRecognizer, IGateBookingClient bookings,
     IExitFeeCalculator exitFees, IGateSettlementRecorder settlements, IParkingSessionWriter writer,
     IGateEventWriter gateEvents, TimeProvider timeProvider, GateConsoleOptions options,
-    ILotAdmissionGate admissionGate, ILotCapacityRealtimePublisher capacityPublisher) : ICheckOutUseCase
+    ILotAdmissionGate admissionGate, ILotCapacityRealtimePublisher capacityPublisher, ICashDrawer drawer) : ICheckOutUseCase
 {
     public async Task<CheckOutResultDto> ExecuteAsync(CheckOutCommand command, CancellationToken cancellationToken = default)
     {
@@ -224,20 +226,41 @@ public sealed class CheckOutUseCase(IPlateRecognizer plateRecognizer, IGateBooki
         // được tính lại server-side tại đây – không tin số tiền từ client.
         ExitFeeQuoteDto? quote = null;
         var paymentNote = string.Empty;
+        var exitAt = now;
         if (command.ConfirmFee)
         {
-            quote = await ExitFeeQuoter.QuoteAsync(ParkingSessionMapper.ToDto(session, now), bookings, exitFees, options, now, cancellationToken);
-
-            if (quote.AdditionalDue > 0)
+            // Lần trước đã chốt báo giá nhưng chưa đóng được lượt: PaymentService có khoản thu rồi thì đóng đúng theo báo giá đó,
+            // chưa có thì tính lại (xe ở thêm phải trả đúng).
+            var paid = session.QuotedAtUtc is null ? null : await settlements.FindAsync(session.Code, cancellationToken);
+            if (paid is not null)
             {
-                var payment = await settlements.RecordAsync(new GateSettlementRequest(
-                    session.Code, session.Id, session.ParkingLotId, session.OwnerProfileId,
-                    session.BookingCode, quote.AdditionalDue, "Cash", command.StaffUserId), cancellationToken);
-                paymentNote = $" Đã ghi thu tiền mặt {quote.AdditionalDue:N0}đ – Payment {payment.PaymentCode}.";
+                exitAt = session.QuotedAtUtc!.Value;
+                quote = StoredQuote(session, exitAt);
+                paymentNote = $" Đã thu tiền mặt {paid.Amount:N0}đ – Payment {paid.PaymentCode}.";
+            }
+            else
+            {
+                quote = await ExitFeeQuoter.QuoteAsync(ParkingSessionMapper.ToDto(session, now), bookings, exitFees, options, now, cancellationToken);
+
+                if (quote.AdditionalDue > 0)
+                {
+                    var shiftId = await drawer.AuthorizeCollectionAsync(cancellationToken);
+                    // Lưu báo giá TRƯỚC khi gọi PaymentService (hai database, không chung transaction).
+                    session.QuotedSessionFee = quote.SessionFee;
+                    session.QuotedPrepaidAmount = quote.PrepaidAmount;
+                    session.QuotedAdditionalDue = quote.AdditionalDue;
+                    session.QuotedAtUtc = now;
+                    await writer.SaveAsync(cancellationToken);
+
+                    var payment = await settlements.RecordAsync(new GateSettlementRequest(
+                        session.Code, session.Id, session.ParkingLotId, session.OwnerProfileId,
+                        session.BookingCode, quote.AdditionalDue, "Cash", command.StaffUserId, shiftId), cancellationToken);
+                    paymentNote = $" Đã ghi thu tiền mặt {payment.Amount:N0}đ – Payment {payment.PaymentCode}.";
+                }
             }
         }
 
-        session.ExitAtUtc = now;
+        session.ExitAtUtc = exitAt;
         session.CheckOutMethod = command.Method;
         session.CheckedOutByStaffId = command.StaffUserId;
         session.Status = ParkingSessionStatus.Completed;
@@ -276,6 +299,11 @@ public sealed class CheckOutUseCase(IPlateRecognizer plateRecognizer, IGateBooki
 
         return new CheckOutResultDto(ParkingSessionMapper.ToDto(session, now), quote, warning);
     }
+
+    private static ExitFeeQuoteDto StoredQuote(ParkingSession session, DateTime quotedAt) => new(
+        session.Code, PlateNormalizer.Format(session.PlateNumber), session.BookingCode, null, session.EntryAtUtc,
+        (int)Math.Ceiling((quotedAt - session.EntryAtUtc).TotalMinutes), session.QuotedSessionFee ?? 0,
+        session.QuotedPrepaidAmount ?? 0, session.QuotedAdditionalDue ?? 0, false, 0, 0, []);
 }
 
 /// <summary>Map entity → DTO dùng chung cho Check-in/Check-out (định dạng biển số chạy trong bộ nhớ).</summary>

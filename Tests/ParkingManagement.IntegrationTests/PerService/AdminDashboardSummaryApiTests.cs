@@ -95,6 +95,7 @@ public sealed class GateAdminDashboardFixture : ServiceHostFixture<GateControlle
             services.AddSingleton<IExitFeeCalculator>(sp => sp.GetRequiredService<StubPaymentService>());
             services.AddSingleton<IGateSettlementRecorder>(sp => sp.GetRequiredService<StubPaymentService>());
             AdminDashboardTestSupport.UseTestSigningKey(services, Keys);
+            services.RemoveAll<ParkingManagement.ServiceDefaults.ITokenPrincipalValidator>(); // không có UserService để kiểm phiên
         };
     }
 
@@ -217,19 +218,17 @@ public class GateAdminDashboardApiTests(GateAdminDashboardFixture fixture)
     [Theory]
     [InlineData("/api/v1/parking-sessions?parkingLotId=1&status=Active")]
     [InlineData("/api/v1/gate-devices?parkingLotId=1")]
-    public async Task ExistingEndpoints_StillAnonymous(string path)
+    public async Task GateEndpoints_RequireLogin_AndAdminCanRead(string path)
     {
-        using var response = await SendAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var anonymous = await SendAsync(path);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        using var admin = await SendAsync(path, "Admin");
+        Assert.Equal(HttpStatusCode.OK, admin.StatusCode);
     }
 
     [Fact]
-    public void Controllers_OnlyNewOneRequiresAdmin()
-    {
-        AdminDashboardTestSupport.AssertAdminReadOnlyController(typeof(AdminGateDashboardController));
-        AdminDashboardTestSupport.AssertNoClassLevelAuthorize(typeof(GateController), typeof(ParkingSessionsController),
-            typeof(GateDevicesController), typeof(GateService.API.Controllers.LotCapacityController));
-    }
+    public void AdminController_IsReadOnly()
+        => AdminDashboardTestSupport.AssertAdminReadOnlyController(typeof(AdminGateDashboardController));
 }
 
 // ======================= SupportService =======================

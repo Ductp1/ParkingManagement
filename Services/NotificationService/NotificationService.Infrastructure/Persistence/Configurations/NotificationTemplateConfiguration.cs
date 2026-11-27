@@ -76,6 +76,11 @@ internal sealed class NotificationTemplateConfiguration : IEntityTypeConfigurati
             T("LOT_REOPENED", NotificationChannel.InApp, "Bãi đã mở lại", "Bãi {LotName} đã MỞ lại lúc {ReopenedAt}. Đặt chỗ và check-in hoạt động bình thường."),
             T("LOT_REOPENED", NotificationChannel.InApp, "Lot reopened", "Lot {LotName} reopened at {ReopenedAt}. Bookings and check-ins are working normally.", "en"),
             T("LOT_REOPENED", NotificationChannel.Email, "Bãi {LotName} đã mở lại", "Bãi {LotName} đã MỞ lại lúc {ReopenedAt} sau sự cố khẩn cấp. Đặt chỗ và check-in hoạt động bình thường."),
-            T("LOT_REOPENED", NotificationChannel.Email, "Lot {LotName} reopened", "Lot {LotName} reopened at {ReopenedAt} after the emergency closure. Bookings and check-ins are working normally.", "en"));
+            T("LOT_REOPENED", NotificationChannel.Email, "Lot {LotName} reopened", "Lot {LotName} reopened at {ReopenedAt} after the emergency closure. Bookings and check-ins are working normally.", "en"),
+            // ===== US-076: cảnh báo ca trực =====
+            T("SHIFT_MISSED", NotificationChannel.InApp, "Ca trực chưa bắt đầu", "Nhân viên #{StaffId} chưa bắt đầu ca {StartAt} → {EndAt} tại bãi #{LotId}."),
+            T("SHIFT_AUTO_CLOSED", NotificationChannel.InApp, "Ca trực bị đóng tự động", "Ca #{ShiftId} của nhân viên #{StaffId} tại bãi #{LotId} đã tự đóng: {Reason}."),
+            T("SHIFT_HANDOVER_PENDING", NotificationChannel.InApp, "Có bàn giao ca chờ nhận", "Ca #{ShiftId} tại bãi #{LotId} đã kết thúc, chờ đếm tiền và nhận bàn giao."),
+            T("SHIFT_CASH_DISCREPANCY", NotificationChannel.InApp, "Lệch tiền mặt", "Ca #{ShiftId} tại bãi #{LotId} lệch {Amount}. Vui lòng kiểm tra."));
     }
 }

@@ -19,6 +19,7 @@ public sealed class NotificationIntegrationEventHandler(
     IBookingReminderScheduler reminderScheduler,
     IOwnerBookingNotifications ownerNotifications,
     Application.Features.Ingestion.IEmergencyNotifications emergencyNotifications,
+    IShiftNotifications shiftNotifications,
     ILogger<NotificationIntegrationEventHandler> logger) : IIntegrationEventHandler
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
@@ -78,6 +79,20 @@ public sealed class NotificationIntegrationEventHandler(
             case nameof(LotDataRecovered):
                 await emergencyNotifications.HandleLotDataRecoveredAsync(
                     Deserialize<LotDataRecovered>(envelope), envelope.EventId, cancellationToken);
+                break;
+
+            // ===== US-076: ca trực =====
+            case nameof(ShiftMissed):
+                await shiftNotifications.HandleShiftMissedAsync(Deserialize<ShiftMissed>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(ShiftAutoClosed):
+                await shiftNotifications.HandleShiftAutoClosedAsync(Deserialize<ShiftAutoClosed>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(HandoverPending):
+                await shiftNotifications.HandleHandoverPendingAsync(Deserialize<HandoverPending>(envelope), envelope.EventId, cancellationToken);
+                break;
+            case nameof(CashDiscrepancyRaised):
+                await shiftNotifications.HandleCashDiscrepancyAsync(Deserialize<CashDiscrepancyRaised>(envelope), envelope.EventId, cancellationToken);
                 break;
 
             default:

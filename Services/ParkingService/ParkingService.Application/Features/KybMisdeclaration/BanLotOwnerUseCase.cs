@@ -52,6 +52,7 @@ public sealed class BanLotOwnerUseCase(ILotMisdeclarationRepository repository, 
         foreach (var kyb in kybs)
             events.Add(KybReviewEvents.Audit(kyb, MisdeclarationEvents.KybRejectedByBan, performedByUserId, kybBefore[kyb.Id],
                 KybApplication.OwnerBannedRejectReason, now));
+        events.AddRange(suspendedLotIds.Select(id => new ParkingLotSuspended(id, ownerProfileId, reason)));
         await repository.SaveWithEventsAsync(events, cancellationToken);
 
         var view = await MisdeclarationSupport.ReloadAsync(queries, settings, lotId, now, cancellationToken);

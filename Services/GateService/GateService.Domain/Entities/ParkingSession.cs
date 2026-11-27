@@ -47,6 +47,12 @@ public class ParkingSession : BaseEntity
     public double? ExitOcrConfidence { get; set; }
     public int? CheckedOutByStaffId { get; set; }
 
+    // Báo giá đã chốt TRƯỚC khi ghi tiền sang PaymentService: thử lại sau lỗi không thu lệch / kẹt xe.
+    public decimal? QuotedSessionFee { get; set; }
+    public decimal? QuotedPrepaidAmount { get; set; }
+    public decimal? QuotedAdditionalDue { get; set; }
+    public DateTime? QuotedAtUtc { get; set; }
+
     public decimal? Fee { get; set; }
     public decimal? OverstayFee { get; set; }
     public ParkingSessionStatus Status { get; set; } = ParkingSessionStatus.Active;

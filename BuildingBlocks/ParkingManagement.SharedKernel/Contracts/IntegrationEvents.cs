@@ -29,6 +29,8 @@ public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNu
 
 // ===== ParkingService =====
 public sealed record ParkingLotApproved(int ParkingLotId, int OwnerProfileId, string Name) : IntegrationEvent;
+/// <summary>US-056/057: bãi bị đình chỉ (khai sai, cấm chủ bãi, chủ bãi rời nền tảng) → GateService đóng ca đang mở.</summary>
+public sealed record ParkingLotSuspended(int ParkingLotId, int OwnerProfileId, string Reason) : IntegrationEvent;
 public sealed record SlotStateChanged(int ParkingLotId, int SlotId, string SlotCode, string OldState, string NewState) : IntegrationEvent;
 public sealed record LayoutPublished(int ParkingLotId, int FloorId, int VersionNo) : IntegrationEvent;
 // ===== ParkingService – US-068 (heartbeat/stale data) + US-069 (emergency stop) =====
@@ -45,6 +47,17 @@ public sealed record LotDataMarkedStale(int ParkingLotId, string LotName, int Ow
     DateTime? LastHeartbeatAtUtc, DateTime DetectedAtUtc) : IntegrationEvent;
 /// <summary>US-068: heartbeat resume → tự khỏi trạng thái stale.</summary>
 public sealed record LotDataRecovered(int ParkingLotId, string LotName, int OwnerProfileId, DateTime HeartbeatAtUtc) : IntegrationEvent;
+
+// ===== GateService (US-076): ca trực =====
+public sealed record ShiftMissed(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, DateTime ScheduledStartUtc,
+    DateTime ScheduledEndUtc) : IntegrationEvent;
+public sealed record ShiftAutoClosed(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, string Reason) : IntegrationEvent;
+/// <summary>Ca giữ két đã kết thúc, chờ người nhận đếm tiền. ReceiverStaffUserId = null → chủ bãi nhận.</summary>
+public sealed record HandoverPending(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, int? ReceiverStaffUserId)
+    : IntegrationEvent;
+/// <summary>Lệch tiền mặt: Difference = số đếm − số phải có.</summary>
+public sealed record CashDiscrepancyRaised(int ShiftId, int ParkingLotId, int OwnerProfileId, int StaffUserId, decimal Difference)
+    : IntegrationEvent;
 
 // ===== BookingService =====
 // US-083/084/085: bổ sung trường theo kiểu additive (OwnerProfileId, ParkingLotName, thời gian, biển số)

@@ -83,6 +83,11 @@ try {
     $env:Database__SeedDemoData = 'true'
     $env:Captcha__Enabled = 'false'
     $env:EventBus__Enabled = 'false'              # không phụ thuộc RabbitMQ; sự kiện nằm lại trong Outbox
+    # Khoa noi bo giua cac service (US-076): lay tu .env / bien moi truong, chua co thi sinh ngau nhien cho lan chay nay.
+    if (-not $env:InternalEvents__ApiKeys__GateService) { $env:InternalEvents__ApiKeys__GateService = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N') }
+    if (-not $env:InternalEvents__ApiKeys__SupportService) { $env:InternalEvents__ApiKeys__SupportService = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N') }
+    foreach ($target in 'BookingService', 'PaymentService', 'ParkingService') { Set-Item "env:Services__${target}__ApiKey" $env:InternalEvents__ApiKeys__GateService }
+    $env:Services__GateService__ApiKey = $env:InternalEvents__ApiKeys__SupportService
 
     $ids = @()
     foreach ($s in 'UserService', 'VehicleService', 'ParkingService', 'BookingService', 'PaymentService',

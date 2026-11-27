@@ -11,6 +11,7 @@ public sealed class GateDbContext(DbContextOptions<GateDbContext> options) : Ser
     public DbSet<ParkingSession> ParkingSessions => Set<ParkingSession>();
     public DbSet<GateEvent> GateEvents => Set<GateEvent>();
     public DbSet<Shift> Shifts => Set<Shift>();
+    public DbSet<ShiftTemplate> ShiftTemplates => Set<ShiftTemplate>();
     public DbSet<GateDevice> GateDevices => Set<GateDevice>();
     // US-066: cấu hình sức chứa, bộ đếm runtime (T/V) và audit log cấu hình.
     public DbSet<LotCapacityConfig> LotCapacityConfigs => Set<LotCapacityConfig>();
@@ -24,5 +25,7 @@ public sealed class GateDbContext(DbContextOptions<GateDbContext> options) : Ser
         base.OnModelCreating(modelBuilder);
         // US-052: bảng InboxReceipts chống xử lý trùng sự kiện PMS (idempotency theo EventId).
         modelBuilder.ConfigureInbox();
+        // OutboxDispatcher (cảnh báo ca trực) cần cột hẹn giờ thử lại.
+        modelBuilder.Entity<ParkingManagement.SharedKernel.Domain.OutboxMessage>().Property(x => x.NextAttemptAtUtc);
     }
 }

@@ -10,6 +10,9 @@ public sealed class PaymentWriter(PaymentDbContext db) : IPaymentWriter
     public Task<Payment?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken)
         => db.Payments.AsNoTracking().FirstOrDefaultAsync(p => p.IdempotencyKey == idempotencyKey, cancellationToken);
 
+    public async Task<IReadOnlyList<Payment>> ListByShiftAsync(int shiftId, CancellationToken cancellationToken)
+        => await db.Payments.AsNoTracking().Where(p => p.ShiftId == shiftId).OrderBy(p => p.Id).ToListAsync(cancellationToken);
+
     public async Task AddAsync(Payment payment, CancellationToken cancellationToken)
         => await db.Payments.AddAsync(payment, cancellationToken);
 

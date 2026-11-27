@@ -13,6 +13,12 @@ if (Test-Path $envPath) {
     }
 }
 
+# Khoa noi bo giua cac service (US-076): lay tu .env / bien moi truong, chua co thi sinh ngau nhien cho lan chay nay.
+if (-not $env:InternalEvents__ApiKeys__GateService) { $env:InternalEvents__ApiKeys__GateService = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N') }
+if (-not $env:InternalEvents__ApiKeys__SupportService) { $env:InternalEvents__ApiKeys__SupportService = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N') }
+foreach ($target in 'BookingService', 'PaymentService', 'ParkingService') { Set-Item "env:Services__${target}__ApiKey" $env:InternalEvents__ApiKeys__GateService }
+$env:Services__GateService__ApiKey = $env:InternalEvents__ApiKeys__SupportService
+
 # 2. Lấy giá trị từ biến môi trường (hoặc dùng mặc định nếu không có)
 $dbHost = if ($env:DB_HOST) { $env:DB_HOST } else { "localhost" }
 $dbPort = if ($env:DB_PORT) { $env:DB_PORT } else { "5432" }

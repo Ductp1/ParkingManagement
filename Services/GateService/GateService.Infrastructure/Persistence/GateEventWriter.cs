@@ -1,3 +1,4 @@
+using GateService.Application.Features.Shifts;
 using GateService.Application.Features.GateEvents;
 using GateService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,7 @@ using ParkingManagement.SharedKernel.Rules;
 namespace GateService.Infrastructure.Persistence;
 
 /// <summary>Cài đặt port IGateEventWriter: ghi nhật ký sự kiện cổng xuống PM db của GateService.</summary>
-public sealed class GateEventWriter(GateDbContext db) : IGateEventWriter
+public sealed class GateEventWriter(GateDbContext db, CurrentShift? shift = null) : IGateEventWriter
 {
     public async Task<GateEventRecord> WriteAsync(GateEventDraft draft, CancellationToken cancellationToken = default)
     {
@@ -14,7 +15,7 @@ public sealed class GateEventWriter(GateDbContext db) : IGateEventWriter
         {
             ParkingLotId = draft.ParkingLotId,
             ParkingSessionId = draft.ParkingSessionId,
-            ShiftId = draft.ShiftId,
+            ShiftId = draft.ShiftId ?? shift?.Value?.Id,
             EventType = draft.EventType,
             PlateNumber = draft.PlateNumber,
             ImagePath = draft.ImagePath,

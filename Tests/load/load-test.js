@@ -128,6 +128,19 @@ function createBooking(token, startInMinutes) {
   }, 'POST /bookings', token);
 }
 
+/** US-076: thao tác ghi ở cổng cần nhân viên đang có ca mở – chưa có thì chủ bãi tạo ca nhanh rồi bắt đầu. */
+function ensureShift(tokens) {
+  const call = (method, url, token, body) => http.request(method, `${BASE_URL}${url}`, body ? JSON.stringify(body) : null,
+    { headers: json(token), tags: { name: 'setup: shift' } });
+  const mine = call('GET', '/api/v1/gate/me/shifts', tokens.staff);
+  if (mine.status !== 200) throw new Error(`Không đọc được ca trực: HTTP ${mine.status}`);
+  if (mine.json('shifts').some((s) => s.status === 'Open' && s.parkingLotId === LOT.id)) return;
+  const created = call('POST', `/api/v1/gate/lots/${LOT.id}/shifts/ad-hoc`, tokens.owner, { staffUserId: STAFF_USER_ID, durationMinutes: 480 });
+  if (created.status !== 201) throw new Error(`Không tạo được ca nhanh: HTTP ${created.status} ${created.body}`);
+  const started = call('POST', `/api/v1/gate/shifts/${created.json('id')}/start`, tokens.staff);
+  if (started.status !== 200) throw new Error(`Không bắt đầu được ca: HTTP ${started.status} ${started.body}`);
+}
+
 /** Đăng nhập 1 lần cho mỗi vai trò rồi dùng chung token (API đăng nhập có rate limit, không phải đối tượng đo). */
 export function setup() {
   const tokens = {};
@@ -137,6 +150,7 @@ export function setup() {
     if (res.status !== 200) throw new Error(`Đăng nhập ${role} thất bại: HTTP ${res.status} – đã chạy start-load-stack.ps1 chưa?`);
     tokens[role] = res.json('accessToken');
   }
+  ensureShift(tokens);
   return tokens;
 }
 
@@ -182,7 +196,7 @@ export function gate(tokens) {
     if (!expectOk(post(`/api/v1/bookings/${code}/approve`, { ownerProfileId: LOT.ownerProfileId }, 'POST /bookings/{code}/approve', tokens.owner),
       'chủ bãi xác nhận', (r) => r.status === 200 && r.json('status') === 'Confirmed')) return;
     think();
-    const checkIn = post('/api/v1/gate/check-in', { parkingLotId: LOT.id, method: 'Qr', plate, qrToken, staffUserId: STAFF_USER_ID },
+    const checkIn = post('/api/v1/gate/check-in', { parkingLotId: LOT.id, method: 'Qr', plate, qrToken },
       'POST /gate/check-in', tokens.staff);
     if (!expectOk(checkIn, 'check-in bằng QR')) return;
     expectOk(get(`/api/v1/bookings/${code}`, 'GET /bookings/{code}', tokens.driver), 'booking sang CheckedIn sau khi vào cổng',
@@ -191,7 +205,7 @@ export function gate(tokens) {
     const encodedPlate = encodeURIComponent(plate);
     expectOk(get(`/api/v1/gate/exit-quote?parkingLotId=${LOT.id}&plate=${encodedPlate}`, 'GET /gate/exit-quote', tokens.staff), 'báo phí ở cổng ra');
     think();
-    expectOk(post('/api/v1/gate/check-out', { parkingLotId: LOT.id, plate, method: 'Manual', staffUserId: STAFF_USER_ID, confirmFee: true },
+    expectOk(post('/api/v1/gate/check-out', { parkingLotId: LOT.id, plate, method: 'Manual', confirmFee: true },
       'POST /gate/check-out', tokens.staff), 'check-out');
     expectOk(get(`/api/v1/bookings/${code}`, 'GET /bookings/{code}', tokens.driver), 'booking sang Completed sau khi ra cổng',
       (r) => r.status === 200 && r.json('status') === 'Completed');

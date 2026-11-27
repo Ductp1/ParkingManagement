@@ -15,6 +15,22 @@ public class RecordGateSettlementUseCaseTests
     /// <summary>
     /// Giả lập kho lưu trữ ghi nhận giao dịch thanh toán trong bộ nhớ RAM để đảm bảo cô lập tầng Application.
     /// </summary>
+    [Fact]
+    public async Task Same_session_with_a_different_amount_conflicts_and_shift_total_counts_cash_only()
+    {
+        var writer = new FakePaymentWriter();
+        var useCase = new RecordGateSettlementUseCase(writer, TimeProvider.System);
+        await useCase.ExecuteAsync(new GateSettlementCommand("PS-1", 1, 1, 5, null, 20_000, "Cash", 4, ShiftId: 7));
+        await useCase.ExecuteAsync(new GateSettlementCommand("PS-2", 2, 1, 5, null, 30_000, "VietQr", 4, ShiftId: 7));
+
+        var conflict = await Assert.ThrowsAsync<ParkingManagement.SharedKernel.Exceptions.ConflictException>(
+            () => useCase.ExecuteAsync(new GateSettlementCommand("ps-1", 1, 1, 5, null, 25_000, "Cash", 4, ShiftId: 8)));
+
+        Assert.Equal("GATE_PAYMENT_EXISTS", conflict.Code);
+        var total = await new GateSettlementQueries(writer).ListByShiftAsync(7);
+        Assert.Equal((20_000m, 2), (total.CashTotal, total.Payments.Count));
+    }
+
     private sealed class FakePaymentWriter : IPaymentWriter
     {
         public readonly Dictionary<string, Payment> PaymentsByIdempotencyKey = [];
@@ -26,6 +42,9 @@ public class RecordGateSettlementUseCaseTests
             PaymentsByIdempotencyKey.TryGetValue(idempotencyKey, out var payment);
             return Task.FromResult(payment);
         }
+
+        public Task<IReadOnlyList<Payment>> ListByShiftAsync(int shiftId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Payment>>(AddedPayments.Where(p => p.ShiftId == shiftId).ToList());
 
         public Task AddAsync(Payment payment, CancellationToken cancellationToken)
         {

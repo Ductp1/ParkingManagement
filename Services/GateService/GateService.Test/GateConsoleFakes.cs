@@ -144,8 +144,13 @@ public sealed class FakeSettlements : IGateSettlementRecorder
     public Task<GateSettlementResult> RecordAsync(GateSettlementRequest request, CancellationToken cancellationToken = default)
     {
         Records.Add(request);
-        return Task.FromResult(new GateSettlementResult("PM-TEST-0001", "Succeeded"));
+        return Task.FromResult(new GateSettlementResult("PM-TEST-0001", "Succeeded", request.Amount));
     }
+
+    /// <summary>Khoản thu đã có sẵn bên PaymentService (mô phỏng lần trước ghi được tiền nhưng chưa đóng lượt).</summary>
+    public GateSettlementResult? Existing { get; set; }
+    public Task<GateSettlementResult?> FindAsync(string sessionCode, CancellationToken cancellationToken = default)
+        => Task.FromResult(Existing);
 }
 
 /// <summary>Fake IParkingSessionQueries: phục vụ QuoteExitFeeUseCase (tra xe đang đỗ).</summary>
@@ -183,4 +188,10 @@ internal sealed class NoopCapacityPublisher : ILotCapacityRealtimePublisher
 {
     public Task PublishCapacityChangedAsync(int parkingLotId, CancellationToken cancellationToken = default)
         => Task.CompletedTask;
+}
+
+/// <summary>Két luôn cho phép thu, ghi vào ca #7.</summary>
+internal sealed class FakeDrawer : GateService.Application.Features.Shifts.ICashDrawer
+{
+    public Task<int> AuthorizeCollectionAsync(CancellationToken ct) => Task.FromResult(7);
 }

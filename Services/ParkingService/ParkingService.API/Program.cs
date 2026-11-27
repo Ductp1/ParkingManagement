@@ -14,6 +14,8 @@ builder.AddServiceDefaults("ParkingService");                                   
 // Chỉ controller admin (US-055) gắn [Authorize]; endpoint của US-053/US-054 giữ nguyên, không yêu cầu token.
 builder.Services.AddJwtAuth(Path.GetFullPath(
     builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
+// state-override và danh sách bãi theo chủ bãi nhận khóa nội bộ của GateService / SupportService.
+builder.Services.AddSingleton<ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator>();
 builder.Services.AddParkingApplication();                                 // Application: Use Case
 builder.Services.AddParkingInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 

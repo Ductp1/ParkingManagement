@@ -1,3 +1,4 @@
+using GateService.Application.Features.Shifts;
 using System.Text.Json;
 using GateService.Application.Features.GateConsole;
 using GateService.Application.Features.GateEvents;
@@ -93,7 +94,8 @@ public sealed class ProcessPmsEventUseCase(
     IParkingSessionWriter sessionWriter,
     IGateEventWriter gateEvents,
     IPmsQuarantineStore quarantine,
-    TimeProvider timeProvider) : IProcessPmsEventUseCase
+    TimeProvider timeProvider,
+    ILotDirectory lots) : IProcessPmsEventUseCase
 {
     private static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -199,7 +201,7 @@ public sealed class ProcessPmsEventUseCase(
         {
             Code = $"PS-{now:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}",
             ParkingLotId = command.ParkingLotId,
-            OwnerProfileId = 0, // Không bắt buộc ở GateService – đối soát qua booking/bãi.
+            OwnerProfileId = (await lots.GetAsync(command.ParkingLotId, cancellationToken)).OwnerProfileId,
             BookingId = null,   // Id nội bộ của BookingService không truy ngược từ snapshot – dùng BookingCode.
             BookingCode = bookingCode,
             PlateNumber = plate,

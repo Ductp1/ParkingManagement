@@ -1,3 +1,4 @@
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Exceptions;
 using ParkingService.Application.Abstractions;
 using ParkingService.Domain.Entities;
@@ -40,10 +41,14 @@ public sealed class OpenLotMisdeclarationCaseUseCase(ILotMisdeclarationRepositor
         repository.Add(created);
 
         var action = severity == MisdeclarationSeverity.Minor ? MisdeclarationEvents.Warned : MisdeclarationEvents.Suspended;
-        await repository.SaveWithEventsAsync(
-            [MisdeclarationEvents.Audit(lot, action, performedByUserId, before, MisdeclarationEvents.Snapshot(lot, created),
-                created.Finding, now)],
-            cancellationToken);
+        List<IntegrationEvent> events =
+        [
+            MisdeclarationEvents.Audit(lot, action, performedByUserId, before, MisdeclarationEvents.Snapshot(lot, created),
+                created.Finding, now),
+        ];
+        if (severity == MisdeclarationSeverity.Suspected)
+            events.Add(new ParkingLotSuspended(lot.Id, lot.OwnerProfileId, created.Finding));
+        await repository.SaveWithEventsAsync(events, cancellationToken);
         return await MisdeclarationSupport.ReloadAsync(queries, settings, lotId, now, cancellationToken);
     }
 }

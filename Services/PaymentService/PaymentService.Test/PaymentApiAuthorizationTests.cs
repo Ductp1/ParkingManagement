@@ -70,13 +70,30 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
-    public async Task GateSettlement_WithoutToken_Returns200()
+    [Theory]
+    [InlineData(null, HttpStatusCode.Unauthorized)]
+    [InlineData(GateKey, HttpStatusCode.OK)]
+    [InlineData(OtherKey, HttpStatusCode.Forbidden)]
+    public async Task GateSettlement_OnlyAcceptsTheGateServiceKey(string? key, HttpStatusCode expected)
     {
-        var response = await host.Client.PostAsJsonAsync("/api/v1/payments/gate-settlement",
-            new GateSettlementCommand("SS-0001", 1, LotA1, OwnerA, null, 20_000, "Cash", 5));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/internal/v1/gate-settlements")
+        {
+            Content = JsonContent.Create(new GateSettlementCommand("SS-0001", 1, LotA1, OwnerA, null, 20_000, "Cash", 5)),
+        };
+        if (key is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
+        using var response = await host.Client.SendAsync(request);
+        Assert.Equal(expected, response.StatusCode);
     }
+
+    [Fact]
+    public async Task PublicGateSettlementRoute_IsGone()
+    {
+        var response = await host.Client.PostAsJsonAsync("/api/v1/payments/gate-settlement", new { });
+        Assert.False(response.IsSuccessStatusCode);
+    }
+
+    private const string GateKey = "gate-service-test-key-0123456789-abcdef";
+    private const string OtherKey = "support-service-test-key-0123456789-ab";
 
     [Fact]
     public async Task ListPaymentsByBooking_WithoutToken_Returns200()
@@ -411,6 +428,9 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
             builder.Logging.ClearProviders();
 
             builder.AddServiceDefaults("PaymentService");
+            builder.Configuration["InternalEvents:ApiKeys:GateService"] = GateKey;
+            builder.Configuration["InternalEvents:ApiKeys:SupportService"] = OtherKey;
+            builder.Services.AddSingleton<ParkingManagement.ServiceDefaults.Security.InternalApiKeyAuthenticator>();
             builder.Services.AddJwtAuth(publicKeyPath);
             builder.Services.AddPaymentApplication();
             builder.Services.AddSingleton<IRateCardRepository, FakeRateCards>();
@@ -552,6 +572,8 @@ public class PaymentApiAuthorizationTests(PaymentApiAuthorizationTests.ApiHost h
     {
         public Task<Payment?> FindByIdempotencyKeyAsync(string idempotencyKey, CancellationToken cancellationToken)
             => Task.FromResult<Payment?>(null);
+        public Task<IReadOnlyList<Payment>> ListByShiftAsync(int shiftId, CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Payment>>([]);
         public Task AddAsync(Payment payment, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task SaveAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }

@@ -33,6 +33,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         e.HasIndex(x => new { x.Method, x.ProviderTransactionId }).IsUnique().HasFilter("\"ProviderTransactionId\" IS NOT NULL");
         e.HasIndex(x => x.BookingId);
         e.HasIndex(x => x.ParkingSessionId);
+        e.HasIndex(x => x.ShiftId);
         e.HasIndex(x => new { x.OwnerProfileId, x.Status, x.PaidAtUtc }); // báo cáo doanh thu & quyết toán
     }
 }

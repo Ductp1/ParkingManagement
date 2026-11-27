@@ -9,9 +9,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace ParkingManagement.Gateway.Authentication;
+namespace ParkingManagement.ServiceDefaults.Security;
 
-// Gateway kiểm tra trạng thái phiên ở UserService sau khi JWT đã được kiểm tra chữ ký.
+// Gateway / GateService kiểm tra trạng thái phiên ở UserService sau khi JWT đã được kiểm tra chữ ký.
 public sealed class RemoteSessionValidator(IHttpClientFactory clients, IConfiguration config, IHttpContextAccessor accessor,
     TimeProvider clock) : ITokenPrincipalValidator, IDisposable
 {

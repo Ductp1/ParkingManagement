@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using ParkingManagement.Gateway.Authentication;
+using ParkingManagement.ServiceDefaults.Security;
 
 namespace ParkingManagement.Gateway.Test;
 

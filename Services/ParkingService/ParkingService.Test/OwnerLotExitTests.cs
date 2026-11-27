@@ -92,10 +92,12 @@ public class OwnerLotExitTests
         var lot3 = CreateLot(3, 10, "Bãi xe Landmark", ParkingLotStatus.Active);
 
         var repo = new FakeLotManagementRepo([lot1, lot2, lot3]);
-        var useCase = new SuspendOwnerLotsUseCase(repo, timeProvider, NullLogger<SuspendOwnerLotsUseCase>.Instance);
+        var events = new FakeEvents();
+        var useCase = new SuspendOwnerLotsUseCase(repo, timeProvider, events, NullLogger<SuspendOwnerLotsUseCase>.Instance);
 
         var result = await useCase.ExecuteAsync(10);
 
+        Assert.Equal([1, 3], events.Published.Cast<ParkingManagement.SharedKernel.Contracts.ParkingLotSuspended>().Select(e => e.ParkingLotId));
         Assert.Equal(10, result.OwnerProfileId);
         Assert.Equal(2, result.TotalLotsSuspended); // lot1 và lot3
         Assert.Equal(now.UtcDateTime, result.SuspendedAtUtc);
@@ -117,13 +119,19 @@ public class OwnerLotExitTests
 
         var lot1 = CreateLot(1, 10, "Bãi xe Vincom", ParkingLotStatus.Suspended);
         var repo = new FakeLotManagementRepo([lot1]);
-        var useCase = new SuspendOwnerLotsUseCase(repo, timeProvider, NullLogger<SuspendOwnerLotsUseCase>.Instance);
+        var useCase = new SuspendOwnerLotsUseCase(repo, timeProvider, new FakeEvents(), NullLogger<SuspendOwnerLotsUseCase>.Instance);
 
         var result = await useCase.ExecuteAsync(10);
 
         Assert.Equal(0, result.TotalLotsSuspended);
         Assert.Empty(result.SuspendedLotIds);
         Assert.False(repo.SavedChanges);
+    }
+
+    private sealed class FakeEvents : ParkingService.Application.Features.LotOperations.ILotEventPublisher
+    {
+        public List<ParkingManagement.SharedKernel.Contracts.IntegrationEvent> Published = [];
+        public void Enqueue(ParkingManagement.SharedKernel.Contracts.IntegrationEvent integrationEvent) => Published.Add(integrationEvent);
     }
 
     private sealed class FakeLotManagementRepo(IEnumerable<ParkingLot> initialLots) : IParkingLotManagementRepository

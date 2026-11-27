@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using ParkingManagement.SharedKernel.Exceptions;
 
-namespace AdminService.API.Security;
+namespace ParkingManagement.ServiceDefaults.Security;
 
 /// <summary>
-/// T-802: xác thực service gọi endpoint nội bộ /internal/v1/events. Mỗi service một khóa trong
+/// T-802: xác thực service gọi endpoint nội bộ (service-to-service). Mỗi service một khóa trong
 /// "InternalEvents:ApiKeys:{TênService}" (đặt qua biến môi trường, không commit), bằng đúng EventBus:ApiKey của service đó –
 /// IOutboxTransport gửi khóa trong header "Authorization: Bearer {khóa}".
 /// Trả tên service sở hữu khóa để use case ràng buộc SourceService. So khớp thời gian cố định (FixedTimeEquals trên SHA-256).
@@ -24,7 +26,7 @@ public sealed class InternalApiKeyAuthenticator(IConfiguration configuration)
             .ToList();
         // Fail closed: chưa cấu hình (hoặc cấu hình sai) thì từ chối tất cả – 503 để dispatcher retry, không mất sự kiện.
         if (keys.Count == 0)
-            throw new DependencyUnavailableException("AdminService chưa cấu hình khóa nội bộ nhận sự kiện.");
+            throw new DependencyUnavailableException("Service nhận chưa cấu hình khóa nội bộ.");
         if (keys.Any(k => k.Key.Length < MinKeyLength) || keys.DistinctBy(k => k.Key, StringComparer.Ordinal).Count() != keys.Count)
             throw new DependencyUnavailableException($"Khóa nội bộ nhận sự kiện phải dài tối thiểu {MinKeyLength} ký tự và khác nhau giữa các service.");
 
@@ -41,6 +43,20 @@ public sealed class InternalApiKeyAuthenticator(IConfiguration configuration)
                 caller = service;
 
         return caller ?? throw new AuthenticationException("Khóa nội bộ không hợp lệ.");
+    }
+
+    /// <summary>Endpoint chỉ dành cho một số service: thiếu / sai khóa → 401, khóa của service khác → 403.</summary>
+    public void Require(string? authorizationHeader, params string[] services)
+    {
+        if (!services.Contains(Authenticate(authorizationHeader)))
+            throw new ForbiddenException("Service này không được gọi endpoint nội bộ đang yêu cầu.");
+    }
+
+    /// <summary>Endpoint nhận cả JWT người dùng lẫn khóa nội bộ: không ném lỗi khi header không phải khóa.</summary>
+    public bool IsFrom(string? authorizationHeader, params string[] services)
+    {
+        try { return services.Contains(Authenticate(authorizationHeader)); }
+        catch (Exception ex) when (ex is AuthenticationException or DependencyUnavailableException) { return false; }
     }
 }
 

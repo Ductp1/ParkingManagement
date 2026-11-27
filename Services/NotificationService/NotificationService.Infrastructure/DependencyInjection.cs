@@ -73,6 +73,7 @@ public static class DependencyInjection
         services.AddScoped<ITransactionalNotificationSender, DispatcherTransactionalNotificationSender>();
         services.AddScoped<IBookingConfirmationNotifications, BookingConfirmationNotifications>();
         services.AddScoped<IOwnerBookingNotifications, OwnerBookingNotifications>();
+        services.AddScoped<IShiftNotifications, ShiftNotifications>(); // US-076: cảnh báo ca trực
         // ===== US-086: cảnh báo khẩn cấp đa kênh + tracking trạng thái gửi =====
         services.AddScoped<Application.Features.Tracking.IDeliveryStatusReadStore, NotificationService.Infrastructure.Persistence.Queries.NotificationDeliveryStatusStore>();
         services.AddScoped<Application.Features.Tracking.IGetDeliveryStatusUseCase, Application.Features.Tracking.GetDeliveryStatusUseCase>();

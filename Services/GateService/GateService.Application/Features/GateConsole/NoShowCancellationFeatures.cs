@@ -181,7 +181,7 @@ public sealed class CancelNoShowUseCase(
             shift.NoShowCancelCount++;
             if (shift.NoShowCancelCount >= _options.AbnormalNoShowCancelThreshold)
             {
-                shift.Status = ShiftStatus.Flagged;
+                shift.IsFlagged = true;
                 shiftFlagged = true;
             }
             await shiftStore.SaveAsync(cancellationToken);
