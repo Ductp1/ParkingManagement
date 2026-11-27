@@ -18,7 +18,7 @@ public sealed class ParkingLotDirectory(IHttpClientFactory clients, IConfigurati
         {
             var client = clients.CreateClient("IdentityIntegrations");
             var lots = await client.GetFromJsonAsync<LotDto[]>(new Uri(baseUri, $"/api/v1/parking-lots/owner/{ownerProfileId}"), ct);
-            return (lots ?? []).Select(lot => new OwnerLot(lot.Id, lot.Name)).ToList();
+            return (lots ?? []).Select(lot => new OwnerLot(lot.Id, lot.Name, lot.Status)).ToList();
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException
             || ex is OperationCanceledException && !ct.IsCancellationRequested)
@@ -27,5 +27,5 @@ public sealed class ParkingLotDirectory(IHttpClientFactory clients, IConfigurati
         }
     }
 
-    private sealed record LotDto(int Id, string? Name);
+    private sealed record LotDto(int Id, string? Name, string? Status);
 }

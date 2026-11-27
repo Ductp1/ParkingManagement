@@ -8,12 +8,23 @@ namespace UserService.Infrastructure.Persistence.Repositories;
 
 public sealed class StaffStore(UserDbContext db) : IStaffStore
 {
-    public async Task<IReadOnlyList<StaffItem>> ListActiveAsync(int ownerProfileId, int page, int pageSize, CancellationToken ct)
+    public async Task<IReadOnlyList<StaffItem>> ListActiveAsync(int ownerProfileId, int? parkingLotId, int? staffUserId, int page,
+        int pageSize, CancellationToken ct)
         => await db.StaffAssignments.AsNoTracking()
-            .Where(a => a.OwnerProfileId == ownerProfileId && a.IsActive)
+            .Where(a => a.OwnerProfileId == ownerProfileId && a.IsActive
+                && (parkingLotId == null || a.ParkingLotId == parkingLotId)
+                && (staffUserId == null || a.StaffUserId == staffUserId))
             .OrderByDescending(a => a.Id).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(a => new StaffItem(a.Id, a.StaffUserId, a.StaffUser.FullName, a.ParkingLotId, a.StaffUser.Status.ToString()))
             .ToListAsync(ct);
+
+    public Task<OtpCode?> FindActivationAsync(string tokenHash, CancellationToken ct)
+        => db.OtpCodes.Include(o => o.User)
+            .FirstOrDefaultAsync(o => o.CodeHash == tokenHash && o.Purpose == OtpPurpose.StaffActivation, ct);
+
+    public Task<string?> ActiveOwnerNameAsync(int staffUserId, CancellationToken ct)
+        => db.StaffAssignments.Where(a => a.StaffUserId == staffUserId && a.IsActive)
+            .Select(a => (string?)a.OwnerProfile.BusinessName).FirstOrDefaultAsync(ct);
 
     public async Task<IReadOnlyList<StaffAssignment>> AssignmentsOfUserAsync(int staffUserId, CancellationToken ct)
         => await db.StaffAssignments.AsNoTracking().Where(a => a.StaffUserId == staffUserId).ToListAsync(ct);
@@ -51,10 +62,14 @@ public sealed class DataRequestStore(UserDbContext db) : IDataRequestStore
     public Task<DataSubjectRequest?> FindAsync(int id, CancellationToken ct)
         => db.DataSubjectRequests.FirstOrDefaultAsync(r => r.Id == id, ct);
 
-    public async Task DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct)
-        => await db.StaffAssignments.Where(a => a.StaffUserId == userId && a.IsActive)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsActive, false)
-                .SetProperty(a => a.RevokedAtUtc, (DateTime?)now).SetProperty(a => a.UpdatedAtUtc, (DateTime?)now), ct);
+    public async Task<IReadOnlyList<StaffAssignment>> DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct)
+    {
+        var active = db.StaffAssignments.Where(a => a.StaffUserId == userId && a.IsActive);
+        var revoked = await active.AsNoTracking().ToListAsync(ct);
+        await active.ExecuteUpdateAsync(s => s.SetProperty(a => a.IsActive, false)
+            .SetProperty(a => a.RevokedAtUtc, (DateTime?)now).SetProperty(a => a.UpdatedAtUtc, (DateTime?)now), ct);
+        return revoked;
+    }
 
     public Task<int> ActiveSessionCountAsync(int userId, DateTime now, CancellationToken ct)
         => db.RefreshTokens.CountAsync(t => t.UserId == userId && t.RevokedAtUtc == null && t.ExpiresAtUtc > now, ct);

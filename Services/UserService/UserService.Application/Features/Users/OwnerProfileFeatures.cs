@@ -1,4 +1,6 @@
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
+using UserService.Application.Features.Identity;
 using UserService.Domain.Entities;
 
 namespace UserService.Application.Features.Users;
@@ -33,7 +35,7 @@ public interface ILockOwnerProfileUseCase
     Task<OwnerAccountDto?> ExecuteAsync(int ownerProfileId, LockOwnerProfileRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class LockOwnerProfileUseCase(IOwnerProfileRepository repository) : ILockOwnerProfileUseCase
+public sealed class LockOwnerProfileUseCase(IOwnerProfileRepository repository, IIdentityStore events) : ILockOwnerProfileUseCase
 {
     public async Task<OwnerAccountDto?> ExecuteAsync(int ownerProfileId, LockOwnerProfileRequest request, CancellationToken cancellationToken = default)
     {
@@ -41,6 +43,8 @@ public sealed class LockOwnerProfileUseCase(IOwnerProfileRepository repository) 
         if (owner is null) return null;
 
         // Idempotent: nếu đã khóa rồi thì giữ nguyên trạng thái khóa, cập nhật lý do và thời gian
+        // Outbox dùng chung DbContext nên được lưu cùng lần SaveChanges của repository.
+        if (!owner.IsLocked) events.Event(new OwnerProfileLocked(owner.Id, request.Reason ?? ""));
         owner.IsLocked = true;
         owner.Status = OwnerStatus.Suspended;
         if (owner.User is not null)

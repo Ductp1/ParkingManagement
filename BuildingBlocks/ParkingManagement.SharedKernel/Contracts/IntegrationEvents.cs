@@ -16,6 +16,13 @@ public sealed record UserRegistered(int UserId, string FullName, string? Email, 
 public sealed record UserLocked(int UserId, string Reason) : IntegrationEvent;
 public sealed record OwnerProfileCreated(int OwnerProfileId, int UserId, string BusinessName) : IntegrationEvent;
 public sealed record UserPersonalDataErased(int UserId) : IntegrationEvent;
+// US-075/US-076: GateService đóng ca đang mở khi nhận 3 sự kiện dưới. Publish là mandatory: chưa có queue bind thì outbox thử lại rồi dừng.
+/// <summary>Một phân công Staff bị gỡ (chủ bãi gỡ, hoặc tài khoản bị xóa / ẩn danh).</summary>
+public sealed record StaffAssignmentRevoked(int StaffUserId, int OwnerProfileId, int ParkingLotId) : IntegrationEvent;
+/// <summary>Admin đình chỉ tài khoản; LockedUntilUtc = null là vô thời hạn. Khác UserLocked (khóa bảo mật 15 phút).</summary>
+public sealed record UserSuspended(int UserId, string Reason, DateTime? LockedUntilUtc) : IntegrationEvent;
+/// <summary>Chủ bãi bị khóa hoặc chấm dứt hợp tác.</summary>
+public sealed record OwnerProfileLocked(int OwnerProfileId, string Reason) : IntegrationEvent;
 
 // ===== VehicleService =====
 public sealed record VehicleRegistered(int VehicleId, int UserId, string PlateNumber, string VehicleType, int HeightCm) : IntegrationEvent;

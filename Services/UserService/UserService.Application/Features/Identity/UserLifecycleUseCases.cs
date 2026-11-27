@@ -71,6 +71,7 @@ public sealed class UserLifecycleUseCases(IIdentityStore store, IDataRequestStor
             UserId = user.Id, EventType = SecurityEventType.AccountLocked,
             Detail = $"Admin #{adminId} đình chỉ {(until is null ? "vô thời hạn" : $"đến {until:O}")}: {reason}",
         });
+        store.Event(new UserSuspended(user.Id, reason, until));
         await store.SaveAsync(ct);
         await tx.CommitAsync(ct);
         return Result(user, changed: true);
@@ -122,7 +123,7 @@ public sealed class UserLifecycleUseCases(IIdentityStore store, IDataRequestStor
 
         if (user.OwnerProfile is { } profile)
         {
-            profile.Terminate(now);
+            Terminate(profile, now, reason);
             profile.TaxCode = null;
         }
         await UserAnonymizer.AnonymizeAsync(user, now, $"Admin #{adminId} xóa tài khoản: {reason}", store, requests, passwords, ct);
@@ -153,12 +154,18 @@ public sealed class UserLifecycleUseCases(IIdentityStore store, IDataRequestStor
             throw new ConflictException("Chủ bãi đã kích hoạt tài khoản. Hãy dùng Đình chỉ hoặc Xóa user thay vì hủy hồ sơ.");
 
         foreach (var open in await owners.OpenActivationsAsync(user.Id, ct)) open.ConsumedAtUtc = now;
-        profile.Terminate(now);
+        Terminate(profile, now, reason);
         profile.TaxCode = null;
         await UserAnonymizer.AnonymizeAsync(user, now, $"Admin #{adminId} hủy hồ sơ đối tác, gỡ tài khoản chưa kích hoạt: {reason}", store, requests, passwords, ct);
         await store.SaveAsync(ct);
         await tx.CommitAsync(ct);
         return Result(user, changed: true);
+    }
+
+    private void Terminate(OwnerProfile profile, DateTime now, string reason)
+    {
+        if (profile.Status != OwnerStatus.Terminated) store.Event(new OwnerProfileLocked(profile.Id, reason));
+        profile.Terminate(now);
     }
 
     private int AdminId() => current.UserId ?? throw new AuthenticationException("Chưa đăng nhập.");

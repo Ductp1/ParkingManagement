@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
 using UserService.Application.Features.Identity;
 using UserService.Application.Interfaces;
@@ -44,7 +45,8 @@ public static class UserAnonymizer
             foreach (var otp in await store.PendingOtpsAsync(user.Id, purpose, ct))
                 otp.ConsumedAtUtc = now;
         await store.RevokeSessionsAsync(user.Id, now, ct);
-        await requests.DeactivateStaffAssignmentsAsync(user.Id, now, ct);
+        foreach (var a in await requests.DeactivateStaffAssignmentsAsync(user.Id, now, ct))
+            store.Event(new StaffAssignmentRevoked(a.StaffUserId, a.OwnerProfileId, a.ParkingLotId));
         store.Add(new SecurityEvent { UserId = user.Id, EventType = SecurityEventType.AccountLocked, Detail = securityDetail });
         // Chưa phát UserPersonalDataErased: RabbitMQ chưa có binding cho sự kiện này (publish mandatory sẽ lỗi).
         // Cần thống nhất với các service nhận trước khi bật.

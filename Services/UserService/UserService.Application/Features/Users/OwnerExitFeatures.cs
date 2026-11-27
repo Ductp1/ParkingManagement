@@ -1,4 +1,6 @@
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Enums;
+using UserService.Application.Features.Identity;
 using ParkingManagement.SharedKernel.Exceptions;
 using UserService.Domain.Entities;
 
@@ -89,7 +91,8 @@ public interface ITerminateOwnerExitUseCase
     Task<OwnerExitStatusDto> ExecuteAsync(int ownerProfileId, CancellationToken cancellationToken = default);
 }
 
-public sealed class TerminateOwnerExitUseCase(IOwnerProfileRepository repository, TimeProvider timeProvider) : ITerminateOwnerExitUseCase
+public sealed class TerminateOwnerExitUseCase(IOwnerProfileRepository repository, IIdentityStore events, TimeProvider timeProvider)
+    : ITerminateOwnerExitUseCase
 {
     public async Task<OwnerExitStatusDto> ExecuteAsync(int ownerProfileId, CancellationToken cancellationToken = default)
     {
@@ -97,6 +100,8 @@ public sealed class TerminateOwnerExitUseCase(IOwnerProfileRepository repository
             ?? throw new NotFoundException("Hồ sơ chủ bãi", ownerProfileId);
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+        if (owner.Status != OwnerStatus.Terminated)
+            events.Event(new OwnerProfileLocked(owner.Id, owner.ExitReason ?? "Chấm dứt hợp tác."));
         owner.Terminate(nowUtc);
 
         await repository.UpdateAsync(owner, cancellationToken);

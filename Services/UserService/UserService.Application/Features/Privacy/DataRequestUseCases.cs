@@ -34,7 +34,8 @@ public interface IDataRequestStore
     /// <summary>Yêu cầu cùng loại đang chờ xử lý (Submitted/InProgress) của user, có tracking.</summary>
     Task<DataSubjectRequest?> FindOpenAsync(int userId, DataRequestType type, CancellationToken ct);
     Task<DataSubjectRequest?> FindAsync(int id, CancellationToken ct);
-    Task DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct);
+    /// <summary>Gỡ mọi phân công còn hiệu lực của tài khoản, trả về các phân công vừa gỡ.</summary>
+    Task<IReadOnlyList<StaffAssignment>> DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct);
     Task<int> ActiveSessionCountAsync(int userId, DateTime now, CancellationToken ct);
     Task<IReadOnlyList<SecurityActivity>> RecentSecurityEventsAsync(int userId, int take, CancellationToken ct);
 }

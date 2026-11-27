@@ -25,11 +25,11 @@ public sealed class SmtpOtpSender(IConfiguration config)
     public Task SendAsync(Guid eventId, string destination, string code, DateTime expiresAtUtc, string? purpose, CancellationToken ct)
         => DeliverAsync($"otp-{eventId:N}", destination, EmailTemplates.Otp(code, expiresAtUtc, purpose), ct);
 
-    /// <summary>Email gửi tài khoản + mật khẩu tạm cho nhân viên trực cổng mới (US-075).</summary>
-    public Task SendStaffCredentialsAsync(Guid eventId, string destination, string fullName, string temporaryPassword,
-        string ownerName, string lotName, CancellationToken ct)
-        => DeliverAsync($"staff-{eventId:N}", destination,
-            EmailTemplates.StaffCredentials(fullName, destination, temporaryPassword, ownerName, lotName, LoginUrl()), ct);
+    /// <summary>Link kích hoạt tài khoản nhân viên trực cổng (US-075): mật khẩu do nhân viên tự đặt.</summary>
+    public Task SendStaffActivationAsync(Guid eventId, string destination, string fullName, string ownerName, string lotName,
+        string activationLink, DateTime expiresAtUtc, CancellationToken ct)
+        => DeliverAsync($"staff-activation-{eventId:N}", destination,
+            EmailTemplates.StaffActivation(fullName, ownerName, lotName, activationLink, expiresAtUtc), ct);
 
     /// <summary>Link kích hoạt tài khoản chủ bãi (US-116 U2/U3): mật khẩu do chủ bãi tự đặt, email không chứa mật khẩu.</summary>
     public Task SendOwnerActivationAsync(Guid eventId, string destination, string fullName, string businessName, string activationLink,
@@ -48,13 +48,14 @@ public sealed class SmtpOtpSender(IConfiguration config)
     /// không xuất hiện trong log truy cập hay header Referer.
     /// </summary>
     public static string OwnerActivationLink(IConfiguration config, string token)
-    {
-        var page = string.IsNullOrWhiteSpace(config["App:OwnerActivationUrl"]) ? "http://localhost:5173/owner/activate" : config["App:OwnerActivationUrl"]!;
-        return $"{page}#token={Uri.EscapeDataString(token)}";
-    }
+        => ActivationLink(config["App:OwnerActivationUrl"], "http://localhost:5173/owner/activate", token);
 
-    /// <summary>Trang đăng nhập trong email; cấu hình App:LoginUrl, mặc định frontend chạy local.</summary>
-    private string LoginUrl() => string.IsNullOrWhiteSpace(config["App:LoginUrl"]) ? "http://localhost:5173/login" : config["App:LoginUrl"]!;
+    /// <summary>Trang kích hoạt nhân viên (App:StaffActivationUrl).</summary>
+    public static string StaffActivationLink(IConfiguration config, string token)
+        => ActivationLink(config["App:StaffActivationUrl"], "http://localhost:5173/staff/activate", token);
+
+    private static string ActivationLink(string? page, string fallback, string token)
+        => $"{(string.IsNullOrWhiteSpace(page) ? fallback : page)}#token={Uri.EscapeDataString(token)}";
 
     private async Task DeliverAsync(string messageId, string destination, EmailTemplates.Email email, CancellationToken ct)
     {

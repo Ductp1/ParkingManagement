@@ -158,9 +158,23 @@ public sealed class UserServiceApiTests(Tv1ApiFixture fixture)
             new { FullName = "Driver", Contact = driver.Contact, ParkingLotId = lotId })).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync(path + "/" + secondStaff.Id)).StatusCode);
 
-        // Tài khoản nhân viên mới được kích hoạt ngay; mật khẩu tạm đi qua Outbox tới kênh gửi email (adapter test).
+        // Nhân viên mới ở trạng thái Invited; link đi qua Outbox tới kênh gửi email (adapter test), nhân viên tự đặt mật khẩu.
         using var staffClient = fixture.Client();
-        var password = await fixture.CodeAsync(contact, "StaffCredentials");
+        Assert.Equal("Invited", staff.ActivationStatus);
+        var link = await fixture.CodeAsync(contact, "StaffActivation");
+        var token = Uri.UnescapeDataString(link[(link.IndexOf("#token=", StringComparison.Ordinal) + 7)..]);
+        var filtered = (await client.GetFromJsonAsync<UserService.Application.Features.Staff.StaffItem[]>(
+            path + "?lotId=" + lotId + "&staffUserId=" + staff.UserId))!;
+        Assert.Equal(staff.Id, Assert.Single(filtered).Id);
+        using var check = new HttpRequestMessage(HttpMethod.Get, "/api/v1/auth/staff-activation");
+        check.Headers.Add("X-Activation-Token", token);
+        Assert.Equal(HttpStatusCode.OK, (await staffClient.SendAsync(check)).StatusCode);
+        const string password = "Password123";
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await staffClient.PostAsJsonAsync("/api/v1/auth/staff-activation", new { Token = token, Password = password })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest,
+            (await staffClient.PostAsJsonAsync("/api/v1/auth/staff-activation", new { Token = token, Password = password })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync(path + "/" + staff.Id + "/resend-invite", null)).StatusCode);
         using var login = await staffClient.PostAsJsonAsync("/api/v1/auth/login",
             new { EmailOrPhone = contact, Password = password, CaptchaToken = "integration-valid" });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
@@ -518,7 +532,7 @@ public sealed class Tv1ApiFixture : IDisposable
             if(request.RequestUri!.Host=="otp.test")
             {
                 using var data=JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));var json=data.RootElement;
-                Codes[json.GetProperty("destination").GetString()+":"+json.GetProperty("purpose").GetString()]=json.GetProperty("code").GetString()!;
+                Codes[json.GetProperty("destination").GetString()+":"+json.GetProperty("purpose").GetString()]=(json.TryGetProperty("code",out var sent)?sent:json.GetProperty("link")).GetString()!;
             }
             return new HttpResponseMessage(HttpStatusCode.OK);
         }

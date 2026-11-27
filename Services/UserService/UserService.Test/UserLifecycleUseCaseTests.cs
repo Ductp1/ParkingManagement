@@ -70,6 +70,8 @@ public class UserLifecycleUseCaseTests
 
         Assert.False(again.Changed);
         Assert.Single(store.Security);
+        var suspended = Assert.IsType<UserSuspended>(Assert.Single(store.Events));
+        Assert.Equal((user.Id, "Lý do", (DateTime?)null), (suspended.UserId, suspended.Reason, suspended.LockedUntilUtc));
     }
 
     [Fact]
@@ -137,6 +139,7 @@ public class UserLifecycleUseCaseTests
         Assert.Equal((OwnerStatus.Terminated, true, null), (user.OwnerProfile!.Status, user.OwnerProfile.IsLocked, user.OwnerProfile.TaxCode));
         Assert.All(store.Otps, o => Assert.NotNull(o.ConsumedAtUtc));
         Assert.Contains(user.Id, store.RevokedFor);
+        Assert.Single(store.Events, e => e is OwnerProfileLocked l && l.OwnerProfileId == user.OwnerProfile.Id);
         // Email / SĐT cũ dùng lại được: không còn user nào giữ chúng.
         Assert.Null(await store.FindContactAsync("owner@example.vn", default));
         Assert.Null(await store.FindContactAsync("0901234567", default));
@@ -284,7 +287,8 @@ public class UserLifecycleUseCaseTests
                 case SecurityEvent s: Security.Add(s); break;
             }
         }
-        public void Event(IntegrationEvent integrationEvent) { }
+        public List<IntegrationEvent> Events = [];
+        public void Event(IntegrationEvent integrationEvent) => Events.Add(integrationEvent);
         /// <summary>Giống ServiceDbContext: mỗi lần lưu, user đã sửa được đóng dấu RowVersion mới.</summary>
         public Task SaveAsync(CancellationToken ct) { foreach (var u in Users) u.RowVersion = Guid.NewGuid().ToByteArray(); return Task.CompletedTask; }
 
@@ -300,7 +304,8 @@ public class UserLifecycleUseCaseTests
         public Task<IReadOnlyList<UserService.Application.Features.Privacy.AdminDataRequestItem>> ListAsync(DataRequestStatus? status, DataRequestType? type, int page, int pageSize, CancellationToken ct) => throw new NotSupportedException();
         public Task<DataSubjectRequest?> FindOpenAsync(int userId, DataRequestType type, CancellationToken ct) => throw new NotSupportedException();
         public Task<DataSubjectRequest?> FindAsync(int id, CancellationToken ct) => throw new NotSupportedException();
-        public Task DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct) => Task.CompletedTask;
+        public Task<IReadOnlyList<StaffAssignment>> DeactivateStaffAssignmentsAsync(int userId, DateTime now, CancellationToken ct)
+            => Task.FromResult<IReadOnlyList<StaffAssignment>>([]);
         public Task<int> ActiveSessionCountAsync(int userId, DateTime now, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyList<UserService.Application.Features.Privacy.SecurityActivity>> RecentSecurityEventsAsync(int userId, int take, CancellationToken ct) => throw new NotSupportedException();
 

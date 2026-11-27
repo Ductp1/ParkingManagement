@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using ParkingManagement.SharedKernel.Contracts;
-using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingManagement.SharedKernel.Exceptions;
 using UserService.Application.Interfaces;
@@ -201,31 +199,14 @@ public sealed class OwnerAccountUseCases(IIdentityStore store, IOwnerAccountStor
         foreach (var open in await owners.OpenActivationsAsync(userId, ct)) open.ConsumedAtUtc = now;
     }
 
-    /// <summary>Token mới + outbox gửi email cùng transaction; token chỉ nằm (đã mã hóa) trong outbox, DB giữ SHA-256.</summary>
-    private async Task IssueActivationAsync(User user, string businessName, CancellationToken ct)
+    private Task IssueActivationAsync(User user, string businessName, CancellationToken ct)
     {
-        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var expires = clock.GetUtcNow().UtcDateTime.Add(options.Ttl);
-        var activation = new OtpCode
+        return ActivationLinks.IssueAsync(store, user, OtpPurpose.OwnerActivation, expires, ActivationEvent, (activationId, token) => new
         {
-            UserId = user.Id,
-            Destination = user.Email!,
-            CodeHash = HashToken(token),
-            Purpose = OtpPurpose.OwnerActivation,
-            ExpiresAtUtc = expires,
-        };
-        store.Add(activation);
-        await store.SaveAsync(ct);
-        store.Add(new OutboxMessage
-        {
-            EventType = ActivationEvent,
-            PayloadJson = JsonSerializer.Serialize(new
-            {
-                ActivationId = activation.Id, UserId = user.Id, Destination = user.Email, user.FullName, BusinessName = businessName,
-                ExpiresAtUtc = expires, EncryptedToken = cipher.Encrypt(token, ActivationCipherPurpose),
-            }),
-        });
-        await store.SaveAsync(ct);
+            ActivationId = activationId, UserId = user.Id, Destination = user.Email, user.FullName, BusinessName = businessName,
+            ExpiresAtUtc = expires, EncryptedToken = cipher.Encrypt(token, ActivationCipherPurpose),
+        }, ct);
     }
 
     private static string Required(string? value, string field, int max)
