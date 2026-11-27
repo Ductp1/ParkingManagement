@@ -1,9 +1,9 @@
 name: CI
 
-# CI cho toàn hệ thống microservice:
-#   build           → solution compile được (gồm cả project API không có test riêng)
-#   unit-tests      → 9 job song song, mỗi service 1 job (mỗi người theo dõi service của mình)
-#   integration     → WebApplicationFactory + SQL Server 2022 (service container), DB riêng cho từng service host
+# CI cho toan bo he thong microservice:
+#   build           -> solution compile duoc (gom ca project API khong co test rieng)
+#   unit-tests      -> 9 job song song, moi service 1 job (moi nguoi theo doi service cua minh)
+#   integration     -> WebApplicationFactory + SQL Server 2022 (service container), DB rieng cho tung service host
 on:
   pull_request:
     branches: [main, develop]
@@ -17,6 +17,8 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  # CI khong co RabbitMQ -> tat EventBus cho moi host service (WebApplicationFactory van start duoc).
+  EventBus__Enabled: "false"
 
 jobs:
   build:
@@ -35,15 +37,95 @@ jobs:
       - name: Build
         run: dotnet build ParkingManagement.slnx -c Release --no-restore --nologo
 
-  unit-tests:
-    name: Unit tests – ${{ matrix.service }}
-    needs: build
+  # Xac dinh service nao co code thay doi de chi chay unit test cua cac service do.
+  # - pull_request: dorny/paths-filter so sanh PR voi base branch (dung GitHub API lay danh sach file thay doi)
+  # - push thang vao main/develop, hoac thay doi code dung chung (BuildingBlocks, Directory.Build.props,
+  #   solution, CI workflow) -> chay unit test cua TAT CA service (giu hanh vi an toan nhu cu)
+  changes:
+    name: Detect changed services
     runs-on: ubuntu-latest
+    outputs:
+      # JSON dung lam dynamic matrix cho job unit-tests, vi du: {"service":["UserService"]}
+      services: ${{ steps.matrix.outputs.services }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            UserService:
+              - 'Services/UserService/**'
+            VehicleService:
+              - 'Services/VehicleService/**'
+            ParkingService:
+              - 'Services/ParkingService/**'
+            BookingService:
+              - 'Services/BookingService/**'
+            PaymentService:
+              - 'Services/PaymentService/**'
+            NotificationService:
+              - 'Services/NotificationService/**'
+            GateService:
+              - 'Services/GateService/**'
+            AdminService:
+              - 'Services/AdminService/**'
+            SupportService:
+              - 'Services/SupportService/**'
+            # Code/anh huong dung chung cho moi service
+            shared:
+              - 'BuildingBlocks/**'
+              - 'Directory.Build.props'
+              - 'ParkingManagement.slnx'
+              - '.github/workflows/ci.yml'
+
+      - name: Build unit-test matrix
+        id: matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGED_SERVICES: ${{ steps.filter.outputs.changes }}   # JSON array, vd: ["UserService"]
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}      # "true" neu code dung chung thay doi
+        run: |
+          ALL='["UserService","VehicleService","ParkingService","BookingService","PaymentService","NotificationService","GateService","AdminService","SupportService"]'
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$SHARED_CHANGED" != "true" ]; then
+            # PR chi dung service cu the -> chi test cac service do
+            services="{\"service\":${CHANGED_SERVICES:-[]}}"
+          else
+            services="{\"service\":$ALL}"
+          fi
+          echo "services=$services" >> "$GITHUB_OUTPUT"
+  unit-tests:
+    name: Unit tests - ${{ matrix.service }}
+    needs: [build, changes]
+    runs-on: ubuntu-latest
+    environment: environment
+
+    # US-066: GateService.Test co 3 test chay tren PostgreSQL that (LotAdmissionGateDbTests -
+    # kiem chung row-lock chong race condition, khong the gia lap tren InMemory). Job matrix
+    # dung chung nen cac service khac cung co san postgres (vo hai - khong dung toi).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      Vnpay__HashSecret: ${{ secrets.VNPAY__HASHSECRET }}
+      # T-704: secret HMAC xac thuc QR token check-in (BookingService <-> GateService). Cung ten voi bien moi truong local.
+      QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
     strategy:
-      fail-fast: false                       # 1 service đỏ không hủy service khác
-      matrix:
-        service: [UserService, VehicleService, ParkingService, BookingService, PaymentService,
-                  NotificationService, GateService, AdminService, SupportService]
+      fail-fast: false                       # 1 service do khong huy service khac
+      # Matrix dong tu job "changes": PR chi doi service nao thi chi chay unit test service do.
+      # Matrix rong (PR khong dung service nao) -> job nay tu skip. Push thang/code dung chung -> chay tat ca.
+      matrix: ${{ fromJSON(needs.changes.outputs.services) }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +133,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Unit test (Domain + Application) – không cần database
+      # Unit test - da so khong can database; rieng GateService co 3 test US-066 chay tren
+      # PostgreSQL that tu service container postgres khai bao o tren (localhost:5432).
       - name: Test
         run: >
           dotnet test Services/${{ matrix.service }}/${{ matrix.service }}.Test/${{ matrix.service }}.Test.csproj
@@ -72,8 +155,13 @@ jobs:
     name: Integration tests
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # T-704: GateService doc secret QR token tu bien moi truong - san sang khi GateService duoc
+      # them vao integration test. Luu y: secret phai la repository/organization secret
+      # (job nay khong khai bao environment: nen khong thay environment-scoped secrets).
+      QRTOKEN_SECRET: ${{ secrets.QRTOKEN_SECRET }}
 
-    # PostgreSQL thật cho integration test (WebApplicationFactory → PostgreSQL qua localhost:5432)
+    # PostgreSQL that cho integration test (WebApplicationFactory -> PostgreSQL qua localhost:5432)
     services:
       postgres:
         image: postgres:17-alpine
@@ -87,7 +175,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
-
     steps:
       - uses: actions/checkout@v4
 
@@ -95,16 +182,27 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Tạo sẵn DB riêng cho từng service host (mỗi DbContext có bảng __EFMigrationsHistory riêng,
-      # dùng chung 1 DB sẽ xung đột migration). Provider Npgsql không tự tạo database khi Migrate.
+      # Tao san DB rieng cho tung service host (moi DbContext co bang __EFMigrationsHistory rieng,
+      # dung chung 1 DB se xung dot migration). Provider Npgsql khong tu tao database khi Migrate.
       - name: Prepare databases
         run: |
           cid=$(docker ps -q --filter "ancestor=postgres:17-alpine" | head -n1)
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_parking_ci;"
           docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_booking_ci;"
+          docker exec "$cid" psql -U postgres -c "CREATE DATABASE pm_user_ci;"
 
-      # Ghi đè ConnectionStrings:ServiceDb bằng biến môi trường (ưu tiên cao hơn appsettings.json)
-      - name: Test – ParkingService (pm_parking_ci)
+      # Ghi de ConnectionStrings:ServiceDb bang bien moi truong (uu tien cao hon appsettings.json)
+      - name: Test - UserService (pm_user_ci)
+        env:
+          TV1_TEST_DB: "Host=localhost;Port=5432;Database=pm_user_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~UserServiceApiTests"
+          --logger "trx;LogFileName=Integration_User.trx"
+          --results-directory ./test-results
+
+      - name: Test - ParkingService (pm_parking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_parking_ci;Username=postgres;Password=postgres"
         run: >
@@ -114,7 +212,7 @@ jobs:
           --logger "trx;LogFileName=Integration_Parking.trx"
           --results-directory ./test-results
 
-      - name: Test – BookingService (pm_booking_ci)
+      - name: Test - BookingService (pm_booking_ci)
         env:
           ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
         run: >
@@ -122,6 +220,19 @@ jobs:
           -c Release --nologo
           --filter "FullyQualifiedName~BookingServiceApiTests"
           --logger "trx;LogFileName=Integration_Booking.trx"
+          --results-directory ./test-results
+
+      # Test - 6 suite per-service con lai (Vehicle, Payment, Notification, Gate, Admin, Support).
+      # Moi suite tu tao database pm_it_* rieng roi tu xoa khi chay xong, nen khong can tao san DB o "Prepare databases"
+      # (connection string duoi day chi dung host/port/user/password; ten database bi fixture ghi de).
+      - name: Test - Per-service suites (Vehicle/Payment/Notification/Gate/Admin/Support)
+        env:
+          ConnectionStrings__ServiceDb: "Host=localhost;Port=5432;Database=pm_booking_ci;Username=postgres;Password=postgres"
+        run: >
+          dotnet test Tests/ParkingManagement.IntegrationTests/ParkingManagement.IntegrationTests.csproj
+          -c Release --nologo
+          --filter "FullyQualifiedName~IntegrationTests.PerService"
+          --logger "trx;LogFileName=Integration_PerService.trx"
           --results-directory ./test-results
 
       - name: Upload test results

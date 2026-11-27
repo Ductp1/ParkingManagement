@@ -3,6 +3,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY Directory.Build.props ./
+COPY BuildingBlocks ./BuildingBlocks
 COPY Gateway ./Gateway
 
 RUN dotnet publish Gateway/ParkingManagement.Gateway/ParkingManagement.Gateway.csproj -c Release -o /app

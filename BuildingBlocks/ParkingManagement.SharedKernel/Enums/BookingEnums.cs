@@ -20,3 +20,9 @@ public enum BookingStatus
 }
 
 public enum AllocationMode { Dynamic = 1, DedicatedSlot = 2 }
+
+/// <summary>
+/// Giai đoạn xử lý tự động của worker chốt phiên đỗ (US-040, UC-49) – chống xử lý trùng:
+/// None → Reminded (đã nhắc khi thiếu check-in) → Finalized (đã tự chốt Completed hoặc NoShow).
+/// </summary>
+public enum BookingAutoStage { None = 0, Reminded = 1, Finalized = 2 }

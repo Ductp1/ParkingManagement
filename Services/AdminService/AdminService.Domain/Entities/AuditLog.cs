@@ -21,4 +21,24 @@ public class AuditLog : BaseEntity
     public string? Reason { get; set; }
     public string? IpAddress { get; set; }
 
+    /// <summary>
+    /// T-802: audit log do service khác gửi qua sự kiện AuditRecorded. CreatedAtUtc lấy theo thời điểm phát sinh
+    /// của sự kiện (đã chặn trên bởi thời điểm nhận), không phải lúc AdminService nhận.
+    /// </summary>
+    public static AuditLog FromIntegrationEvent(string sourceService, int? userId, int? ownerProfileId, string action,
+        string entityName, string? entityId, string? oldValuesJson, string? newValuesJson, string? reason, string? ipAddress,
+        DateTime createdAtUtc) => new()
+    {
+        SourceService = sourceService,
+        UserId = userId,
+        OwnerProfileId = ownerProfileId,
+        Action = action,
+        EntityName = entityName,
+        EntityId = entityId,
+        OldValuesJson = oldValuesJson,
+        NewValuesJson = newValuesJson,
+        Reason = reason,
+        IpAddress = ipAddress,
+        CreatedAtUtc = createdAtUtc,
+    };
 }

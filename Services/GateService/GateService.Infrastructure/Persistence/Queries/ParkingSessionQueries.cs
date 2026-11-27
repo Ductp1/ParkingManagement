@@ -32,5 +32,5 @@ public sealed class ParkingSessionQueries(GateDbContext db) : IParkingSessionQue
         s.Id, s.Code, s.ParkingLotId, s.PlateNumber, PlateNormalizer.Format(s.PlateNumber), s.IsWalkIn,
         s.BookingCode, s.SlotCode, s.Status.ToString(), s.EntryAtUtc, s.ExitAtUtc,
         (int)Math.Ceiling(((s.ExitAtUtc ?? nowUtc) - s.EntryAtUtc).TotalMinutes),
-        s.CheckInMethod.ToString(), s.EntryOcrConfidence, s.Fee);
+        s.CheckInMethod.ToString(), s.EntryOcrConfidence, s.Fee, s.VehicleType.ToString());
 }

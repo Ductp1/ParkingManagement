@@ -126,6 +126,24 @@ public sealed class PaymentDataSeeder(ILogger<PaymentDataSeeder> logger) : IData
             });
         }
 
+        // Bổ sung ngày nghỉ lễ năm 2026 phục vụ kiểm thử dữ liệu demo và áp hệ số ngày lễ US-071
+        if (!await db.Holidays.AnyAsync(h => h.Date.Year == 2026, cancellationToken))
+        {
+            db.Holidays.AddRange(
+                new Holiday { Date = new DateOnly(2026, 1, 1), Name = "Tết Dương lịch" },
+                new Holiday { Date = new DateOnly(2026, 2, 14), Name = "Tết Nguyên đán (27 Tết)" },
+                new Holiday { Date = new DateOnly(2026, 2, 15), Name = "Tết Nguyên đán (28 Tết)" },
+                new Holiday { Date = new DateOnly(2026, 2, 16), Name = "Tết Nguyên đán (29 Tết)" },
+                new Holiday { Date = new DateOnly(2026, 2, 17), Name = "Tết Nguyên đán (Mùng 1)" },
+                new Holiday { Date = new DateOnly(2026, 2, 18), Name = "Tết Nguyên đán (Mùng 2)" },
+                new Holiday { Date = new DateOnly(2026, 2, 19), Name = "Tết Nguyên đán (Mùng 3)" },
+                new Holiday { Date = new DateOnly(2026, 4, 26), Name = "Giỗ Tổ Hùng Vương" },
+                new Holiday { Date = new DateOnly(2026, 4, 30), Name = "Ngày Giải phóng miền Nam" },
+                new Holiday { Date = new DateOnly(2026, 5, 1), Name = "Quốc tế Lao động" },
+                new Holiday { Date = new DateOnly(2026, 9, 2), Name = "Quốc khánh" },
+                new Holiday { Date = new DateOnly(2026, 9, 3), Name = "Quốc khánh (nghỉ liền kề)" });
+        }
+
         await db.SaveChangesAsync(cancellationToken);
     }
 }

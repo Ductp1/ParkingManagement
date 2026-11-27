@@ -7,6 +7,9 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Keys\public.key" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\ParkingService.Application\ParkingService.Application.csproj" />
     <ProjectReference Include="..\ParkingService.Infrastructure\ParkingService.Infrastructure.csproj" />
   </ItemGroup>

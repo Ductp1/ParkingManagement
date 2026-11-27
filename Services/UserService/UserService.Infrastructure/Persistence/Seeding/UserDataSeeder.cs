@@ -72,7 +72,7 @@ public sealed class UserDataSeeder(ILogger<UserDataSeeder> logger) : IDataSeeder
         });
         await db.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Seed UserService xong: {Users} user, mật khẩu demo {Password}.", users.Length, DemoIds.Password);
+        logger.LogInformation("Seed UserService xong: {Users} user demo.", users.Length);
     }
 
     /// <summary>Dữ liệu demo cho các bảng thêm ở migration AddDocumentCoverage – mỗi bảng kiểm tra riêng nên chạy được trên DB cũ.</summary>

@@ -1,0 +1,387 @@
+using System.Net;
+using System.Net.Http.Json;
+using MassTransit;
+using AdminService.API.Controllers;
+using AdminService.Application.Features.Users;
+using AdminService.Domain.Entities;
+using AdminService.Domain.Enums;
+using AdminService.Infrastructure.Integrations;
+using AdminService.Infrastructure.Persistence;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using ParkingManagement.IntegrationTests;
+using ParkingManagement.SharedKernel.Contracts;
+using ParkingManagement.SharedKernel.Enums;
+using UserService.API.Controllers;
+using UserService.Infrastructure.Persistence;
+
+namespace ParkingManagement.IntegrationTests.PerService;
+
+/// <summary>
+/// Fixture AdminService: dựng 2 host — UserService (nguồn dữ liệu người dùng thật) và AdminService với
+/// Services:GatewayBaseUrl trỏ thẳng vào host UserService (bỏ qua Gateway vì test gọi thẳng service).
+/// JWT admin được mint bằng cặp khóa RSA test; phiên đăng nhập được "arrange" bằng 1 dòng RefreshTokens
+/// trong pm_user để UserPrincipalValidator (TV1) xác thực sid như production.
+/// </summary>
+public sealed class AdminApiFixture : IAsyncLifetime
+{
+    private readonly RsaTestKeys _keys = RsaTestKeys.Create();
+
+    public string UserDbName { get; } = $"pm_it_user_{Guid.NewGuid().ToString("N")[..8]}";
+    public string AdminDbName { get; } = $"pm_it_admin_{Guid.NewGuid().ToString("N")[..8]}";
+
+    public WebApplicationFactory<UsersController> UserFactory { get; private set; } = null!;
+    public WebApplicationFactory<AdminUsersController> AdminFactory { get; private set; } = null!;
+    public HttpClient AdminClient { get; private set; } = null!;
+    public string AdminToken { get; private set; } = string.Empty;
+
+    /// <summary>Env gốc trước khi fixture ghi đè — DisposeAsync khôi phục để không ô nhiễm fixture chạy sau.</summary>
+    private readonly Dictionary<string, string?> _originalJwtEnv = new();
+
+    /// <summary>sid của phiên admin — trùng TokenHash của RefreshTokens đã arrange trong pm_user.</summary>
+    public string Sid { get; } = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+
+    public IServiceProvider AdminServices => AdminFactory.Services;
+
+    /// <summary>US-099: client mang JWT của <paramref name="userId"/> với role cho trước (kiểm tra phân quyền).</summary>
+    public HttpClient CreateClientWithRole(int userId, string role)
+    {
+        var client = AdminFactory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", _keys.MintToken(userId, $"user{userId}@it.test", null, role));
+        return client;
+    }
+
+    public async Task InitializeAsync()
+    {
+        var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
+        var userCs = TestDatabaseProvisioner.ReplaceDatabase(baseCs, UserDbName);
+        var adminCs = TestDatabaseProvisioner.ReplaceDatabase(baseCs, AdminDbName);
+        await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, UserDbName);
+        await TestDatabaseProvisioner.CreateDatabaseAsync(baseCs, AdminDbName);
+
+        // Khóa JWT của fixture này. Env là PROCESS-WIDE: phải lưu giá trị gốc và khôi phục khi
+        // Dispose, nếu không host của fixture khác (VD ParkingAdminDashboard không override config)
+        // sẽ đọc nhầm path khóa của Admin — file đã bị xóa → "Thiếu public key JWT" khi start.
+        _originalJwtEnv["Jwt__PublicKeyPath"] = Environment.GetEnvironmentVariable("Jwt__PublicKeyPath");
+        _originalJwtEnv["Jwt__PrivateKeyPath"] = Environment.GetEnvironmentVariable("Jwt__PrivateKeyPath");
+        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", _keys.PublicKeyPath);
+        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", _keys.PrivateKeyPath);
+
+        // ----- 1. UserService host (nguồn dữ liệu + xác thực phiên thật) -----
+        UserFactory = new WebApplicationFactory<UsersController>().WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Jwt:PublicKeyPath"] = _keys.PublicKeyPath,
+                    ["Jwt:PrivateKeyPath"] = _keys.PrivateKeyPath,
+                    ["Database:SeedDemoData"] = "true",
+                    ["Captcha:SecretKey"] = "integration-test-secret",
+                    // This UserService host supplies users/sessions; broker delivery is tested separately.
+                    ["EventBus:Enabled"] = "false",
+                }));
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<UserDbContext>(userCs);
+                services.AddDataProtection().UseEphemeralDataProtectionProvider();
+                services.AddMassTransitTestHarness();
+            });
+        });
+        using var userHealth = await UserFactory.CreateClient().GetAsync("/health");
+        Assert.True(userHealth.IsSuccessStatusCode, $"UserService không start được trên {UserDbName}.");
+
+        // ----- 2. Arrange phiên đăng nhập cho user 1 (Admin) để TV1 xác thực sid -----
+        await using (var scope = UserFactory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+            db.RefreshTokens.Add(new UserService.Domain.Entities.RefreshToken
+            {
+                UserId = DemoIds.AdminUser,
+                TokenHash = Sid,
+                ExpiresAtUtc = DateTime.UtcNow.AddDays(1),
+                CreatedByIp = "integration-test",
+            });
+            await db.SaveChangesAsync();
+        }
+
+        AdminToken = _keys.MintToken(DemoIds.AdminUser, "admin@smartparking.vn", Sid, "Admin");
+
+        // ----- 3. AdminService host -----
+        // Client IUserServiceClient gọi THẲNG vào pipeline in-memory của host UserService:
+        // WebApplicationFactory KHÔNG mở cổng mạng thật → bắt buộc dùng TestServer.CreateHandler()
+        // làm InnerHandler; BearerTokenForwardingHandler vẫn chuyển tiếp token admin sang TV1 như production.
+        var userServerHandler = UserFactory.Server.CreateHandler();
+        AdminFactory = new WebApplicationFactory<AdminUsersController>().WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Jwt:PublicKeyPath"] = _keys.PublicKeyPath,
+                }));
+            builder.ConfigureServices(services =>
+            {
+                services.UseIsolatedDatabase<AdminDbContext>(adminCs);
+                services.AddScoped<IUserServiceClient>(sp =>
+                {
+                    var accessor = sp.GetRequiredService<IHttpContextAccessor>();
+                    var http = new HttpClient(new BearerTokenForwardingHandler(accessor)
+                    {
+                        InnerHandler = userServerHandler,
+                    })
+                    { BaseAddress = UserFactory.ClientOptions.BaseAddress };
+                    return new UserServiceClient(http, sp.GetRequiredService<ILogger<UserServiceClient>>());
+                });
+                // US-053: duyệt hồ sơ đối tác gọi U2 qua IOwnerAccountClient – cùng client in-memory ở trên.
+                services.AddScoped<AdminService.Application.Features.PartnerOnboarding.IOwnerAccountClient>(sp =>
+                    (UserServiceClient)sp.GetRequiredService<IUserServiceClient>());
+            });
+        });
+        AdminClient = AdminFactory.CreateClient();
+        AdminClient.DefaultRequestHeaders.Authorization = new("Bearer", AdminToken);
+
+        using var adminHealth = await AdminClient.GetAsync("/health");
+        Assert.True(adminHealth.IsSuccessStatusCode, $"AdminService không start được trên {AdminDbName}.");
+    }
+
+    public async Task DisposeAsync()
+    {
+        Environment.SetEnvironmentVariable("Jwt__PublicKeyPath", null);
+        Environment.SetEnvironmentVariable("Jwt__PrivateKeyPath", null);
+        UserFactory?.Dispose();
+        AdminFactory?.Dispose();
+        // Khôi phục env gốc TRƯỚC khi xóa thư mục khóa — fixture khác chạy sau không đọc nhầm path đã mất.
+        foreach (var (name, value) in _originalJwtEnv)
+            Environment.SetEnvironmentVariable(name, value);
+        try
+        {
+            var baseCs = TestDatabaseProvisioner.ResolveBaseConnectionString();
+            await TestDatabaseProvisioner.DropDatabaseAsync(baseCs, UserDbName);
+            await TestDatabaseProvisioner.DropDatabaseAsync(baseCs, AdminDbName);
+        }
+        catch { // best-effort
+        }
+        _keys.Dispose();
+    }
+}
+
+/// <summary>Collection: AdminService (+ UserService thật làm phụ thuộc) trên database pm_it_* riêng.</summary>
+[CollectionDefinition("Admin API")]
+public sealed class AdminApiCollection : ICollectionFixture<AdminApiFixture>;
+
+/// <summary>
+/// Integration test AdminService (TV8): tra cứu người dùng US-096 qua UserService thật (chuyển tiếp Bearer token),
+/// khóa/mở khóa chủ bãi kèm Sanction + AuditLog trong pm_admin, tham số hệ thống UC-44 (đổi → lịch sử → hủy).
+/// </summary>
+[Collection("Admin API")]
+public class AdminServiceApiTests(AdminApiFixture fixture)
+{
+    [Fact] // US-096: danh sách người dùng đọc từ UserService thật qua HTTP; lọc theo role; chi tiết có OwnerProfile.
+    public async Task Users_list_and_detail_are_proxied_from_user_service()
+    {
+        var all = await fixture.AdminClient.GetFromJsonAsync<PageJson<UserJson>>("/api/v1/admin/users?page=1&pageSize=20");
+        Assert.Equal(6, all!.TotalCount);
+
+        var drivers = await fixture.AdminClient.GetFromJsonAsync<PageJson<UserJson>>("/api/v1/admin/users?role=Driver&page=1&pageSize=20");
+        Assert.Equal(3, drivers!.TotalCount); // driver1, driver2 và owner.vincom (được gắn thêm role Driver)
+        Assert.Contains(drivers.Items, u => u.Email == "driver1@smartparking.vn");
+
+        var detail = await fixture.AdminClient.GetFromJsonAsync<AdminUserJson>("/api/v1/admin/users/2");
+        Assert.Equal("Công ty Vincom Parking", detail!.FullName);
+        Assert.Equal("owner.vincom@smartparking.vn", detail.Email);
+        Assert.Equal(1, detail.OwnerProfile!.Id);
+        Assert.Equal("Công ty TNHH Vincom Parking", detail.OwnerProfile.BusinessName);
+
+        await Asserts.NotFoundAsync(await fixture.AdminClient.GetAsync("/api/v1/admin/users/999"));
+    }
+
+    [Fact] // Không mang token → 401 từ middleware xác thực JWT.
+    public async Task Admin_endpoints_require_a_bearer_token()
+    {
+        using var anonymous = fixture.AdminFactory.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/admin/users")).StatusCode);
+    }
+
+    [Fact] // US-099: tắt/bật flag qua API → đọc lại ngay được giá trị mới, có người sửa, có audit log; chỉ Admin được đổi.
+    public async Task Feature_flag_toggle_takes_effect_immediately_and_is_audited()
+    {
+        const string url = "/api/v1/admin/settings/feature-flags";
+        const string flag = "FEATURE_AI_CHATBOT";
+        var enable = new { isEnabled = true, reason = "IT – bật chatbot" };
+
+        // AC2: đọc trạng thái không cần đăng nhập, chỉ trả khóa + bật/tắt (không lộ mô tả, người sửa).
+        using var anonymous = fixture.AdminFactory.CreateClient();
+        var body = await anonymous.GetStringAsync(url);
+        Assert.Contains(flag, body);
+        Assert.DoesNotContain("description", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("updatedBy", body, StringComparison.OrdinalIgnoreCase);
+
+        // Quyền đổi: không token 401; chủ bãi / tài xế 403
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PutAsJsonAsync($"{url}/{flag}", enable)).StatusCode);
+        using var owner = fixture.CreateClientWithRole(2, "LotOwner");
+        Assert.Equal(HttpStatusCode.Forbidden, (await owner.PutAsJsonAsync($"{url}/{flag}", enable)).StatusCode);
+        using var driver = fixture.CreateClientWithRole(5, "Driver");
+        Assert.Equal(HttpStatusCode.Forbidden, (await driver.PutAsJsonAsync($"{url}/{flag}", enable)).StatusCode);
+
+        // Dữ liệu sai: thiếu lý do 400; flag không tồn tại 404; đổi về đúng giá trị hiện tại 409
+        await Asserts.BadRequestAsync(await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", new { isEnabled = true }), "Lý do");
+        await Asserts.NotFoundAsync(await fixture.AdminClient.PutAsJsonAsync($"{url}/FEATURE_KHONG_CO", enable));
+        await Asserts.ConflictAsync(await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", new { isEnabled = false, reason = "IT" }), "đang ở trạng thái");
+
+        // Bật → đọc lại ngay thấy bật (cả API công khai lẫn API Admin có người sửa)
+        var updated = await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", enable);
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        var states = await anonymous.GetFromJsonAsync<List<FeatureFlagStateJson>>(url);
+        Assert.True(states!.Single(f => f.Key == flag).IsEnabled);
+        var settings = await fixture.AdminClient.GetFromJsonAsync<PlatformSettingsWithFlagAuditJson>("/api/v1/admin/settings");
+        var row = settings!.FeatureFlags.Single(f => f.Key == flag);
+        Assert.True(row.IsEnabled);
+        Assert.NotNull(row.UpdatedByUserId);
+        Assert.NotNull(row.UpdatedAtUtc);
+
+        // AC3: audit log có giá trị trước/sau + lý do
+        await using (var scope = fixture.AdminServices.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+            var audit = await db.AuditLogs.AsNoTracking().SingleAsync(a => a.Action == "FeatureFlag.Updated" && a.EntityId == flag);
+            Assert.Equal(row.UpdatedByUserId, audit.UserId);
+            Assert.Equal("IT – bật chatbot", audit.Reason);
+            Assert.Contains("false", audit.OldValuesJson);
+            Assert.Contains("true", audit.NewValuesJson);
+        }
+
+        // Tắt lại → flag về tắt
+        Assert.Equal(HttpStatusCode.OK,
+            (await fixture.AdminClient.PutAsJsonAsync($"{url}/{flag}", new { isEnabled = false, reason = "IT – tắt lại" })).StatusCode);
+        Assert.False((await anonymous.GetFromJsonAsync<List<FeatureFlagStateJson>>(url))!.Single(f => f.Key == flag).IsEnabled);
+    }
+
+    [Fact] // US-099: 2 Admin bấm cùng lúc → đúng 1 request thành công, chỉ 1 dòng audit.
+    public async Task Concurrent_feature_flag_changes_produce_one_audit_row()
+    {
+        const string flag = "FEATURE_AI_VOICE_SEARCH";
+        var request = new { isEnabled = true, reason = "IT – bấm đồng thời" };
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 8)
+            .Select(_ => fixture.AdminClient.PutAsJsonAsync($"/api/v1/admin/settings/feature-flags/{flag}", request)));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.OK);
+        Assert.All(responses.Where(r => r.StatusCode != HttpStatusCode.OK), r => Assert.Equal(HttpStatusCode.Conflict, r.StatusCode));
+        await using var scope = fixture.AdminServices.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+        Assert.Equal(1, await db.AuditLogs.AsNoTracking().CountAsync(a => a.Action == "FeatureFlag.Updated" && a.EntityId == flag));
+    }
+
+    [Fact] // UC-40: khóa chủ bãi ghi Sanction + AuditLog; unlock thu hồi; unlock lần 2 = thử đồng bộ lại (vẫn 200).
+    public async Task Lock_then_unlock_owner_records_sanction_and_audit_logs()
+    {
+        // Owner 1 (Vincom) chưa có chế tài nào trong seed
+        var before = await fixture.AdminClient.GetFromJsonAsync<PageJson<SanctionJson>>("/api/v1/admin/owners/1/sanctions");
+        Assert.Empty(before!.Items);
+
+        var lockResponse = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/lock",
+            new { ownerUserId = DemoIds.OwnerVincomUser, reason = "IT – nghi ngờ gian lận" });
+        Assert.Equal(HttpStatusCode.OK, lockResponse.StatusCode);
+        var sanction = await lockResponse.Content.ReadFromJsonAsync<SanctionJson>();
+        Assert.Equal(1, sanction!.OwnerProfileId);
+        Assert.Equal("IT – nghi ngờ gian lận", sanction.Reason);
+
+        // Danh sách chế tài phản ánh lệnh khóa
+        var afterLock = await fixture.AdminClient.GetFromJsonAsync<PageJson<SanctionJson>>("/api/v1/admin/owners/1/sanctions");
+        Assert.Single(afterLock!.Items);
+
+        // Thiếu lý do → 400
+        await Asserts.BadRequestAsync(await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock",
+            new { reason = "" }), "Lý do mở khóa không được để trống");
+
+        // Mở khóa → chế tài chuyển Revoked
+        var unlock = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock", new { reason = "IT – đã rõ hiềm nghi" });
+        Assert.Equal(HttpStatusCode.OK, unlock.StatusCode);
+
+        // Unlock lần 2: nếu UserService chưa đồng bộ thì thử lại (200 OK), nếu đã đồng bộ thành công thì chủ bãi không còn bị khóa (409 Conflict).
+        var unlockAgain = await fixture.AdminClient.PostAsJsonAsync("/api/v1/admin/owners/1/unlock",
+            new { reason = "IT – mở lại để thử đồng bộ" });
+        Assert.True(unlockAgain.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict);
+
+        // Database pm_admin: chế tài đã Revoked + đủ AuditLog cho cả khóa và mở khóa
+        await using var scope = fixture.AdminServices.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AdminDbContext>();
+        var sanctionEntity = await db.Sanctions.AsNoTracking().SingleAsync(s => s.OwnerProfileId == 1);
+        Assert.Equal(SanctionStatus.Revoked, sanctionEntity.Status);
+        var audit = await db.AuditLogs.AsNoTracking().Where(a => a.OwnerProfileId == 1).OrderBy(a => a.Id).ToListAsync();
+        Assert.Contains(audit, a => a.Action == "Owner.Locked");
+        Assert.Contains(audit, a => a.Action == "Owner.Unlocked");
+    }
+
+    [Fact] // UC-44/US-098: đọc tham số nền tảng → đổi BOOKING_HOLD_MINUTES → lịch sử có dòng mới → hủy thay đổi hẹn trước.
+    public async Task Settings_update_history_and_cancel_pending_change()
+    {
+        var settings = await fixture.AdminClient.GetFromJsonAsync<PlatformSettingsJson>("/api/v1/admin/settings");
+        Assert.Contains(settings!.Configs, c => c.Key == "BOOKING_HOLD_MINUTES");
+
+        // Đổi giá trị hiệu lực NGAY
+        var update = await fixture.AdminClient.PutAsJsonAsync("/api/v1/admin/settings/BOOKING_HOLD_MINUTES",
+            new { value = "20", reason = "IT – rút ngắn thời gian giữ chỗ" });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        var applied = await update.Content.ReadFromJsonAsync<SystemConfigChangeJson>();
+        Assert.Equal("20", applied!.Value);
+
+        var byKey = await fixture.AdminClient.GetFromJsonAsync<SystemConfigDetailJson>("/api/v1/admin/settings/BOOKING_HOLD_MINUTES");
+        Assert.Equal("20", byKey!.Value);
+
+        // Đặt thay đổi hẹn trước 30 ngày rồi hủy
+        var future = await fixture.AdminClient.PutAsJsonAsync("/api/v1/admin/settings/BOOKING_HOLD_MINUTES",
+            new { value = "45", reason = "IT – hẹn áp dụng tháng sau", effectiveFromUtc = DateTime.UtcNow.AddDays(30) });
+        Assert.Equal(HttpStatusCode.OK, future.StatusCode);
+        var pending = await future.Content.ReadFromJsonAsync<SystemConfigChangeJson>();
+
+        var cancel = await fixture.AdminClient.PostAsJsonAsync(
+            $"/api/v1/admin/settings/BOOKING_HOLD_MINUTES/changes/{pending!.Id}/cancel", new { reason = "IT – hủy lịch" });
+        Assert.Equal(HttpStatusCode.OK, cancel.StatusCode);
+
+        // Lịch sử ghi đủ 3 thay đổi, thay đổi hẹn trước mang trạng thái Cancelled
+        var history = await fixture.AdminClient.GetFromJsonAsync<PageJson<SystemConfigChangeJson>>(
+            "/api/v1/admin/settings/BOOKING_HOLD_MINUTES/history?page=1&pageSize=20");
+        Assert.True(history!.TotalCount >= 2);
+        Assert.Contains(history.Items, c => c.Id == pending.Id && c.Status == "Cancelled");
+
+        // Giá trị vượt khoảng cho phép (1–120) → 400
+        await Asserts.BadRequestAsync(await fixture.AdminClient.PutAsJsonAsync("/api/v1/admin/settings/BOOKING_HOLD_MINUTES",
+            new { value = "500", reason = "IT" }), "phải trong khoảng");
+    }
+
+}
+
+public sealed record PageJson<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalCount);
+
+public sealed record UserJson(int Id, string FullName, string? Email, string Status, IReadOnlyList<string> Roles);
+
+public sealed record OwnerProfileJson(int Id, string BusinessName);
+
+public sealed record AdminUserJson(int Id, string FullName, string? Email, string? PhoneNumber, string Status,
+    string KycStatus, IReadOnlyList<string> Roles, OwnerProfileJson? OwnerProfile);
+
+public sealed record SanctionJson(int Id, int OwnerProfileId, string Level, string Reason, string? Status,
+    string? UserServiceSyncStatus);
+
+public sealed record SystemConfigJson(string Key, string Value, string DataType, string? Description, DateTime? UpdatedAtUtc);
+
+public sealed record FeatureFlagJson(string Key, bool IsEnabled, string? Description);
+
+public sealed record PlatformSettingsJson(IReadOnlyList<SystemConfigJson> Configs, IReadOnlyList<FeatureFlagJson> FeatureFlags);
+
+public sealed record FeatureFlagStateJson(string Key, bool IsEnabled);
+
+public sealed record FeatureFlagAuditJson(string Key, bool IsEnabled, int? UpdatedByUserId, DateTime? UpdatedAtUtc);
+
+public sealed record PlatformSettingsWithFlagAuditJson(IReadOnlyList<FeatureFlagAuditJson> FeatureFlags);
+
+public sealed record SystemConfigDetailJson(string Key, string Value, string DataType, string? Description, string DefaultValue);
+
+public sealed record SystemConfigChangeJson(int Id, string Key, string Value, string PreviousValue,
+    DateTime EffectiveFromUtc, string? Status);

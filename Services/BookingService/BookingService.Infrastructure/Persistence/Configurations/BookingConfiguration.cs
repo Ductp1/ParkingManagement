@@ -32,6 +32,7 @@ internal sealed class BookingConfiguration : IEntityTypeConfiguration<Booking>
         e.HasIndex(x => new { x.OwnerProfileId, x.ParkingLotId, x.StartAtUtc }); // danh sách booking của chủ bãi / trong ca
         e.HasIndex(x => new { x.SlotId, x.StartAtUtc, x.EndAtUtc });      // kiểm tra trùng khung giờ trên 1 slot
         e.HasIndex(x => new { x.Status, x.HoldExpiresAtUtc });            // worker giải phóng giữ chỗ 15′
+        e.HasIndex(x => new { x.Status, x.EndAtUtc });                    // US-040: worker chốt phiên đỗ (auto-complete / no-show)
         e.HasIndex(x => x.PlateNumber);                                   // cổng tra theo biển số
     }
 }

@@ -28,4 +28,17 @@ public class RiskFlag : BaseEntity
     public int? SanctionId { get; set; }
 
     public Sanction? Sanction { get; set; }
+
+    /// <summary>Còn chờ xử lý (Open / Investigating) – mới gắn được chế tài.</summary>
+    public bool IsPending => Status is RiskFlagStatus.Open or RiskFlagStatus.Investigating;
+
+    /// <summary>US-097: cảnh báo được xử lý bằng chế tài vừa áp → gắn SanctionId và đóng (Resolved).</summary>
+    public void ResolveWithSanction(int sanctionId, DateTime nowUtc)
+    {
+        if (!IsPending) throw new InvalidOperationException($"RiskFlag #{Id} đã được xử lý ({Status}).");
+        SanctionId = sanctionId;
+        Status = RiskFlagStatus.Resolved;
+        ResolvedAtUtc = nowUtc;
+        ResolutionNote ??= $"Đã áp chế tài #{sanctionId} (US-097).";
+    }
 }

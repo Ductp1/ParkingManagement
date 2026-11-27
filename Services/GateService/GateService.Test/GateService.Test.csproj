@@ -14,5 +14,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GateService.Application\GateService.Application.csproj" />
+    <ProjectReference Include="..\GateService.Infrastructure\GateService.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,4 @@
+# Khóa tạm, log và PID của hệ thống kiểm thử tải
+.stack/
+# Số liệu thô từng lần chạy; báo cáo tổng hợp nằm trong reports/
+results/

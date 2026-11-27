@@ -1,0 +1,116 @@
+/* ===== Trang chủ ParkMaster =====
+   Cùng phong cách trang đăng nhập: tranh minh hoạ thành phố nhiều lớp + thẻ kính mờ trên nền trời xanh nhạt.
+   Màu đặt bằng biến CSS; .lp-dark cho chế độ tối (khung cảnh hero giữ nguyên). */
+.lp {
+  --lp-bg: #eaf1fd;
+  --lp-bg-2: #f4f8ff;
+  --lp-glass: rgb(255 255 255 / 0.62);
+  --lp-glass-strong: rgb(255 255 255 / 0.8);
+  --lp-glass-line: rgb(255 255 255 / 0.85);
+  --lp-text: #0f1f38;
+  --lp-muted: #3b4c68;
+  --lp-faint: #5d6e8a;
+  --lp-line: rgb(15 31 56 / 0.14);
+  --lp-primary: #2f6fd6;
+  --lp-primary-2: #5b97ec;
+  --lp-primary-soft: rgb(47 111 214 / 0.12);
+  --lp-on-primary: #ffffff;
+  --lp-ink: #0b1626;
+  --lp-ok: #0f7a4f;
+
+  background: linear-gradient(180deg, var(--lp-bg), var(--lp-bg-2));
+  color: var(--lp-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.lp.lp-dark {
+  --lp-bg: #0b1626;
+  --lp-bg-2: #0e1c31;
+  --lp-glass: rgb(30 48 78 / 0.55);
+  --lp-glass-strong: rgb(30 48 78 / 0.75);
+  --lp-glass-line: rgb(255 255 255 / 0.12);
+  --lp-text: #e8eef9;
+  --lp-muted: #b6c3d9;
+  --lp-faint: #8c9bb5;
+  --lp-line: rgb(255 255 255 / 0.12);
+  --lp-primary: #6ea4f2;
+  --lp-primary-2: #8fbaf6;
+  --lp-primary-soft: rgb(110 164 242 / 0.16);
+  --lp-on-primary: #0b1626;
+  --lp-ok: #4cc58e;
+  color-scheme: dark;
+}
+
+/* Thẻ kính mờ dùng chung */
+.lp-glass {
+  background: var(--lp-glass);
+  border: 1px solid var(--lp-glass-line);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: 0 24px 48px -28px rgb(15 31 56 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.5);
+}
+
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--lp-primary-2), var(--lp-primary));
+  color: var(--lp-on-primary);
+  font-weight: 600;
+  box-shadow: 0 10px 20px -10px rgb(47 111 214 / 0.8), inset 0 1px 0 rgb(255 255 255 / 0.3);
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.lp-btn:hover { filter: brightness(1.06); }
+
+.lp-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--lp-glass-strong);
+  border: 1px solid var(--lp-glass-line);
+  color: var(--lp-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+.lp-btn-ghost:hover { background: rgb(255 255 255 / 0.95); }
+.lp-dark .lp-btn-ghost:hover { background: rgb(30 48 78 / 0.9); }
+
+/* Hero: khung cảnh thành phố phủ kín */
+.lp-hero-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+
+.lp :where(a, button, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--lp-primary);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.lp-num {
+  font-family: 'Barlow Condensed', var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Câu hỏi thường gặp: dấu + xoay thành × khi mở */
+.lp-faq summary { list-style: none; }
+.lp-faq summary::-webkit-details-marker { display: none; }
+.lp-faq summary .lp-faq-sign { transition: transform 0.2s ease; }
+.lp-faq details[open] summary .lp-faq-sign { transform: rotate(45deg); }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .lp-glass { background: var(--lp-glass-strong); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp *, .lp *::before, .lp *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

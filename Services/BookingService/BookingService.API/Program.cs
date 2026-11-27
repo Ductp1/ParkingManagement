@@ -5,8 +5,13 @@ using ParkingManagement.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Ghi đè cấu hình máy local (RabbitMQ password...) — file bị gitignore, xem UserService.API cùng pattern.
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true).AddEnvironmentVariables();
+
 // ===== Composition Root: lắp ráp các layer của BookingService =====
 builder.AddServiceDefaults("BookingService");                                   // Controller, OpenAPI, /health, CORS, xử lý lỗi
+builder.Services.AddJwtAuth(Path.GetFullPath(
+    builder.Configuration["Jwt:PublicKeyPath"] ?? "Keys/public.key", builder.Environment.ContentRootPath));
 builder.Services.AddBookingApplication();                                  // Application: Use Case
 builder.Services.AddBookingInfrastructure(builder.Configuration);          // Infrastructure: DbContext riêng + Repository
 

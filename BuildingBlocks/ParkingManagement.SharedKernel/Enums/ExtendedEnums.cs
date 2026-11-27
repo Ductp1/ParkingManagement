@@ -2,7 +2,8 @@ namespace ParkingManagement.SharedKernel.Enums;
 
 // ===== UserService =====
 /// <summary>Sự kiện bảo mật cần lưu vết (US-002).</summary>
-public enum SecurityEventType { LoginSucceeded = 1, LoginFailed = 2, OtpFailed = 3, AccountLocked = 4, AccountUnlocked = 5, PasswordChanged = 6, TokenRevoked = 7 }
+public enum SecurityEventType { LoginSucceeded = 1, LoginFailed = 2, OtpFailed = 3, AccountLocked = 4, AccountUnlocked = 5, PasswordChanged = 6, TokenRevoked = 7,
+    KycSubmitted = 8, KycApproved = 9, KycRejected = 10 }
 
 /// <summary>Quyền của chủ thể dữ liệu theo Nghị định 13/2023 (US-007).</summary>
 public enum DataRequestType { Access = 1, Correction = 2, Deletion = 3, WithdrawConsent = 4, Export = 5 }
@@ -33,6 +34,10 @@ public enum GateDeviceStatus { Online = 0, Offline = 1, Maintenance = 2 }
 
 // ===== NotificationService =====
 public enum DevicePlatform { Android = 1, Ios = 2, Web = 3 }
+/// <summary>US-084: loại nhắc lịch cho booking.</summary>
+public enum ReminderKind { BeforeArrival = 1, BeforeEnd = 2 }
+/// <summary>US-084: vòng đời job nhắc lịch (Cancelled khi booking hủy/đổi giờ).</summary>
+public enum ReminderJobStatus { Pending = 0, Sent = 1, Cancelled = 2 }
 
 // ===== AdminService =====
 public enum RiskSubjectType { User = 1, Staff = 2, ParkingLot = 3, OwnerProfile = 4 }

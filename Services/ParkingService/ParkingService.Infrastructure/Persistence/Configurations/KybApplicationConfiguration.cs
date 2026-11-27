@@ -16,6 +16,8 @@ internal sealed class KybApplicationConfiguration : IEntityTypeConfiguration<Kyb
         e.Property(x => x.FireSafetyCertificateUrl).HasMaxLength(512);
         e.Property(x => x.FieldSurveyNote).HasMaxLength(2000);
         e.Property(x => x.RejectReason).HasMaxLength(1000);
+        e.Property(x => x.ReviewNote).HasMaxLength(1000);
+        e.Property(x => x.RowVersion).IsConcurrencyToken();   // US-055: hai Admin thao tác cùng hồ sơ → người sau 409
         e.HasOne(x => x.ParkingLot).WithMany().HasForeignKey(x => x.ParkingLotId);
         e.HasIndex(x => new { x.ParkingLotId, x.Status });
         e.HasIndex(x => x.Status);

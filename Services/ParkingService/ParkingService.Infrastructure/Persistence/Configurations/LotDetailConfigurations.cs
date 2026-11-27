@@ -15,6 +15,18 @@ internal sealed class LotOperatingHourConfiguration : IEntityTypeConfiguration<L
     }
 }
 
+internal sealed class LotOperatingHourOverrideConfiguration : IEntityTypeConfiguration<LotOperatingHourOverride>
+{
+    public void Configure(EntityTypeBuilder<LotOperatingHourOverride> e)
+    {
+        e.ToTable("LotOperatingHourOverrides");
+        e.Property(x => x.DayOfWeek).HasConversion<string>().HasMaxLength(10);
+        e.Property(x => x.Reason).HasMaxLength(255);
+        e.HasOne(x => x.ParkingLot).WithMany(l => l.OperatingHourOverrides).HasForeignKey(x => x.ParkingLotId);
+        e.HasIndex(x => new { x.ParkingLotId, x.Year, x.WeekOfYear, x.DayOfWeek }).IsUnique();
+    }
+}
+
 internal sealed class ClosureScheduleConfiguration : IEntityTypeConfiguration<ClosureSchedule>
 {
     public void Configure(EntityTypeBuilder<ClosureSchedule> e)

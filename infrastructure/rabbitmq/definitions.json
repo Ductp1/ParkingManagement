@@ -1,0 +1,286 @@
+{
+  "exchanges": [
+    {
+      "name": "parking.events",
+      "vhost": "parking",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "parking.events.dead",
+      "vhost": "parking",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "parking.users",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "parking.events.dead",
+        "x-dead-letter-routing-key": "parking.users"
+      }
+    },
+    {
+      "name": "parking.users.dead",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "booking.users",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "parking.events.dead",
+        "x-dead-letter-routing-key": "booking.users"
+      }
+    },
+    {
+      "name": "booking.users.dead",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "notification.users",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "parking.events.dead",
+        "x-dead-letter-routing-key": "notification.users"
+      }
+    },
+    {
+      "name": "notification.users.dead",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "admin.users",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "parking.events.dead",
+        "x-dead-letter-routing-key": "admin.users"
+      }
+    },
+    {
+      "name": "admin.users.dead",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    },
+    {
+      "name": "support.users",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum",
+        "x-dead-letter-exchange": "parking.events.dead",
+        "x-dead-letter-routing-key": "support.users"
+      }
+    },
+    {
+      "name": "support.users.dead",
+      "vhost": "parking",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {
+        "x-queue-type": "quorum"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "source": "parking.events.dead",
+      "vhost": "parking",
+      "destination": "parking.users.dead",
+      "destination_type": "queue",
+      "routing_key": "parking.users",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "parking.users",
+      "destination_type": "queue",
+      "routing_key": "UserRegistered",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "parking.users",
+      "destination_type": "queue",
+      "routing_key": "OwnerProfileCreated",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "parking.users",
+      "destination_type": "queue",
+      "routing_key": "UserLocked",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events.dead",
+      "vhost": "parking",
+      "destination": "booking.users.dead",
+      "destination_type": "queue",
+      "routing_key": "booking.users",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "booking.users",
+      "destination_type": "queue",
+      "routing_key": "UserRegistered",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "booking.users",
+      "destination_type": "queue",
+      "routing_key": "OwnerProfileCreated",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "booking.users",
+      "destination_type": "queue",
+      "routing_key": "UserLocked",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events.dead",
+      "vhost": "parking",
+      "destination": "notification.users.dead",
+      "destination_type": "queue",
+      "routing_key": "notification.users",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "notification.users",
+      "destination_type": "queue",
+      "routing_key": "UserRegistered",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "notification.users",
+      "destination_type": "queue",
+      "routing_key": "OwnerProfileCreated",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "notification.users",
+      "destination_type": "queue",
+      "routing_key": "UserLocked",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events.dead",
+      "vhost": "parking",
+      "destination": "admin.users.dead",
+      "destination_type": "queue",
+      "routing_key": "admin.users",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "admin.users",
+      "destination_type": "queue",
+      "routing_key": "UserRegistered",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "admin.users",
+      "destination_type": "queue",
+      "routing_key": "OwnerProfileCreated",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "admin.users",
+      "destination_type": "queue",
+      "routing_key": "UserLocked",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events.dead",
+      "vhost": "parking",
+      "destination": "support.users.dead",
+      "destination_type": "queue",
+      "routing_key": "support.users",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "support.users",
+      "destination_type": "queue",
+      "routing_key": "UserRegistered",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "support.users",
+      "destination_type": "queue",
+      "routing_key": "OwnerProfileCreated",
+      "arguments": {}
+    },
+    {
+      "source": "parking.events",
+      "vhost": "parking",
+      "destination": "support.users",
+      "destination_type": "queue",
+      "routing_key": "UserLocked",
+      "arguments": {}
+    }
+  ]
+}
