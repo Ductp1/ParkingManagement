@@ -27,42 +27,113 @@ const formatLotMarkerName = (name: string): string => {
 };
 
 // ==========================================
-// 2. PHÒNG THỦ: SINH MA TRẬN 2D NẾU TẦNG CHƯA XUẤT BẢN BẢN VẼ
+// 2. BỘ SINH MA TRẬN 2D TRỰC QUAN TIÊU CHUẨN CỦA DRIVER
+// (Tái hiện chuẩn sơ đồ 2D trực quan: 2 làn đường lưu thông, cổng VÀO/RA, ô EV & khớp 100% tổng số slot bãi)
 // ==========================================
-const generateFallbackMatrix = (columns = 12, rows = 6): FloorLayoutDto => {
+interface GenerateFallbackMatrixOptions {
+  targetSlots?: number;
+  floorId?: number;
+  floorName?: string;
+  floorLevel?: number;
+  availableSlots?: number;
+  existingSlots?: SlotHierarchyDto[];
+}
+
+const generateFallbackMatrix = (options?: GenerateFallbackMatrixOptions): FloorLayoutDto => {
+  const {
+    targetSlots = 60,
+    floorId = 0,
+    floorName = 'Tầng hầm',
+    floorLevel = 0,
+    availableSlots,
+    existingSlots = [],
+  } = options || {};
+
+  // Xác định prefix theo cao độ: G- cho trệt (0), B1- / B2- cho hầm (<0), F1- / F2- cho tầng lầu (>0)
+  let prefix = 'S-';
+  if (floorLevel < 0) {
+    prefix = `B${Math.abs(floorLevel)}-`;
+  } else if (floorLevel === 0) {
+    prefix = 'G-';
+  } else {
+    prefix = `F${floorLevel}-`;
+  }
+
+  // Tra cứu dữ liệu slot thực tế từ CSDL nếu có
+  const existingSlotMap = new Map<string, SlotHierarchyDto>();
+  existingSlots.forEach((s) => {
+    if (s.code) existingSlotMap.set(s.code.trim().toUpperCase(), s);
+  });
+
+  // Mẫu kiến trúc bãi đỗ 2D tiêu chuẩn của Driver: 6 hàng gồm 4 hàng slot và 2 làn đường lưu thông
+  // Row 0: Slot | Row 1: Road (Cổng Vào) | Row 2: Slot | Row 3: Slot | Row 4: Road (Cổng Ra) | Row 5: Slot
+  const rowPattern: Array<'slot' | 'road'> = ['slot', 'road', 'slot', 'slot', 'road', 'slot'];
+  const rows = 6;
+  const slotRowsCount = 4; // y = 0, 2, 3, 5
+
+  // Số cột cần thiết để dàn đều toàn bộ tổng số slot của bãi/tầng (tối thiểu 10 cột)
+  const columns = Math.max(10, Math.ceil(targetSlots / slotRowsCount));
+
+  // Xác định số lượng slot bận: Nếu bãi mới tạo chưa có xe đỗ, toàn bộ slot đều là Available (trống)
+  const isAllAvailable = availableSlots === undefined || availableSlots >= targetSlots;
+  const occupiedLimit = isAllAvailable ? 0 : Math.max(0, targetSlots - availableSlots);
+  let occupiedCount = 0;
+
   const cells: LayoutCellDto[] = [];
-  const rowPattern = ['slot', 'road', 'slot', 'slot', 'road', 'slot'];
   let slotIndex = 1;
 
   for (let y = 0; y < rows; y++) {
     const rowType = rowPattern[y % rowPattern.length];
     for (let x = 0; x < columns; x++) {
       if (rowType === 'road') {
-        const type = y === 1 && x === 0 ? 'entry' : y === 4 && x === columns - 1 ? 'exit' : 'road';
+        const isEntry = y === 1 && x === 0;
+        const isExit = y === 4 && x === columns - 1;
+        const type = isEntry ? 'entry' : isExit ? 'exit' : 'road';
         cells.push({ x, y, type, widthCells: 1, heightCells: 1 });
       } else {
-        const code = `S-${String(slotIndex++).padStart(2, '0')}`;
-        const isOccupied = (x * 3 + y * 7) % 5 === 0;
-        const isEv = (x + y) % 4 === 0;
-        cells.push({
-          x,
-          y,
-          type: 'slot',
-          code,
-          slotType: isEv ? 'EVCharging' : 'Standard',
-          maxVehicleType: 'Suv',
-          state: isOccupied ? 'Occupied' : 'Available',
-          widthCells: 1,
-          heightCells: 1,
-        });
+        // Hàng ô đỗ xe (slot)
+        if (slotIndex <= targetSlots) {
+          const currentCode = `${prefix}${String(slotIndex).padStart(2, '0')}`;
+          const existing = existingSlotMap.get(currentCode.toUpperCase());
+
+          // Trạng thái ô: Ưu tiên CSDL; nếu bãi mới tạo -> Available
+          let state: 'Available' | 'Occupied' | 'Reserved' = 'Available';
+          if (existing?.state) {
+            state = existing.state as 'Available' | 'Occupied' | 'Reserved';
+          } else if (occupiedLimit > 0 && occupiedCount < occupiedLimit) {
+            if ((x * 3 + y * 7) % 5 === 0) {
+              state = 'Occupied';
+              occupiedCount++;
+            }
+          }
+
+          // Ô sạc điện EV: ưu tiên cấu hình thực tế hoặc bố trí định kỳ ~15-20% ô
+          const isEv = existing?.slotType === 'EVCharging' || (!existing && (slotIndex % 6 === 0 || (x + y) % 5 === 0));
+
+          cells.push({
+            x,
+            y,
+            type: 'slot',
+            code: currentCode,
+            slotType: isEv ? 'EVCharging' : 'Standard',
+            maxVehicleType: existing?.maxVehicleType || 'Suv',
+            state,
+            widthCells: 1,
+            heightCells: 1,
+          });
+          slotIndex++;
+        } else {
+          // Lối đi / vỉa hè phụ nếu số slot nhỏ hơn ma trận đầy đủ
+          cells.push({ x, y, type: 'road', widthCells: 1, heightCells: 1 });
+        }
       }
     }
   }
 
   return {
-    floorId: 0,
-    floorName: 'Tầng hầm',
-    level: -1,
+    floorId,
+    floorName,
+    level: floorLevel,
     versionNo: 1,
     isPublished: true,
     columns,
@@ -457,6 +528,11 @@ export const SmartParkingFinderPage: React.FC = () => {
     };
   }, [currentSelectedLot]);
 
+  // Reset slot đã chọn khi đổi tầng hoặc đổi bãi
+  useEffect(() => {
+    setSelectedSlotCode(null);
+  }, [selectedFloorId, currentSelectedLot]);
+
   // Tải Layout 2D của tầng được chọn (kèm in-memory cache để tức thì 0ms)
   useEffect(() => {
     if (activeViewTab !== 'layout2d' || !selectedFloorId) return;
@@ -473,7 +549,12 @@ export const SmartParkingFinderPage: React.FC = () => {
       setIsLoadingLayout(true);
       try {
         const layoutData = await parkingApi.getFloorLayout(selectedFloorId);
-        if (isMounted && layoutData && layoutData.cells?.length > 0) {
+        // Chỉ dùng bản vẽ từ server nếu đã xuất bản và có đầy đủ hạ tầng mặt bằng (làn đường / cổng vào / cổng ra)
+        const hasFullPublishedLayout =
+          Boolean(layoutData?.isPublished) &&
+          Boolean(layoutData?.cells?.some((c) => c.type === 'road' || c.type === 'entry' || c.type === 'exit'));
+
+        if (isMounted && hasFullPublishedLayout && layoutData) {
           layoutCacheRef.current[selectedFloorId] = layoutData;
           setFloorLayout(layoutData);
           setIsLoadingLayout(false);
@@ -485,38 +566,17 @@ export const SmartParkingFinderPage: React.FC = () => {
 
       if (isMounted) {
         const currentFloor = availableFloors.find((f) => f.id === selectedFloorId);
-        let fallback: FloorLayoutDto;
+        // Đảm bảo số lượng slot trên sơ đồ 2D khớp tương ứng với tổng quy mô của bãi
+        const targetSlots = Math.max(currentSelectedLot?.totalSlots || 60, currentFloor?.slots?.length || 0);
 
-        if (currentFloor?.slots && currentFloor.slots.length > 0) {
-          const maxCol = Math.max(8, ...currentFloor.slots.map((s) => s.gridX + (s.widthCells || 1)));
-          const maxRow = Math.max(5, ...currentFloor.slots.map((s) => s.gridY + (s.heightCells || 1)));
-          const cells: LayoutCellDto[] = currentFloor.slots.map((s) => ({
-            x: s.gridX,
-            y: s.gridY,
-            type: 'slot',
-            code: s.code,
-            slotType: s.slotType,
-            maxVehicleType: s.maxVehicleType,
-            state: s.state,
-            widthCells: s.widthCells || 1,
-            heightCells: s.heightCells || 1,
-          }));
-
-          fallback = {
-            floorId: selectedFloorId,
-            floorName: currentFloor.name,
-            level: currentFloor.level,
-            versionNo: 1,
-            isPublished: true,
-            columns: maxCol,
-            rows: maxRow,
-            cells,
-          };
-        } else {
-          fallback = generateFallbackMatrix(12, 6);
-          fallback.floorId = selectedFloorId;
-          fallback.floorName = currentFloor?.name ?? 'Tầng hầm';
-        }
+        const fallback = generateFallbackMatrix({
+          targetSlots,
+          floorId: selectedFloorId,
+          floorName: currentFloor?.name || 'Tầng hầm',
+          floorLevel: currentFloor?.level ?? 0,
+          availableSlots: currentSelectedLot?.availableSlots,
+          existingSlots: currentFloor?.slots || [],
+        });
 
         layoutCacheRef.current[selectedFloorId] = fallback;
         setFloorLayout(fallback);
@@ -529,7 +589,7 @@ export const SmartParkingFinderPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedFloorId, activeViewTab, availableFloors]);
+  }, [selectedFloorId, activeViewTab, availableFloors, currentSelectedLot]);
 
   // ==========================================
   // EVENT HANDLERS
@@ -1336,15 +1396,15 @@ export const SmartParkingFinderPage: React.FC = () => {
                 </div>
 
                 {/* Khung Ma trận lưới (Matrix Board) */}
-                <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-4 overflow-auto flex items-center justify-center shadow-inner relative">
+                <div className="flex-1 bg-white rounded-2xl border border-slate-200 p-4 overflow-auto shadow-inner relative flex">
                   {isLoadingLayout ? (
-                    <div className="py-20 text-center text-xs text-slate-500 space-y-2">
+                    <div className="m-auto py-20 text-center text-xs text-slate-500 space-y-2">
                       <span className="material-symbols-outlined text-[32px] text-blue-600 animate-spin">progress_activity</span>
                       <p>Đang tải sơ đồ ma trận 2D...</p>
                     </div>
                   ) : floorLayout ? (
                     <div
-                      className="grid gap-2 p-2 select-none"
+                      className="grid gap-2 p-2 select-none m-auto"
                       style={{
                         gridTemplateColumns: `repeat(${floorLayout.columns}, minmax(46px, 1fr))`,
                         gridTemplateRows: `repeat(${floorLayout.rows}, minmax(46px, 1fr))`,
@@ -1361,7 +1421,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                           return (
                             <div
                               key={idx}
-                              className="w-12 h-12 rounded bg-slate-100 border border-dashed border-slate-200 flex items-center justify-center text-[9px] font-mono text-slate-400"
+                              className="w-12 h-12 shrink-0 rounded bg-slate-100 border border-dashed border-slate-200 flex items-center justify-center text-[9px] font-mono text-slate-400"
                             >
                               ══
                             </div>
@@ -1372,7 +1432,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                           return (
                             <div
                               key={idx}
-                              className="w-12 h-12 rounded bg-blue-100 border border-blue-300 flex items-center justify-center text-[10px] font-bold text-blue-800 gap-0.5"
+                              className="w-12 h-12 shrink-0 rounded bg-blue-100 border border-blue-300 flex items-center justify-center text-[10px] font-bold text-blue-800 gap-0.5"
                             >
                               <span>VÀO</span>
                               <span className="material-symbols-outlined text-[12px]">east</span>
@@ -1384,7 +1444,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                           return (
                             <div
                               key={idx}
-                              className="w-12 h-12 rounded bg-rose-100 border border-rose-300 flex items-center justify-center text-[10px] font-bold text-rose-800 gap-0.5"
+                              className="w-12 h-12 shrink-0 rounded bg-rose-100 border border-rose-300 flex items-center justify-center text-[10px] font-bold text-rose-800 gap-0.5"
                             >
                               <span className="material-symbols-outlined text-[12px]">east</span>
                               <span>RA</span>
@@ -1400,7 +1460,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                             <div
                               key={idx}
                               onClick={() => handleSlotClick(cell)}
-                              className={`w-12 h-12 rounded-lg flex flex-col items-center justify-center text-center cursor-pointer transition-all border font-bold text-[10px] relative ${
+                              className={`w-12 h-12 shrink-0 rounded-lg flex flex-col items-center justify-center text-center cursor-pointer transition-all border font-bold text-[10px] relative ${
                                 isSelected
                                   ? 'bg-blue-600 text-white border-blue-700 shadow-md scale-105 ring-2 ring-blue-300'
                                   : isAvailable
@@ -1419,7 +1479,7 @@ export const SmartParkingFinderPage: React.FC = () => {
                           );
                         }
 
-                        return <div key={idx} className="w-12 h-12 bg-transparent" />;
+                        return <div key={idx} className="w-12 h-12 shrink-0 bg-transparent" />;
                       })}
                     </div>
                   ) : null}

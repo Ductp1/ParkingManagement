@@ -10,7 +10,7 @@ namespace ParkingService.API.Controllers;
 public sealed record CreateZoneRequest(string Code, string Name, bool IsOutdoor = false, int SortOrder = 0);
 public sealed record UpdateZoneRequest(string Code, string Name, bool IsOutdoor, bool IsClosed, string? ClosedReason, int SortOrder);
 
-public sealed record CreateFloorRequest(string Name, int Level, int? MaxHeightCm, int? MaxWeightKg, int GridColumns, int GridRows);
+public sealed record CreateFloorRequest(string Name, int Level, int? MaxHeightCm, int? MaxWeightKg, int GridColumns, int GridRows, int? InitialSlotCount = null);
 public sealed record UpdateFloorRequest(string Name, int? MaxHeightCm, int? MaxWeightKg, int GridColumns, int GridRows, bool IsClosed);
 
 public sealed record CreateSlotRequest(string Code, SlotType SlotType = SlotType.Standard, VehicleType MaxVehicleType = VehicleType.Suv, int GridX = 0, int GridY = 0, int WidthCells = 1, int HeightCells = 1);
@@ -98,7 +98,7 @@ public sealed class ParkingLotStructureController(
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<FloorDto>> CreateFloor(int zoneId, [FromBody] CreateFloorRequest request, CancellationToken cancellationToken)
     {
-        var command = new CreateFloorCommand(zoneId, request.Name, request.Level, request.MaxHeightCm, request.MaxWeightKg, request.GridColumns, request.GridRows);
+        var command = new CreateFloorCommand(zoneId, request.Name, request.Level, request.MaxHeightCm, request.MaxWeightKg, request.GridColumns, request.GridRows, request.InitialSlotCount);
         var created = await createFloor.ExecuteAsync(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, created);
     }

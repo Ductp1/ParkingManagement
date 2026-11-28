@@ -29,22 +29,23 @@ public sealed class PartnerRegistrationsController(
     /// POST /api/v1/admin/partner-registrations – multipart/form-data: thông tin người đăng ký, pháp nhân, bãi dự kiến
     /// + businessLicenseFiles, lotLegalProofFiles (bắt buộc, PDF / JPG / PNG), idCardFrontFiles, idCardBackFiles (bắt buộc, đúng 1 ảnh
     /// JPG / PNG mỗi mặt), otherFiles (tùy chọn). Mỗi file ≤ 10 MB.
+    /// Cho phép khách vãng lai (Guest - không có JWT token) hoặc người dùng đã đăng nhập nộp hồ sơ.
     /// Trả mã hồ sơ; hồ sơ ở trạng thái Submitted chờ Admin thẩm định.
     /// </summary>
     [HttpPost]
+    [AllowAnonymous]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(RequestLimit)]
     [RequestFormLimits(MultipartBodyLengthLimit = RequestLimit)]
     [EnableRateLimiting(PartnerRegistrationRateLimit.PolicyName)]
     [ProducesResponseType<PartnerApplicationReceiptDto>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<PartnerApplicationReceiptDto>> Submit([FromForm] PartnerRegistrationForm form,
         CancellationToken cancellationToken)
     {
-        if (currentUser.UserId is not { } userId) return Unauthorized();
+        var applicant = new PartnerApplicant(currentUser.UserId, IsLotOwner());
         var documents = new List<PartnerDocumentUpload>();
         await AddAsync(documents, PartnerDocumentType.BusinessLicense, form.BusinessLicenseFiles, cancellationToken);
         await AddAsync(documents, PartnerDocumentType.LotLegalProof, form.LotLegalProofFiles, cancellationToken);
@@ -56,7 +57,7 @@ public sealed class PartnerRegistrationsController(
             form.BusinessName, form.TaxCode, form.BusinessAddress, form.LegalRepresentativeName, form.LegalRepresentativePosition,
             form.LotCount, form.PrimaryLotAddress, form.EstimatedCarSlots, form.EstimatedMotorbikeSlots, form.OperatingHours,
             form.ConsentAccepted);
-        var receipt = await submit.ExecuteAsync(new PartnerApplicant(userId, IsLotOwner()), request, documents, cancellationToken);
+        var receipt = await submit.ExecuteAsync(applicant, request, documents, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, receipt);
     }
 

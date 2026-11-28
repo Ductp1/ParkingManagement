@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<ISearchParkingLotsUseCase, SearchParkingLotsUseCase>();
         services.AddScoped<ICreateParkingLotUseCase, CreateParkingLotUseCase>();
         services.AddScoped<IUpdateParkingLotUseCase, UpdateParkingLotUseCase>();
+        services.AddScoped<IDeleteParkingLotUseCase, DeleteParkingLotUseCase>();
         services.AddScoped<IGetOwnerParkingLotsUseCase, GetOwnerParkingLotsUseCase>();
         services.AddScoped<IGetParkingLotHierarchyUseCase, GetParkingLotHierarchyUseCase>();
 

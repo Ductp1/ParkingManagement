@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  Activity,
   Building2,
   Plus,
   Layers,
@@ -11,6 +10,7 @@ import {
   Sliders,
   Clock,
   ShieldCheck,
+  Trash2,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
@@ -18,7 +18,6 @@ import { ownerStructureApi } from '@/api/ownerStructureApi';
 import { ownerCapacityApi } from '@/api/ownerCapacityApi';
 import { ownerLotDetailsApi } from '@/api/ownerLotDetailsApi';
 import type { OwnerParkingLotItemDto } from '@/types/ownerKyb';
-import type { LotOperationalStatusDto } from '@/types/parking';
 import type {
   ZoneDto,
   FloorDto,
@@ -50,19 +49,22 @@ import { FloorLayoutVersionsModal } from '../components/structure/FloorLayoutVer
 import { FloorSlotsDrawer } from '../components/structure/FloorSlotsDrawer';
 import { QuickClosureModal } from '../components/structure/QuickClosureModal';
 import { RegisterLotModal } from '../components/RegisterLotModal';
+import { DeleteLotConfirmModal } from '../components/DeleteLotConfirmModal';
 import { CapacitySummaryCards } from '../components/capacity/CapacitySummaryCards';
 import { EmergencyStopAlert } from '../components/capacity/EmergencyStopAlert';
 import { CapacityConfigSection } from '../components/capacity/CapacityConfigSection';
-import { OperationsPanel } from '../components/operations/OperationsPanel';
 import { WeeklyScheduleEditor } from '../components/operating/WeeklyScheduleEditor';
 import { AmenitiesSelector } from '../components/operating/AmenitiesSelector';
 import { LotAttributesEditor } from '../components/operating/LotAttributesEditor';
+import { ownerExitApi, type OwnerExitStatusDto } from '@/api/ownerExitApi';
+import { OwnerExitStatusBanner } from '../components/exit/OwnerExitStatusBanner';
+import { ExitPlatformModal } from '../components/exit/ExitPlatformModal';
 
 export const OwnerLotsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAppSelector((s) => s.auth);
-  const ownerProfileId = user?.id || 2;
+  const ownerProfileId = user?.ownerProfileId ?? user?.id ?? 2;
 
   // Danh sách bãi đỗ
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
@@ -70,12 +72,23 @@ export const OwnerLotsPage: React.FC = () => {
   const [loadingLots, setLoadingLots] = useState(true);
   const [lotsError, setLotsError] = useState<string | null>(null);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [lotToDelete, setLotToDelete] = useState<OwnerParkingLotItemDto | null>(null);
 
-  // Tab điều hướng: 'structure' (US-058) | 'capacity' (UI-26) | 'operations' (US-067/068/069) | 'operating' (US-062) | 'amenities' (US-064)
-  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operations' | 'operating' | 'amenities'>(() => {
+  // Trạng thái Rời nền tảng (US-057 / UI-21)
+  const [exitStatus, setExitStatus] = useState<OwnerExitStatusDto | null>(null);
+  const [isExitModalOpen, setIsExitModalOpen] = useState(false);
+
+  useEffect(() => {
+    ownerExitApi
+      .getExitStatus(ownerProfileId)
+      .then(setExitStatus)
+      .catch(() => {});
+  }, [ownerProfileId]);
+
+  // Tab điều hướng: 'structure' | 'capacity' | 'operating' | 'amenities'
+  const [activeTab, setActiveTab] = useState<'structure' | 'capacity' | 'operating' | 'amenities'>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'capacity') return 'capacity';
-    if (tabParam === 'operations') return 'operations';
     if (tabParam === 'operating' || tabParam === 'schedule') return 'operating';
     if (tabParam === 'amenities') return 'amenities';
     return 'structure';
@@ -183,54 +196,19 @@ export const OwnerLotsPage: React.FC = () => {
     [lots, selectedLotId]
   );
 
-  // ===== US-068: Heartbeat & Stale Data =====
-  const [operationalStatus, setOperationalStatus] = useState<LotOperationalStatusDto | null>(null);
-  const [heartbeatBusy, setHeartbeatBusy] = useState(false);
-
-  const loadOperationalStatus = useCallback(async (lotId: number) => {
-    try {
-      const status = await ownerLotsApi.getOperationalStatus(lotId);
-      setOperationalStatus(status);
-    } catch (err) {
-      // Không chặn trang – chỉ log; badge hiển thị "đang tải" khi chưa có dữ liệu.
-      console.error('US-068: không tải được trạng thái độ tươi dữ liệu:', err);
-      setOperationalStatus(null);
-    }
-  }, []);
-
-  const handleSendHeartbeat = useCallback(async () => {
-    if (!selectedLotId) return;
-    setHeartbeatBusy(true);
-    try {
-      const result = await ownerLotsApi.sendHeartbeat(selectedLotId);
-      const status = await ownerLotsApi.getOperationalStatus(selectedLotId);
-      setOperationalStatus(status);
-      setActionMessage({
-        type: 'success',
-        text: result.recovered
-          ? 'US-068: Đã gửi heartbeat — bãi vừa THOÁT trạng thái stale, dữ liệu đáng tin trở lại.'
-          : 'US-068: Đã gửi heartbeat — dữ liệu bãi được xác nhận còn tươi.',
-      });
-    } catch (err) {
-      setActionMessage({
-        type: 'error',
-        text: err instanceof Error ? err.message : 'US-068: Không gửi được heartbeat tới ParkingService.',
-      });
-    } finally {
-      setHeartbeatBusy(false);
-    }
-  }, [selectedLotId]);
-
-  // US-068: tự làm mới trạng thái mỗi 30 giây (khớp LotHeartbeat:PollSeconds của backend)
-  useEffect(() => {
-    if (!selectedLotId) {
-      setOperationalStatus(null);
-      return;
-    }
-    void loadOperationalStatus(selectedLotId);
-    const interval = setInterval(() => void loadOperationalStatus(selectedLotId), 30_000);
-    return () => clearInterval(interval);
-  }, [selectedLotId, loadOperationalStatus]);
+  // Xóa bãi đỗ xe riêng biệt
+  const handleDeleteLot = async (lotId: number) => {
+    await ownerLotsApi.deleteParkingLot(lotId, ownerProfileId);
+    setActionMessage({
+      type: 'success',
+      text: 'Đã xóa bãi đỗ xe thành công!',
+    });
+    const remainingLots = lots.filter((l) => l.id !== lotId);
+    setLots(remainingLots);
+    const nextLotId = remainingLots[0]?.id || null;
+    setSelectedLotId(nextLotId);
+    await loadOwnerLots(nextLotId ?? undefined);
+  };
 
   // 2. Tải danh sách Zones và Cây phân cấp khi thay đổi bãi đỗ
   const loadStructureData = useCallback(async (lotId: number) => {
@@ -386,7 +364,7 @@ export const OwnerLotsPage: React.FC = () => {
     setSearchParams,
   ]);
 
-  const handleTabChange = (tab: 'structure' | 'capacity' | 'operations' | 'operating' | 'amenities') => {
+  const handleTabChange = (tab: 'structure' | 'capacity' | 'operating' | 'amenities') => {
     setActiveTab(tab);
     if (selectedLotId) {
       setSearchParams((prev) => {
@@ -856,11 +834,6 @@ export const OwnerLotsPage: React.FC = () => {
                 <Clock size={13} />
                 LỊCH HOẠT ĐỘNG & GIỜ MỞ CỬA
               </>
-            ) : activeTab === 'operations' ? (
-              <>
-                <Activity size={13} />
-                Vận hành Real-time & Khẩn cấp (US-067/068/069)
-              </>
             ) : (
               <>
                 <Sparkles size={13} />
@@ -875,8 +848,6 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Cấu hình Sức chứa & Vùng đệm Vãng lai'
               : activeTab === 'operating'
               ? 'Lịch Hoạt Động & Khung Giờ Mở Cửa'
-              : activeTab === 'operations'
-              ? 'Vận hành Real-time & Emergency Stop'
               : 'Tiện Ích & Thông Tin Vận Hành Bãi Xe'}
           </h1>
           <p className="text-slate-500 text-sm leading-relaxed">
@@ -886,8 +857,6 @@ export const OwnerLotsPage: React.FC = () => {
               ? 'Quản lý tỷ lệ giữ chỗ cho khách vãng lai, phân bổ hạn ngạch đặt chỗ Online và thiết lập ngưỡng khóa an toàn.'
               : activeTab === 'operating'
               ? 'Cấu hình thời gian đón khách 7 ngày trong tuần, chế độ 24/7, hoạt động qua đêm và tùy biến riêng theo từng tuần cụ thể.'
-              : activeTab === 'operations'
-              ? 'Giám sát vận hành real-time của bãi: số chỗ theo thời gian thực, nhịp heartbeat thiết bị (stale data) và đóng/mở bãi khẩn cấp.'
               : 'Thiết lập danh mục dịch vụ tiện ích (trạm sạc EV, mái che, CCTV...), hotline hỗ trợ khách hàng và chiều cao xe tối đa.'}
           </p>
         </div>
@@ -912,6 +881,28 @@ export const OwnerLotsPage: React.FC = () => {
             </div>
           )}
 
+          {selectedLot && (
+            <button
+              type="button"
+              onClick={() => setLotToDelete(selectedLot)}
+              className="h-11 px-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+              title="Xóa bãi đỗ đang chọn"
+            >
+              <Trash2 size={16} className="text-rose-600" />
+              <span className="hidden sm:inline">Xóa bãi</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsExitModalOpen(true)}
+            className="h-11 px-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-sm font-semibold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+            title="Thủ tục xin rời nền tảng ParkMaster"
+          >
+            <span className="material-symbols-outlined text-[18px] text-rose-600">logout</span>
+            <span className="hidden sm:inline">Xin rời nền tảng</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setIsRegisterModalOpen(true)}
@@ -922,6 +913,12 @@ export const OwnerLotsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Banner cảnh báo Rời nền tảng (US-057 / UI-21) */}
+      <OwnerExitStatusBanner
+        exitStatus={exitStatus}
+        onOpenModal={() => setIsExitModalOpen(true)}
+      />
 
       {/* Thông báo kết quả thao tác */}
       {actionMessage && (
@@ -1055,19 +1052,6 @@ export const OwnerLotsPage: React.FC = () => {
             <ShieldCheck size={18} className="text-blue-600" />
             <span>Thẩm định cơ sở (KYB)</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => handleTabChange('operations')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
-              activeTab === 'operations'
-                ? 'bg-white text-indigo-700 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-            }`}
-          >
-            <Activity size={16} />
-            Vận hành Real-time (US-067)
-          </button>
         </div>
       )}
 
@@ -1115,59 +1099,6 @@ export const OwnerLotsPage: React.FC = () => {
                   {selectedLot.status}
                 </span>
               </div>
-            </div>
-
-            {/* US-068: Heartbeat & độ tươi dữ liệu – badge + heartbeat thật từ ParkingService */}
-            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Độ tươi dữ liệu (US-068)
-              </span>
-              <div className="mt-1 flex items-center gap-2 flex-wrap min-h-[26px]">
-                {operationalStatus ? (
-                  <span
-                    className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-0.5 rounded-full border ${
-                      operationalStatus.status === 'Fresh'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : operationalStatus.status === 'Stale'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : 'bg-slate-50 text-slate-600 border-slate-200'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        operationalStatus.status === 'Fresh'
-                          ? 'bg-emerald-500'
-                          : operationalStatus.status === 'Stale'
-                            ? 'bg-rose-500'
-                            : 'bg-slate-400'
-                      }`}
-                    ></span>
-                    {operationalStatus.status === 'Fresh'
-                      ? 'Dữ liệu tươi'
-                      : operationalStatus.status === 'Stale'
-                        ? 'DỮ LIỆU CŨ (STALE)'
-                        : 'Chưa có heartbeat'}
-                  </span>
-                ) : (
-                  <span className="text-xs text-slate-400">Đang tải trạng thái…</span>
-                )}
-              </div>
-              {operationalStatus?.lastHeartbeatAtUtc && (
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Heartbeat gần nhất:{' '}
-                  {new Date(operationalStatus.lastHeartbeatAtUtc).toLocaleTimeString('vi-VN')} •
-                  ngưỡng stale {operationalStatus.staleAfterMinutes} phút
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={() => void handleSendHeartbeat()}
-                disabled={heartbeatBusy || !selectedLotId}
-                className="mt-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-              >
-                <Activity size={12} />
-                {heartbeatBusy ? 'Đang gửi…' : 'Gửi Heartbeat'}
-              </button>
             </div>
           </div>
 
@@ -1290,19 +1221,7 @@ export const OwnerLotsPage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          3. TAB 3 CONTENT: VẬN HÀNH REAL-TIME (US-067 dashboard / US-068 heartbeat / US-069 emergency)
-      ====================================================================== */}
-      {selectedLot && activeTab === 'operations' && (
-        <OperationsPanel
-          key={selectedLot.id}
-          lotId={selectedLot.id}
-          lotName={selectedLot.name}
-          onLotChanged={() => { void loadOwnerLots(selectedLot.id); }}
-        />
-      )}
-
-      {/* =====================================================================
-          4. TAB 4 CONTENT: LỊCH HOẠT ĐỘNG (US-062)
+          3. TAB 3 CONTENT: LỊCH HOẠT ĐỘNG
       ====================================================================== */}
       {selectedLot && activeTab === 'operating' && (
         <div className="mt-6 space-y-8">
@@ -1471,6 +1390,22 @@ export const OwnerLotsPage: React.FC = () => {
             text: `Đã đăng ký cơ sở bãi đỗ "${lotName}" thành công! Vui lòng khai báo Zone và Floor bên dưới.`,
           });
         }}
+      />
+
+      {/* Modal Xin Rời Nền Tảng (US-057 / UI-21) */}
+      <ExitPlatformModal
+        isOpen={isExitModalOpen}
+        onClose={() => setIsExitModalOpen(false)}
+        ownerProfileId={ownerProfileId}
+        onStatusChanged={(updated) => setExitStatus(updated)}
+      />
+
+      {/* Modal Xác Nhận Xóa Bãi Đỗ Xe */}
+      <DeleteLotConfirmModal
+        isOpen={!!lotToDelete}
+        onClose={() => setLotToDelete(null)}
+        lot={lotToDelete}
+        onConfirm={handleDeleteLot}
       />
     </div>
   );

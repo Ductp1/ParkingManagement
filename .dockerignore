@@ -12,3 +12,5 @@ Frontend
 *.md
 *.ps1
 ParkingManagement.slnx
+**/appsettings.Local.json
+**/appsettings.*.local.json

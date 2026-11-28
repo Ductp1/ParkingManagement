@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Layers, AlertTriangle, Grid, Ruler, Weight } from 'lucide-react';
+import { X, Layers, AlertTriangle, Grid, Ruler, Weight, Zap } from 'lucide-react';
 import type { FloorDto, CreateFloorRequest, UpdateFloorRequest } from '@/types/ownerStructure';
 
 interface FloorModalProps {
@@ -304,6 +304,13 @@ export const FloorModal: React.FC<FloorModalProps> = ({
             <p className="text-[11px] text-slate-500">
               Kích thước ma trận lưới tọa độ (X × Y) được dùng làm khung nền để xếp các ô đỗ xe trên sơ đồ 2D.
             </p>
+
+            {!isEdit && (
+              <div className="p-2.5 rounded-xl bg-blue-100/70 text-blue-800 text-[11px] font-medium flex items-center gap-2">
+                <Zap size={14} className="text-blue-600 shrink-0" />
+                <span>Hệ thống sẽ tự động khởi tạo sẵn các ô đỗ tiêu chuẩn theo lưới khi tạo tầng để phục vụ thẩm định KYB.</span>
+              </div>
+            )}
           </div>
 
           {/* Chế độ sửa: Tạm đóng tầng */}

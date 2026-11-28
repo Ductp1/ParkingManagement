@@ -210,7 +210,7 @@ public class KybApplicationTests
     }
 
     [Fact]
-    public async Task SubmitKyb_PhotoGpsTooFarFromLot_ThrowsValidationException()
+    public async Task SubmitKyb_PhotoGpsAnyDistance_SucceedsWithoutDistanceRestriction()
     {
         var lotRepo = new FakeLotManagementRepo();
         // Bãi ở Quận 1 (10.7719, 106.7044)
@@ -219,7 +219,7 @@ public class KybApplicationTests
         var kybRepo = new FakeKybRepo();
         var useCase = new SubmitKybApplicationUseCase(kybRepo, lotRepo, NullLogger<SubmitKybApplicationUseCase>.Instance);
 
-        // Ảnh chụp cách xa ~10km (10.8500, 106.7800)
+        // Ảnh chụp cách xa ~10km (10.8500, 106.7800) nhưng không bị chặn khoảng cách
         var command = new SubmitKybApplicationCommand(
             ParkingLotId: 1,
             OwnerProfileId: 10,
@@ -231,8 +231,8 @@ public class KybApplicationTests
             FieldSurveyAtUtc: null,
             FieldSurveyNote: null);
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(command));
-        Assert.Contains("500 m", ex.Message);
+        var result = await useCase.ExecuteAsync(command);
+        Assert.Equal("Submitted", result.Status);
     }
 
     [Fact]
@@ -634,7 +634,7 @@ public class KybApplicationTests
     }
 
     [Fact]
-    public async Task Boundary_PhotoGpsDistance_Over500m_ThrowsValidationException()
+    public async Task Boundary_PhotoGpsDistance_Over500m_SucceedsWithoutDistanceRestriction()
     {
         var lotRepo = new FakeLotManagementRepo();
         // Bãi tại tọa độ (10.7719, 106.7044)
@@ -655,9 +655,8 @@ public class KybApplicationTests
             FieldSurveyAtUtc: null,
             FieldSurveyNote: null);
 
-        var ex = await Assert.ThrowsAsync<ValidationException>(() => useCase.ExecuteAsync(command));
-        Assert.Contains("500 m", ex.Message);
-        Assert.Contains("vượt quá bán kính cho phép", ex.Message);
+        var result = await useCase.ExecuteAsync(command);
+        Assert.Equal("Submitted", result.Status);
     }
 
     // ==================== FAKE REPOSITORIES ====================

@@ -202,6 +202,47 @@ public class ParkingLotManagementTests
         Assert.Equal("Available", hierarchy.Zones[0].Floors[0].Slots[0].State);
     }
 
+    // ==================== DELETE LOT USE CASE ====================
+
+    [Fact]
+    public async Task DeleteParkingLot_ValidLotAndOwner_SoftDeletesLot()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        var lot = new ParkingLot(1, "Vincom Center", "72 Lê Thánh Tôn", 10.778, 106.702, 100, 80, 210,
+            new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active, ownerProfileId: 10);
+        await lotRepo.AddAsync(lot);
+
+        var useCase = new DeleteParkingLotUseCase(lotRepo, TimeProvider.System, NullLogger<DeleteParkingLotUseCase>.Instance);
+
+        await useCase.ExecuteAsync(1, 10);
+
+        Assert.True(lot.IsDeleted);
+        Assert.NotNull(lot.DeletedAtUtc);
+    }
+
+    [Fact]
+    public async Task DeleteParkingLot_WrongOwner_ThrowsConflictException()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        var lot = new ParkingLot(1, "Vincom Center", "72 Lê Thánh Tôn", 10.778, 106.702, 100, 80, 210,
+            new TimeOnly(6, 0), new TimeOnly(23, 0), ParkingLotStatus.Active, ownerProfileId: 10);
+        await lotRepo.AddAsync(lot);
+
+        var useCase = new DeleteParkingLotUseCase(lotRepo, TimeProvider.System, NullLogger<DeleteParkingLotUseCase>.Instance);
+
+        await Assert.ThrowsAsync<ConflictException>(() => useCase.ExecuteAsync(1, 999));
+        Assert.False(lot.IsDeleted);
+    }
+
+    [Fact]
+    public async Task DeleteParkingLot_NonExistentLot_ThrowsNotFoundException()
+    {
+        var lotRepo = new FakeLotManagementRepo();
+        var useCase = new DeleteParkingLotUseCase(lotRepo, TimeProvider.System, NullLogger<DeleteParkingLotUseCase>.Instance);
+
+        await Assert.ThrowsAsync<NotFoundException>(() => useCase.ExecuteAsync(999, 10));
+    }
+
     // ==================== ZONE USE CASES ====================
 
     [Fact]
@@ -236,6 +277,94 @@ public class ParkingLotManagementTests
     }
 
     // ==================== FLOOR USE CASES ====================
+
+    [Fact]
+    public async Task CreateFloor_AutoGeneratesSlots_WhenInitialSlotCountOmitted()
+    {
+        var zoneRepo = new FakeZoneRepo();
+        await zoneRepo.AddAsync(WithId(new Zone { ParkingLotId = 1, Code = "A", Name = "Khu A" }, 1));
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new CreateFloorUseCase(floorRepo, zoneRepo, slotRepo, NullLogger<CreateFloorUseCase>.Instance);
+
+        var command = new CreateFloorCommand(
+            ZoneId: 1,
+            Name: "Trệt G",
+            Level: 0,
+            MaxHeightCm: 220,
+            MaxWeightKg: 2500,
+            GridColumns: 10,
+            GridRows: 6);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        Assert.Equal("Trệt G", result.Name);
+        Assert.Equal(0, result.Level);
+        Assert.Equal(10, result.GridColumns);
+
+        var slots = await slotRepo.GetByFloorIdAsync(result.Id);
+        Assert.Equal(20, slots.Count);
+        Assert.Equal("G-01", slots[0].Code);
+        Assert.Equal(0, slots[0].GridX);
+        Assert.Equal(0, slots[0].GridY);
+        Assert.Equal("G-11", slots[10].Code);
+        Assert.Equal(0, slots[10].GridX);
+        Assert.Equal(1, slots[10].GridY);
+        Assert.True(slots.All(s => s.IsActive));
+    }
+
+    [Fact]
+    public async Task CreateFloor_AutoGeneratesSlots_ForBasementLevel()
+    {
+        var zoneRepo = new FakeZoneRepo();
+        await zoneRepo.AddAsync(WithId(new Zone { ParkingLotId = 1, Code = "B", Name = "Khu B" }, 1));
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new CreateFloorUseCase(floorRepo, zoneRepo, slotRepo, NullLogger<CreateFloorUseCase>.Instance);
+
+        var command = new CreateFloorCommand(
+            ZoneId: 1,
+            Name: "Hầm B1",
+            Level: -1,
+            MaxHeightCm: 220,
+            MaxWeightKg: 2500,
+            GridColumns: 10,
+            GridRows: 6);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        var slots = await slotRepo.GetByFloorIdAsync(result.Id);
+        Assert.Equal(20, slots.Count);
+        Assert.Equal("B1-01", slots[0].Code);
+        Assert.Equal("B1-20", slots[19].Code);
+    }
+
+    [Fact]
+    public async Task CreateFloor_WithCustomInitialSlotCount_GeneratesExactCount()
+    {
+        var zoneRepo = new FakeZoneRepo();
+        await zoneRepo.AddAsync(WithId(new Zone { ParkingLotId = 1, Code = "C", Name = "Khu C" }, 1));
+        var floorRepo = new FakeFloorRepo();
+        var slotRepo = new FakeSlotRepo();
+        var useCase = new CreateFloorUseCase(floorRepo, zoneRepo, slotRepo, NullLogger<CreateFloorUseCase>.Instance);
+
+        var command = new CreateFloorCommand(
+            ZoneId: 1,
+            Name: "Lầu 1",
+            Level: 1,
+            MaxHeightCm: 220,
+            MaxWeightKg: 2500,
+            GridColumns: 5,
+            GridRows: 5,
+            InitialSlotCount: 8);
+
+        var result = await useCase.ExecuteAsync(command);
+
+        var slots = await slotRepo.GetByFloorIdAsync(result.Id);
+        Assert.Equal(8, slots.Count);
+        Assert.Equal("F1-01", slots[0].Code);
+        Assert.Equal("F1-08", slots[7].Code);
+    }
 
     [Fact]
     public async Task UpdateFloor_WithDuplicateName_ThrowsConflictException()
@@ -448,6 +577,10 @@ public class ParkingLotManagementTests
 
         public Task AddAsync(Floor floor, CancellationToken cancellationToken = default)
         {
+            if (floor.Id == 0)
+            {
+                WithId(floor, _floors.Count + 1);
+            }
             _floors.Add(floor);
             return Task.CompletedTask;
         }

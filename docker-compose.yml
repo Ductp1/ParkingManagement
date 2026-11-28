@@ -1,0 +1,190 @@
+networks:
+  parking-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  rabbitmq_data:
+  user_app_data:
+  admin_app_data:
+  parking_app_data:
+
+services:
+  # ===================== HẠ TẦNG =====================
+  postgres:
+    image: postgres:16
+    container_name: parking-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init-docker-databases.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - parking-net
+
+  rabbitmq:
+    image: rabbitmq:4.2-management
+    container_name: parking-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: parking
+      RABBITMQ_DEFAULT_PASS: parking123
+      RABBITMQ_DEFAULT_VHOST: parking
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./infrastructure/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./infrastructure/rabbitmq/definitions.docker.json:/etc/rabbitmq/definitions.json:ro
+    networks:
+      - parking-net
+
+  # ===================== MICROSERVICES (.NET) =====================
+  user-service:
+    build:
+      context: .
+      dockerfile: Services/UserService/UserService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    volumes:
+      - user_app_data:/app/App_Data
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - parking-net
+
+  parking-service:
+    build:
+      context: .
+      dockerfile: Services/ParkingService/ParkingService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    volumes:
+      - parking_app_data:/app/App_Data
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: Services/BookingService/BookingService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Services/PaymentService/PaymentService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  vehicle-service:
+    build:
+      context: .
+      dockerfile: Services/VehicleService/VehicleService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Services/NotificationService/NotificationService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - parking-net
+
+  gate-service:
+    build:
+      context: .
+      dockerfile: Services/GateService/GateService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  admin-service:
+    build:
+      context: .
+      dockerfile: Services/AdminService/AdminService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    volumes:
+      - admin_app_data:/app/App_Data
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  support-service:
+    build:
+      context: .
+      dockerfile: Services/SupportService/SupportService.API/Dockerfile
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - postgres
+    networks:
+      - parking-net
+
+  # ===================== API GATEWAY =====================
+  gateway:
+    build:
+      context: .
+      dockerfile: Gateway/ParkingManagement.Gateway/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Docker
+    depends_on:
+      - user-service
+      - vehicle-service
+      - parking-service
+      - booking-service
+      - payment-service
+      - notification-service
+      - gate-service
+      - admin-service
+      - support-service
+    networks:
+      - parking-net
+
+  # ===================== FRONTEND =====================
+  frontend:
+    build:
+      context: ./Frontend/ParkingManagement.Web
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_GATEWAY_URL=http://localhost:5000
+        - VITE_TURNSTILE_SITE_KEY=0x4AAAAAAFVJlSQkfAKrzRFU
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway
+    networks:
+      - parking-net

@@ -46,7 +46,7 @@ public class PartnerRegistrationTests
         public PartnerApplication? Saved { get; private set; }
         public IReadOnlyList<PartnerApplicationDocument> SavedDocuments { get; private set; } = [];
 
-        public Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
+        public Task<bool> HasOpenApplicationAsync(int? applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
             => Task.FromResult(HasOpen);
 
         public Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken)
@@ -103,6 +103,22 @@ public class PartnerRegistrationTests
         Assert.Matches(@"/id-card-back-4\.png$", repository.SavedDocuments[3].FileKey);
         Assert.Equal(64, license.Sha256.Length);
         Assert.Equal(Pdf, storage.Files[license.FileKey]);
+    }
+
+    [Fact] // US-053: Khách vãng lai (Guest, chưa đăng nhập) nộp hồ sơ thành công với ApplicantUserId = null
+    public async Task Submit_guest_applicant_succeeds_with_null_applicant_user_id()
+    {
+        var repository = new FakeRepository();
+        var storage = new FakeStorage();
+        var guest = new PartnerApplicant(null, false);
+
+        var receipt = await UseCase(repository, storage).ExecuteAsync(guest, Valid(), ValidDocs());
+
+        Assert.Equal("PA-2026-0013", receipt.Code);
+        Assert.Equal(nameof(PartnerApplicationStatus.Submitted), receipt.Status);
+        var app = repository.Saved!;
+        Assert.Null(app.ApplicantUserId);
+        Assert.Equal(PartnerApplicationStatus.Submitted, app.Status);
     }
 
     [Theory] // Thiếu giấy tờ bắt buộc → 400, không ghi file nào.
@@ -224,7 +240,7 @@ public class PartnerRegistrationTests
         var repository = new FakeRepository();
         await UseCase(repository, new FakeStorage()).ExecuteAsync(Applicant, Valid(), ValidDocs());
 
-        var mine = await new ListMyPartnerApplicationsUseCase(repository).ExecuteAsync(Applicant.UserId);
+        var mine = await new ListMyPartnerApplicationsUseCase(repository).ExecuteAsync(Applicant.UserId!.Value);
         var others = await new ListMyPartnerApplicationsUseCase(repository).ExecuteAsync(99);
 
         var item = Assert.Single(mine);

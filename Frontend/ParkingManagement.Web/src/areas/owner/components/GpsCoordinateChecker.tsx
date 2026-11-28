@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin, AlertTriangle, CheckCircle2, Navigation, Copy } from 'lucide-react';
+import { MapPin, CheckCircle2, Navigation, Copy } from 'lucide-react';
 import { calculateHaversineDistanceMeters } from '@/utils/haversine';
 
 interface GpsCoordinateCheckerProps {
@@ -30,8 +30,6 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
   const distanceMeters = hasCoordinates
     ? calculateHaversineDistanceMeters(lotLat, lotLng, photoLat, photoLng)
     : null;
-
-  const isWithinBoundary = distanceMeters !== null && distanceMeters <= 500;
 
   // Lấy vị trí GPS hiện tại từ trình duyệt
   const handleGetCurrentLocation = () => {
@@ -65,12 +63,12 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
               <MapPin size={16} className="text-blue-600" />
               Đối chiếu Tọa độ GPS Ảnh Hiện Trường
             </h4>
-            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
-              Biên ≤ 500m
+            <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+              Không giới hạn bán kính
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Tọa độ trích xuất từ ảnh hoặc vị trí chụp phải nằm trong bán kính <strong>500 mét</strong> so với tọa độ bãi xe đã đăng ký.
+            Tọa độ ghi nhận vị trí thực tế chụp ảnh bãi xe (đã mở rộng không giới hạn bán kính để thuận tiện kiểm thử).
           </p>
         </div>
 
@@ -143,20 +141,13 @@ export const GpsCoordinateChecker: React.FC<GpsCoordinateCheckerProps> = ({
 
         <div>
           {hasCoordinates && distanceMeters !== null ? (
-            isWithinBoundary ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs">
-                <CheckCircle2 size={14} className="text-emerald-600" />
-                Vị trí hợp lệ (~{distanceMeters} m so với bãi xe)
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200 font-bold text-xs animate-pulse">
-                <AlertTriangle size={14} className="text-rose-600" />
-                Lệch {distanceMeters} m (&gt; 500 m) – Vượt quá bán kính cho phép!
-              </span>
-            )
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs">
+              <CheckCircle2 size={14} className="text-emerald-600" />
+              Đã ghi nhận tọa độ GPS (Cách bãi ~{distanceMeters} m)
+            </span>
           ) : (
             <span className="text-slate-400 italic">
-              Chưa nhập tọa độ ảnh để đối chiếu
+              Chưa nhập tọa độ ảnh (Tùy chọn)
             </span>
           )}
         </div>

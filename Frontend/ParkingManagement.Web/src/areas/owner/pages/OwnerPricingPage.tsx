@@ -20,7 +20,7 @@ import { RateCardModal } from '../components/pricing/RateCardModal';
 
 export const OwnerPricingPage: React.FC = () => {
   const { user } = useAppSelector((s) => s.auth);
-  const ownerProfileId = user?.id || 2;
+  const ownerProfileId = user?.ownerProfileId ?? user?.id ?? 2;
 
   // Danh sách bãi đỗ
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);

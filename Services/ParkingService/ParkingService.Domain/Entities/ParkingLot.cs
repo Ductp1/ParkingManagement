@@ -146,11 +146,16 @@ public class ParkingLot : BaseEntity, ISoftDelete
 
     /// <summary>Admin duyệt KYB → bãi được công khai.</summary>
     /// <summary>Kích hoạt bãi sau khi KYB được duyệt (US-055): chỉ đi từ PendingApproval → Active.</summary>
-    public void Activate()
+    public void Activate(int? activeSlotCount = null)
     {
         if (Status != ParkingLotStatus.PendingApproval)
             throw new ConflictException($"Chỉ kích hoạt được bãi đang chờ duyệt (hiện tại: {Status}).");
         Status = ParkingLotStatus.Active;
+        if (activeSlotCount.HasValue && activeSlotCount.Value > 0)
+        {
+            var total = Math.Max(TotalSlots, activeSlotCount.Value);
+            SetSlotCounters(total, activeSlotCount.Value);
+        }
     }
 
     /// <summary>Gán quận/thành phố (dùng khi tạo bãi và khi seed dữ liệu).</summary>
@@ -177,6 +182,13 @@ public class ParkingLot : BaseEntity, ISoftDelete
         CloseTime = closeTime;
         if (!string.IsNullOrWhiteSpace(city)) City = city;
         if (district != null) District = district;
+    }
+
+    /// <summary>Xóa bãi đỗ xe (Soft-delete).</summary>
+    public void Delete(DateTime deletedAtUtc)
+    {
+        IsDeleted = true;
+        DeletedAtUtc = deletedAtUtc;
     }
 
     /// <summary>Chế tài SLA cấp 3 hoặc Emergency Stop.</summary>

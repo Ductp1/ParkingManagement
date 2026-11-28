@@ -8,6 +8,13 @@ namespace UserService.Application.Features.Users;
 public sealed record RequestOwnerExitRequest(string Reason, int? NoticeDays = 30);
 public sealed record CancelOwnerExitRequest(string? Reason = null);
 
+public sealed record OwnerDebtStatus(bool HasDebt, decimal DebtAmount, string? Details = null);
+
+public interface IOwnerDebtChecker
+{
+    Task<OwnerDebtStatus> CheckDebtAsync(int ownerProfileId, CancellationToken cancellationToken = default);
+}
+
 public sealed record OwnerExitStatusDto(
     int OwnerProfileId,
     int UserId,
@@ -25,12 +32,24 @@ public interface IRequestOwnerExitUseCase
     Task<OwnerExitStatusDto> ExecuteAsync(int ownerProfileId, RequestOwnerExitRequest request, CancellationToken cancellationToken = default);
 }
 
-public sealed class RequestOwnerExitUseCase(IOwnerProfileRepository repository, TimeProvider timeProvider) : IRequestOwnerExitUseCase
+public sealed class RequestOwnerExitUseCase(
+    IOwnerProfileRepository repository,
+    TimeProvider timeProvider,
+    IOwnerDebtChecker? debtChecker = null) : IRequestOwnerExitUseCase
 {
     public async Task<OwnerExitStatusDto> ExecuteAsync(int ownerProfileId, RequestOwnerExitRequest request, CancellationToken cancellationToken = default)
     {
         var owner = await repository.FindByIdWithUserAsync(ownerProfileId, cancellationToken)
             ?? throw new NotFoundException("Hồ sơ chủ bãi", ownerProfileId);
+
+        if (debtChecker is not null)
+        {
+            var debt = await debtChecker.CheckDebtAsync(ownerProfileId, cancellationToken);
+            if (debt.HasDebt)
+            {
+                throw new ConflictException($"Không thể gửi yêu cầu rời nền tảng: Chủ bãi còn công nợ chưa quyết toán với nền tảng ({debt.DebtAmount:N0} đ). Vui lòng hoàn tất thanh toán trước khi gửi yêu cầu.");
+            }
+        }
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         owner.RequestExit(request.Reason, request.NoticeDays ?? 30, nowUtc);
@@ -38,7 +57,7 @@ public sealed class RequestOwnerExitUseCase(IOwnerProfileRepository repository, 
         await repository.UpdateAsync(owner, cancellationToken);
 
         var remainingDays = owner.ExitEffectiveAtUtc.HasValue
-            ? (int)Math.Max(0, Math.Ceiling((owner.ExitEffectiveAtUtc.Value - nowUtc).TotalDays))
+            ? (int)Math.Max(0, OwnerProfile.CountRemainingWorkingDays(nowUtc, owner.ExitEffectiveAtUtc.Value))
             : (int?)null;
 
         return new OwnerExitStatusDto(
@@ -128,7 +147,7 @@ public sealed class GetOwnerExitStatusUseCase(IOwnerProfileRepository repository
 
         var nowUtc = timeProvider.GetUtcNow().UtcDateTime;
         var remainingDays = (owner.Status == OwnerStatus.Leaving && owner.ExitEffectiveAtUtc.HasValue)
-            ? (int)Math.Max(0, Math.Ceiling((owner.ExitEffectiveAtUtc.Value - nowUtc).TotalDays))
+            ? (int)Math.Max(0, OwnerProfile.CountRemainingWorkingDays(nowUtc, owner.ExitEffectiveAtUtc.Value))
             : (int?)null;
 
         var canCancel = owner.Status == OwnerStatus.Leaving && (!owner.ExitEffectiveAtUtc.HasValue || nowUtc < owner.ExitEffectiveAtUtc.Value);

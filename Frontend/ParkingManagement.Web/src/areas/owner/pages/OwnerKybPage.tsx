@@ -18,30 +18,33 @@ import { ownerLotsApi } from '@/api/ownerLotsApi';
 import { ownerKybApi } from '@/api/ownerKybApi';
 import type {
   OwnerParkingLotItemDto,
+  OwnerLotDetailDto,
   KybApplicationDto,
   SaveKybDraftRequest,
   SubmitKybApplicationRequest,
 } from '@/types/ownerKyb';
-import { calculateHaversineDistanceMeters } from '@/utils/haversine';
 import { KybStepIndicator } from '../components/KybStepIndicator';
 import { KybStatusBanner } from '../components/KybStatusBanner';
 import { DocumentUploadCard } from '../components/DocumentUploadCard';
 import { DocumentStatusBadge } from '../components/DocumentStatusBadge';
 import { GpsCoordinateChecker } from '../components/GpsCoordinateChecker';
 import { RegisterLotModal } from '../components/RegisterLotModal';
+import { DeleteLotConfirmModal } from '../components/DeleteLotConfirmModal';
 
 export const OwnerKybPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAppSelector((s) => s.auth);
 
   // ID của Owner (mặc định lấy theo tài khoản đăng nhập hoặc fallback 2 cho môi trường demo)
-  const ownerProfileId = user?.id || 2;
+  const ownerProfileId = user?.ownerProfileId ?? user?.id ?? 2;
 
   // Danh sách bãi đỗ của chủ bãi
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<number | null>(null);
+  const [selectedLotDetail, setSelectedLotDetail] = useState<OwnerLotDetailDto | null>(null);
   const [loadingLots, setLoadingLots] = useState(true);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [lotToDelete, setLotToDelete] = useState<OwnerParkingLotItemDto | null>(null);
 
   // Dữ liệu hồ sơ KYB
   const [currentStep, setCurrentStep] = useState(1);
@@ -110,6 +113,20 @@ export const OwnerKybPage: React.FC = () => {
     () => lots.find((l) => l.id === selectedLotId) || null,
     [lots, selectedLotId]
   );
+
+  // Xử lý Xóa bãi đỗ xe riêng biệt
+  const handleDeleteLot = async (lotId: number) => {
+    await ownerLotsApi.deleteParkingLot(lotId, ownerProfileId);
+    setActionMessage({
+      type: 'success',
+      text: 'Đã xóa bãi đỗ xe thành công!',
+    });
+    const remainingLots = lots.filter((l) => l.id !== lotId);
+    setLots(remainingLots);
+    const nextLotId = remainingLots[0]?.id || null;
+    setSelectedLotId(nextLotId);
+    await loadOwnerLots(nextLotId ?? undefined);
+  };
 
   // 2. Tải thông tin KYB khi thay đổi bãi đỗ
   const loadKybApplication = useCallback(async (lotId: number) => {
@@ -225,7 +242,13 @@ export const OwnerKybPage: React.FC = () => {
       setCurrentStep(1);
       setIsEditMode(false);
       void loadKybApplication(selectedLotId);
+      ownerLotsApi
+        .getLotById(selectedLotId)
+        .then((detail) => setSelectedLotDetail(detail))
+        .catch(() => setSelectedLotDetail(null));
       setSearchParams({ lotId: selectedLotId.toString() });
+    } else {
+      setSelectedLotDetail(null);
     }
   }, [selectedLotId, loadKybApplication, setSearchParams]);
 
@@ -274,23 +297,18 @@ export const OwnerKybPage: React.FC = () => {
   // Danh sách các bước đã hoàn thành do người dùng bấm nút Next chuyển qua
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
-  // Kiểm tra tính hợp lệ của khoảng cách GPS ảnh hiện trường
-  const gpsDistanceCheck = useMemo(() => {
-    if (photoLatitude === null || photoLongitude === null) return { valid: true };
-    // Tọa độ mẫu của bãi (nếu chưa có trong DTO thì dùng tọa độ trung tâm HCM)
-    const lotLat = 10.776889;
-    const lotLng = 106.700806;
-    const dist = calculateHaversineDistanceMeters(
-      lotLat,
-      lotLng,
-      photoLatitude,
-      photoLongitude
-    );
-    return {
-      valid: dist <= 500,
-      distanceMeters: dist,
-    };
-  }, [photoLatitude, photoLongitude]);
+  // Thông tin chủ bãi và tọa độ thực tế của bãi đang được chọn
+  const effectiveOwnerProfileId = useMemo(() => {
+    return selectedLotDetail?.ownerProfileId ?? selectedLot?.ownerProfileId ?? ownerProfileId;
+  }, [selectedLotDetail?.ownerProfileId, selectedLot?.ownerProfileId, ownerProfileId]);
+
+  const effectiveLotLat = useMemo(() => {
+    return selectedLotDetail?.latitude ?? 10.776889;
+  }, [selectedLotDetail?.latitude]);
+
+  const effectiveLotLng = useMemo(() => {
+    return selectedLotDetail?.longitude ?? 106.700806;
+  }, [selectedLotDetail?.longitude]);
 
   // Xử lý Lưu Nháp (PUT /draft)
   const handleSaveDraft = async () => {
@@ -300,7 +318,7 @@ export const OwnerKybPage: React.FC = () => {
 
     try {
       const payload: SaveKybDraftRequest = {
-        ownerProfileId,
+        ownerProfileId: effectiveOwnerProfileId,
         businessLicenseUrl: businessLicenseUrl.trim() || null,
         sitePhotoUrls: sitePhotos.length > 0 ? sitePhotos.map((p) => p.url) : null,
         photoLatitude,
@@ -353,14 +371,6 @@ export const OwnerKybPage: React.FC = () => {
       });
       return;
     }
-    if (!gpsDistanceCheck.valid) {
-      setCurrentStep(2);
-      setActionMessage({
-        type: 'error',
-        text: `Bước 2: Khoảng cách GPS của ảnh (~${gpsDistanceCheck.distanceMeters}m) vượt quá bán kính 500m cho phép!`,
-      });
-      return;
-    }
     if (!fireSafetyCertificateUrl.trim()) {
       setCurrentStep(3);
       setActionMessage({
@@ -392,7 +402,7 @@ export const OwnerKybPage: React.FC = () => {
     setBusyAction(true);
     try {
       const payload: SubmitKybApplicationRequest = {
-        ownerProfileId,
+        ownerProfileId: effectiveOwnerProfileId,
         businessLicenseUrl: businessLicenseUrl.trim(),
         sitePhotoUrls: sitePhotos.map((p) => p.url),
         photoLatitude,
@@ -404,28 +414,7 @@ export const OwnerKybPage: React.FC = () => {
         fieldSurveyNote: fieldSurveyNote.trim() || null,
       };
 
-      let updatedKyb: KybApplicationDto | null = null;
-      try {
-        updatedKyb = await ownerKybApi.submit(selectedLotId, payload);
-      } catch {
-        // Fallback mô phỏng nếu bãi đã có trạng thái Approved từ trước trong CSDL (409 Conflict)
-        updatedKyb = {
-          id: kybData?.id || selectedLotId,
-          parkingLotId: selectedLotId,
-          status: 'Submitted',
-          businessLicenseUrl: payload.businessLicenseUrl,
-          sitePhotoUrls: payload.sitePhotoUrls,
-          photoLatitude: payload.photoLatitude ?? null,
-          photoLongitude: payload.photoLongitude ?? null,
-          fireSafetyCertificateUrl: payload.fireSafetyCertificateUrl,
-          fieldSurveyRequired: (selectedLot?.totalSlots || 0) > 50,
-          fieldSurveyAtUtc: payload.fieldSurveyAtUtc ?? null,
-          fieldSurveyNote: payload.fieldSurveyNote ?? null,
-          submittedAtUtc: new Date().toISOString(),
-          reviewedAtUtc: null,
-          rejectReason: null,
-        };
-      }
+      const updatedKyb = await ownerKybApi.submit(selectedLotId, payload);
 
       setKybData(updatedKyb);
       setIsEditMode(false);
@@ -435,12 +424,17 @@ export const OwnerKybPage: React.FC = () => {
         text: 'Hồ sơ thẩm định KYB đã được gửi nộp thành công! Tất cả tài liệu đang ở trạng thái ⏳ Đang đợi kiểm tra.',
       });
     } catch (err: unknown) {
+      console.error('Failed to submit KYB:', err);
+      let errMsg = 'Nộp hồ sơ thất bại. Vui lòng kiểm tra lại thông tin.';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { message?: string; detail?: string } } };
+        errMsg = axiosErr.response?.data?.message || axiosErr.response?.data?.detail || errMsg;
+      } else if (err instanceof Error) {
+        errMsg = err.message;
+      }
       setActionMessage({
         type: 'error',
-        text:
-          err instanceof Error
-            ? err.message
-            : 'Nộp hồ sơ thất bại. Vui lòng kiểm tra lại thông tin.',
+        text: errMsg,
       });
     } finally {
       setBusyAction(false);
@@ -472,13 +466,6 @@ export const OwnerKybPage: React.FC = () => {
           setActionMessage({
             type: 'error',
             text: 'Bước 2: Cần ít nhất 1 ảnh chụp hiện trường thực tế của bãi xe.',
-          });
-          return;
-        }
-        if (!gpsDistanceCheck.valid) {
-          setActionMessage({
-            type: 'error',
-            text: `Bước 2: Khoảng cách GPS của ảnh (~${gpsDistanceCheck.distanceMeters}m) vượt quá bán kính 500m cho phép!`,
           });
           return;
         }
@@ -558,6 +545,19 @@ export const OwnerKybPage: React.FC = () => {
                 ))}
               </select>
             </div>
+          )}
+
+          {selectedLot && (
+            <button
+              type="button"
+              disabled={busyAction}
+              onClick={() => setLotToDelete(selectedLot)}
+              className="h-11 px-3.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50"
+              title="Xóa bãi đỗ đang chọn"
+            >
+              <Trash2 size={16} className="text-rose-600" />
+              <span className="hidden sm:inline">Xóa bãi</span>
+            </button>
           )}
 
           <button
@@ -698,6 +698,8 @@ export const OwnerKybPage: React.FC = () => {
                   disabled={isLocked}
                   kybStatus={currentEffectiveStatus}
                   lotId={selectedLotId || 0}
+                  documentType="BusinessLicense"
+                  ownerProfileId={effectiveOwnerProfileId}
                 />
 
                 <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-4 text-xs text-slate-600 flex items-start gap-3">
@@ -812,6 +814,8 @@ export const OwnerKybPage: React.FC = () => {
                       disabled={isLocked}
                       kybStatus={currentEffectiveStatus}
                       lotId={selectedLotId || 0}
+                      documentType="SitePhoto"
+                      ownerProfileId={effectiveOwnerProfileId}
                       accept="image/*"
                       helpText="Hỗ trợ JPG, PNG, WEBP. Tối đa 10 MB mỗi ảnh."
                     />
@@ -822,8 +826,8 @@ export const OwnerKybPage: React.FC = () => {
                 <GpsCoordinateChecker
                   photoLat={photoLatitude}
                   photoLng={photoLongitude}
-                  lotLat={10.776889} // Tọa độ mẫu của bãi
-                  lotLng={106.700806}
+                  lotLat={effectiveLotLat}
+                  lotLng={effectiveLotLng}
                   onChange={(lat, lng) => {
                     setPhotoLatitude(lat);
                     setPhotoLongitude(lng);
@@ -870,6 +874,8 @@ export const OwnerKybPage: React.FC = () => {
                   disabled={isLocked}
                   kybStatus={currentEffectiveStatus}
                   lotId={selectedLotId || 0}
+                  documentType="FireSafetyCertificate"
+                  ownerProfileId={effectiveOwnerProfileId}
                 />
 
                 <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-xs text-amber-900 flex items-start gap-3">
@@ -1069,6 +1075,14 @@ export const OwnerKybPage: React.FC = () => {
             text: `Đã đăng ký cơ sở bãi đỗ "${lotName}" thành công! Vui lòng nộp hồ sơ KYB bên dưới.`,
           });
         }}
+      />
+
+      {/* Modal Xác Nhận Xóa Bãi Đỗ Xe */}
+      <DeleteLotConfirmModal
+        isOpen={!!lotToDelete}
+        onClose={() => setLotToDelete(null)}
+        lot={lotToDelete}
+        onConfirm={handleDeleteLot}
       />
     </div>
   );

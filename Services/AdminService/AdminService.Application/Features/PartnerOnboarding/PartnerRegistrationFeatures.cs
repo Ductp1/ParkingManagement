@@ -8,8 +8,8 @@ namespace AdminService.Application.Features.PartnerOnboarding;
 
 // ===== REQUEST / DTO =====
 
-/// <summary>Người nộp lấy từ JWT (không nhận từ form): tài khoản đã đăng nhập + đã là chủ bãi chưa.</summary>
-public sealed record PartnerApplicant(int UserId, bool IsLotOwner);
+/// <summary>Người nộp lấy từ JWT nếu đã đăng nhập (null nếu khách vãng lai) + đã là chủ bãi chưa.</summary>
+public sealed record PartnerApplicant(int? UserId, bool IsLotOwner);
 
 /// <summary>Hồ sơ đăng ký của chính người nộp: chỉ trạng thái và phản hồi của Admin, không có giấy tờ.</summary>
 public sealed record MyPartnerApplicationDto(string Code, string Status, string BusinessName, string TaxCode, int DocumentCount,
@@ -42,9 +42,9 @@ public sealed record PartnerDocumentRecord(int Id, int PartnerApplicationId, Par
 public interface IPartnerRegistrationRepository
 {
     /// <summary>
-    /// Đã có hồ sơ chưa kết thúc (không phải Activated / Rejected / Cancelled) của cùng tài khoản, hoặc cùng mã số thuế / email.
+    /// Đã có hồ sơ chưa kết thúc (không phải Activated / Rejected / Cancelled) của cùng tài khoản (nếu có), hoặc cùng mã số thuế / email.
     /// </summary>
-    Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken);
+    Task<bool> HasOpenApplicationAsync(int? applicantUserId, string taxCode, string email, CancellationToken cancellationToken);
 
     /// <summary>Hồ sơ của một tài khoản, mới nhất trước.</summary>
     Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken);
@@ -173,7 +173,7 @@ public sealed partial class SubmitPartnerApplicationUseCase(
     public async Task<PartnerApplicationReceiptDto> ExecuteAsync(PartnerApplicant applicant, SubmitPartnerApplicationRequest request,
         IReadOnlyList<PartnerDocumentUpload> documents, CancellationToken cancellationToken = default)
     {
-        if (applicant.UserId <= 0) throw new ValidationException("Tài khoản người nộp không hợp lệ.");
+        if (applicant.UserId.HasValue && applicant.UserId.Value <= 0) throw new ValidationException("Tài khoản người nộp không hợp lệ.");
         if (applicant.IsLotOwner) throw new ConflictException("Tài khoản của bạn đã là chủ bãi, không cần đăng ký đối tác nữa.");
         if (!request.ConsentAccepted) throw new ValidationException("Vui lòng đồng ý với điều khoản xử lý dữ liệu để gửi hồ sơ.");
 
