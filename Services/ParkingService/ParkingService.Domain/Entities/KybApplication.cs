@@ -116,7 +116,7 @@ public class KybApplication : BaseEntity
         if (activeSlotCount <= 0)
             throw new ConflictException("Bãi chưa có sơ đồ ô đỗ đang hoạt động, chưa thể duyệt.");
 
-        lot.Activate();
+        lot.Activate(activeSlotCount);
         MoveTo(KybStatus.Approved);
         ReviewedByUserId = adminUserId;
         ReviewedAtUtc = nowUtc;
@@ -133,10 +133,18 @@ public class KybApplication : BaseEntity
         if (lot.Id != ParkingLotId) throw new ArgumentException("Bãi đỗ không khớp hồ sơ KYB.", nameof(lot));
         if (Status != KybStatus.Approved)
             throw new ConflictException($"Hồ sơ KYB #{Id} chưa được duyệt (trạng thái {Status}), chưa thể kích hoạt bãi.");
-        if (lot.Status == ParkingLotStatus.Active) return false;
+        if (lot.Status == ParkingLotStatus.Active)
+        {
+            if (lot.AvailableSlots == 0 && activeSlotCount > 0)
+            {
+                var total = Math.Max(lot.TotalSlots, activeSlotCount);
+                lot.SetSlotCounters(total, activeSlotCount);
+            }
+            return false;
+        }
         if (activeSlotCount <= 0)
             throw new ConflictException("Bãi chưa có sơ đồ ô đỗ đang hoạt động, chưa thể kích hoạt.");
-        lot.Activate();
+        lot.Activate(activeSlotCount);
         return true;
     }
 

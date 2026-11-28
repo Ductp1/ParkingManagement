@@ -25,6 +25,8 @@ interface DocumentUploadCardProps {
   helpText?: string;
   kybStatus?: KybStatus | string;
   lotId?: number;
+  documentType?: 'BusinessLicense' | 'FireSafetyCertificate' | 'SitePhoto';
+  ownerProfileId?: number;
 }
 
 export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
@@ -40,6 +42,8 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
   helpText = 'Hỗ trợ định dạng PDF, JPG, PNG. Tối đa 10 MB.',
   kybStatus,
   lotId = 0,
+  documentType = 'BusinessLicense',
+  ownerProfileId,
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -73,7 +77,7 @@ export const DocumentUploadCard: React.FC<DocumentUploadCardProps> = ({
     setUploading(true);
 
     try {
-      const result = await fileUploadApi.uploadKybDocument(file, lotId);
+      const result = await fileUploadApi.uploadKybDocument(file, lotId, documentType, ownerProfileId);
       onChange(result.url, result.fileName, result.fileSizeFormatted);
     } catch (err: unknown) {
       setUploadError(

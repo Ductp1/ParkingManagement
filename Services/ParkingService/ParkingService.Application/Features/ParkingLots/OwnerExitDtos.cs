@@ -14,10 +14,13 @@ public sealed record OwnerExitImpactSummaryDto(
     int ActiveLots,
     int SuspendedLots,
     int TotalSlots,
-    IReadOnlyList<OwnerLotSummaryItemDto> Lots);
+    IReadOnlyList<OwnerLotSummaryItemDto> Lots,
+    int UpcomingBookingsCount = 0,
+    int ActiveBookingsCount = 0);
 
 public sealed record SuspendOwnerLotsResultDto(
     int OwnerProfileId,
     int TotalLotsSuspended,
     IReadOnlyList<int> SuspendedLotIds,
-    DateTime SuspendedAtUtc);
+    DateTime SuspendedAtUtc,
+    int TotalAffectedBookings = 0);

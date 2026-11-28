@@ -40,6 +40,52 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
   // Trạng thái thao tác từng ô
   const [updatingSlotId, setUpdatingSlotId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [generatingSlots, setGeneratingSlots] = useState(false);
+
+  const handleQuickGenerateSlots = async (countToGenerate?: number) => {
+    if (!floor) return;
+    setGeneratingSlots(true);
+    setActionError(null);
+    try {
+      const prefix =
+        floor.level < 0
+          ? `B${Math.abs(floor.level)}`
+          : floor.level === 0
+            ? 'G'
+            : `F${floor.level}`;
+
+      const totalCells = floor.gridColumns * floor.gridRows;
+      const startIndex = slots.length + 1;
+      const defaultBatch = slots.length === 0 ? Math.min(totalCells, 20) : 10;
+      const count = countToGenerate ?? Math.min(defaultBatch, Math.max(1, totalCells - slots.length));
+
+      const startGridX = slots.length % floor.gridColumns;
+      const startGridY = Math.floor(slots.length / floor.gridColumns);
+
+      await ownerStructureApi.batchCreateSlots(floor.id, {
+        prefix,
+        count,
+        startIndex,
+        slotType: 'Standard',
+        maxVehicleType: 'Suv',
+        startGridX,
+        startGridY,
+      });
+
+      await fetchSlots();
+      if (onSlotsUpdated) {
+        onSlotsUpdated();
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setActionError(err.message);
+      } else {
+        setActionError('Không thể khởi tạo tự động danh sách ô đỗ.');
+      }
+    } finally {
+      setGeneratingSlots(false);
+    }
+  };
 
   const fetchSlots = useCallback(async () => {
     if (!floor) return;
@@ -227,6 +273,19 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
                 <option value="ACTIVE">Đang hoạt động</option>
                 <option value="INACTIVE">Tạm khóa bảo trì</option>
               </select>
+
+              {slots.length > 0 && (
+                <button
+                  type="button"
+                  disabled={generatingSlots}
+                  onClick={() => handleQuickGenerateSlots(10)}
+                  className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                  title="Tự động tạo thêm 10 ô đỗ tiếp theo"
+                >
+                  {generatingSlots ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />}
+                  <span>+ Thêm 10 ô</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -243,10 +302,39 @@ export const FloorSlotsDrawer: React.FC<FloorSlotsDrawerProps> = ({
                 <span>{error}</span>
               </div>
             ) : filteredSlots.length === 0 ? (
-              <div className="py-16 text-center text-xs text-slate-400">
-                {slots.length === 0
-                  ? 'Tầng này chưa có ô đỗ nào được khởi tạo.'
-                  : 'Không tìm thấy ô đỗ nào phù hợp với bộ lọc.'}
+              <div className="py-12 px-4 text-center">
+                {slots.length === 0 ? (
+                  <div className="max-w-md mx-auto space-y-4">
+                    <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center mx-auto">
+                      <Car size={26} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Tầng này chưa có ô đỗ nào được khởi tạo
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                        Để bãi xe đủ điều kiện duyệt KYB và cho phép tài xế đặt chỗ, tầng cần có các ô đỗ hoạt động. Bấm nút dưới đây để tạo nhanh 20 ô đỗ tiêu chuẩn theo kích thước ma trận lưới.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={generatingSlots}
+                      onClick={() => handleQuickGenerateSlots(20)}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-bold transition-all shadow-md shadow-blue-500/20 flex items-center gap-2 mx-auto cursor-pointer disabled:opacity-50"
+                    >
+                      {generatingSlots ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <Zap size={15} className="fill-current" />
+                      )}
+                      <span>⚡ Khởi tạo nhanh 20 ô đỗ theo lưới</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400 py-8">
+                    Không tìm thấy ô đỗ nào phù hợp với bộ lọc.
+                  </div>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-slate-100">

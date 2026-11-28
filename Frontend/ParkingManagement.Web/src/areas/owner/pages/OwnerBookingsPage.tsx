@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Eye,
   History,
+  Download,
 } from 'lucide-react';
 import { useAppSelector } from '@/store';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
@@ -29,7 +30,7 @@ import { LotCancelModal } from '../components/bookings/LotCancelModal';
 export const OwnerBookingsPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { user } = useAppSelector((s) => s.auth);
-  const ownerProfileId = user?.id || 2;
+  const ownerProfileId = user?.ownerProfileId ?? user?.id ?? 2;
 
   // Danh sách bãi đỗ
   const [lots, setLots] = useState<OwnerParkingLotItemDto[]>([]);
@@ -62,6 +63,63 @@ export const OwnerBookingsPage: React.FC = () => {
   const [lotCancelTarget, setLotCancelTarget] = useState<{ code: string; plate: string } | null>(null);
 
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  // Xuất dữ liệu nhật ký / phê duyệt ra file CSV (T-504)
+  const handleExportCsv = () => {
+    setExportingCsv(true);
+    try {
+      let csvContent = '\uFEFF'; // UTF-8 BOM
+      const selectedLotName = lots.find((l) => l.id === selectedLotId)?.name || `Lot_${selectedLotId}`;
+      const nowStr = new Date().toISOString().slice(0, 10);
+      let filename = `Nhat_ky_booking_${selectedLotId || 'all'}_${nowStr}.csv`;
+
+      if (activeTab === 'logs') {
+        filename = `Lich_su_phe_duyet_${selectedLotId || 'all'}_${nowStr}.csv`;
+        const headers = ['Mã Đặt Chỗ', 'Biển Số Xe', 'Bãi Xe', 'Kết Quả Duyệt', 'Lý Do', 'Mã Người Duyệt', 'Thời Gian'];
+        const rows = approvalLogs.map((log) => [
+          `"${log.bookingCode || ''}"`,
+          `"${log.plateNumber || ''}"`,
+          `"${log.parkingLotName || selectedLotName}"`,
+          `"${log.result === 'Approved' ? 'Đã duyệt' : log.result === 'Rejected' ? 'Từ chối' : log.result}"`,
+          `"${(log.reason || '').replace(/"/g, '""')}"`,
+          `"${log.reviewedByUserId || ''}"`,
+          `"${log.createdAtUtc ? new Date(log.createdAtUtc).toLocaleString('vi-VN') : ''}"`,
+        ]);
+        csvContent += [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+      } else {
+        filename = `Nhat_ky_xe_ra_vao_${selectedLotId || 'all'}_${nowStr}.csv`;
+        const headers = ['Mã Đặt Chỗ', 'Biển Số Xe', 'Loại Xe', 'Vị Trí Ô Đỗ', 'Thời Gian Vào', 'Thời Gian Ra', 'Trạng Thái', 'Quá Giờ', 'Tổng Tiền (VNĐ)'];
+        const rows = gateBookings.map((item) => [
+          `"${item.code || ''}"`,
+          `"${item.plateNumber || ''}"`,
+          `"${item.vehicleType || ''}"`,
+          `"${item.slotCode || 'Chưa gán'}"`,
+          `"${item.startAtUtc ? new Date(item.startAtUtc).toLocaleString('vi-VN') : ''}"`,
+          `"${item.endAtUtc ? new Date(item.endAtUtc).toLocaleString('vi-VN') : ''}"`,
+          `"${item.status || ''}"`,
+          `"${item.isOverdue ? 'Có' : 'Không'}"`,
+          `"${item.totalAmount || 0}"`,
+        ]);
+        csvContent += [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+      }
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      setToastMessage({ type: 'success', text: `Đã xuất file CSV thành công: ${filename}` });
+    } catch {
+      setToastMessage({ type: 'error', text: 'Không thể xuất file CSV nhật ký.' });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   // 1. Tải danh sách bãi của chủ bãi
   useEffect(() => {
@@ -252,6 +310,17 @@ export const OwnerBookingsPage: React.FC = () => {
               )}
             </select>
           </div>
+
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={exportingCsv || (activeTab === 'logs' ? approvalLogs.length === 0 : gateBookings.length === 0)}
+            className="h-11 px-4 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 shadow-xs transition-all inline-flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
+            title="Xuất dữ liệu ra file CSV"
+          >
+            <Download size={14} className={exportingCsv ? 'animate-bounce text-blue-600' : ''} />
+            <span className="hidden sm:inline">Xuất CSV</span>
+          </button>
 
           <button
             type="button"

@@ -42,6 +42,7 @@ public sealed class ParkingLotsController(
     ISearchParkingLotsUseCase searchParkingLots,
     ICreateParkingLotUseCase createParkingLot,
     IUpdateParkingLotUseCase updateParkingLot,
+    IDeleteParkingLotUseCase deleteParkingLot,
     IGetOwnerParkingLotsUseCase getOwnerParkingLots,
     IGetParkingLotHierarchyUseCase getParkingLotHierarchy,
     IGetOwnerExitImpactUseCase getOwnerExitImpact,
@@ -119,6 +120,18 @@ public sealed class ParkingLotsController(
             request.HotlinePhone);
 
         await updateParkingLot.ExecuteAsync(command, cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>DELETE /api/v1/parking-lots/{id} – Xóa bãi đỗ xe của chủ bãi (Soft-delete).</summary>
+    [HttpDelete("{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult> Delete(int id, [FromQuery] int ownerProfileId, CancellationToken cancellationToken)
+    {
+        await deleteParkingLot.ExecuteAsync(id, ownerProfileId, cancellationToken);
         return NoContent();
     }
 

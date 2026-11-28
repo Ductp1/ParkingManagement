@@ -24,7 +24,7 @@ public sealed class RabbitMqOptions
             throw new DependencyUnavailableException("Cấu hình EventBus:RabbitMq chưa hợp lệ; cần host, vhost, tài khoản, mật khẩu và exchange.");
         var loopback = HostName.Equals("localhost", StringComparison.OrdinalIgnoreCase)
             || (IPAddress.TryParse(HostName, out var ip) && IPAddress.IsLoopback(ip));
-        if (!UseTls && !loopback && !environment.IsDevelopment())
+        if (!UseTls && !loopback && !environment.IsDevelopment() && !environment.IsEnvironment("Docker"))
             throw new DependencyUnavailableException("Kết nối RabbitMQ ngoài localhost phải bật TLS ở môi trường production.");
     }
 }

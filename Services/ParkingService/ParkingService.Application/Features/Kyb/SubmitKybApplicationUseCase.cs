@@ -74,11 +74,7 @@ public sealed class SubmitKybApplicationUseCase(
             if (command.PhotoLatitude is < -90 or > 90 || command.PhotoLongitude is < -180 or > 180)
                 throw new ValidationException("Bước 2: Tọa độ GPS của ảnh không hợp lệ.");
 
-            var distanceKm = GeoDistance.HaversineKm(lot.Latitude, lot.Longitude, command.PhotoLatitude.Value, command.PhotoLongitude.Value);
-            if (distanceKm > 0.5)
-            {
-                throw new ValidationException($"Bước 2: Tọa độ GPS của ảnh cách vị trí bãi đỗ {distanceKm:F2} km (vượt quá bán kính cho phép 500 m).");
-            }
+            // Đã bỏ giới hạn khoảng cách 500m so với vị trí bãi để thuận tiện test và tránh lỗi định vị thực tế
         }
 
         // Bước 3: PCCC

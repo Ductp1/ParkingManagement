@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Building2, MapPin, AlertCircle, Plus } from 'lucide-react';
+import { X, Building2, AlertCircle, Plus } from 'lucide-react';
 import { ownerLotsApi } from '@/api/ownerLotsApi';
 import type { CreateParkingLotRequest } from '@/types/ownerKyb';
+import { LocationPickerMap } from './LocationPickerMap';
 
 interface RegisterLotModalProps {
   isOpen: boolean;
@@ -33,19 +34,6 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
-
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setLatitude(parseFloat(pos.coords.latitude.toFixed(6)));
-        setLongitude(parseFloat(pos.coords.longitude.toFixed(6)));
-      },
-      (err) => {
-        alert(`Không thể lấy vị trí: ${err.message}`);
-      }
-    );
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,50 +178,20 @@ export const RegisterLotModal: React.FC<RegisterLotModalProps> = ({
             </div>
           </div>
 
-          {/* Tọa độ GPS */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <MapPin size={14} className="text-blue-600" />
-                Tọa độ GPS bãi đỗ xe <span className="text-rose-600">*</span>
-              </span>
-              <button
-                type="button"
-                onClick={handleGetLocation}
-                className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
-              >
-                Lấy GPS thiết bị
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className="text-[10px] text-slate-500 block mb-0.5">Vĩ độ (Latitude)</span>
-                <input
-                  type="number"
-                  step="0.000001"
-                  required
-                  disabled={busy}
-                  value={latitude}
-                  onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono"
-                />
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block mb-0.5">Kinh độ (Longitude)</span>
-                <input
-                  type="number"
-                  step="0.000001"
-                  required
-                  disabled={busy}
-                  value={longitude}
-                  onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-mono"
-                />
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1.5">
-              Tọa độ này sẽ dùng để đối chiếu khoảng cách &le; 500m với ảnh chụp hiện trường tại Bước 2 KYB.
-            </p>
+          {/* Vị trí trên Bản đồ & Tự động định vị (TASK-LOC-01, TASK-LOC-02) */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/90">
+            <LocationPickerMap
+              latitude={latitude}
+              longitude={longitude}
+              searchAddress={address}
+              district={district}
+              city={city}
+              onChange={(lat, lng) => {
+                setLatitude(lat);
+                setLongitude(lng);
+              }}
+              disabled={busy}
+            />
           </div>
 
           {/* Quy mô & Giới hạn kỹ thuật */}

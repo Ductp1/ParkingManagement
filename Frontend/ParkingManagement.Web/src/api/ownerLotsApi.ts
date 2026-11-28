@@ -45,6 +45,15 @@ export const ownerLotsApi = {
   },
 
   /**
+   * Xóa bãi đỗ xe của chủ bãi (Soft-delete).
+   */
+  deleteParkingLot: async (id: number, ownerProfileId: number): Promise<void> => {
+    await apiClient.delete(`/api/v1/parking-lots/${id}`, {
+      params: { ownerProfileId },
+    });
+  },
+
+  /**
    * US-068: gửi heartbeat (thiết bị/controller/chủ bãi báo dữ liệu còn sống).
    * Bãi đang stale sẽ tự phục hồi; trả Recovered = true nếu vừa thoát stale.
    */

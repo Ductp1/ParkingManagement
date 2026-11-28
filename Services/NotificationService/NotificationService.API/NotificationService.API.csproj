@@ -10,4 +10,7 @@
     <ProjectReference Include="..\NotificationService.Application\NotificationService.Application.csproj" />
     <ProjectReference Include="..\NotificationService.Infrastructure\NotificationService.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Keys\public.key" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

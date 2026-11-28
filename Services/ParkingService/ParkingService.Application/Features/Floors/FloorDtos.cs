@@ -20,7 +20,8 @@ public sealed record CreateFloorCommand(
     int? MaxHeightCm,
     int? MaxWeightKg,
     int GridColumns,
-    int GridRows);
+    int GridRows,
+    int? InitialSlotCount = null);
 
 public sealed record UpdateFloorCommand(
     int Id,

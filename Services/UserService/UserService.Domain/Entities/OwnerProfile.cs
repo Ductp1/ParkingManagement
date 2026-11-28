@@ -36,7 +36,7 @@ public class OwnerProfile : BaseEntity
     public User User { get; set; } = null!;
     public ICollection<StaffAssignment> StaffAssignments { get; set; } = new List<StaffAssignment>();
 
-    /// <summary>Nộp đơn xin rời nền tảng (US-057): chuyển sang Leaving và tính hạn 30 ngày.</summary>
+    /// <summary>Nộp đơn xin rời nền tảng (US-057): chuyển sang Leaving và tính hạn 30 ngày làm việc.</summary>
     public void RequestExit(string reason, int noticeDays, DateTime nowUtc)
     {
         if (Status != OwnerStatus.Active)
@@ -46,12 +46,46 @@ public class OwnerProfile : BaseEntity
             throw new ValidationException("Lý do xin rời nền tảng không được để trống.");
 
         if (noticeDays < 1)
-            throw new ValidationException("Thời hạn báo trước phải tối thiểu 1 ngày.");
+            throw new ValidationException("Thời hạn báo trước phải tối thiểu 1 ngày làm việc.");
 
         Status = OwnerStatus.Leaving;
         ExitReason = reason.Trim();
         ExitRequestedAtUtc = nowUtc;
-        ExitEffectiveAtUtc = nowUtc.AddDays(noticeDays);
+        ExitEffectiveAtUtc = AddWorkingDays(nowUtc, noticeDays);
+    }
+
+    /// <summary>Cộng số ngày làm việc (thứ 2 đến thứ 6, bỏ qua thứ 7 và Chủ nhật).</summary>
+    public static DateTime AddWorkingDays(DateTime startUtc, int workingDays)
+    {
+        var current = startUtc;
+        var added = 0;
+        while (added < workingDays)
+        {
+            current = current.AddDays(1);
+            if (current.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))
+            {
+                added++;
+            }
+        }
+        return current;
+    }
+
+    /// <summary>Đếm số ngày làm việc còn lại từ fromUtc đến toUtc (bỏ qua thứ 7 và Chủ nhật).</summary>
+    public static int CountRemainingWorkingDays(DateTime fromUtc, DateTime toUtc)
+    {
+        if (toUtc <= fromUtc) return 0;
+        var current = fromUtc.Date;
+        var target = toUtc.Date;
+        var count = 0;
+        while (current < target)
+        {
+            current = current.AddDays(1);
+            if (current.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))
+            {
+                count++;
+            }
+        }
+        return count;
     }
 
     /// <summary>Rút lại yêu cầu rời nền tảng (US-057): chuyển về Active.</summary>

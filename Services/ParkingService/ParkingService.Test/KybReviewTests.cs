@@ -186,6 +186,7 @@ public class KybReviewTests
 
         Assert.Equal(KybStatus.Approved, app.Status);
         Assert.Equal(ParkingLotStatus.Active, app.ParkingLot.Status);
+        Assert.Equal(5, app.ParkingLot.AvailableSlots);
         Assert.Equal(AdminId, app.ReviewedByUserId);
         Assert.Equal(Now, app.ReviewedAtUtc);
         Assert.Equal("Đạt", app.ReviewNote);
@@ -404,15 +405,30 @@ public class KybReviewTests
 
         Assert.True(app.ActivateLot(app.ParkingLot, activeSlotCount: 5));
         Assert.Equal(ParkingLotStatus.Active, app.ParkingLot.Status);
+        Assert.Equal(5, app.ParkingLot.AvailableSlots);
     }
 
     [Fact]
-    public void ActivateLot_WhenLotAlreadyActive_IsNoOp()
+    public void ActivateLot_WhenLotAlreadyActive_IsNoOp_AndSyncsAvailableSlots()
     {
         var app = Kyb(KybStatus.Approved, Lot(status: ParkingLotStatus.Active));
 
         Assert.False(app.ActivateLot(app.ParkingLot, activeSlotCount: 5));
         Assert.Equal(ParkingLotStatus.Active, app.ParkingLot.Status);
+        Assert.Equal(5, app.ParkingLot.AvailableSlots);
+    }
+
+    [Fact]
+    public void ParkingLotActivate_WithActiveSlotCount_UpdatesAvailableSlots()
+    {
+        var lot = Lot(totalSlots: 40, status: ParkingLotStatus.PendingApproval);
+        Assert.Equal(0, lot.AvailableSlots);
+
+        lot.Activate(activeSlotCount: 20);
+
+        Assert.Equal(ParkingLotStatus.Active, lot.Status);
+        Assert.Equal(20, lot.AvailableSlots);
+        Assert.Equal(40, lot.TotalSlots);
     }
 
     [Theory]

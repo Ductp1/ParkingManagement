@@ -69,12 +69,12 @@ public class OwnerExitUseCaseTests
         Assert.Equal("Leaving", result.Status);
         Assert.Equal("Hết hạn thuê mặt bằng", result.ExitReason);
         Assert.Equal(now.UtcDateTime, result.ExitRequestedAtUtc);
-        Assert.Equal(now.UtcDateTime.AddDays(30), result.ExitEffectiveAtUtc);
+        Assert.Equal(OwnerProfile.AddWorkingDays(now.UtcDateTime, 30), result.ExitEffectiveAtUtc);
         Assert.Equal(30, result.RemainingDays);
         Assert.True(result.CanCancel);
 
         Assert.Equal(OwnerStatus.Leaving, profile.Status);
-        Assert.Equal(now.UtcDateTime.AddDays(30), profile.ExitEffectiveAtUtc);
+        Assert.Equal(OwnerProfile.AddWorkingDays(now.UtcDateTime, 30), profile.ExitEffectiveAtUtc);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class OwnerExitUseCaseTests
         var result = await useCase.ExecuteAsync(profile.Id, new RequestOwnerExitRequest("Chuyển đổi kinh doanh", NoticeDays: 45));
 
         Assert.Equal(45, result.RemainingDays);
-        Assert.Equal(now.UtcDateTime.AddDays(45), result.ExitEffectiveAtUtc);
+        Assert.Equal(OwnerProfile.AddWorkingDays(now.UtcDateTime, 45), result.ExitEffectiveAtUtc);
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class OwnerExitUseCaseTests
         var now = new DateTimeOffset(2026, 11, 6, 10, 0, 0, TimeSpan.Zero);
         var timeProvider = new TestTimeProvider(now);
         var profile = CreateActiveOwner();
-        profile.RequestExit("Nghỉ", 30, now.UtcDateTime.AddDays(-31)); // Đã quá hạn 30 ngày
+        profile.RequestExit("Nghỉ", 30, now.UtcDateTime.AddDays(-50)); // Đã quá hạn 30 ngày làm việc (~42 ngày lịch)
         var repo = new FakeExitOwnerRepo(profile);
 
         var useCase = new CancelOwnerExitUseCase(repo, timeProvider);
@@ -215,17 +215,41 @@ public class OwnerExitUseCaseTests
         var now = new DateTimeOffset(2026, 11, 6, 10, 0, 0, TimeSpan.Zero);
         var timeProvider = new TestTimeProvider(now);
         var profile = CreateActiveOwner();
-        profile.RequestExit("Nghỉ kinh doanh", 30, now.UtcDateTime.AddDays(-10));
+        var requestedAt = now.UtcDateTime.AddDays(-7);
+        profile.RequestExit("Nghỉ kinh doanh", 30, requestedAt);
         var repo = new FakeExitOwnerRepo(profile);
 
         var useCase = new GetOwnerExitStatusUseCase(repo, timeProvider);
 
         var result = await useCase.ExecuteAsync(profile.Id);
 
+        var expectedRemaining = OwnerProfile.CountRemainingWorkingDays(now.UtcDateTime, profile.ExitEffectiveAtUtc!.Value);
         Assert.Equal("Leaving", result.Status);
-        Assert.Equal(20, result.RemainingDays);
+        Assert.Equal(expectedRemaining, result.RemainingDays);
         Assert.True(result.CanCancel);
         Assert.Equal("Nghỉ kinh doanh", result.ExitReason);
+    }
+
+    [Fact]
+    public async Task RequestExit_WhenOwnerHasDebt_ShouldThrowConflictException()
+    {
+        var now = new DateTimeOffset(2026, 11, 6, 10, 0, 0, TimeSpan.Zero);
+        var timeProvider = new TestTimeProvider(now);
+        var profile = CreateActiveOwner();
+        var repo = new FakeExitOwnerRepo(profile);
+        var fakeDebtChecker = new FakeDebtChecker(new OwnerDebtStatus(HasDebt: true, DebtAmount: 500_000));
+
+        var useCase = new RequestOwnerExitUseCase(repo, timeProvider, fakeDebtChecker);
+
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            useCase.ExecuteAsync(profile.Id, new RequestOwnerExitRequest("Hết hạn hợp đồng")));
+        Assert.Contains("công nợ chưa quyết toán", ex.Message);
+    }
+
+    private sealed class FakeDebtChecker(OwnerDebtStatus status) : IOwnerDebtChecker
+    {
+        public Task<OwnerDebtStatus> CheckDebtAsync(int ownerProfileId, CancellationToken cancellationToken = default)
+            => Task.FromResult(status);
     }
 
     [Fact]

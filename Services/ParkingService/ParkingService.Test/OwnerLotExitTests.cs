@@ -1,8 +1,10 @@
 using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
+using ParkingManagement.SharedKernel.Contracts;
 using ParkingManagement.SharedKernel.Domain;
 using ParkingManagement.SharedKernel.Enums;
 using ParkingService.Application.Abstractions;
+using ParkingService.Application.Features.LotOperations;
 using ParkingService.Application.Features.ParkingLots;
 using ParkingService.Domain.Entities;
 using Xunit;
@@ -124,6 +126,60 @@ public class OwnerLotExitTests
         Assert.Equal(0, result.TotalLotsSuspended);
         Assert.Empty(result.SuspendedLotIds);
         Assert.False(repo.SavedChanges);
+    }
+
+    [Fact]
+    public async Task GetOwnerExitImpact_WithBookingLookup_ShouldIncludeUpcomingAndActiveCounts()
+    {
+        var lot1 = CreateLot(1, 10, "Bãi xe Vincom", ParkingLotStatus.Active, totalSlots: 80, availableSlots: 30);
+        var lot2 = CreateLot(2, 10, "Bãi xe Landmark", ParkingLotStatus.Active, totalSlots: 70, availableSlots: 10);
+        var repo = new FakeLotManagementRepo([lot1, lot2]);
+        var fakeLookup = new FakeLotBookingLookup(
+            counts: new Dictionary<int, (int Active, int Upcoming)>
+            {
+                [1] = (Active: 5, Upcoming: 12),
+                [2] = (Active: 3, Upcoming: 8)
+            });
+
+        var useCase = new GetOwnerExitImpactUseCase(repo, fakeLookup);
+        var result = await useCase.ExecuteAsync(10);
+
+        Assert.Equal(20, result.UpcomingBookingsCount); // 12 + 8
+        Assert.Equal(8, result.ActiveBookingsCount);     // 5 + 3
+    }
+
+    [Fact]
+    public async Task SuspendOwnerLots_WithBookingLookup_ShouldReportTotalAffectedBookings()
+    {
+        var now = new DateTimeOffset(2026, 11, 6, 10, 0, 0, TimeSpan.Zero);
+        var timeProvider = new TestTimeProvider(now);
+
+        var lot1 = CreateLot(1, 10, "Bãi xe Vincom", ParkingLotStatus.Active);
+        var lot2 = CreateLot(2, 10, "Bãi xe Landmark", ParkingLotStatus.Active);
+        var repo = new FakeLotManagementRepo([lot1, lot2]);
+        var fakeLookup = new FakeLotBookingLookup(
+            affected: new Dictionary<int, IReadOnlyList<EmergencyAffectedBooking>>
+            {
+                [1] = [new EmergencyAffectedBooking(101, "BK-01", 1, "Confirmed", now.UtcDateTime, now.UtcDateTime.AddHours(2))],
+                [2] = [new EmergencyAffectedBooking(102, "BK-02", 2, "Confirmed", now.UtcDateTime, now.UtcDateTime.AddHours(3)),
+                       new EmergencyAffectedBooking(103, "BK-03", 3, "Confirmed", now.UtcDateTime, now.UtcDateTime.AddHours(4))]
+            });
+
+        var useCase = new SuspendOwnerLotsUseCase(repo, timeProvider, NullLogger<SuspendOwnerLotsUseCase>.Instance, fakeLookup);
+        var result = await useCase.ExecuteAsync(10);
+
+        Assert.Equal(3, result.TotalAffectedBookings); // 1 + 2
+    }
+
+    private sealed class FakeLotBookingLookup(
+        IReadOnlyDictionary<int, (int Active, int Upcoming)>? counts = null,
+        IReadOnlyDictionary<int, IReadOnlyList<EmergencyAffectedBooking>>? affected = null) : ILotBookingLookup
+    {
+        public Task<IReadOnlyList<EmergencyAffectedBooking>> GetAffectedBookingsAsync(int lotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(affected?.GetValueOrDefault(lotId) ?? []);
+
+        public Task<(int Active, int Upcoming)> GetBookingCountsAsync(int lotId, CancellationToken cancellationToken = default)
+            => Task.FromResult(counts?.GetValueOrDefault(lotId) ?? (0, 0));
     }
 
     private sealed class FakeLotManagementRepo(IEnumerable<ParkingLot> initialLots) : IParkingLotManagementRepository

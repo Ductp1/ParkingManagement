@@ -65,8 +65,10 @@ public class PartnerRegistrationApiTests(AdminApiFixture fixture)
         using var anonymous = fixture.AdminFactory.CreateClient();
         using var applicant = fixture.CreateClientWithRole(ApplicantUserId, "Driver");
 
-        // 1. Chưa đăng nhập không nộp được (401); tài khoản đã đăng nhập nộp → 201 + mã hồ sơ, trạng thái Submitted
-        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf))).StatusCode);
+        // 1. Khách vãng lai (chưa đăng nhập) nộp thành công (201); tài khoản đã đăng nhập nộp → 201 + mã hồ sơ, trạng thái Submitted
+        var anonTax = UniqueTaxCode();
+        var anonSubmit = await anonymous.PostAsync(RegisterUrl, Form(anonTax, $"guest.{anonTax}@baixe.test", Pdf));
+        Assert.Equal(HttpStatusCode.Created, anonSubmit.StatusCode);
         var submit = await applicant.PostAsync(RegisterUrl, Form(taxCode, $"it.{taxCode}@baixe.test", Pdf));
         Assert.Equal(HttpStatusCode.Created, submit.StatusCode);
         var receipt = await submit.Content.ReadFromJsonAsync<JsonElement>();

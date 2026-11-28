@@ -85,6 +85,7 @@ export interface OwnerParkingLotItemDto {
   lastHeartbeatAtUtc?: string | null;
   /** US-068: quá hạn heartbeat → dữ liệu số chỗ trống có thể không chính xác. */
   isDataStale?: boolean;
+  ownerProfileId?: number;
 }
 
 /**
@@ -124,4 +125,5 @@ export interface OwnerLotDetailDto {
   closeTime?: string;
   description?: string | null;
   hotlinePhone?: string | null;
+  ownerProfileId?: number;
 }

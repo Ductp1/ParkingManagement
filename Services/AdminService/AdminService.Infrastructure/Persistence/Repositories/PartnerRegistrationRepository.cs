@@ -20,10 +20,10 @@ public sealed class PartnerRegistrationRepository(AdminDbContext db) : IPartnerR
     private static readonly PartnerApplicationStatus[] Closed =
         [PartnerApplicationStatus.Activated, PartnerApplicationStatus.Rejected, PartnerApplicationStatus.Cancelled];
 
-    public Task<bool> HasOpenApplicationAsync(int applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
+    public Task<bool> HasOpenApplicationAsync(int? applicantUserId, string taxCode, string email, CancellationToken cancellationToken)
         => db.PartnerApplications.AsNoTracking()
             .AnyAsync(a => !Closed.Contains(a.Status)
-                           && (a.ApplicantUserId == applicantUserId || a.TaxCode == taxCode || a.Email.ToLower() == email),
+                           && ((applicantUserId.HasValue && a.ApplicantUserId == applicantUserId.Value) || a.TaxCode == taxCode || a.Email.ToLower() == email),
                 cancellationToken);
 
     public async Task<IReadOnlyList<MyPartnerApplicationDto>> ListByApplicantAsync(int applicantUserId, CancellationToken cancellationToken)
