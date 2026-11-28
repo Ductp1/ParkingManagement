@@ -11,7 +11,7 @@
     <ProjectReference Include="..\UserService.Infrastructure\UserService.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Keys\public.key" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="Keys\private.key" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Keys\public.key" Condition="Exists('Keys\public.key')" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Keys\private.key" Condition="Exists('Keys\private.key')" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
